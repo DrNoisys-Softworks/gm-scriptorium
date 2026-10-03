@@ -6,7 +6,7 @@ const { resolveCampaignContext } = require('./args');
 const { locateVault } = require('../vault/locate');
 const { loadSiteConfig } = require('./check');
 const { runBuildCommand, requireOutputFolder } = require('./build');
-const { startServer: startServerImpl, startLocalListener: startLocalListenerImpl } = require('../serve/server');
+const { startServer: startServerImpl, startLocalListener: startLocalListenerImpl, startPanelListener: startPanelListenerImpl } = require('../serve/server');
 const { runAdminServe } = require('./serve-admin');
 const { EXIT_CODES } = require('../util/exitcodes');
 const { onStopSignal } = require('../util/stop-signals');
@@ -45,13 +45,20 @@ async function runServeCommand(
     runBuild = runBuildCommand,
     signals = process,
     startLocalListener = startLocalListenerImpl,
+    startPanelListener = startPanelListenerImpl,
+    now = Date.now,
+    createToken,
+    identity,
   } = {},
 ) {
   // Phase 8 slice S1: the very first statement, before resolveCampaignContext, so a rejected
   // --admin flag or port never reads config or applies an --out override, and plain serve below
   // is completely untouched when flags.admin is unset (Structural decision 1).
   if (flags.admin) {
-    return runAdminServe(flags, campaignArg, { emit, signals, startLocalListener });
+    const adminOpts = { emit, signals, startLocalListener, startPanelListener, now };
+    if (createToken !== undefined) adminOpts.createToken = createToken;
+    if (identity !== undefined) adminOpts.identity = identity;
+    return runAdminServe(flags, campaignArg, adminOpts);
   }
 
   // Issue #27: with --json every emitted line is one compact JSON object (NDJSON), and the final

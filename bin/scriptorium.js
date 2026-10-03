@@ -17,7 +17,9 @@ Commands:
   init     [--name <name>] [--vault <path>] [--out <path>] [--title <text>] [--theme <name>] [--yes]
   check    [campaign] [--graph] [--json] [--quiet] [--no-color]
   build    [campaign] [--no-check] [--force] [--out <path>] [--json]
-  serve    [campaign] [--build] [--port N] [--host ADDR] | [campaign] --admin [--port N]
+  serve    [campaign] [--build] [--port N] [--host ADDR] | [campaign] --admin [--port N] [--preview-port N]
+  remote   show | set [--mode local|ssh|tailscale|proxy] [--admin-url URL] [--preview-url URL] [--bind ADDR]
+           [--trusted-proxy ADDR,...] [--port N] [--preview-port N] | password | signout-all | off
   status   [campaign] [--json]
   config   list | add <name> --vault <path> [--out <path>] [--site-config <path>] | remove <name> | set-default <name> | path | edit
   update   [--check] [--pre] [--version TAG]
@@ -122,6 +124,13 @@ async function main() {
         const { runConfigCommand } = require('../src/cli/config');
         const [subcommand, ...subArgs] = rest;
         const result = runConfigCommand(flags, subcommand, subArgs);
+        if (result.human) console.log(result.human);
+        return result.exitCode;
+      }
+      case 'remote': {
+        const { runRemoteCommand } = require('../src/cli/remote');
+        const [subcommand, ...subArgs] = rest;
+        const result = await runRemoteCommand(flags, subcommand, subArgs);
         if (result.human) console.log(result.human);
         return result.exitCode;
       }

@@ -99,13 +99,13 @@ test('A1: parseArgv(["serve","--admin","alpha"]) gives flags.admin===true and po
 test('A2: the flag allowlist refuses every disallowed flag with an exact ConfigError, calling neither listener starter nor startServer', async () => {
   await withAdminFixture(async ({ configPath }) => {
     const cases = [
-      { flags: { host: '0.0.0.0' }, message: 'serve --admin only ever listens on 127.0.0.1, so it does not accept --host' },
-      { flags: { host: '127.0.0.1' }, message: 'serve --admin only ever listens on 127.0.0.1, so it does not accept --host' },
-      { flags: { host: true }, message: 'serve --admin only ever listens on 127.0.0.1, so it does not accept --host' },
+      { flags: { host: '0.0.0.0' }, message: 'serve --admin does not accept --host; remote access comes only from saved settings (see "scriptorium remote")' },
+      { flags: { host: '127.0.0.1' }, message: 'serve --admin does not accept --host; remote access comes only from saved settings (see "scriptorium remote")' },
+      { flags: { host: true }, message: 'serve --admin does not accept --host; remote access comes only from saved settings (see "scriptorium remote")' },
       { flags: { build: true }, message: 'serve --admin does not accept --build' },
       { flags: { out: '/x' }, message: 'serve --admin does not accept --out' },
       { flags: { 'site-config': '/x.json' }, message: 'serve --admin does not accept --site-config' },
-      { flags: { 'host=0.0.0.0': true }, message: 'serve --admin only ever listens on 127.0.0.1, so it does not accept --host' },
+      { flags: { 'host=0.0.0.0': true }, message: 'serve --admin does not accept --host; remote access comes only from saved settings (see "scriptorium remote")' },
       { flags: { force: true }, message: 'serve --admin does not accept --force' },
     ];
 

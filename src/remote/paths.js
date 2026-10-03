@@ -92,4 +92,26 @@ function assertNotInsideAnyVault(dir, config) {
   }
 }
 
-module.exports = { remotePaths, assertNotInsideAnyVault };
+/**
+ * The remote-access paths (the folder and each file in it) that already exist and that group or
+ * others can read on POSIX. Read-only: it never changes a mode (a mode is set at creation and
+ * never touched afterwards), it only reports, so the console and the Remote access screen can warn.
+ * On Windows modes mean nothing here, so the answer is always empty (C70 covers the ACLs).
+ *
+ * @param {ReturnType<typeof remotePaths>} paths
+ * @returns {string[]}
+ */
+function findLooseModes(paths) {
+  if (process.platform === 'win32') return [];
+  const loose = [];
+  for (const candidate of [paths.panelDir, paths.passwordFile, paths.sessionsFile, paths.auditFile]) {
+    try {
+      if ((fs.lstatSync(candidate).mode & 0o077) !== 0) loose.push(candidate);
+    } catch {
+      // absent: nothing to warn about
+    }
+  }
+  return loose;
+}
+
+module.exports = { remotePaths, assertNotInsideAnyVault, findLooseModes };

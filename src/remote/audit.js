@@ -188,6 +188,7 @@ function createAuditLog({ file, now = Date.now, isInsideVault } = {}) {
      */
     prune(nowMs) {
       try {
+        guard();
         const text = fs.readFileSync(file, 'utf8');
         const lines = text.split('\n').filter((l) => l.trim() !== '');
         const kept = lines.filter((line) => {

@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { remotePaths, assertNotInsideAnyVault } = require('../src/remote/paths');
+const { remotePaths, assertNotInsideAnyVault, findLooseModes } = require('../src/remote/paths');
 const { ensurePrivateDir, writePrivateFileAtomic, appendPrivateLine } = require('../src/remote/privatefile');
 const { resolveMachineDir } = require('../src/config/machinedir');
 const { ConfigError, ScriptoriumError } = require('../src/util/errors');
@@ -283,4 +283,23 @@ test('appendPrivateLine throws when the log path is a directory (the audit-failu
   const file = path.join(dir, 'panel', 'audit.log');
   fs.mkdirSync(file, { recursive: true });
   assert.throws(() => appendPrivateLine(file, 'x\n'), (err) => err.code === 'EISDIR');
+});
+
+// --- findLooseModes -----------------------------------------------------------
+
+test('findLooseModes reports an existing folder or file that group or others can read, and nothing for tight ones or absent ones', posix, (t) => {
+  const dir = scratch(t);
+  const paths = remotePaths(path.join(dir, 'config.toml'));
+  assert.deepEqual(findLooseModes(paths), [], 'nothing exists yet');
+  fs.mkdirSync(paths.panelDir, { mode: 0o700 });
+  fs.writeFileSync(paths.passwordFile, '{}', { mode: 0o600 });
+  fs.writeFileSync(paths.auditFile, '', { mode: 0o600 });
+  assert.deepEqual(findLooseModes(paths), []);
+  fs.chmodSync(paths.auditFile, 0o644);
+  fs.chmodSync(paths.panelDir, 0o755);
+  assert.deepEqual(findLooseModes(paths), [paths.panelDir, paths.auditFile]);
+  fs.chmodSync(paths.passwordFile, 0o640);
+  assert.deepEqual(findLooseModes(paths), [paths.panelDir, paths.passwordFile, paths.auditFile]);
+  // it only reports: nothing was changed
+  assert.equal(fs.statSync(paths.auditFile).mode & 0o777, 0o644);
 });
