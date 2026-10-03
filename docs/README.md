@@ -49,7 +49,6 @@ the way.
 - [0022. The GM admin panel: `serve --admin`, its request gate, and the vault write exception](decisions/0022-gm-admin-panel.md): A local, GM-only web panel edits a campaign's pack and previews the site.
 - [0023. The built-in `haze` theme](decisions/0023-haze-theme.md): The built-in `haze` theme.
 - [0029. Remote access to the GM admin panel (opt-in)](decisions/0029-remote-access.md): The panel can be used from another device, but only if you turn that on from the command line.
-- [0029. Remote access to the GM admin panel (opt-in)](decisions/0029-remote-access.md)
 - [0030. The public repository becomes the update source](decisions/0030-public-repo-and-update-source.md): `update` reads releases from the public repository.
 - [0031. Privacy guard for the public repository](decisions/0031-public-repo-privacy-guard.md): A guard checks every push, pull request and release for private data.
 - [0032. The gloam base theme](decisions/0032-base-theme.md): A new built-in theme, gloam, is the default for new campaigns.
