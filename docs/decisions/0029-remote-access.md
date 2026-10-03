@@ -569,7 +569,34 @@ no guarantee. New structural tests pin the panel's writer set (section 9), the a
 
 ## 16. Verification
 
-**Linux (V1.5a):** recorded at V1.5a landing. **Linux (V1.5b):** Pending (V1.5b).
+**Linux (V1.5a), recorded at landing.**
+
+- The whole suite passes with no skips (3572 tests). Each security rule has a test that goes red when
+  the rule is broken on purpose: argument swaps, results thrown away, string-prefix siblings, and the
+  direction of a containment test, each recorded as a failing run.
+- Real sockets, not fakes: a peer that is not the trusted proxy (or this machine) receives no bytes at
+  all, including from an address that merely starts with the trusted one (127.0.0.20 against a
+  trusted 127.0.0.2). The test proxy forwards Host and Origin byte for byte, which is what makes the
+  Host and Origin rules testable.
+- A duplicate Host header is not rejected by Node 22's own parser (the request reaches the handler);
+  the gate's rule is what refuses it with 403, and a missing Host is answered 400 by Node itself.
+- The packaged Linux binary signs in through the test proxy, with the password set in decomposed
+  Unicode and typed in composed Unicode, which proves Unicode normalisation works in the packaged
+  build. It also showed that a sign-in cookie could say `Max-Age=86399` on a real clock; the
+  cookie now always says 86400.
+- Chromium and Firefox, through a TLS front with a throwaway certificate trusted only by that one
+  certificate (a pinned public-key hash in Chromium, a pinned certificate override in Firefox),
+  at 1280 and 390 pixels: sign-in, the cookie attributes, a theme save through the review slip,
+  Open preview, the live preview frame inside the panel, the Remote access screen, sign out
+  everywhere, no accessibility violations (axe), zero console errors or content-security-policy
+  violations apart from the deliberate refusals, and no request to any host but the two fronts. The
+  frame hand-off worked in both browsers with no frame-ancestors complaint.
+- Published builds are byte-identical to the parent's with a full proxy-mode `[remote]` table in the
+  config, and an older binary keeps the table on a rewrite and runs local-only.
+- Not verified, and recorded as OPEN: what the real `tailscale serve` does with the Host and
+  X-Forwarded-Proto headers (the test proxy stands in for it).
+
+**Linux (V1.5b):** Pending (V1.5b).
 
 **Windows:** C69 to C74 (V1.5a) and C75 to C80 (V1.5b) in `docs/HANDOVER-WINDOWS.md`, all OPEN
 until a person confirms them on a real Windows machine.

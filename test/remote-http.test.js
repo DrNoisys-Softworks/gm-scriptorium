@@ -1208,3 +1208,47 @@ test('tailscale shape: a peer other than loopback cannot reach the panel (127.0.
   const probe = await rawRequest(env.adminPort, `GET /api/session HTTP/1.1\r\nHost: ${TS_ADMIN_HOST}\r\nX-Forwarded-Proto: https\r\nConnection: close\r\n\r\n`, { localAddress: '127.0.0.2' });
   assert.equal(probe, '');
 });
+
+// =========================================================================================
+// FR-20: no per-request console output
+// =========================================================================================
+
+test('FR-20: a storm of mixed requests (refused, signed-in, wrong passwords, preview hand-offs) prints nothing: not one console line, and the panel emits no line after startup', linuxOnly, async (t) => {
+  const env = await startPanel(t);
+  const startupLines = env.emitted.length;
+  const calls = [];
+  const names = ['log', 'info', 'warn', 'error', 'debug'];
+  const originals = Object.fromEntries(names.map((n) => [n, console[n]]));
+  for (const n of names) console[n] = (...args) => calls.push(`${n}:${args.join(' ').slice(0, 80)}`);
+  t.after(() => {
+    for (const n of names) console[n] = originals[n];
+  });
+  const value = await signedIn(env);
+  const jobs = [];
+  for (let i = 0; i < 20; i++) {
+    jobs.push(adminReq(env, { pathname: '/api/session' })); // 403 session
+    jobs.push(adminReq(env, { pathname: '/api/session', headers: sessionCookie(value) }));
+    jobs.push(request(env.adminProxy.port, { host: 'evil.example', pathname: '/' })); // 403 host
+    jobs.push(adminReq(env, { pathname: '/open-preview', headers: sessionCookie(value) }));
+    jobs.push(previewReq(env, { pathname: '/:enter?ticket=junk' }));
+    jobs.push(adminPost(env, '/api/noop', {}, { origin: 'https://evil.example', headers: sessionCookie(value) })); // 403 origin
+    jobs.push(adminReq(env, { pathname: '/%E0%A4%A' })); // 400 url
+  }
+  for (let i = 0; i < 6; i++) jobs.push(signin(env, `wrong ${i}`));
+  const results = await Promise.all(jobs);
+  assert.ok(results.length >= 140);
+  for (const n of names) console[n] = originals[n];
+  assert.deepEqual(calls, [], 'nothing was printed through console.*');
+  assert.equal(env.emitted.length, startupLines, 'the panel emitted nothing after its startup lines');
+});
+
+test('Ma5 over a real socket: the token URL on the external Host never signs a remote request in, even with a wrong-case Host', linuxOnly, async (t) => {
+  const env = await startPanel(t);
+  for (const host of [ADMIN_HOST, 'SCRIPTORIUM.HOME.ARPA']) {
+    const res = await request(env.adminProxy.port, { host, pathname: `/auth?token=${env.token}` });
+    assert.equal(res.status, 403);
+    assert.equal(res.headers['set-cookie'], undefined);
+  }
+  const follow = await adminReq(env, { pathname: '/api/session' });
+  assert.equal(follow.status, 403);
+});
