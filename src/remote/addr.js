@@ -141,6 +141,22 @@ function normalizePeer(remoteAddress) {
 }
 
 /**
+ * The predicate startPanelListener's allowPeer wants: a socket's remoteAddress is admitted only on
+ * EXACT membership of the (already canonical) list after normalisation, never a prefix match, so
+ * trusting 127.0.0.2 can never admit 127.0.0.20.
+ *
+ * @param {string[]} list canonical addresses
+ * @returns {(remoteAddress: unknown) => boolean}
+ */
+function makePeerPredicate(list) {
+  const allowed = [...list];
+  return (remoteAddress) => {
+    const peer = normalizePeer(remoteAddress);
+    return peer !== null && allowed.includes(peer);
+  };
+}
+
+/**
  * The client address a trusted proxy appended: the RIGHTMOST X-Forwarded-For entry (the leftmost
  * is whatever the client chose to send). Node joins repeated headers with ", ", which this
  * handles the same way. A rightmost entry that is not an IP literal gives null.
@@ -157,4 +173,4 @@ function rightmostForwardedFor(header) {
   return canonicalize(last);
 }
 
-module.exports = { LOOPBACK_PEERS, parseIPv4, parseIPv6, canonicalize, ipBytes, normalizePeer, rightmostForwardedFor };
+module.exports = { LOOPBACK_PEERS, parseIPv4, parseIPv6, canonicalize, ipBytes, normalizePeer, makePeerPredicate, rightmostForwardedFor };

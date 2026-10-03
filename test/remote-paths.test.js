@@ -13,7 +13,7 @@ const { ConfigError, ScriptoriumError } = require('../src/util/errors');
 
 /*
  * V1.5a (SD-a1). Where the panel's secrets live and how they are created. POSIX mode assertions
- * are skipped on Windows (modes mean nothing there; C68's ACL criterion covers it).
+ * are skipped on Windows (modes mean nothing there; C70's ACL criterion covers it).
  */
 
 const posix = { skip: process.platform === 'win32' ? 'POSIX modes only' : false };

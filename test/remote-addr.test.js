@@ -100,6 +100,18 @@ test('a loopback peer is recognised in every spelling the socket may use, and a 
   assert.equal(isLoop('::ffff:127.0.0.2'), false);
 });
 
+test('makePeerPredicate admits exact members only, in any spelling, never a prefix sibling', () => {
+  const allow = addr.makePeerPredicate(['127.0.0.2', '2001:db8::1']);
+  assert.equal(allow('127.0.0.2'), true);
+  assert.equal(allow('::ffff:127.0.0.2'), true);
+  assert.equal(allow('2001:DB8:0:0:0:0:0:1'), true);
+  for (const no of ['127.0.0.20', '127.0.0.200', '127.0.0.3', '127.0.0.1', '', undefined, null, 'garbage', '2001:db8::10']) assert.equal(allow(no), false, String(no));
+  const list = ['127.0.0.2'];
+  const bound = addr.makePeerPredicate(list);
+  list.push('127.0.0.3');
+  assert.equal(bound('127.0.0.3'), false, 'the predicate keeps its own copy of the list');
+});
+
 test('rightmostForwardedFor takes the LAST entry, never the first', () => {
   assert.equal(addr.rightmostForwardedFor('203.0.113.9, 198.51.100.20'), '198.51.100.20');
   assert.equal(addr.rightmostForwardedFor('198.51.100.20'), '198.51.100.20');
