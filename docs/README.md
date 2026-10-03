@@ -7,6 +7,7 @@ the guides written for AI assistants, apart from one pointer to them under Contr
 ## Using
 
 - [Image slots](image-slots.md): which images a theme can show, and the sizes to prepare them at.
+- [Remote access](remote-access.md): using the admin panel from another device, safely, and what is and is not protected.
 
 ## Contributing
 
@@ -47,6 +48,7 @@ the way.
 - [0021. First-run setup: init creates a campaign pack and registers it, and writes nothing else in the vault](decisions/0021-init-first-run-setup.md): `init` is a wizard that sets up and registers a campaign.
 - [0022. The GM admin panel: `serve --admin`, its request gate, and the vault write exception](decisions/0022-gm-admin-panel.md): A local, GM-only web panel edits a campaign's pack and previews the site.
 - [0023. The built-in `haze` theme](decisions/0023-haze-theme.md): The built-in `haze` theme.
+- [0029. Remote access to the GM admin panel (opt-in)](decisions/0029-remote-access.md): The panel can be used from another device, but only if you turn that on from the command line.
 - [0029. Remote access to the GM admin panel (opt-in)](decisions/0029-remote-access.md)
 - [0030. The public repository becomes the update source](decisions/0030-public-repo-and-update-source.md): `update` reads releases from the public repository.
 - [0031. Privacy guard for the public repository](decisions/0031-public-repo-privacy-guard.md): A guard checks every push, pull request and release for private data.

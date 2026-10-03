@@ -9,7 +9,7 @@ const gate = require('../gate');
 const password = require('../../remote/password');
 const lockoutLib = require('../../remote/lockout');
 const settingsLib = require('../../remote/settings');
-const { ADMIN_COOKIE, PREVIEW_COOKIE } = require('../../remote/sessions');
+const { ADMIN_COOKIE, PREVIEW_COOKIE, SESSION_TTL_MS } = require('../../remote/sessions');
 const { browserFamily } = require('../../remote/audit');
 const { findLooseModes } = require('../../remote/paths');
 
@@ -199,8 +199,9 @@ async function passwordSignin(req, res, ctx, { kind, clientAddress }) {
     return;
   }
   auditSafe(ctx, entry('ok'));
-  const maxAge = Math.max(0, Math.floor((created.expires - nowOf(ctx)) / 1000));
-  sendJson(res, 200, '{"ok":true}', { 'Set-Cookie': session.remoteCookieHeader(ADMIN_COOKIE, created.credential, maxAge) });
+  // A new admin session lasts exactly SESSION_TTL_MS, so the cookie says so; the clock having moved a
+  // millisecond between create() and here must not turn it into 86399.
+  sendJson(res, 200, '{"ok":true}', { 'Set-Cookie': session.remoteCookieHeader(ADMIN_COOKIE, created.credential, SESSION_TTL_MS / 1000) });
 }
 
 // --- the preview hand-off ----------------------------------------------------------------

@@ -309,6 +309,14 @@ test('sign-in: 200 {"ok":true} and the exact cookie, parsed attribute by attribu
   assert.ok(!c.attrs.some((a) => /^Domain=/i.test(a)));
 });
 
+test('the sign-in cookie says Max-Age=86400 exactly even when the clock moves between creating the session and answering (a real clock does)', linuxOnly, async (t) => {
+  const clk = { t: Date.UTC(2026, 9, 3), now: () => (clk.t += 3) };
+  const env = await startPanel(t, { clock: clk });
+  const res = await signin(env);
+  assert.equal(res.status, 200);
+  assert.deepEqual(cookieFrom(res, '__Host-scriptorium_session').attrs, ['Path=/', 'Max-Age=86400', 'Secure', 'HttpOnly', 'SameSite=Strict']);
+});
+
 test('a signed-in remote browser: GET / is the panel (200) with frame-src for the PREVIEW origin, and /api/session carries the access object', linuxOnly, async (t) => {
   const env = await startPanel(t);
   const cookie = sessionCookie(await signedIn(env));

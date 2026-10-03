@@ -124,7 +124,16 @@ Opens the local GM admin panel instead: a small web page, on this computer only,
 pack (theme, image slots and vocabulary) and your campaign's tagline, with a live preview of the
 player site inside the panel. The tagline is saved into your vault's `_meta/vault-config.md`, and
 the panel keeps a copy of that file outside the vault before every save. Editing more of
-`_meta/vault-config.md` from the panel is planned.
+`_meta/vault-config.md` from the panel is planned. The panel answers only on this computer unless
+you turn remote access on (next command).
+
+```
+gm-scriptorium remote show
+```
+Opt-in access to the admin panel from another device, for a GM who runs GM-Scriptorium on a home
+server or a VM: behind a reverse proxy, through `tailscale serve`, or through an SSH tunnel. It is
+set up with `remote set`, `remote password`, `remote signout-all` and `remote off`, and the panel
+then needs HTTPS and a password. See [Remote access](docs/remote-access.md).
 
 ```
 gm-scriptorium status my-campaign
@@ -143,7 +152,7 @@ gm-scriptorium update
 Self-updates from the latest release. See [Updating](#updating) below, it needs one extra tool.
 
 That's the full command surface: `init`, `check`, `build`, `serve` (with a `--admin` mode),
-`status`, `config`, `update`. Run `gm-scriptorium --help` for the full flag list on each.
+`status`, `config`, `remote`, `update`. Run `gm-scriptorium --help` for the full flag list on each.
 
 ## How this relates to gm-apprentice
 
@@ -181,8 +190,9 @@ Removing the `gh` dependency is planned for later, but not built yet.
 
 ## Privacy
 
-- **The admin panel only listens on this computer.** `serve --admin` binds `127.0.0.1` and refuses
-  `--host`. Each launch creates a new random token and prints it as a link; after that the token
+- **The admin panel only listens on this computer, unless you turn on remote access.** `serve
+  --admin` binds `127.0.0.1` and refuses `--host`; reaching it from another device is a separate,
+  saved, opt-in setting (see [Remote access](docs/remote-access.md)). Each launch creates a new random token and prints it as a link; after that the token
   lives in a cookie that page scripts can't read. The panel checks every request's Host header, and
   the Origin of every change, before it checks the token.
 - **Font requests depend on the theme and your vault config.** Campaigns set up with `init` use the

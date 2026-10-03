@@ -1,5 +1,17 @@
 # 0029. Remote access to the GM admin panel (opt-in)
 
+## Summary
+
+The admin panel still answers only on the computer it runs on, unless you switch remote access on.
+If you run GM-Scriptorium on another machine, a home server or a VM, you can choose one of three
+ways to reach the panel from your laptop or phone: through a reverse proxy you already run, through
+`tailscale serve`, or through an SSH tunnel. You switch it on from the command line with
+`scriptorium remote`, never with a flag, and the panel checks the whole setting before it opens
+anything. Every network route needs HTTPS and a password, and the panel keeps a list of who signed in
+and when. The password, the sign-in sessions and that list live in a `panel` folder beside your
+config file, readable only by you. A fourth way, with GM-Scriptorium serving its own certificate,
+is decided here but not built yet.
+
 Status: proposed (panel v2, slice V1.5). Written before any code, so both halves of the slice build
 against one record. V1.5a (the modes, the request gate, password sign-in, sessions, the lockout, the
 audit log, the read-only screen and the CLI, all over the existing plain-HTTP listener) lands first.
@@ -64,7 +76,7 @@ additionally designed to resist:
   panel, not who can pretend to be the proxy (ARP or IP spoofing on the segment). Such a peer still
   needs the password or a stolen cookie. There is no client authentication on the hop (section 15).
 - **Other devices on the tailnet.** A tailnet's access rules decide who can reach `tailscale serve`.
-  Nothing in the product or the docs says "only your devices"; the password is the control.
+  Nothing in the product or the docs claims that a tailnet is limited to the GM's own devices; the password is the control.
 - **Local processes forging forwarded headers over loopback** (tailscale mode, and proxy mode when
   loopback is a trusted proxy). They can reach the sign-in page as if proxied, use up the lockout
   and falsify the address in the audit log. They cannot get past the password (section 15).
