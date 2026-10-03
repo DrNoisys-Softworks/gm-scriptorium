@@ -6735,11 +6735,11 @@ body[data-page="signin"] {
   opacity: 0.85;
 }
 
-.a1-pill.err {
+.rm-root .a1-pill.err {
   color: var(--error);
 }
 
-.a1-pill.fill.err {
+.rm-root .a1-pill.fill.err {
   background: var(--wash-pill-err);
 }
 
@@ -6778,20 +6778,6 @@ body[data-page="signin"] {
 .a1-table td.num {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-
-.a1-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 14px;
-}
-
-.a1-bar .grow {
-  flex: 1;
-  min-width: 200px;
-  color: var(--text-muted);
-  font-size: 14px;
 }
 
 .rm-bar {

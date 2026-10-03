@@ -144,7 +144,7 @@ async function refusal(t, remote, message, extra = {}) {
 // --- flags --------------------------------------------------------------------
 
 test('ADMIN_ALLOWED_FLAGS gains exactly preview-port', () => {
-  assert.deepEqual([...ADMIN_ALLOWED_FLAGS], ['admin', 'campaign', 'config', 'vault', 'port', 'preview-port']);
+  assert.deepEqual([...ADMIN_ALLOWED_FLAGS], ['admin', 'campaign', 'config', 'vault', 'port', 'preview-port', 'json']);
 });
 
 test('--host is refused in every form with the new message, before config is read', async (t) => {
