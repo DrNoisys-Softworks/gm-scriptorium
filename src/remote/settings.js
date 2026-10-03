@@ -45,6 +45,11 @@ function validateTrustedProxies(raw) {
   const out = [];
   for (const entry of raw) {
     const canonical = validate.validateIpLiteral(entry);
+    // A wildcard is not a machine: trusting it would trust every peer (a CIDR such as 0.0.0.0/0 is already
+    // refused by validateIpLiteral, which takes bare addresses only). Loopback stays allowed.
+    if (canonical === '0.0.0.0' || canonical === '::') {
+      throw new ConfigError(`remote: trusted_proxies must name real proxy addresses, not the wildcard ${canonical}`);
+    }
     if (!out.includes(canonical)) out.push(canonical);
   }
   return out;

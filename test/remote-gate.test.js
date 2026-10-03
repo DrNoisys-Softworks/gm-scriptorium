@@ -12,6 +12,7 @@ const { gateProfile } = require('../src/remote/settings');
  * on real sockets (test/remote-listener.test.js, test/remote-http.test.js), not here.
  */
 
+const PREVIEW_HOST_NAME = 'preview.scriptorium.home.arpa';
 const ADMIN_PORT = 7400;
 const PREVIEW_PORT = 7401;
 
@@ -359,4 +360,19 @@ test('/assets/ is public on both kinds, and nothing else on the admin listener i
 test('the failure shape is exactly { ok, status, reason }, with no extra keys', () => {
   const { result } = gate(req({ host: 'evil.example' }));
   assert.deepEqual(Object.keys(result).sort(), ['ok', 'reason', 'status']);
+});
+
+test('S1: a colon spelled as %3A or %3a on the preview listener is refused as url (one canonical decision for /:enter), never treated as an unauthenticated /:enter', () => {
+  const pv = (url, authed = false) => gate(req({ host: PREVIEW_HOST_NAME, headers: FWD, url }), { listener: 'preview', authed });
+  for (const url of ['/%3Aenter?ticket=x', '/%3aenter?ticket=x', '/%3Avariant/gloam/a.html', '/%3aenter']) {
+    assert.deepEqual(pv(url).result, { ok: false, status: 400, reason: 'url' }, url);
+    assert.deepEqual(pv(url, true).result, { ok: false, status: 400, reason: 'url' }, url + ' (even authenticated)');
+  }
+  // double-encoded: the decoded path is the literal text %3Aenter, which is no colon path: normal auth applies
+  assert.deepEqual(pv('/%253Aenter?ticket=x').result, { ok: false, status: 403, reason: 'session' });
+  // the literal forms still work
+  const ok = pv('/:enter?ticket=x');
+  assert.equal(ok.result.ok, true);
+  assert.equal(ok.calls.length, 0);
+  assert.equal(pv('/:variant/gloam/a.html', true).result.ok, true);
 });

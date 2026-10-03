@@ -216,11 +216,6 @@ function createAdminHandler(ctx, { routes = ADMIN_ROUTES } = {}) {
   };
 }
 
-/** The preview hand-off lives on a colon-reserved path (ADR 0039): the raw path before "?". */
-function isEnterPath(rawUrl) {
-  return typeof rawUrl === 'string' && rawUrl.split('?')[0] === '/:enter';
-}
-
 /**
  * @param {object} ctx
  * @returns {(req: import('http').IncomingMessage, res: import('http').ServerResponse) => void}
@@ -246,7 +241,7 @@ function createPreviewHandler(ctx) {
         const handlerOpts = { pathname: result.pathname, query: result.query, isHead, kind: result.kind, clientAddress: result.clientAddress };
         // V1.5a: dispatched on the RAW req.url, the way variants.VARIANT_PREFIX is, before the main
         // preview: the gate only lets /:enter through unauthenticated for a remote request.
-        if (isEnterPath(req.url)) {
+        if (gate.isEnterPath(req.url)) {
           await remoteHandlers.previewEnter(req, res, ctx, handlerOpts);
           return;
         }

@@ -74,6 +74,14 @@ function countHostHeaders(rawHeaders) {
   return n;
 }
 
+/**
+ * The preview hand-off path is decided on the RAW request path (before any "?"), here and in the
+ * router's dispatch alike, so the two can never disagree about whether a request is /:enter.
+ */
+function isEnterPath(rawUrl) {
+  return typeof rawUrl === 'string' && rawUrl.split('?')[0] === '/:enter';
+}
+
 function refuse(status, reason) {
   return { ok: false, status, reason };
 }
@@ -125,6 +133,11 @@ function checkRequest(req, { listener, ownPort, isAuthenticated, access = null }
   const pathname = decodePathname(req.url);
   if (pathname === null) return refuse(400, 'url');
 
+  // 4b. One canonical path decision for the colon-reserved namespace (ADR 0039): a preview request
+  // whose DECODED path begins with ":" must have begun with a literal ":" on the wire. An encoded
+  // colon (%3A, %3a) is an ambiguous spelling of /:enter or /:variant/..., refused outright.
+  if (listener === 'preview' && pathname.startsWith('/:') && !String(req.url).startsWith('/:')) return refuse(400, 'url');
+
   // 5. Method, unchanged.
   const allowedMethods = listener === 'admin' ? ['GET', 'HEAD', 'POST'] : ['GET', 'HEAD'];
   if (!allowedMethods.includes(req.method)) return refuse(405, 'method');
@@ -141,17 +154,17 @@ function checkRequest(req, { listener, ownPort, isAuthenticated, access = null }
   // never signs a loopback request in; the preview hand-off exists only for remote requests.
   if (listener === 'admin' && kind === 'remote' && pathname === '/auth') return refuse(403, 'kind');
   if (listener === 'admin' && kind === 'loopback' && pathname === '/auth/password') return refuse(403, 'kind');
-  if (listener === 'preview' && kind === 'loopback' && pathname === '/:enter') return refuse(403, 'kind');
+  if (listener === 'preview' && kind === 'loopback' && isEnterPath(req.url)) return refuse(403, 'kind');
 
   // 8. Auth.
   const skipAuth =
     listener === 'admin'
       ? pathname === '/auth' || pathname === '/auth/password' || pathname.startsWith('/assets/')
-      : pathname === '/:enter';
+      : isEnterPath(req.url);
   if (!skipAuth && !isAuthenticated(req, kind)) return refuse(403, kind === 'remote' ? 'session' : 'token');
 
   const query = new URLSearchParams(req.url.includes('?') ? req.url.slice(req.url.indexOf('?') + 1) : '');
   return { ok: true, pathname, query, kind, clientAddress };
 }
 
-module.exports = { hostAllowed, hostnameFor, checkRequest };
+module.exports = { hostAllowed, hostnameFor, checkRequest, isEnterPath };

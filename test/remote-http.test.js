@@ -1252,3 +1252,32 @@ test('Ma5 over a real socket: the token URL on the external Host never signs a r
   const follow = await adminReq(env, { pathname: '/api/session' });
   assert.equal(follow.status, 403);
 });
+
+test('S1 over a real socket: /%3Aenter, /%3aenter and /%3Avariant/... on the preview Host with no cookie are 400 refused: url; the double-encoded form is just an unauthenticated 403', linuxOnly, async (t) => {
+  const env = await startPanel(t);
+  for (const pathname of ['/%3Aenter?ticket=x', '/%3aenter?ticket=x', '/%3Avariant/gloam/index.html']) {
+    const res = await previewReq(env, { pathname });
+    assert.equal(res.status, 400, pathname);
+    assert.equal(res.text, 'refused: url', pathname);
+  }
+  const dbl = await previewReq(env, { pathname: '/%253Aenter?ticket=x' });
+  assert.equal(dbl.status, 403);
+  assert.equal(dbl.text, 'refused: session');
+});
+
+test('S2: /:enter reuses a preview session only for the SAME admin session: a browser holding admin A\'s preview session entering with admin B\'s ticket gets a NEW session', linuxOnly, async (t) => {
+  const env = await startPanel(t);
+  const a = await signedIn(env);
+  const b = await signedIn(env);
+  const hopA = ticketOf((await adminReq(env, { pathname: '/open-preview', headers: sessionCookie(a) })).headers.location);
+  const enterA = await previewReq(env, { pathname: `/:enter${hopA.search}` });
+  const previewA = cookieFrom(enterA, '__Host-scriptorium_preview').value;
+  const hopB = ticketOf((await adminReq(env, { pathname: '/open-preview', headers: sessionCookie(b) })).headers.location);
+  const enterB = await previewReq(env, { pathname: `/:enter${hopB.search}`, headers: { Cookie: `__Host-scriptorium_preview=${previewA}` } });
+  assert.equal(enterB.status, 303);
+  const fresh = cookieFrom(enterB, '__Host-scriptorium_preview');
+  assert.ok(fresh, 'a new preview session was issued for admin B');
+  assert.notEqual(fresh.value, previewA);
+  const records = JSON.parse(fs.readFileSync(path.join(env.fx.panelDir, 'sessions.json'), 'utf8')).sessions;
+  assert.equal(records.filter((r) => r.kind === 'preview').length, 2);
+});

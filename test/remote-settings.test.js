@@ -408,3 +408,13 @@ test('SD-a1: the config writer keeps the [remote] table, key order and all, on a
   assert.deepEqual(reparsed.remote, config.remote);
   assert.deepEqual(Object.keys(reparsed.remote), ['mode', 'port', 'preview_port', 'trusted_proxies']);
 });
+
+test('S3: a wildcard trusted proxy (0.0.0.0, ::, ::0, a mapped wildcard) is refused at load and at set, with a clear message; loopback stays allowed', () => {
+  for (const bad of ['0.0.0.0', '::', '0:0:0:0:0:0:0:0', '::ffff:0.0.0.0']) {
+    refuses(() => s.parseRemoteTable({ mode: 'proxy', trusted_proxies: [bad] }), `remote: trusted_proxies must name real proxy addresses, not the wildcard ${bad === '::ffff:0.0.0.0' ? '0.0.0.0' : bad === '0:0:0:0:0:0:0:0' ? '::' : bad}`);
+    refuses(() => s.parseRemoteTable({ mode: 'proxy', trusted_proxies: ['198.51.100.20', bad] }), `remote: trusted_proxies must name real proxy addresses, not the wildcard ${bad === '::ffff:0.0.0.0' ? '0.0.0.0' : bad === '0:0:0:0:0:0:0:0' ? '::' : bad}`);
+    assert.throws(() => s.applyRemoteChange({}, { 'trusted-proxy': bad }), ConfigError, bad);
+  }
+  for (const cidr of ['0.0.0.0/0', '::/0', '198.51.100.0/24']) assert.throws(() => s.applyRemoteChange({}, { 'trusted-proxy': cidr }), ConfigError, cidr);
+  assert.deepEqual(s.parseRemoteTable({ mode: 'proxy', trusted_proxies: ['127.0.0.1', '::1'] }).trusted_proxies, ['127.0.0.1', '::1']);
+});

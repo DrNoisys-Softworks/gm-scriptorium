@@ -303,3 +303,24 @@ test('findLooseModes reports an existing folder or file that group or others can
   // it only reports: nothing was changed
   assert.equal(fs.statSync(paths.auditFile).mode & 0o777, 0o644);
 });
+
+// --- amendment A5: the restore route cannot reach the secrets under panel/ ----------------------
+
+test('A5: readBackup can never reach panel/password.json (or anything outside the fixed backup name shape), through any spelling of the id', (t) => {
+  const { readBackup, BackupNotListedError } = require('../src/config/backups');
+  const dir = scratch(t);
+  const vault = path.join(dir, 'vault');
+  fs.mkdirSync(path.join(vault, '_meta'), { recursive: true });
+  const panel = path.join(dir, 'panel');
+  fs.mkdirSync(panel, { mode: 0o700 });
+  fs.writeFileSync(path.join(panel, 'password.json'), '{"hash":"SECRET-HASH-MARKER"}');
+  fs.writeFileSync(path.join(panel, 'sessions.json'), '{}');
+  const ids = ['../panel/password.json', 'panel/password.json', 'password.json', '..\\panel\\password.json', 'password.json\n', '/' + path.join(panel, 'password.json'), path.join(panel, 'password.json'), '../password.json', 'sessions.json', '', undefined, null, {}, ['password.json']];
+  for (const id of ids) {
+    assert.throws(() => readBackup({ machineDir: dir, campaign: 'alpha', vaultPath: vault, id }), (err) => {
+      assert.ok(err instanceof BackupNotListedError, `id ${JSON.stringify(id)} gave ${err && err.constructor.name}`);
+      assert.ok(!String(err.message).includes('SECRET-HASH-MARKER'));
+      return true;
+    }, JSON.stringify(id));
+  }
+});
