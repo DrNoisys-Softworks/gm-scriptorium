@@ -66,3 +66,10 @@ function composePackToml(theme) {
 }
 
 module.exports = { NAME_RE, validateName, validateTheme, validateTitle, validateTagline, composePackToml };
+
+// C2 stubs for the V1.5a remote-access validators (implemented in C3).
+const stubWrong = () => null;
+module.exports.validatePort = stubWrong;
+module.exports.validateIpLiteral = stubWrong;
+module.exports.validateExternalUrl = stubWrong;
+module.exports.validatePanelPassword = stubWrong;

@@ -123,4 +123,9 @@ function startLocalListener(handler, { port }) {
   });
 }
 
-module.exports = { describeListenError, startServer, createServer, startLocalListener };
+/** C2 stub: replaced in C5. */
+function startPanelListener() {
+  throw new Error('not implemented');
+}
+
+module.exports = { describeListenError, startServer, createServer, startLocalListener, startPanelListener };
