@@ -455,7 +455,7 @@ test('with several problems at once only the FIRST (in the documented order) is 
   );
   await refusal(
     t,
-    { ...PROXY, tls: 'generated', trusted_proxies: undefined },
+    (({ trusted_proxies, ...rest }) => ({ ...rest, tls: 'generated' }))(PROXY),
     'remote access (mode proxy) needs a trusted proxy address: run "scriptorium remote set --trusted-proxy ADDR"',
     { password: false },
   );

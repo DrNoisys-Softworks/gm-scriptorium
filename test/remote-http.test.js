@@ -436,7 +436,14 @@ test('single flight: while one password check is running, every concurrent attem
     }
     await new Promise((r) => setTimeout(r, 5));
   }
-  const burst = await Promise.all(Array.from({ length: 9 }, (_, i) => signin(env, `concurrent ${i}`)));
+  // bounded: if single flight were broken these would all queue behind the gated hash and never answer
+  const burstAll = Promise.all(Array.from({ length: 9 }, (_, i) => signin(env, `concurrent ${i}`)));
+  const burst = await Promise.race([burstAll, new Promise((r) => setTimeout(() => r(null), 4000))]);
+  if (burst === null) {
+    release();
+    await burstAll.catch(() => {});
+    assert.fail('concurrent attempts were not refused while a check was running (single flight is broken)');
+  }
   for (const r of burst) {
     assert.equal(r.status, 403);
     assert.equal(r.text, GENERIC);
@@ -651,7 +658,7 @@ test('FR-05 raw sockets: a missing Host and duplicate Host headers (what Node it
   // missing Host, by contrast, is answered 400 by Node itself.
   const dupe = await rawRequest(env.adminPort, `GET /api/session HTTP/1.1\r\nHost: ${ADMIN_HOST}\r\nHost: ${ADMIN_HOST}\r\n${common}`, { localAddress: '127.0.0.2' });
   assert.match(dupe.split('\r\n')[0], /^HTTP\/1\.1 403/, `duplicate Host: ${dupe.split('\r\n')[0]}`);
-  assert.ok(dupe.endsWith('refused: host'), 'refused by the gate, not by the parser');
+  assert.ok(dupe.includes('refused: host'), 'refused by the gate (a chunked text body), not by the parser: ' + JSON.stringify(dupe));
   // a duplicate Host with a GOOD loopback form first is also refused (the gate's rule, on a fake socket-free path, is in remote-gate.test.js)
   const mixed = await rawRequest(env.adminPort, `GET /api/session HTTP/1.1\r\nHost: 127.0.0.1:${env.adminPort}\r\nHost: ${ADMIN_HOST}\r\n${common}`, { localAddress: '127.0.0.2' });
   assert.match(mixed.split('\r\n')[0], /^HTTP\/1\.1 (400|403)/);
