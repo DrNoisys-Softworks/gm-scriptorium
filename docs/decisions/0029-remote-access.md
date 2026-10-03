@@ -130,7 +130,7 @@ permissions, is hand-edited, and is designed to be copied between machines. Inst
 `panel/audit.log`. The generated TLS material lives in a `tls` folder beside it
 (`tls/generated.pem`, Pending (V1.5b)). Both folders are created with mode 0700 and every file in
 them with 0600, at creation, never loosened or tightened afterwards. On Windows they inherit the
-user-profile ACL, which is OPEN until verified (C69). Because the location derives from the resolved
+user-profile ACL, which is OPEN until verified (C70). Because the location derives from the resolved
 config path, `SCRIPTORIUM_CONFIG`/`--config` isolation also isolates the secrets and the log.
 Nothing is ever written there if that folder would be inside a registered vault. A `panel` or `tls`
 folder that is a symbolic link is refused. This supersedes one line of the approved V7 storyboard
@@ -416,7 +416,7 @@ against Caddy's own docs at the time of writing, and never uses a skip-verificat
 - the real TLS socket tests;
 - the packaged Linux binary generating a certificate and serving direct mode and the HTTPS hop;
 - whether any browser refused `Secure` cookies on a click-through origin. If one did, "import the
-  trust certificate" becomes the documented path (C74).
+  trust certificate" becomes the documented path (C75).
 
 ## 11. What this supersedes, for the opt-in only
 
@@ -540,7 +540,7 @@ no guarantee. New structural tests pin the panel's writer set (section 9), the a
   answers faster than a checked one. The pause is not a secret: the sign-in page states the rule.
 - A new remote sign-in after `remote off` on a still-running panel is refused (the password is
   cleared). Its network listeners close only at the next restart.
-- Windows ACLs on `panel` and `tls` inherit the profile folder (OPEN, C69, C77). A config placed
+- Windows ACLs on `panel` and `tls` inherit the profile folder (OPEN, C70, C78). A config placed
   outside the profile gets that folder's ACL.
 - A `%APPDATA%` roaming profile, and any backup of the config folder, carry the password hash, the
   session digests and (V1.5b) the server key.
@@ -559,7 +559,7 @@ no guarantee. New structural tests pin the panel's writer set (section 9), the a
 
 **Linux (V1.5a):** recorded at V1.5a landing. **Linux (V1.5b):** Pending (V1.5b).
 
-**Windows:** C68 to C73 (V1.5a) and C74 to C79 (V1.5b) in `docs/HANDOVER-WINDOWS.md`, all OPEN
+**Windows:** C69 to C74 (V1.5a) and C75 to C80 (V1.5b) in `docs/HANDOVER-WINDOWS.md`, all OPEN
 until a person confirms them on a real Windows machine.
 
 **Owner acceptance (owner decision):** run by the owner from the owner's desktop against the
