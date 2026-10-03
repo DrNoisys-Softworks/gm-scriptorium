@@ -379,3 +379,32 @@ test('applyRemoteChange refuses bad values with the validators\' own messages, a
   assert.throws(() => s.applyRemoteChange({}, { 'trusted-proxy': '198.51.100.20,nope' }), ConfigError);
   assert.throws(() => s.applyRemoteChange({}, { bind: 'example.test' }), ConfigError);
 });
+
+// --- config.toml integration ---------------------------------------------------
+
+test('SD-a1: a [remote] table is a recognised top-level key (no warning), preserved by parseConfig', () => {
+  const { parseConfig } = require('../src/config/load');
+  const { config, warnings } = parseConfig('config_version = 1\n\n[remote]\nmode = "ssh"\nport = 7400\n');
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(config.remote, { mode: 'ssh', port: 7400 });
+  const { TOP_LEVEL_KEYS } = require('../src/config/schema');
+  assert.ok(TOP_LEVEL_KEYS.includes('remote'));
+});
+
+test('SD-a1: an unknown top-level key still warns (the new word did not turn the check off)', () => {
+  const { parseConfig } = require('../src/config/load');
+  const { warnings } = parseConfig('config_version = 1\n\n[remot]\nmode = "ssh"\n');
+  assert.deepEqual(warnings, ['unrecognised top-level key "remot" (preserved, not applied)']);
+});
+
+test('SD-a1: the config writer keeps the [remote] table, key order and all, on a rewrite', () => {
+  const { serializeConfig, addCampaign } = require('../src/config/write');
+  const { parseConfig } = require('../src/config/load');
+  const text = 'config_version = 1\n\n[remote]\nmode = "proxy"\nport = 7400\npreview_port = 7401\ntrusted_proxies = [ "198.51.100.20" ]\n';
+  const { config } = parseConfig(text);
+  const next = addCampaign(config, 'alpha', { vault: '/tmp/v' });
+  const out = serializeConfig(next);
+  const reparsed = parseConfig(out).config;
+  assert.deepEqual(reparsed.remote, config.remote);
+  assert.deepEqual(Object.keys(reparsed.remote), ['mode', 'port', 'preview_port', 'trusted_proxies']);
+});
