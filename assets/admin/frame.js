@@ -16,7 +16,7 @@
 
   // The four existing [data-section] elements move whole into their home screen's mount
   // (shared design 1.4). Nothing else about them changes: same requests, payloads, text.
-  var SECTION_TO_SCREEN = { views: 'overview', pack: 'theme', vocab: 'vocab', images: 'images' };
+  var SECTION_TO_SCREEN = { views: 'overview', pack: 'theme', vocab: 'vocab', images: 'images', remote: 'remote' };
   var SHEET_ID = 'admin-nav-sheet';
 
   var mounts = {};
@@ -239,26 +239,46 @@
     var footer = el('footer');
     footer.className = 'a1-sidefoot';
 
+    // V1.5a (FR-15): how the panel can ACTUALLY be reached comes from the server
+    // (session.access.reach). Local mode's line is the unchanged "Bound to 127.0.0.1 only", built
+    // exactly as before; any other mode shows the server's sentence as plain text.
+    var access = session && session.access;
+    var reach = access && typeof access.reach === 'string' ? access.reach : 'Bound to 127.0.0.1 only';
     var boundLine = el('span');
     boundLine.appendChild(icon('lock'));
-    var boundLabel = el('span');
-    setText(boundLabel, ' Bound to ');
-    boundLine.appendChild(boundLabel);
-    var boundCode = el('code');
-    setText(boundCode, '127.0.0.1');
-    boundLine.appendChild(boundCode);
-    var boundSuffix = el('span');
-    setText(boundSuffix, ' only');
-    boundLine.appendChild(boundSuffix);
+    if (reach === 'Bound to 127.0.0.1 only') {
+      var boundLabel = el('span');
+      setText(boundLabel, ' Bound to ');
+      boundLine.appendChild(boundLabel);
+      var boundCode = el('code');
+      setText(boundCode, '127.0.0.1');
+      boundLine.appendChild(boundCode);
+      var boundSuffix = el('span');
+      setText(boundSuffix, ' only');
+      boundLine.appendChild(boundSuffix);
+    } else {
+      var reachText = el('span');
+      setText(reachText, ' ' + reach);
+      boundLine.appendChild(reachText);
+    }
     footer.appendChild(boundLine);
 
     var previewLine = el('span');
-    var previewLabel = el('span');
-    setText(previewLabel, 'Preview on ');
-    previewLine.appendChild(previewLabel);
-    var previewCode = el('code');
-    setText(previewCode, ':' + (session && session.previewPort));
-    previewLine.appendChild(previewCode);
+    if (access && access.via === 'remote' && typeof access.previewUrl === 'string') {
+      var remoteLabel = el('span');
+      setText(remoteLabel, 'Preview at ');
+      previewLine.appendChild(remoteLabel);
+      var remoteCode = el('code');
+      setText(remoteCode, access.previewUrl);
+      previewLine.appendChild(remoteCode);
+    } else {
+      var previewLabel = el('span');
+      setText(previewLabel, 'Preview on ');
+      previewLine.appendChild(previewLabel);
+      var previewCode = el('code');
+      setText(previewCode, ':' + (session && session.previewPort));
+      previewLine.appendChild(previewCode);
+    }
     var previewSuffix = el('span');
     setText(previewSuffix, ', with a GM link back here');
     previewLine.appendChild(previewSuffix);

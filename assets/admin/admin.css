@@ -6552,3 +6552,183 @@ dialog.im-picker::backdrop {
     width: 100%;
   }
 }
+
+/* ---- V1.5a: the sign-in page and Setup > Remote access (docs/decisions/0029-remote-access.md) ---- */
+
+.signin-form {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1.5rem auto;
+  max-width: 22rem;
+  text-align: left;
+}
+
+.signin-form label {
+  color: var(--text-muted);
+}
+
+.signin-form input {
+  min-height: var(--tap-min);
+  padding: 0 0.75rem;
+  color: var(--text);
+  background: var(--surface-input);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius);
+  font: inherit;
+}
+
+.signin-form button {
+  min-height: var(--tap-min);
+  color: var(--on-accent);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.signin-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.signin-status {
+  min-height: 1.5em;
+  margin: 0;
+  color: var(--error);
+}
+
+.rm-root {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 62rem;
+}
+
+.rm-modename {
+  margin: 0.25rem 0;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+}
+
+.rm-addrs {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.25rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.rm-addrs dt {
+  color: var(--text-muted);
+}
+
+.rm-addrs dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.rm-health {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rm-hl {
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--ok);
+}
+
+.rm-hl.bad {
+  border-left-color: var(--error);
+}
+
+.rm-tw {
+  overflow-x: auto;
+}
+
+.rm-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.rm-table th,
+.rm-table td {
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--line-row);
+}
+
+.rm-table th {
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
+.rm-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.rm-pill {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--line-crease);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+
+.rm-pill.ok {
+  color: var(--ok);
+}
+
+.rm-pill.err {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.rm-pill.warn {
+  color: var(--pending);
+}
+
+.rm-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: var(--tap-min);
+}
+
+.rm-cmds {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+}
+
+.rm-cmds dt {
+  margin-top: 0.5rem;
+  color: var(--text-muted);
+}
+
+.rm-cmd {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line-edge);
+  border-radius: var(--radius);
+}
+
+.rm-note,
+.rm-status {
+  color: var(--text-muted);
+}
+
+.rm-status {
+  min-height: 1.5em;
+  margin: 0;
+}

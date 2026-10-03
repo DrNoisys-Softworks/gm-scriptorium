@@ -79,6 +79,9 @@ const FIRST_PARTY_SITE_ASSETS = [
   'assets/admin/nav.js',
   'assets/admin/outcome.js',
   'assets/admin/pack.js',
+  'assets/admin/remote.js',
+  'assets/admin/signin.html',
+  'assets/admin/signin.js',
   'assets/admin/sitepane.js',
   'assets/admin/slip.js',
   'assets/admin/store.js',
@@ -90,7 +93,7 @@ const FIRST_PARTY_SITE_ASSETS = [
 ];
 
 /**
- * The 72 files @yao-pkg/pkg's config-asset walker (walker.js:410-451)
+ * The 75 files @yao-pkg/pkg's config-asset walker (walker.js:410-451)
  * should embed for this project's package.json `pkg.assets` globs (61 at
  * this file's own prior baseline, +8 for the gloam theme's full set
  * including C3's theme.json/theme.css/NOTICE.txt, +1 for V1e-3's

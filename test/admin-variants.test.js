@@ -373,8 +373,11 @@ test('the theme round over HTTP: plain/haze/gloam each 200 exitCode 0, the right
 
     // The config.toml's `output` directory's own PARENT listing is unchanged: scratch root holds
     // only vocab-vault and config.toml (never a new sibling directory from a variant build).
+    // V1.5a (ADR 0029, FR-13): the audit log is written in local mode too, so the one new entry is the
+    // panel/ folder beside the config, holding nothing but audit.log.
     const rootListing = fs.readdirSync(path.dirname(configPath)).sort();
-    assert.deepEqual(rootListing, ['config.toml', 'vocab-vault']);
+    assert.deepEqual(rootListing, ['config.toml', 'panel', 'vocab-vault']);
+    assert.deepEqual(fs.readdirSync(path.join(path.dirname(configPath), 'panel')), ['audit.log']);
 
     assert.deepEqual(vaultManifest(vaultPath), manifestBefore);
     assert.ok(stateBody.variants.items.every((it) => !['plain', 'haze', 'gloam'].includes(it.id) || it.built === true));
