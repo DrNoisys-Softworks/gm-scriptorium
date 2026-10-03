@@ -23,7 +23,7 @@ const pwWrite = require('../src/remote/passwordwrite');
 const { createSessionStore } = require('../src/remote/sessions');
 
 /*
- * V1.5a (SD-a13). `scriptorium remote`: set / show / password / signout-all / off, readSecret, and
+ * V1.5a (SD-a13). `gm-scriptorium remote`: set / show / password / signout-all / off, readSecret, and
  * the CLI-driven sign-out-all against a RUNNING panel (fixed ports 7928-7929). Passwords here are
  * test fixtures only.
  */
@@ -109,8 +109,8 @@ function spawnBin(args, { input, env = {} } = {}) {
 
 test('an unknown or missing subcommand is a usage error', async (t) => {
   const fx = fixture(t);
-  await refuses(runRemoteCommand({ config: fx.configPath }, undefined, []), 'usage: scriptorium remote show | set | password | signout-all | off');
-  await refuses(runRemoteCommand({ config: fx.configPath }, 'bogus', []), 'usage: scriptorium remote show | set | password | signout-all | off');
+  await refuses(runRemoteCommand({ config: fx.configPath }, undefined, []), 'usage: gm-scriptorium remote show | set | password | signout-all | off');
+  await refuses(runRemoteCommand({ config: fx.configPath }, 'bogus', []), 'usage: gm-scriptorium remote show | set | password | signout-all | off');
 });
 
 test('each subcommand has a flag allowlist (config is always allowed), and takes no positional arguments', async (t) => {
@@ -149,7 +149,7 @@ test('show for a proxy configuration lists only what applies, and says what is m
       'https: by your proxy (the hop to GM-Scriptorium is plain HTTP)',
       'password: not set',
       'remote sessions: 0 signed in',
-      'not ready: remote access (mode proxy) needs a password: run "scriptorium remote password"',
+      'not ready: remote access (mode proxy) needs a password: run "gm-scriptorium remote password"',
       `files: ${fx.panelDir}`,
     ].join('\n'),
   );
@@ -164,7 +164,7 @@ test('show: with a password and sessions it says "set <date>", counts sessions a
   const a = store.create('admin');
   store.create('admin');
   const r = await run(fx, 'show');
-  assert.match(r.human, /^password: set 2026-10-01T12:00:00\.000Z$/m);
+  assert.match(r.human, /^password: set 2026-10-01 12:00 UTC$/m);
   assert.match(r.human, /^remote sessions: 2 signed in$/m);
   assert.match(r.human, /^ready: yes$/m);
   for (const secret of [record.hash, record.salt, a.id, a.credential, PASSWORD]) assert.ok(!r.human.includes(secret), 'show leaked a secret');
@@ -321,7 +321,7 @@ test('password: an unreadable existing record is refused with a way out, not ove
   fs.writeFileSync(pwFile(fx), '{broken', { mode: 0o600 });
   await assert.rejects(run(fx, 'password', {}, [], [PASSWORD]), (err) => {
     assert.ok(err instanceof ConfigError);
-    assert.match(err.message, /^the panel password file cannot be used \(.*\); run "scriptorium remote off" and set a new password$/);
+    assert.match(err.message, /^the panel password file cannot be used \(.*\); run "gm-scriptorium remote off" and set a new password$/);
     return true;
   });
 });
@@ -585,4 +585,33 @@ test('Ma11: `remote signout-all` run as a separate process revokes a RUNNING pan
   assert.equal(stale.status, 403);
   const fresh = await panelRequest(7928, { method: 'POST', pathname: '/auth/password', host, headers: { Origin: `https://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ password: NEW_PASSWORD }) });
   assert.equal(fresh.status, 200);
+});
+
+test('U4: switching the mode drops the old admin and preview addresses unless the same command gives new ones; other keys are kept', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  const r = await run(fx, 'set', { mode: 'tailscale' });
+  assert.match(r.human, /^admin address: not set$/m);
+  const remote = parseConfig(fs.readFileSync(fx.configPath, 'utf8')).config.remote;
+  assert.equal(remote.mode, 'tailscale');
+  assert.equal(remote.admin_url, undefined);
+  assert.equal(remote.preview_url, undefined);
+  assert.equal(remote.bind, '192.0.2.42');
+  assert.deepEqual(remote.trusted_proxies, ['198.51.100.20']);
+  const again = await run(fx, 'set', { mode: 'proxy', 'admin-url': 'https://scriptorium.home.arpa' });
+  const after = parseConfig(fs.readFileSync(fx.configPath, 'utf8')).config.remote;
+  assert.equal(after.admin_url, 'https://scriptorium.home.arpa');
+  assert.equal(after.preview_url, undefined);
+  assert.ok(again.human.length > 0);
+});
+
+test('U4: remote <sub> --help prints that subcommand\'s help (and exits 0); remote --help lists them all', async () => {
+  for (const sub of ['show', 'set', 'password', 'signout-all', 'off']) {
+    const res = await spawnBin(['remote', sub, '--help']);
+    assert.equal(res.code, 0, sub);
+    assert.ok(res.stdout.startsWith(`gm-scriptorium remote ${sub}`), `${sub}: ${res.stdout.slice(0, 60)}`);
+    assert.ok(!res.stdout.includes('Commands:'), 'not the global help');
+  }
+  const all = await spawnBin(['remote', '--help']);
+  assert.equal(all.code, 0);
+  for (const sub of ['show', 'set', 'password', 'signout-all', 'off']) assert.ok(all.stdout.includes(`gm-scriptorium remote ${sub}`));
 });

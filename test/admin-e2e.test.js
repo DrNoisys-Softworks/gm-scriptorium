@@ -142,7 +142,7 @@ test('e2e: --host with --admin exits 1, one stderr line, empty stdout', { skip }
     assert.equal(result.stdout, '');
     const stderrLines = result.stderr.split('\n').filter(Boolean);
     assert.equal(stderrLines.length, 1);
-    assert.equal(stderrLines[0], 'serve --admin does not accept --host; remote access comes only from saved settings (see "scriptorium remote")');
+    assert.equal(stderrLines[0], 'serve --admin does not accept --host; remote access comes only from saved settings (see "gm-scriptorium remote")');
   });
 });
 

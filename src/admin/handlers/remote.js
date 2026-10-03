@@ -36,6 +36,22 @@ const LOGIN_BODY_CAP = 1024;
 const JSON_TYPE = 'application/json; charset=utf-8';
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
+/*
+ * A refusal that did NOT hash (paused, another check running, no password set, the log unwritable)
+ * waits about as long as a real check just took, so response time does not reveal which of the two
+ * happened. It waits, it does not hash: a paused attempt still costs no CPU (NFR-06, Ma16).
+ * `timing.sleep` is a property of an exported object so a test can observe or replace it.
+ */
+const DEFAULT_HASH_MS = 300;
+const MAX_REFUSAL_DELAY_MS = 2000;
+const timing = { sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) };
+
+async function refuseSlowly(ctx, res) {
+  const ms = Math.min(MAX_REFUSAL_DELAY_MS, ctx.lastHashMs || DEFAULT_HASH_MS);
+  await timing.sleep(ms);
+  sendJson(res, 403, GENERIC_BODY);
+}
+
 function nowOf(ctx) {
   return (ctx.clock || Date.now)();
 }
@@ -150,33 +166,35 @@ async function passwordSignin(req, res, ctx, { kind, clientAddress }) {
   const gateResult = lockoutGate(ctx, t);
   if (!gateResult.allowed) {
     if (ctx.lockout.refused === 1) auditSafe(ctx, entry('refused'));
-    sendJson(res, 403, GENERIC_BODY);
+    await refuseSlowly(ctx, res);
     return;
   }
   if (ctx.signinBusy) {
     if (lockoutLib.countRefusal(ctx.lockout) === 1) auditSafe(ctx, entry('refused'));
-    sendJson(res, 403, GENERIC_BODY);
+    await refuseSlowly(ctx, res);
     return;
   }
 
   const record = require('../../remote/password').readPasswordRecord(ctx.remote.paths.passwordFile);
   if (record.state !== 'set') {
     auditSafe(ctx, entry('error'));
-    sendJson(res, 403, GENERIC_BODY);
+    await refuseSlowly(ctx, res);
     return;
   }
   // A sign-in that could not be recorded is not accepted.
   if (!ctx.audit || !ctx.audit.writable()) {
-    sendJson(res, 403, GENERIC_BODY);
+    await refuseSlowly(ctx, res);
     return;
   }
 
   ctx.signinBusy = true;
   let ok;
+  const hashStarted = process.hrtime.bigint();
   try {
     ok = await password.verifyPassword(parsed.password, record.record);
   } finally {
     ctx.signinBusy = false;
+    ctx.lastHashMs = Number((process.hrtime.bigint() - hashStarted) / 1000000n);
   }
 
   if (!ok) {
@@ -374,6 +392,7 @@ module.exports = {
   GENERIC_BODY,
   AUDIT_REFUSAL_BODY,
   validatePreviewTarget,
+  timing,
   passwordSignin,
   openPreview,
   apiRemote,

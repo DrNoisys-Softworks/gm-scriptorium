@@ -148,4 +148,11 @@
   --vc3-priv-border: rgba(227, 134, 114, 0.45);
   --vc3-live-wash: rgba(124, 42, 24, 0.14);
   --vc3-bad-decor: rgba(227, 134, 114, 0.6);
+  /* V1.5a: the approved r2-installer mock's Remote access scene (ra-mode, ac-sum, a1-health, error pill):
+     literals the mock wrote inline that no earlier token carries. */
+  --line-sum: rgba(166, 196, 143, 0.35);
+  --wash-sum: rgba(166, 196, 143, 0.06);
+  --glow-warn: rgba(220, 157, 136, 0.18);
+  --glow-bad: rgba(227, 134, 114, 0.2);
+  --wash-pill-err: rgba(227, 134, 114, 0.12);
 }

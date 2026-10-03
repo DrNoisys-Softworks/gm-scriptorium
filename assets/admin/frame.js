@@ -260,6 +260,9 @@
       var reachText = el('span');
       setText(reachText, ' ' + reach);
       boundLine.appendChild(reachText);
+      // long external addresses: one line, an ellipsis at the sidebar edge, the whole text on hover
+      boundLine.className = 'sf-ell';
+      boundLine.title = reach;
     }
     footer.appendChild(boundLine);
 
@@ -271,6 +274,8 @@
       var remoteCode = el('code');
       setText(remoteCode, access.previewUrl);
       previewLine.appendChild(remoteCode);
+      previewLine.className = 'sf-ell';
+      previewLine.title = 'Preview at ' + access.previewUrl + ', with a GM link back here';
     } else {
       var previewLabel = el('span');
       setText(previewLabel, 'Preview on ');

@@ -14,7 +14,7 @@ const { createSessionStore } = require('../remote/sessions');
 const { createAuditLog } = require('../remote/audit');
 
 /*
- * V1.5a (docs/decisions/0029-remote-access.md section 9; SD-doc section 13): `scriptorium remote
+ * V1.5a (docs/decisions/0029-remote-access.md section 9; SD-doc section 13): `gm-scriptorium remote
  * show | set | password | signout-all | off`. Every remote-access change is made here, and it all
  * works over SSH on a machine with no screen. This is the ONLY module that writes the password and
  * the remote settings; the panel's own module graph never reaches it (test/remote-structure.test.js).
@@ -64,6 +64,11 @@ function auditCli(paths, now, entry) {
   }
 }
 
+/** 2026-10-01T12:00:00.000Z -> "2026-10-01 12:00 UTC" (minutes are plenty for "when was it set"). */
+function humanDate(iso) {
+  return typeof iso === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(iso) ? `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC` : String(iso);
+}
+
 function httpsLine(settings) {
   switch (settings.mode) {
     case 'ssh':
@@ -98,7 +103,7 @@ function summary(settings, paths, now) {
   if (settings.mode === 'proxy') lines.push(`trusted proxy: ${(settings.trusted_proxies || []).join(', ') || 'not set'}`);
   lines.push(httpsLine(settings));
   const pwd = readPasswordRecord(paths.passwordFile);
-  lines.push(`password: ${pwd.state === 'set' ? `set ${pwd.record.setAt}` : 'not set'}`);
+  lines.push(`password: ${pwd.state === 'set' ? `set ${humanDate(pwd.record.setAt)}` : 'not set'}`);
   lines.push(`remote sessions: ${sessionsOf(paths, now).activeCount()} signed in`);
   const problems = settingsLib.readiness(settings, { password: pwd.state, tlsSupported: false });
   lines.push(problems.length === 0 ? 'ready: yes' : `not ready: ${problems[0]}`);
@@ -109,7 +114,7 @@ function summary(settings, paths, now) {
 async function readNewPassword(reader, paths, config, now) {
   const state = readPasswordRecord(paths.passwordFile);
   if (state.state === 'invalid') {
-    throw new ConfigError(`the panel password file cannot be used (${state.message}); run "scriptorium remote off" and set a new password`);
+    throw new ConfigError(`the panel password file cannot be used (${state.message}); run "gm-scriptorium remote off" and set a new password`);
   }
   if (state.state === 'set') {
     const current = await reader.read('Current panel password: ');
@@ -138,7 +143,7 @@ async function readNewPassword(reader, paths, config, now) {
  */
 async function runRemoteCommand(flags, subcommand, args = [], { stdin = process.stdin, stdout = process.stdout, now = Date.now } = {}) {
   if (!SUBCOMMANDS.includes(subcommand)) {
-    throw new ConfigError(`usage: scriptorium remote ${SUBCOMMANDS.join(' | ')}`);
+    throw new ConfigError(`usage: gm-scriptorium remote ${SUBCOMMANDS.join(' | ')}`);
   }
   checkFlags(subcommand, flags, args);
   const { configPath, config, settings, paths } = loadSettings(flags);
@@ -201,4 +206,27 @@ async function runRemoteCommand(flags, subcommand, args = [], { stdin = process.
   }
 }
 
-module.exports = { runRemoteCommand, MODE_LABEL };
+const HELP = {
+  show: 'gm-scriptorium remote show [--config PATH]\n  Prints the remote-access settings for this machine: the mode, the addresses, where it listens,\n  whether a password is set and whether it is ready to start. Never prints a secret.',
+  set:
+    'gm-scriptorium remote set [--mode local|ssh|tailscale|proxy] [--admin-url URL] [--preview-url URL] [--bind ADDR]\n' +
+    '                          [--trusted-proxy ADDR,...] [--port N] [--preview-port N] [--config PATH]\n' +
+    '  Saves remote-access settings (https addresses only; every value is checked before anything is written).\n' +
+    '  Changing --mode drops the old admin and preview addresses unless you give new ones. Takes effect the\n' +
+    '  next time "serve --admin" starts.',
+  password:
+    'gm-scriptorium remote password [--config PATH]\n' +
+    '  Sets or changes the panel password (at least 12 characters), asking with nothing echoed, or reading\n' +
+    '  lines from standard input when there is no terminal (current password first, when one is set).\n' +
+    '  Never accepted as an argument or from the environment. Signs every remote device out.',
+  'signout-all': 'gm-scriptorium remote signout-all [--config PATH]\n  Signs every remote device out at once. A running panel notices straight away.',
+  off: 'gm-scriptorium remote off [--config PATH]\n  Returns the mode to local, signs every device out and clears the password.',
+};
+
+/** @param {string} [sub] @returns {string} the help for one subcommand, or for all of them */
+function remoteHelp(sub) {
+  if (typeof sub === 'string' && Object.prototype.hasOwnProperty.call(HELP, sub)) return HELP[sub];
+  return `gm-scriptorium remote <command>\n\n${SUBCOMMANDS.map((s) => HELP[s]).join('\n\n')}`;
+}
+
+module.exports = { runRemoteCommand, remoteHelp, MODE_LABEL };

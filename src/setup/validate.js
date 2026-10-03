@@ -68,7 +68,7 @@ function composePackToml(theme) {
 
 /*
  * V1.5a (docs/decisions/0029-remote-access.md; SD-doc sections 1, 6 and 16): the validators the
- * remote-access settings and the `scriptorium remote` command share, here so V7's browser setup
+ * remote-access settings and the `gm-scriptorium remote` command share, here so V7's browser setup
  * can call the same functions. Pure: no network builtin (src/remote/addr.js does the address
  * handling by hand), and every refusal is a one-line ConfigError.
  */

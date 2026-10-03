@@ -45,7 +45,7 @@ function checkAllowlist(flags) {
   for (const key of Object.keys(flags)) {
     if (ADMIN_ALLOWED_FLAGS.includes(key)) continue;
     if (key === 'host' || key.startsWith('host=')) {
-      throw new ConfigError('serve --admin does not accept --host; remote access comes only from saved settings (see "scriptorium remote")');
+      throw new ConfigError('serve --admin does not accept --host; remote access comes only from saved settings (see "gm-scriptorium remote")');
     }
     throw new ConfigError(`serve --admin does not accept --${key}`);
   }

@@ -58,7 +58,7 @@ gm-scriptorium remote show
 `set` checks every value as you give it (an address that is not `https://` is refused with "remote
 access needs HTTPS", a port outside 1 to 65535 is refused, and so on) and writes nothing if any of
 them is wrong. `show` lists what applies to the current mode and whether it is ready to start, and
-never prints a secret. Changes take effect the next time `serve --admin` starts.
+never prints a secret. Changes take effect the next time `serve --admin` starts. Changing `--mode` drops the old admin and preview addresses (a proxy's names mean nothing to a tailnet) unless the same command gives new ones; the other settings are kept. Each subcommand has its own help: `gm-scriptorium remote set --help`.
 
 `password` asks for the new password with nothing echoed (and, if one is already set, the current
 one first). It is read only from the terminal or, when there is no terminal, from standard input,

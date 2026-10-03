@@ -127,12 +127,12 @@ test('local and a complete ssh need nothing; a complete tailscale and proxy need
 });
 
 test('readiness messages, in the exact order of SD-doc section 14 step 6', () => {
-  const ports = 'remote access (mode proxy) needs fixed ports: run "scriptorium remote set --port N --preview-port N"';
-  const admin = 'remote access (mode proxy) needs an admin address: run "scriptorium remote set --admin-url https://..."';
-  const preview = 'remote access (mode proxy) needs a preview address: run "scriptorium remote set --preview-url https://..."';
-  const bind = 'remote access (mode proxy) needs a bind address: run "scriptorium remote set --bind ADDR"';
-  const proxy = 'remote access (mode proxy) needs a trusted proxy address: run "scriptorium remote set --trusted-proxy ADDR"';
-  const pw = 'remote access (mode proxy) needs a password: run "scriptorium remote password"';
+  const ports = 'remote access (mode proxy) needs fixed ports: run "gm-scriptorium remote set --port N --preview-port N"';
+  const admin = 'remote access (mode proxy) needs an admin address: run "gm-scriptorium remote set --admin-url https://..."';
+  const preview = 'remote access (mode proxy) needs a preview address: run "gm-scriptorium remote set --preview-url https://..."';
+  const bind = 'remote access (mode proxy) needs a bind address: run "gm-scriptorium remote set --bind ADDR"';
+  const proxy = 'remote access (mode proxy) needs a trusted proxy address: run "gm-scriptorium remote set --trusted-proxy ADDR"';
+  const pw = 'remote access (mode proxy) needs a password: run "gm-scriptorium remote password"';
   assert.deepEqual(s.readiness({ mode: 'proxy' }, { password: 'unset' }), [ports, admin, preview, bind, proxy, pw]);
   assert.deepEqual(s.readiness({ ...PROXY, port: undefined }, { password: 'set' }), [ports]);
   assert.deepEqual(s.readiness({ ...PROXY, preview_port: undefined }, { password: 'set' }), [ports]);
@@ -143,16 +143,16 @@ test('readiness messages, in the exact order of SD-doc section 14 step 6', () =>
 });
 
 test('ssh readiness: ports only, never an address or password', () => {
-  assert.deepEqual(s.readiness({ mode: 'ssh' }, { password: 'unset' }), ['remote access (mode ssh) needs fixed ports: run "scriptorium remote set --port N --preview-port N"']);
+  assert.deepEqual(s.readiness({ mode: 'ssh' }, { password: 'unset' }), ['remote access (mode ssh) needs fixed ports: run "gm-scriptorium remote set --port N --preview-port N"']);
   assert.deepEqual(s.readiness({ mode: 'ssh', port: 7400, preview_port: 7400 }, { password: 'unset' }), ['remote access (mode ssh): the panel and preview ports must differ']);
 });
 
 test('tailscale needs addresses and a password but no bind and no proxy', () => {
   const problems = s.readiness({ mode: 'tailscale', port: 7400, preview_port: 7401 }, { password: 'unset' });
   assert.deepEqual(problems, [
-    'remote access (mode tailscale) needs an admin address: run "scriptorium remote set --admin-url https://..."',
-    'remote access (mode tailscale) needs a preview address: run "scriptorium remote set --preview-url https://..."',
-    'remote access (mode tailscale) needs a password: run "scriptorium remote password"',
+    'remote access (mode tailscale) needs an admin address: run "gm-scriptorium remote set --admin-url https://..."',
+    'remote access (mode tailscale) needs a preview address: run "gm-scriptorium remote set --preview-url https://..."',
+    'remote access (mode tailscale) needs a password: run "gm-scriptorium remote password"',
   ]);
 });
 
@@ -161,7 +161,7 @@ test('V1.5a refuses direct mode, and proxy with tls, as lacking certificate supp
   delete direct.trusted_proxies;
   assert.deepEqual(s.readiness(direct, { password: 'set', tlsSupported: false }), ['remote access (mode direct) needs certificate support, which this version of GM-Scriptorium does not have']);
   assert.deepEqual(s.readiness({ ...PROXY, tls: 'generated' }, { password: 'unset', tlsSupported: false }), [
-    'remote access (mode proxy) needs a password: run "scriptorium remote password"',
+    'remote access (mode proxy) needs a password: run "gm-scriptorium remote password"',
     'remote access (mode proxy) needs certificate support, which this version of GM-Scriptorium does not have',
   ]);
   assert.deepEqual(s.readiness({ ...PROXY, tls: 'generated' }, { password: 'set', tlsSupported: true }), []);

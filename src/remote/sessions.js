@@ -13,7 +13,7 @@ const { writePrivateFileAtomic } = require('./privatefile');
  * is separate from the launch token. Admin sessions last exactly SESSION_TTL_MS from sign-in, with
  * no sliding renewal; a preview session ends when its admin session does.
  *
- * The file is the shared state between the running panel and `scriptorium remote` (sign out every
+ * The file is the shared state between the running panel and `gm-scriptorium remote` (sign out every
  * device, a password change, `remote off`), so every check first notices whether the file changed
  * since this process last read or wrote it (mtime, size and inode) and reloads it if so, and every
  * write re-reads first. The residual (a sign-in landing in the same instant as a CLI sign-out) is

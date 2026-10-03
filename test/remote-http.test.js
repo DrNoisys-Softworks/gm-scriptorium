@@ -16,6 +16,7 @@ const pwWrite = require('../src/remote/passwordwrite');
 const { createSessionStore } = require('../src/remote/sessions');
 const { ADMIN_ROUTES } = require('../src/admin/router');
 const { createTestProxy } = require('./helpers/remote-test-proxy');
+const remoteHandlers = require('../src/admin/handlers/remote');
 
 /*
  * V1.5a (SD-a6 to SD-a11, SD-a17). The real pipeline over real sockets: runServeCommand with the
@@ -113,6 +114,15 @@ async function startPanel(t, { shape = 'proxy', fixture, clock, password = true,
     env.previewProxy = await createTestProxy({ upstreamPort: previewPort, localAddress, ...proxyOpts });
     env.proxies.push(env.adminProxy, env.previewProxy);
   }
+  // The refusal delay (U5) is observed, not slept, so the suite stays fast; one test below checks what it asked for.
+  env.sleeps = [];
+  const realSleep = remoteHandlers.timing.sleep;
+  remoteHandlers.timing.sleep = async (ms) => {
+    env.sleeps.push(ms);
+  };
+  t.after(() => {
+    remoteHandlers.timing.sleep = realSleep;
+  });
   env.stop = async () => {
     if (env.stopped) return result;
     env.stopped = true;
@@ -1280,4 +1290,32 @@ test('S2: /:enter reuses a preview session only for the SAME admin session: a br
   assert.notEqual(fresh.value, previewA);
   const records = JSON.parse(fs.readFileSync(path.join(env.fx.panelDir, 'sessions.json'), 'utf8')).sessions;
   assert.equal(records.filter((r) => r.kind === 'preview').length, 2);
+});
+
+test('U5: a refusal that did not hash (paused, or busy) waits about as long as a real check took, but does not hash: zero extra hashes', linuxOnly, async (t) => {
+  const env = await startPanel(t);
+  const counter = countVerifies(t);
+  for (let i = 0; i < 5; i++) await signin(env, `wrong ${i}`);
+  assert.deepEqual(env.sleeps, [], 'a real check does not wait');
+  assert.equal(counter.calls, 5);
+  assert.equal((await signin(env)).status, 403);
+  assert.equal(counter.calls, 5, 'still no hash while paused');
+  assert.equal(env.sleeps.length, 1);
+  assert.ok(env.sleeps[0] >= 1 && env.sleeps[0] <= 2000, `asked to wait ${env.sleeps[0]} ms`);
+});
+
+test('U5: with no real check yet to copy, the wait is the 300 ms default', linuxOnly, async (t) => {
+  const env = await startPanel(t);
+  const counter = countVerifies(t);
+  let release;
+  counter.gate = new Promise((r) => {
+    release = r;
+  });
+  const first = signin(env, 'wrong one');
+  const started = Date.now();
+  while (counter.calls < 1 && Date.now() - started < 3000) await new Promise((r) => setTimeout(r, 5));
+  await signin(env, 'concurrent');
+  release();
+  await first;
+  assert.deepEqual(env.sleeps, [300]);
 });

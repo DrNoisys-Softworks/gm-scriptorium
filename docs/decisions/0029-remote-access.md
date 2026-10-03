@@ -6,7 +6,7 @@ The admin panel still answers only on the computer it runs on, unless you switch
 If you run GM-Scriptorium on another machine, a home server or a VM, you can choose one of three
 ways to reach the panel from your laptop or phone: through a reverse proxy you already run, through
 `tailscale serve`, or through an SSH tunnel. You switch it on from the command line with
-`scriptorium remote`, never with a flag, and the panel checks the whole setting before it opens
+`gm-scriptorium remote`, never with a flag, and the panel checks the whole setting before it opens
 anything. Every network route needs HTTPS and a password, and the panel keeps a list of who signed in
 and when. The password, the sign-in sessions and that list live in a `panel` folder beside your
 config file, readable only by you. A fourth way, with GM-Scriptorium serving its own certificate,
@@ -41,7 +41,7 @@ proxy, by tailscale serve, by SSH or by Scriptorium), exact Host and Origin rule
 addresses, server-side sessions with an absolute expiry, a lockout on repeated wrong passwords, and
 an audit log. proxy, tailscale and direct also need a panel password. A read-only Setup > Remote
 access screen shows the state and can sign every device out. Every change is made with
-`scriptorium remote ...`, which works over SSH on a machine with no screen. Editing from the panel
+`gm-scriptorium remote ...`, which works over SSH on a machine with no screen. Editing from the panel
 is V7's (section 9).
 
 ## 2. Modes
@@ -131,7 +131,7 @@ Non-secret settings live in `config.toml` as a new top-level `[remote]` table: `
 `preview_port`, `admin_url`, `preview_url`, `bind`, `trusted_proxies`, `tls`, `tls_cert` and
 `tls_key`. The last three are Pending (V1.5b) in effect, but in the schema from day one so V1.5a
 never has to change its shape. An unrecognised key in `[remote]` is a hard error for `serve
---admin` and `scriptorium remote`, because a typo in a security setting must not silently become a
+--admin` and `gm-scriptorium remote`, because a typo in a security setting must not silently become a
 default. `check`, `build` and `status` never read `[remote]`. An older binary warns about the
 unrecognised top-level key, preserves it on rewrite (`src/config/write.js` keeps unknown top-level
 keys), and runs local-only, which is the safe failure. `config_version` is not bumped.
@@ -203,7 +203,7 @@ argv or an environment variable. It must be at least 12 characters (code points,
 normalisation), with no composition rules. It is stored as an asynchronous Node `crypto.scrypt`
 hash (N = 32768, r = 8, p = 3, 64-byte key, 16-byte random salt, parameters stored alongside) and
 compared with `crypto.timingSafeEqual`. Changing it needs the current password, and signs out every
-remote device. `scriptorium remote off` clears it (owner default), so a panel
+remote device. `gm-scriptorium remote off` clears it (owner default), so a panel
 still running in a remote mode refuses new remote sign-ins at once. Turning remote access back on
 means setting a new one, which is also the path for a forgotten password.
 
@@ -303,7 +303,7 @@ goes ahead, and the failure is shown on the Remote access screen. Signing out is
 
 ## 9. The CLI, the read screen (owner decision), and the V7 seam
 
-`scriptorium remote show | set | password | signout-all | off` makes every change, plus `remote cert
+`gm-scriptorium remote show | set | password | signout-all | off` makes every change, plus `remote cert
 generate | use | show | export` (Pending (V1.5b)). `set` validates each value as it is given
 (`http://` is refused with "remote access needs HTTPS"), writes `config.toml` through the existing
 canonical writer, and reports whether the settings are complete. Changes take effect at the next

@@ -92,12 +92,12 @@ test('cliCommands: turn on or change, turn off, password, sign out every device,
   for (const mode of ['local', 'ssh', 'tailscale', 'proxy', 'direct']) {
     const cmds = RA.cliCommands(mode);
     assert.deepEqual(cmds.map((c) => c.label), ['Turn on or change', 'Turn off', 'Set or change the password', 'Sign out every device']);
-    assert.match(cmds[0].command, /^scriptorium remote set --mode /);
-    assert.equal(cmds[1].command, 'scriptorium remote off');
-    assert.equal(cmds[2].command, 'scriptorium remote password');
-    assert.equal(cmds[3].command, 'scriptorium remote signout-all');
+    assert.match(cmds[0].command, /^gm-scriptorium remote set --mode /);
+    assert.equal(cmds[1].command, 'gm-scriptorium remote off');
+    assert.equal(cmds[2].command, 'gm-scriptorium remote password');
+    assert.equal(cmds[3].command, 'gm-scriptorium remote signout-all');
   }
-  assert.equal(RA.cliCommands('ssh')[0].command, 'scriptorium remote set --mode ssh --port 7400 --preview-port 7401');
+  assert.equal(RA.cliCommands('ssh')[0].command, 'gm-scriptorium remote set --mode ssh --port 7400 --preview-port 7401');
   assert.match(RA.cliCommands('tailscale')[0].command, /ts\.net/);
   assert.match(RA.cliCommands('proxy')[0].command, /--trusted-proxy 198\.51\.100\.20/);
   assert.doesNotMatch(JSON.stringify(RA.cliCommands('proxy')), /192\.168\./);
@@ -109,38 +109,63 @@ test('configNote: names the config path, and is empty without one', () => {
   assert.equal(RA.configNote(null), '');
 });
 
-test('healthItems: HTTPS, password, listening, audit log, file permissions; a problem is flagged bad', () => {
+test('httpsShort has no "HTTPS" prefix (the pill carries the label), and httpsLine is the full sentence', () => {
+  assert.equal(RA.httpsShort({ https: { by: 'proxy', hop: 'plain' } }), 'by your proxy, plain hop');
+  assert.equal(RA.httpsShort({ https: { by: 'proxy', hop: 'tls' } }), 'by your proxy, encrypted hop');
+  assert.equal(RA.httpsShort({ https: { by: 'tailscale', hop: null } }), 'by tailscale serve');
+  assert.equal(RA.httpsShort({ https: { by: 'ssh', hop: null } }), 'not needed, SSH encrypts');
+  assert.equal(RA.httpsShort({ https: { by: 'panel', hop: null } }), 'by GM-Scriptorium itself');
+  assert.equal(RA.httpsShort({ https: { by: 'none', hop: null } }), 'not needed on this computer');
+  assert.equal(RA.httpsShort(null), 'not needed on this computer');
+});
+
+test('healthItems: HTTPS, Password, Listening, Audit log, File permissions, each with a state; no label is repeated inside its own text (the "HTTPS: HTTPS:" stutter)', () => {
   const view = {
     mode: 'proxy',
     https: { by: 'proxy', hop: 'plain' },
     password: { set: true, setAt: '2026-10-01T12:00:00.000Z' },
-    listening: { hosts: ['127.0.0.1'], adminPort: 7400, previewPort: 7401 },
+    listening: { hosts: ['192.0.2.42', '127.0.0.1'], adminPort: 7400, previewPort: 7401 },
     audit: { ok: true, file: '/x/panel/audit.log', lastError: null },
     files: { looseModes: [] },
   };
   const items = RA.healthItems(view);
-  assert.deepEqual(items.map((i) => i.label), ['HTTPS', 'Password', 'Listening', 'Audit log', 'File permissions']);
-  assert.equal(items[1].text, 'Set 2026-10-01');
-  assert.equal(items[3].text, 'Writing to /x/panel/audit.log.');
-  assert.equal(items[4].text, 'Private to your user.');
-  assert.ok(items.every((i) => i.bad === false));
+  assert.deepEqual(items.map((i) => [i.label, i.text, i.state]), [
+    ['HTTPS', 'by your proxy, plain hop', 'ok'],
+    ['Password', 'set 2026-10-01', 'ok'],
+    ['Listening', '7400, 7401 on 192.0.2.42 and 127.0.0.1', 'ok'],
+    ['Audit log', 'writing', 'ok'],
+    ['File permissions', 'private to your user', 'ok'],
+  ]);
+  for (const i of items) assert.ok(!i.text.toLowerCase().startsWith(i.label.toLowerCase()), i.label);
   const broken = RA.healthItems({ ...view, password: { set: false, setAt: null }, audit: { ok: false, file: '/x', lastError: { message: 'EISDIR' } }, files: { looseModes: ['/x/panel'] } });
-  assert.equal(broken[1].bad, true);
-  assert.equal(broken[1].text, 'Not set');
-  assert.equal(broken[3].bad, true);
-  assert.match(broken[3].text, /Cannot write \(EISDIR\)\. Changes from other devices are paused/);
-  assert.equal(broken[4].bad, true);
-  assert.match(broken[4].text, /Other users on this machine can read: \/x\/panel/);
-  assert.equal(RA.healthItems({ mode: 'local', password: { set: false } })[1].text, 'Not needed in this mode');
+  assert.deepEqual(broken.map((i) => i.state), ['ok', 'bad', 'ok', 'bad', 'warn']);
+  assert.equal(broken[1].text, 'not set');
+  assert.equal(broken[3].text, 'cannot write (EISDIR), remote changes paused');
+  assert.equal(broken[4].text, 'other users can read: /x/panel');
+  assert.equal(RA.healthItems({ mode: 'local', password: { set: false } })[1].text, 'not needed in this mode');
+  assert.equal(RA.healthItems({ mode: 'local', listening: { hosts: ['127.0.0.1'], adminPort: 1, previewPort: 2 } })[2].text, '127.0.0.1 only');
 });
 
-test('addressRows: the external addresses (when there are any) then the loopback address', () => {
-  assert.deepEqual(RA.addressRows({ addresses: { admin: 'https://scriptorium.home.arpa', preview: 'https://preview.scriptorium.home.arpa', adminLoopback: 'http://127.0.0.1:7400', previewLoopback: 'http://127.0.0.1:7401' } }), [
-    { label: 'Admin panel', value: 'https://scriptorium.home.arpa' },
-    { label: 'Preview', value: 'https://preview.scriptorium.home.arpa' },
-    { label: 'On this machine', value: 'http://127.0.0.1:7400 (use the one-time link printed when it starts)' },
+test('summaryRows (the "How you get in" card): per mode, the mock\'s rows', () => {
+  const proxy = RA.summaryRows({
+    mode: 'proxy',
+    addresses: { admin: 'https://scriptorium.home.arpa', preview: 'https://preview.scriptorium.home.arpa', adminLoopback: 'http://127.0.0.1:7400' },
+    listening: { hosts: ['192.0.2.42', '127.0.0.1'], adminPort: 7400, previewPort: 7401, answers: ['198.51.100.20', '127.0.0.1', '::1'] },
+  });
+  assert.deepEqual(proxy, [
+    { label: 'Address', value: 'https://scriptorium.home.arpa', code: true },
+    { label: 'Preview', value: 'https://preview.scriptorium.home.arpa', code: true },
+    { label: 'Sign in', value: 'Your panel password. The one-time link still works on this machine.', code: false },
+    { label: 'Listens on', value: 'Ports 7400, 7401 on 192.0.2.42 and 127.0.0.1, answering 198.51.100.20, 127.0.0.1, ::1', code: false },
   ]);
-  assert.deepEqual(RA.addressRows({ addresses: { admin: null, preview: null, adminLoopback: 'http://127.0.0.1:1' } }).map((r) => r.label), ['On this machine']);
+  const local = RA.summaryRows({ mode: 'local', addresses: { adminLoopback: 'http://127.0.0.1:51111' } });
+  assert.deepEqual(local.map((r) => r.label), ['Address', 'Sign in', 'Listens on']);
+  assert.equal(local[0].value, 'http://127.0.0.1:51111');
+  const ssh = RA.summaryRows({ mode: 'ssh', addresses: { adminLoopback: 'http://127.0.0.1:7400', previewLoopback: 'http://127.0.0.1:7401' } });
+  assert.deepEqual(ssh.map((r) => r.label), ['Address', 'Preview', 'Sign in', 'Listens on']);
+  const ts = RA.summaryRows({ mode: 'tailscale', addresses: { admin: 'https://panel-host.example-tailnet.ts.net', preview: 'https://panel-host.example-tailnet.ts.net:8443' }, listening: { answers: [] } });
+  assert.doesNotMatch(JSON.stringify(ts), /only your devices/i);
+  assert.match(ts[3].value, /tailnet rules decide who can reach the address/);
 });
 
 // --- PV.previewSrc (A1) ------------------------------------------------------------------

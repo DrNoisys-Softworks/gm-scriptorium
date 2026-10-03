@@ -72,7 +72,7 @@ async function main() {
     return runInitOffer(flags, { help: HELP, reportError });
   }
   if (flags.help && positional.length > 0) {
-    const text = require('../src/cli/help').commandHelp(positional[0]);
+    const text = require('../src/cli/help').commandHelp(positional[0], positional[1]);
     if (text) {
       console.log(text);
       return EXIT_CODES.OK;

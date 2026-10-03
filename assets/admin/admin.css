@@ -6610,66 +6610,208 @@ body[data-page="signin"] {
   max-width: 62rem;
 }
 
-.rm-modename {
-  margin: 0.25rem 0;
-  font-family: var(--font-display);
-  font-size: 1.4rem;
-}
-
-.rm-addrs {
+/* The next block is the approved r2-installer mock's Setup > Remote access CSS (ra-mode, ra-top,
+   ac-sum, a1-health, a1-hl, a1-tw, a1-table, with the mock's --bk-* names mapped to the panel's
+   tokens: crease > line-crease, brass > accent, gilt > accent-strong, sage > ok, ink > text,
+   muted > text-muted, faint > text-faint (the panel's darkened-for-AA value), rose > pending,
+   err > error, sc > font-caps, fell > font-display, edge > line-edge). */
+.ra-mode {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: 0.25rem 1rem;
-  margin: 0.75rem 0;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--line-crease);
+  background: var(--surface-side);
+  border-radius: 3px;
+  max-width: 860px;
+  margin-top: 14px;
 }
 
-.rm-addrs dt {
+.ra-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.ra-top > div {
+  display: grid;
+  gap: 3px;
+}
+
+.su-lab {
+  font: 400 13px/1.2 var(--font-caps);
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.ac-sumwrap {
+  display: grid;
+  gap: 6px;
+}
+
+.ac-sum {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px 16px;
+  margin: 0;
+  font-size: 14px;
+  padding: 13px 16px;
+  border: 1px solid var(--line-sum);
+  background: var(--wash-sum);
+  border-radius: 3px;
+}
+
+.ac-sum dt {
+  font: 400 13px/1.5 var(--font-caps);
+  letter-spacing: 0.07em;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.ac-sum dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.ac-sum code {
+  color: var(--accent-strong);
+}
+
+.a1-health {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 13.5px;
   color: var(--text-muted);
 }
 
-.rm-addrs dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
+.a1-hl {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
 }
 
-.rm-health {
-  display: grid;
-  gap: 0.35rem;
-  margin: 0.75rem 0;
-  padding: 0;
-  list-style: none;
+.a1-hl i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  align-self: center;
+  background: var(--text-faint);
 }
 
-.rm-hl {
-  padding-left: 0.75rem;
-  border-left: 3px solid var(--ok);
+.a1-hl.ok i {
+  background: var(--ok);
 }
 
-.rm-hl.bad {
-  border-left-color: var(--error);
+.a1-hl.warn i {
+  background: var(--pending);
+  box-shadow: 0 0 0 3px var(--glow-warn);
 }
 
-.rm-tw {
+.a1-hl.bad i {
+  background: var(--error);
+  box-shadow: 0 0 0 3px var(--glow-bad);
+}
+
+.a1-hl small {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.a1-hl.warn {
+  color: var(--pending);
+}
+
+.a1-hl.bad {
+  color: var(--error);
+}
+
+.a1-hl.warn small,
+.a1-hl.bad small {
+  color: inherit;
+  opacity: 0.85;
+}
+
+.a1-pill.err {
+  color: var(--error);
+}
+
+.a1-pill.fill.err {
+  background: var(--wash-pill-err);
+}
+
+.a1-tw {
   overflow-x: auto;
 }
 
-.rm-table {
-  width: 100%;
+.a1-table {
   border-collapse: collapse;
+  width: 100%;
+  color: var(--text);
+  font-size: 14px;
+  font-family: var(--font-body);
 }
 
-.rm-table th,
-.rm-table td {
-  padding: 0.4rem 0.6rem;
+.a1-table th {
+  font: 400 13px/1.2 var(--font-caps);
+  letter-spacing: 0.07em;
+  color: var(--text-faint);
   text-align: left;
-  border-bottom: 1px solid var(--line-row);
+  padding: 0 12px 7px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line-crease);
+  white-space: nowrap;
 }
 
-.rm-table th {
+.a1-table td {
+  padding: 9px 12px 9px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line-edge);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.a1-table td.num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.a1-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.a1-bar .grow {
+  flex: 1;
+  min-width: 200px;
   color: var(--text-muted);
-  font-weight: normal;
+  font-size: 14px;
+}
+
+.rm-bar {
+  margin-top: 12px;
+}
+
+@media (max-width: 699px) {
+  .ac-sum {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .ac-sum dd {
+    margin-bottom: 6px;
+  }
+  .ra-mode {
+    padding: 14px 14px;
+  }
+  .a1-table {
+    min-width: 560px;
+  }
 }
 
 .rm-sr {
@@ -6679,26 +6821,6 @@ body[data-page="signin"] {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-.rm-pill {
-  padding: 0.1rem 0.5rem;
-  border: 1px solid var(--line-crease);
-  border-radius: var(--radius);
-  font-size: 0.9rem;
-}
-
-.rm-pill.ok {
-  color: var(--ok);
-}
-
-.rm-pill.err {
-  color: var(--error);
-  border-color: var(--error);
-}
-
-.rm-pill.warn {
-  color: var(--pending);
 }
 
 .rm-check {
@@ -6732,10 +6854,28 @@ body[data-page="signin"] {
 
 .rm-note,
 .rm-status {
+  margin: 0;
   color: var(--text-muted);
 }
 
 .rm-status {
   min-height: 1.5em;
-  margin: 0;
+}
+
+/* The sidebar footer's reach and preview lines in remote modes carry long external addresses:
+   one line each, an ellipsis at the sidebar's edge, the whole text in the title. Local mode never
+   gets this class, so its footer is byte-for-byte what it was. */
+.a1-sidefoot .sf-ell {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rm-root > * {
+  min-width: 0;
+}
+
+.a1-tw {
+  max-width: 100%;
 }

@@ -148,7 +148,7 @@ test('ADMIN_ALLOWED_FLAGS gains exactly preview-port', () => {
 });
 
 test('--host is refused in every form with the new message, before config is read', async (t) => {
-  const message = 'serve --admin does not accept --host; remote access comes only from saved settings (see "scriptorium remote")';
+  const message = 'serve --admin does not accept --host; remote access comes only from saved settings (see "gm-scriptorium remote")';
   for (const flags of [{ host: '0.0.0.0' }, { host: true }, { 'host=1.2.3.4': true }]) {
     await refusal(t, undefined, message, { flags });
   }
@@ -228,23 +228,23 @@ test('a remote mode refuses --port and --preview-port, one line, nothing started
 // --- readiness refusals (SD-doc 14 step 6) --------------------------------------------
 
 test('each readiness problem is exactly one ConfigError, with no listener started and nothing printed', async (t) => {
-  await refusal(t, { mode: 'ssh' }, 'remote access (mode ssh) needs fixed ports: run "scriptorium remote set --port N --preview-port N"');
+  await refusal(t, { mode: 'ssh' }, 'remote access (mode ssh) needs fixed ports: run "gm-scriptorium remote set --port N --preview-port N"');
   await refusal(t, { ...PROXY, preview_port: A }, 'remote access (mode proxy): the panel and preview ports must differ');
   const { admin_url, ...noAdmin } = PROXY;
   void admin_url;
-  await refusal(t, noAdmin, 'remote access (mode proxy) needs an admin address: run "scriptorium remote set --admin-url https://..."');
+  await refusal(t, noAdmin, 'remote access (mode proxy) needs an admin address: run "gm-scriptorium remote set --admin-url https://..."');
   const { preview_url, ...noPreview } = PROXY;
   void preview_url;
-  await refusal(t, noPreview, 'remote access (mode proxy) needs a preview address: run "scriptorium remote set --preview-url https://..."');
+  await refusal(t, noPreview, 'remote access (mode proxy) needs a preview address: run "gm-scriptorium remote set --preview-url https://..."');
   await refusal(t, { ...PROXY, preview_url: PROXY.admin_url }, 'remote access (mode proxy): the preview address must differ from the admin address');
   const { bind, ...noBind } = PROXY;
   void bind;
-  await refusal(t, noBind, 'remote access (mode proxy) needs a bind address: run "scriptorium remote set --bind ADDR"');
+  await refusal(t, noBind, 'remote access (mode proxy) needs a bind address: run "gm-scriptorium remote set --bind ADDR"');
   const { trusted_proxies, ...noProxy } = PROXY;
   void trusted_proxies;
-  await refusal(t, noProxy, 'remote access (mode proxy) needs a trusted proxy address: run "scriptorium remote set --trusted-proxy ADDR"');
-  await refusal(t, PROXY, 'remote access (mode proxy) needs a password: run "scriptorium remote password"', { password: false });
-  await refusal(t, TAILSCALE, 'remote access (mode tailscale) needs a password: run "scriptorium remote password"', { password: false });
+  await refusal(t, noProxy, 'remote access (mode proxy) needs a trusted proxy address: run "gm-scriptorium remote set --trusted-proxy ADDR"');
+  await refusal(t, PROXY, 'remote access (mode proxy) needs a password: run "gm-scriptorium remote password"', { password: false });
+  await refusal(t, TAILSCALE, 'remote access (mode tailscale) needs a password: run "gm-scriptorium remote password"', { password: false });
 });
 
 test('V1.5a refuses direct mode, and proxy with tls, for lack of certificate support', async (t) => {
@@ -266,7 +266,7 @@ test('a cleared, invalid or missing password file all read as "needs a password"
       runServeCommand({ config: fx.configPath, admin: true }, 'alpha', { emit: h.emit, signals: h.signals, startLocalListener: h.startLocalListener, startPanelListener: h.startPanelListener, createToken: () => TOKEN }),
       h.signals,
     );
-    assert.equal(outcome.error && outcome.error.message, 'remote access (mode proxy) needs a password: run "scriptorium remote password"');
+    assert.equal(outcome.error && outcome.error.message, 'remote access (mode proxy) needs a password: run "gm-scriptorium remote password"');
   }
   assert.deepEqual(h.calls(), { panel: 0, local: 0 });
 });
@@ -446,17 +446,17 @@ test('a prune failure never blocks startup or changes the exit code (the audit f
 });
 
 test('with several problems at once only the FIRST (in the documented order) is reported', async (t) => {
-  await refusal(t, { mode: 'proxy' }, 'remote access (mode proxy) needs fixed ports: run "scriptorium remote set --port N --preview-port N"', { password: false });
+  await refusal(t, { mode: 'proxy' }, 'remote access (mode proxy) needs fixed ports: run "gm-scriptorium remote set --port N --preview-port N"', { password: false });
   await refusal(
     t,
     { mode: 'tailscale', port: A, preview_port: B },
-    'remote access (mode tailscale) needs an admin address: run "scriptorium remote set --admin-url https://..."',
+    'remote access (mode tailscale) needs an admin address: run "gm-scriptorium remote set --admin-url https://..."',
     { password: false },
   );
   await refusal(
     t,
     (({ trusted_proxies, ...rest }) => ({ ...rest, tls: 'generated' }))(PROXY),
-    'remote access (mode proxy) needs a trusted proxy address: run "scriptorium remote set --trusted-proxy ADDR"',
+    'remote access (mode proxy) needs a trusted proxy address: run "gm-scriptorium remote set --trusted-proxy ADDR"',
     { password: false },
   );
 });

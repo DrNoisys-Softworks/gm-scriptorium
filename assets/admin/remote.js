@@ -6,7 +6,7 @@
  * vocab.js): the words and shapes the screen shows, all tested under plain node
  * (test/admin-remote-model.test.js). The browser half below builds the DOM with textContent only.
  *
- * It is READ-ONLY: every change is made with the scriptorium remote command, whose commands this
+ * It is READ-ONLY: every change is made with the gm-scriptorium remote command, whose commands this
  * screen shows in place of Change / Turn on / Turn off. Its only actions are the two sign-outs.
  *
  * No request on navigation (ADR 0022 section 13): the screen fetches /api/remote once at boot and
@@ -92,18 +92,18 @@
   /** @param {string} mode @returns {{ label: string, command: string }[]} */
   function cliCommands(mode) {
     var set;
-    if (mode === 'ssh') set = 'scriptorium remote set --mode ssh --port 7400 --preview-port 7401';
+    if (mode === 'ssh') set = 'gm-scriptorium remote set --mode ssh --port 7400 --preview-port 7401';
     else if (mode === 'tailscale') {
-      set = 'scriptorium remote set --mode tailscale --admin-url https://panel-host.example-tailnet.ts.net --preview-url https://panel-host.example-tailnet.ts.net:8443 --port 7400 --preview-port 7401';
+      set = 'gm-scriptorium remote set --mode tailscale --admin-url https://panel-host.example-tailnet.ts.net --preview-url https://panel-host.example-tailnet.ts.net:8443 --port 7400 --preview-port 7401';
     } else {
       set =
-        'scriptorium remote set --mode proxy --admin-url https://scriptorium.home.arpa --preview-url https://preview.scriptorium.home.arpa --bind 192.0.2.42 --trusted-proxy 198.51.100.20 --port 7400 --preview-port 7401';
+        'gm-scriptorium remote set --mode proxy --admin-url https://scriptorium.home.arpa --preview-url https://preview.scriptorium.home.arpa --bind 192.0.2.42 --trusted-proxy 198.51.100.20 --port 7400 --preview-port 7401';
     }
     return [
       { label: 'Turn on or change', command: set },
-      { label: 'Turn off', command: 'scriptorium remote off' },
-      { label: 'Set or change the password', command: 'scriptorium remote password' },
-      { label: 'Sign out every device', command: 'scriptorium remote signout-all' },
+      { label: 'Turn off', command: 'gm-scriptorium remote off' },
+      { label: 'Set or change the password', command: 'gm-scriptorium remote password' },
+      { label: 'Sign out every device', command: 'gm-scriptorium remote signout-all' },
     ];
   }
 
@@ -114,32 +114,91 @@
       : '';
   }
 
-  /** @returns {{ label: string, text: string, bad: boolean }[]} the health items */
+  /** The words after the label on the HTTPS pill, short enough for one line (httpsLine is the full sentence). */
+  function httpsShort(view) {
+    var by = view && view.https ? view.https.by : 'none';
+    var hop = view && view.https ? view.https.hop : null;
+    if (by === 'ssh') return 'not needed, SSH encrypts';
+    if (by === 'tailscale') return 'by tailscale serve';
+    if (by === 'proxy') return hop === 'tls' ? 'by your proxy, encrypted hop' : 'by your proxy, plain hop';
+    if (by === 'panel') return 'by GM-Scriptorium itself';
+    return 'not needed on this computer';
+  }
+
+  function listeningShort(view) {
+    var l = view && view.listening;
+    if (!l || !l.hosts || (view && view.mode === 'local')) return '127.0.0.1 only';
+    return l.adminPort + ', ' + l.previewPort + ' on ' + l.hosts.join(' and ');
+  }
+
+  /**
+   * The row of health pills (the mock's a1-health): label, the short words after it, and a state of
+   * 'ok', 'warn' or 'bad'.
+   *
+   * @returns {{ label: string, text: string, state: string, bad: boolean }[]}
+   */
   function healthItems(view) {
     var v = view || {};
-    var items = [{ label: 'HTTPS', text: httpsLine(v), bad: false }];
+    var items = [{ label: 'HTTPS', text: httpsShort(v), state: 'ok', bad: false }];
     var pw = v.password || {};
-    items.push({ label: 'Password', text: pw.set ? 'Set ' + String(pw.setAt || '').slice(0, 10) : v.mode === 'local' || v.mode === 'ssh' ? 'Not needed in this mode' : 'Not set', bad: !pw.set && v.mode !== 'local' && v.mode !== 'ssh' });
-    items.push({ label: 'Listening', text: listeningLine(v), bad: false });
+    var noPw = v.mode === 'local' || v.mode === 'ssh';
+    items.push({
+      label: 'Password',
+      text: pw.set ? 'set ' + String(pw.setAt || '').slice(0, 10) : noPw ? 'not needed in this mode' : 'not set',
+      state: pw.set || noPw ? 'ok' : 'bad',
+      bad: !pw.set && !noPw,
+    });
+    items.push({ label: 'Listening', text: listeningShort(v), state: 'ok', bad: false });
     var audit = v.audit || { ok: true };
     items.push({
       label: 'Audit log',
-      text: audit.ok ? 'Writing to ' + (audit.file || 'the audit log') + '.' : 'Cannot write (' + ((audit.lastError && audit.lastError.message) || 'unknown error') + '). Changes from other devices are paused until it can.',
+      text: audit.ok ? 'writing' : 'cannot write (' + ((audit.lastError && audit.lastError.message) || 'unknown error') + '), remote changes paused',
+      state: audit.ok ? 'ok' : 'bad',
       bad: !audit.ok,
     });
     var loose = (v.files && v.files.looseModes) || [];
-    items.push({ label: 'File permissions', text: loose.length === 0 ? 'Private to your user.' : 'Other users on this machine can read: ' + loose.join(', '), bad: loose.length > 0 });
+    items.push({
+      label: 'File permissions',
+      text: loose.length === 0 ? 'private to your user' : 'other users can read: ' + loose.join(', '),
+      state: loose.length === 0 ? 'ok' : 'warn',
+      bad: loose.length > 0,
+    });
     return items;
   }
 
-  /** @returns {{ label: string, value: string }[]} */
-  function addressRows(view) {
+  /**
+   * The "How you get in" card's rows (the mock's accSumRows), per mode.
+   *
+   * @returns {{ label: string, value: string, code: boolean }[]}
+   */
+  function summaryRows(view) {
     var v = view || {};
     var a = v.addresses || {};
     var rows = [];
-    if (a.admin) rows.push({ label: 'Admin panel', value: a.admin });
-    if (a.preview) rows.push({ label: 'Preview', value: a.preview });
-    if (a.adminLoopback) rows.push({ label: 'On this machine', value: a.adminLoopback + ' (use the one-time link printed when it starts)' });
+    var code = function (label, value) {
+      rows.push({ label: label, value: value, code: true });
+    };
+    var plain = function (label, value) {
+      rows.push({ label: label, value: value, code: false });
+    };
+    if (v.mode === 'local') {
+      code('Address', a.adminLoopback || 'http://127.0.0.1');
+      plain('Sign in', 'Automatic, with the one-time link from the GM-Scriptorium window');
+      plain('Listens on', 'This computer only');
+      return rows;
+    }
+    if (v.mode === 'ssh') {
+      code('Address', a.adminLoopback || 'http://127.0.0.1');
+      code('Preview', a.previewLoopback || 'http://127.0.0.1');
+      plain('Sign in', 'The one-time link, through the tunnel');
+      plain('Listens on', 'This computer only, for your SSH tunnel');
+      return rows;
+    }
+    if (a.admin) code('Address', a.admin);
+    if (a.preview) code('Preview', a.preview);
+    plain('Sign in', 'Your panel password. The one-time link still works on this machine.');
+    var answers = (v.listening && v.listening.answers) || [];
+    plain('Listens on', v.mode === 'tailscale' ? 'This machine only; tailscale serve connects to it. Your tailnet rules decide who can reach the address.' : 'Ports ' + listeningShort(v) + (answers.length ? ', answering ' + answers.join(', ') : ''));
     return rows;
   }
 
@@ -154,7 +213,9 @@
     cliCommands: cliCommands,
     configNote: configNote,
     healthItems: healthItems,
-    addressRows: addressRows,
+    httpsShort: httpsShort,
+    listeningShort: listeningShort,
+    summaryRows: summaryRows,
   };
 
   if (typeof module === 'object' && module.exports) {
@@ -163,6 +224,10 @@
   }
 
   // ---- browser half ---------------------------------------------------------------------
+  // Structure and class names are the approved r2-installer mock's "Setup > Remote access" scene
+  // (ra-mode card with the mode and an "on" pill, ac-sum "How you get in", a1-health pills, the
+  // recent sign-ins table with its bar). Its Change / Turn off buttons are replaced by the commands
+  // list (D3: the screen is read-only), the only recorded departure besides the missing "Who" column.
 
   var A = window.ScriptoriumAdmin;
 
@@ -178,10 +243,11 @@
     return node;
   }
 
-  function button(label, className) {
+  function button(label, className, iconName) {
     var b = el('button', className);
     b.type = 'button';
-    A.setText(b, label);
+    if (iconName && A.icon) b.appendChild(A.icon(iconName));
+    b.appendChild(document.createTextNode(label));
     return b;
   }
 
@@ -190,6 +256,7 @@
     container.appendChild(root);
     var view = null;
     var filterRefused = false;
+    var showLog = false;
     var statusLine = el('p', 'rm-status');
     statusLine.setAttribute('role', 'status');
 
@@ -198,8 +265,12 @@
     }
 
     function table(rows, caption) {
-      var wrap = el('div', 'rm-tw');
-      var t = el('table', 'rm-table');
+      var wrap = el('div', 'a1-tw');
+      // it scrolls sideways on a phone, so the keyboard must be able to reach it
+      wrap.tabIndex = 0;
+      wrap.setAttribute('role', 'region');
+      wrap.setAttribute('aria-label', caption);
+      var t = el('table', 'a1-table');
       var cap = el('caption', 'rm-sr');
       A.setText(cap, caption);
       t.appendChild(cap);
@@ -224,11 +295,12 @@
       }
       rows.forEach(function (r) {
         var tr = el('tr');
-        [r.how, r.from, r.when].forEach(function (cell) {
+        [r.how, r.from].forEach(function (cell) {
           tr.appendChild(text('td', '', cell));
         });
+        tr.appendChild(text('td', 'num', r.when));
         var res = el('td');
-        res.appendChild(text('span', r.result === 'refused' ? 'rm-pill err' : r.result === 'error' ? 'rm-pill warn' : 'rm-pill ok', r.result));
+        res.appendChild(text('span', r.result === 'refused' ? 'a1-pill err fill' : r.result === 'error' ? 'a1-pill rose fill' : 'a1-pill sage', r.result));
         tr.appendChild(res);
         body.appendChild(tr);
       });
@@ -264,60 +336,102 @@
       }
       var on = view.mode !== 'local';
 
-      var mode = el('section', 'rm-mode');
-      mode.setAttribute('aria-labelledby', 'rm-mode-h');
-      var modeHead = text('h2', 'a1-rule', 'Current mode');
-      modeHead.id = 'rm-mode-h';
-      mode.appendChild(modeHead);
-      mode.appendChild(text('p', 'rm-modename', RA.modeLabel(view.mode) + (on ? '' : ': remote access is off')));
-      if (!on) mode.appendChild(text('p', 'a1-lede', 'The panel answers only on this computer. To use it from another device, turn remote access on from the command line (see below).'));
-      var addrs = el('dl', 'rm-addrs');
-      RA.addressRows(view).forEach(function (r) {
-        addrs.appendChild(text('dt', '', r.label));
-        addrs.appendChild(text('dd', '', r.value));
+      var mode = el('section', 'ra-mode');
+      mode.setAttribute('aria-labelledby', 'ra-cur');
+      var top = el('div', 'ra-top');
+      var topLeft = el('div');
+      var cap = text('div', 'a1-cap', 'Current mode');
+      cap.id = 'ra-cur';
+      topLeft.appendChild(cap);
+      var val = el('div', 'a1-val');
+      val.appendChild(document.createTextNode(on ? RA.modeLabel(view.mode) + ' ' : 'This computer only '));
+      val.appendChild(text('span', on ? 'a1-pill sage fill' : 'a1-pill muted', on ? 'on' : 'remote access off'));
+      topLeft.appendChild(val);
+      top.appendChild(topLeft);
+      mode.appendChild(top);
+
+      var sumWrap = el('div', 'ac-sumwrap');
+      sumWrap.appendChild(text('div', 'su-lab', on ? 'How you get in' : 'How you get in now'));
+      var sum = el('dl', 'ac-sum');
+      RA.summaryRows(view).forEach(function (r) {
+        sum.appendChild(text('dt', '', r.label));
+        var dd = el('dd');
+        dd.appendChild(r.code ? text('code', '', r.value) : document.createTextNode(r.value));
+        sum.appendChild(dd);
       });
-      mode.appendChild(addrs);
-      var health = el('ul', 'rm-health');
+      sumWrap.appendChild(sum);
+      mode.appendChild(sumWrap);
+
+      var health = el('div', 'a1-health');
       RA.healthItems(view).forEach(function (h) {
-        var li = el('li', h.bad ? 'rm-hl bad' : 'rm-hl');
-        li.appendChild(text('strong', '', h.label + ': '));
-        li.appendChild(document.createTextNode(h.text));
-        health.appendChild(li);
+        var span = el('span', 'a1-hl ' + h.state);
+        span.appendChild(el('i'));
+        span.appendChild(document.createTextNode(h.label + ' '));
+        span.appendChild(text('small', '', h.text));
+        health.appendChild(span);
       });
       mode.appendChild(health);
-      mode.appendChild(text('p', 'rm-lockout', RA.lockoutLine(view.lockout)));
-      mode.appendChild(text('p', 'rm-count', view.sessions.active + (view.sessions.active === 1 ? ' remote device is signed in.' : ' remote devices are signed in.')));
+      mode.appendChild(text('p', 'rm-note', RA.httpsLine(view)));
+      mode.appendChild(text('p', 'rm-note', RA.lockoutLine(view.lockout) + ' ' + view.sessions.active + (view.sessions.active === 1 ? ' remote device is signed in.' : ' remote devices are signed in.')));
       root.appendChild(mode);
 
       var recent = el('section', 'rm-recent');
       recent.setAttribute('aria-labelledby', 'rm-recent-h');
-      var recentHead = text('h2', 'a1-rule', 'Recent sign-ins');
+      var recentHead = el('h2', 'a1-rule');
       recentHead.id = 'rm-recent-h';
+      recentHead.appendChild(document.createTextNode('Recent sign-ins '));
+      recentHead.appendChild(text('small', '', 'last 7 days'));
       recent.appendChild(recentHead);
       recent.appendChild(table(RA.signinRows(view.recentSignins), 'Sign-ins in the last 7 days'));
-      root.appendChild(recent);
-
-      var log = el('section', 'rm-log');
-      log.setAttribute('aria-labelledby', 'rm-log-h');
-      var logHead = text('h2', 'a1-rule', 'Full log');
-      logHead.id = 'rm-log-h';
-      log.appendChild(logHead);
-      var label = el('label', 'rm-check');
-      var box = el('input');
-      box.type = 'checkbox';
-      box.checked = filterRefused;
-      box.addEventListener('change', function () {
-        filterRefused = box.checked;
+      var bar = el('div', 'a1-bar rm-bar');
+      bar.appendChild(text('span', 'grow', 'Every sign-in attempt is kept for 90 days beside your config. Never passwords, one-time links or cookies.' + (on ? ' Five wrong passwords in ten minutes pauses remote sign-in for fifteen.' : '')));
+      var fullBtn = button('Full log', 'a1-btn ghost small', 'file');
+      fullBtn.setAttribute('aria-expanded', showLog ? 'true' : 'false');
+      fullBtn.addEventListener('click', function () {
+        showLog = !showLog;
         render();
       });
-      label.appendChild(box);
-      label.appendChild(document.createTextNode(' Refused only'));
-      log.appendChild(label);
-      var rows = RA.signinRows(view.log);
-      log.appendChild(table(filterRefused ? RA.refusedOnly(rows) : rows, 'Every recorded sign-in'));
-      if (view.truncated) log.appendChild(text('p', 'rm-note', 'Only the newest 2000 entries are shown.'));
-      log.appendChild(text('p', 'rm-note', 'Every sign-in attempt is kept for 90 days beside your config. Never passwords, one-time links or cookies.'));
-      root.appendChild(log);
+      bar.appendChild(fullBtn);
+      var all = button('Sign out every device', 'a1-btn ghost small', 'lock');
+      all.addEventListener('click', signOut('/api/remote/signout-all'));
+      bar.appendChild(all);
+      if (view.requestKind === 'remote') {
+        var one = button('Sign out this device', 'a1-btn ghost small', 'lock');
+        one.addEventListener('click', signOut('/api/remote/signout'));
+        bar.appendChild(one);
+      }
+      var refresh = button('Refresh', 'a1-btn ghost small', 'refresh');
+      refresh.addEventListener('click', function () {
+        setStatus('Refreshing...');
+        load();
+      });
+      bar.appendChild(refresh);
+      recent.appendChild(bar);
+      recent.appendChild(statusLine);
+      root.appendChild(recent);
+
+      if (showLog) {
+        var log = el('section', 'rm-log');
+        log.setAttribute('aria-labelledby', 'rm-log-h');
+        var logHead = text('h2', 'a1-rule', 'Full log');
+        logHead.id = 'rm-log-h';
+        log.appendChild(logHead);
+        var label = el('label', 'rm-check');
+        var box = el('input');
+        box.type = 'checkbox';
+        box.checked = filterRefused;
+        box.addEventListener('change', function () {
+          filterRefused = box.checked;
+          render();
+        });
+        label.appendChild(box);
+        label.appendChild(document.createTextNode(' Refused only'));
+        log.appendChild(label);
+        var rows = RA.signinRows(view.log);
+        log.appendChild(table(filterRefused ? RA.refusedOnly(rows) : rows, 'Every recorded sign-in'));
+        if (view.truncated) log.appendChild(text('p', 'rm-note', 'Only the newest 2000 entries are shown.'));
+        root.appendChild(log);
+      }
 
       var cli = el('section', 'rm-cli');
       cli.setAttribute('aria-labelledby', 'rm-cli-h');
@@ -333,24 +447,6 @@
       var note = RA.configNote(view);
       if (note) cli.appendChild(text('p', 'rm-note', note));
       root.appendChild(cli);
-
-      var actions = el('div', 'a1-actions rm-actions');
-      var all = button('Sign out every device', 'a1-btn ghost');
-      all.addEventListener('click', signOut('/api/remote/signout-all'));
-      actions.appendChild(all);
-      if (view.requestKind === 'remote') {
-        var one = button('Sign out this device', 'a1-btn ghost');
-        one.addEventListener('click', signOut('/api/remote/signout'));
-        actions.appendChild(one);
-      }
-      var refresh = button('Refresh', 'a1-btn ghost');
-      refresh.addEventListener('click', function () {
-        setStatus('Refreshing...');
-        load();
-      });
-      actions.appendChild(refresh);
-      root.appendChild(actions);
-      root.appendChild(statusLine);
     }
 
     function load() {

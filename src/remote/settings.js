@@ -23,7 +23,7 @@ const addr = require('./addr');
  */
 
 const REMOTE_MODES = Object.freeze(['local', 'ssh', 'tailscale', 'proxy', 'direct']);
-/** What `scriptorium remote set --mode` accepts now. V1.5b adds 'direct'. */
+/** What `gm-scriptorium remote set --mode` accepts now. V1.5b adds 'direct'. */
 const SETTABLE_MODES = Object.freeze(['local', 'ssh', 'tailscale', 'proxy']);
 const TLS_CHOICES = Object.freeze(['off', 'generated', 'byo']);
 const REMOTE_KEYS = Object.freeze(['mode', 'port', 'preview_port', 'admin_url', 'preview_url', 'bind', 'trusted_proxies', 'tls', 'tls_cert', 'tls_key']);
@@ -132,20 +132,20 @@ function readiness(settings, { password, tlsSupported = false }) {
   const label = `remote access (mode ${m})`;
   const needsAddresses = m !== 'ssh';
   if (settings.port === undefined || settings.preview_port === undefined) {
-    problems.push(`${label} needs fixed ports: run "scriptorium remote set --port N --preview-port N"`);
+    problems.push(`${label} needs fixed ports: run "gm-scriptorium remote set --port N --preview-port N"`);
   } else if (settings.port === settings.preview_port) {
     problems.push(`${label}: the panel and preview ports must differ`);
   }
   if (needsAddresses) {
-    if (settings.admin_url === undefined) problems.push(`${label} needs an admin address: run "scriptorium remote set --admin-url https://..."`);
-    if (settings.preview_url === undefined) problems.push(`${label} needs a preview address: run "scriptorium remote set --preview-url https://..."`);
+    if (settings.admin_url === undefined) problems.push(`${label} needs an admin address: run "gm-scriptorium remote set --admin-url https://..."`);
+    if (settings.preview_url === undefined) problems.push(`${label} needs a preview address: run "gm-scriptorium remote set --preview-url https://..."`);
     if (settings.admin_url !== undefined && settings.preview_url !== undefined && settings.admin_url === settings.preview_url) {
       problems.push(`${label}: the preview address must differ from the admin address`);
     }
   }
-  if (proxyOrDirect(m) && settings.bind === undefined) problems.push(`${label} needs a bind address: run "scriptorium remote set --bind ADDR"`);
+  if (proxyOrDirect(m) && settings.bind === undefined) problems.push(`${label} needs a bind address: run "gm-scriptorium remote set --bind ADDR"`);
   if (m === 'proxy' && (settings.trusted_proxies === undefined || settings.trusted_proxies.length === 0)) {
-    problems.push('remote access (mode proxy) needs a trusted proxy address: run "scriptorium remote set --trusted-proxy ADDR"');
+    problems.push('remote access (mode proxy) needs a trusted proxy address: run "gm-scriptorium remote set --trusted-proxy ADDR"');
   }
   if (m === 'direct') {
     if (settings.admin_url !== undefined && settings.port !== undefined && new URL(settings.admin_url).port !== String(settings.port)) {
@@ -155,7 +155,7 @@ function readiness(settings, { password, tlsSupported = false }) {
       problems.push(`remote access (mode direct): the preview address must use port ${settings.preview_port}, the port the preview listens on`);
     }
   }
-  if (m !== 'ssh' && password !== 'set') problems.push(`${label} needs a password: run "scriptorium remote password"`);
+  if (m !== 'ssh' && password !== 'set') problems.push(`${label} needs a password: run "gm-scriptorium remote password"`);
   if (!tlsSupported && (m === 'direct' || (m === 'proxy' && effectiveTls(settings) !== 'off'))) {
     problems.push(`${label} needs certificate support, which this version of GM-Scriptorium does not have`);
   }
@@ -291,7 +291,7 @@ function needValue(flags, name) {
 }
 
 /**
- * Applies `scriptorium remote set` flags to the raw `[remote]` table, validating each value as it
+ * Applies `gm-scriptorium remote set` flags to the raw `[remote]` table, validating each value as it
  * is given. Pure: nothing is written. The caller then runs parseRemoteTable on `next` (a shape
  * error there means nothing is written either).
  *
@@ -314,6 +314,13 @@ function applyRemoteChange(raw, flags) {
   if (flags.bind !== undefined) next.bind = validate.validateIpLiteral(needValue(flags, 'bind'));
   if (flags['trusted-proxy'] !== undefined) {
     next.trusted_proxies = validateTrustedProxies(needValue(flags, 'trusted-proxy').split(',').map((s) => s.trim()));
+  }
+  // The external addresses mean something different in each mode (a reverse proxy's names are not a
+  // tailnet's), so changing the mode drops the old ones unless this same command gives new ones.
+  // Everything else is kept, so switching back is still easy.
+  if (flags.mode !== undefined && (base.mode || 'local') !== next.mode) {
+    if (flags['admin-url'] === undefined) delete next.admin_url;
+    if (flags['preview-url'] === undefined) delete next.preview_url;
   }
   const changed = REMOTE_KEYS.filter((k) => !sameJson(base[k], next[k]));
   return { next, changed };

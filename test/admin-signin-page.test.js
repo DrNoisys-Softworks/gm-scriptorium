@@ -42,6 +42,7 @@ test('signin.html: the body marker, the labelled password field, the submit butt
   assert.match(html, /<label for="signin-password">/);
   assert.match(html, /<input type="password" id="signin-password"[^>]*autocomplete="current-password"[^>]*required>/);
   assert.match(html, /<button type="submit">/);
+  assert.ok(html.includes('The password is set on the machine running GM-Scriptorium, with <code>gm-scriptorium remote password</code>.'));
   assert.match(html, /role="alert"/);
   assert.ok(html.includes('Five wrong passwords in ten minutes pause remote sign-in for fifteen minutes. On the machine running GM-Scriptorium, the one-time link still works.'));
   const scripts = html.match(/<script[^>]*>/g);
