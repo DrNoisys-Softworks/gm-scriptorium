@@ -6555,6 +6555,13 @@ dialog.im-picker::backdrop {
 
 /* ---- V1.5a: the sign-in page and Setup > Remote access (docs/decisions/0029-remote-access.md) ---- */
 
+/* The sign-in page paints its own ground, so its muted label text is judged against the real colour
+   (the dark canvas colour-scheme alone leaves the background transparent). */
+body[data-page="signin"] {
+  color: var(--text);
+  background: var(--surface-ground);
+}
+
 .signin-form {
   display: grid;
   gap: 0.75rem;
