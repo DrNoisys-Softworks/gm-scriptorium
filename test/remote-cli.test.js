@@ -632,5 +632,5 @@ test('B4/B5: `remote` is registered with the strict per-command flag check (did-
   assert.match(typo.stderr.trim(), /^unknown flag --mod for "remote"\. Did you mean --mode\?/);
   const valueless = await spawnBin(['remote', 'set', '--bind', '--config', fx.configPath]);
   assert.equal(valueless.code, 1);
-  assert.equal(valueless.stderr.trim(), 'remote --bind needs a value: remote --bind <value>');
+  assert.equal(valueless.stderr.trim(), '--bind needs a value: remote --bind <value>');
 });
