@@ -12,6 +12,7 @@ const { hashPassword, verifyPassword, readPasswordRecord } = require('../remote/
 const { writePasswordRecord, clearPasswordRecord } = require('../remote/passwordwrite');
 const { createSessionStore } = require('../remote/sessions');
 const { createAuditLog } = require('../remote/audit');
+const { commandHelp } = require('./help');
 
 /*
  * V1.5a (docs/decisions/0029-remote-access.md section 9; SD-doc section 13): `gm-scriptorium remote
@@ -206,27 +207,9 @@ async function runRemoteCommand(flags, subcommand, args = [], { stdin = process.
   }
 }
 
-const HELP = {
-  show: 'gm-scriptorium remote show [--config PATH]\n  Prints the remote-access settings for this machine: the mode, the addresses, where it listens,\n  whether a password is set and whether it is ready to start. Never prints a secret.',
-  set:
-    'gm-scriptorium remote set [--mode local|ssh|tailscale|proxy] [--admin-url URL] [--preview-url URL] [--bind ADDR]\n' +
-    '                          [--trusted-proxy ADDR,...] [--port N] [--preview-port N] [--config PATH]\n' +
-    '  Saves remote-access settings (https addresses only; every value is checked before anything is written).\n' +
-    '  Changing --mode drops the old admin and preview addresses unless you give new ones. Takes effect the\n' +
-    '  next time "serve --admin" starts.',
-  password:
-    'gm-scriptorium remote password [--config PATH]\n' +
-    '  Sets or changes the panel password (at least 12 characters), asking with nothing echoed, or reading\n' +
-    '  lines from standard input when there is no terminal (current password first, when one is set).\n' +
-    '  Never accepted as an argument or from the environment. Signs every remote device out.',
-  'signout-all': 'gm-scriptorium remote signout-all [--config PATH]\n  Signs every remote device out at once. A running panel notices straight away.',
-  off: 'gm-scriptorium remote off [--config PATH]\n  Returns the mode to local, signs every device out and clears the password.',
-};
-
 /** @param {string} [sub] @returns {string} the help for one subcommand, or for all of them */
 function remoteHelp(sub) {
-  if (typeof sub === 'string' && Object.prototype.hasOwnProperty.call(HELP, sub)) return HELP[sub];
-  return `gm-scriptorium remote <command>\n\n${SUBCOMMANDS.map((s) => HELP[s]).join('\n\n')}`;
+  return commandHelp('remote', sub).replace(/\n$/, '');
 }
 
 module.exports = { runRemoteCommand, remoteHelp, MODE_LABEL };

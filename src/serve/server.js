@@ -191,7 +191,7 @@ function startPanelListener(handler, { port, hosts, allowPeer, tls } = {}) {
         });
       }
       server.once('error', (err) => {
-        closeAll().then(() => reject(err.code === 'EADDRINUSE' ? new Error(`port ${port} is already in use on ${host}`) : err));
+        closeAll().then(() => reject(describeListenError(err, port, host)));
       });
       server.listen(port, host, () => {
         server.removeAllListeners('error');

@@ -624,3 +624,13 @@ test('the real bin accepts `serve --admin --preview-port` (the per-command flag 
   const same = await spawnBin(['serve', 'alpha', '--admin', '--port', '9300', '--preview-port', '9300', '--config', fx.configPath]);
   assert.equal(same.stderr.trim(), 'serve --admin: --preview-port must differ from --port');
 });
+
+test('B4/B5: `remote` is registered with the strict per-command flag check (did-you-mean) and with per-command help', async (t) => {
+  const fx = fixture(t);
+  const typo = await spawnBin(['remote', 'set', '--mod', 'proxy', '--config', fx.configPath]);
+  assert.equal(typo.code, 1);
+  assert.match(typo.stderr.trim(), /^unknown flag --mod for "remote"\. Did you mean --mode\?/);
+  const valueless = await spawnBin(['remote', 'set', '--bind', '--config', fx.configPath]);
+  assert.equal(valueless.code, 1);
+  assert.equal(valueless.stderr.trim(), 'remote --bind needs a value: remote --bind <value>');
+});
