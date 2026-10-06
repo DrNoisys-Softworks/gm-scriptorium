@@ -28,7 +28,7 @@ const COMMAND_FLAGS = Object.freeze({
   init: [...COMMON_FLAGS, 'name', 'title', 'theme', 'yes'],
   check: [...COMMON_FLAGS, 'graph'],
   build: [...COMMON_FLAGS, 'force', 'no-check'],
-  serve: [...COMMON_FLAGS, 'build', 'port', 'host', 'admin'],
+  serve: [...COMMON_FLAGS, 'build', 'port', 'host', 'admin', 'preview-port'],
   status: [...COMMON_FLAGS],
   config: [...COMMON_FLAGS],
   update: [...COMMON_FLAGS, 'check', 'pre'],

@@ -615,3 +615,12 @@ test('U4: remote <sub> --help prints that subcommand\'s help (and exits 0); remo
   assert.equal(all.code, 0);
   for (const sub of ['show', 'set', 'password', 'signout-all', 'off']) assert.ok(all.stdout.includes(`gm-scriptorium remote ${sub}`));
 });
+
+test('the real bin accepts `serve --admin --preview-port` (the per-command flag check knows it) and reports its own message for a bad value', async (t) => {
+  const fx = fixture(t);
+  const res = await spawnBin(['serve', 'alpha', '--admin', '--preview-port', 'abc', '--config', fx.configPath]);
+  assert.equal(res.code, 1);
+  assert.equal(res.stderr.trim(), 'serve --admin: --preview-port must be a whole number from 1 to 65535');
+  const same = await spawnBin(['serve', 'alpha', '--admin', '--port', '9300', '--preview-port', '9300', '--config', fx.configPath]);
+  assert.equal(same.stderr.trim(), 'serve --admin: --preview-port must differ from --port');
+});
