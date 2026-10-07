@@ -37,6 +37,8 @@ gm-scriptorium init
 ```
 Set up a campaign: point it at your vault, name it and pick a theme.
 
+Prefer a browser? With no campaign registered, `gm-scriptorium serve --admin` starts the same setup as a few screens in your browser.
+
 ```
 gm-scriptorium check my-campaign
 ```
