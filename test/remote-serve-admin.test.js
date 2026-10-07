@@ -290,7 +290,8 @@ test('Ma15c at startup: the panel folder inside a registered vault is refused, n
 
 test('readiness runs before any socket and without a wider fallback: a refused proxy never calls the local listener either', async (t) => {
   const h = harness();
-  const { promise } = await run(t, { ...PROXY, bind: undefined }, { h });
+  const { bind, ...noBind } = PROXY;
+  const { promise } = await run(t, noBind, { h });
   const outcome = await settle(promise(), h.signals);
   assert.ok(outcome.error instanceof ConfigError);
   assert.deepEqual(h.log.filter((l) => /^(panel|local):/.test(l)), []);
