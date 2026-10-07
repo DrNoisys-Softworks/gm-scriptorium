@@ -16,7 +16,7 @@ const { ADMIN_ASSET_ROUTES, ADMIN_ASSETS_DIR } = require('../src/admin/assets');
 
 const ROOT = path.join(__dirname, '..');
 
-test('ADMIN_ASSET_ROUTES keys equal a literal list of 28 names (panel v2 V1b: 20 -> 23, diff/outcome/slip; V1e-3 SD-26: 23 -> 24, sitepane.js; V1e-9 SD-100: 24 -> 25, vaultcfg.js; V1e-7 SD-69: 25 -> 26, variants.js; V1.5a ADR 0029: 26 -> 28, signin.js and remote.js)', () => {
+test('ADMIN_ASSET_ROUTES keys equal a literal list of 30 names (ADR 0028: 28 -> 30, setup.js and welcome.js; panel v2 V1b: 20 -> 23, diff/outcome/slip; V1e-3 SD-26: 23 -> 24, sitepane.js; V1e-9 SD-100: 24 -> 25, vaultcfg.js; V1e-7 SD-69: 25 -> 26, variants.js; V1.5a ADR 0029: 26 -> 28, signin.js and remote.js)', () => {
   assert.deepEqual(
     Object.keys(ADMIN_ASSET_ROUTES).sort(),
     [
@@ -36,6 +36,8 @@ test('ADMIN_ASSET_ROUTES keys equal a literal list of 28 names (panel v2 V1b: 20
       'variants.js',
       'signin.js',
       'remote.js',
+      'setup.js',
+      'welcome.js',
       'vaultcfg.js',
       'vocab.js',
       'images.js',
@@ -148,16 +150,35 @@ function walkGraph(entry) {
   return files;
 }
 
-test('FR35: the graph from src/cli/serve-admin.js never reaches src/config/write.js, src/cli/config.js or src/cli/init.js', () => {
+/** The graph files (relative to the repo) that name `target` in a relative require. */
+function importersOf(graph, target) {
+  return [...graph]
+    .filter((f) => f.endsWith('.js') && fs.existsSync(f))
+    .filter((f) => extractRequireSpecs(fs.readFileSync(f, 'utf8')).some((spec) => (spec.startsWith('.') || spec.startsWith('/')) && resolveRelative(f, spec) === target))
+    .map((f) => path.relative(ROOT, f).split(path.sep).join('/'))
+    .sort();
+}
+
+/*
+ * FR35, amended by ADR 0028 (section 2): the panel's one config write is browser setup's
+ * registration. The graph from src/cli/serve-admin.js is still barred from src/cli/config.js (it
+ * starts the editor) and src/cli/init.js, exactly as before. src/config/write.js, which used to be
+ * barred outright, may now be reached through ONE chain and no other: src/admin/handlers/setup.js >
+ * src/setup/register.js > src/config/write.js. test/setup-structure.test.js adds the behavioural
+ * half (only the setup commit route ever calls the writer).
+ */
+test('FR35: the graph from src/cli/serve-admin.js never reaches src/cli/config.js or src/cli/init.js, and reaches src/config/write.js only through src/setup/register.js, which only src/admin/handlers/setup.js requires (ADR 0028)', () => {
   const entry = path.join(ROOT, 'src', 'cli', 'serve-admin.js');
   const graph = walkGraph(entry);
-  const forbidden = [
-    path.join(ROOT, 'src', 'config', 'write.js'),
-    path.join(ROOT, 'src', 'cli', 'config.js'),
-    path.join(ROOT, 'src', 'cli', 'init.js'),
-  ];
+  const forbidden = [path.join(ROOT, 'src', 'cli', 'config.js'), path.join(ROOT, 'src', 'cli', 'init.js')];
   const hits = forbidden.filter((f) => graph.has(f));
   assert.deepEqual(hits, [], `serve-admin.js's graph must not reach: ${hits.join(', ')}`);
+
+  const writeJs = path.join(ROOT, 'src', 'config', 'write.js');
+  const registerJs = path.join(ROOT, 'src', 'setup', 'register.js');
+  assert.ok(graph.has(writeJs), 'positive control: the walk reaches src/config/write.js through the setup chain');
+  assert.deepEqual(importersOf(graph, writeJs), ['src/setup/register.js']);
+  assert.deepEqual(importersOf(graph, registerJs), ['src/admin/handlers/setup.js']);
 });
 
 // --- NFR05: no admin asset name reachable from src/build or src/generator --

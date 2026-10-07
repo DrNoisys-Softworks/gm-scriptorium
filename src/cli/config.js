@@ -5,7 +5,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 const { loadConfig } = require('./args');
 const { listCampaigns, resolveCampaign } = require('../config/resolve');
-const { serializeConfig, addCampaign, removeCampaign, setDefaultCampaign, assertConfigPathNotInVault } = require('../config/write');
+const { addCampaign, removeCampaign, setDefaultCampaign, writeConfigFile } = require('../config/write');
 const { locateVault } = require('../vault/locate');
 const { VaultUnreachableError, ConfigError } = require('../util/errors');
 const { EXIT_CODES } = require('../util/exitcodes');
@@ -16,12 +16,6 @@ const { EXIT_CODES } = require('../util/exitcodes');
  * vault, and never stats a vault path except `add`'s best-effort
  * reachability check (which warns, never blocks, on failure).
  */
-
-function writeConfigFile(configPath, config) {
-  assertConfigPathNotInVault(configPath, config);
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(configPath, serializeConfig(config));
-}
 
 function runConfigCommand(flags, subcommand, args) {
   // `remove` loads leniently so a malformed entry (which makes every other command refuse to

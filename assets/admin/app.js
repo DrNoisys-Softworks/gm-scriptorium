@@ -75,6 +75,8 @@
     // V1.5a: the sign-in page loads this file for api() alone. It has no session yet, so booting
     // here would only produce a console 403.
     if (document.body.getAttribute('data-page') === 'signin') return;
+    // ADR 0028: browser setup loads this file for api() and el() alone, and drives its own page.
+    if (document.body.getAttribute('data-page') === 'setup') return;
     api('/api/session').then(function (result) {
       if (!result.ok || !result.body) return;
       var session = result.body;

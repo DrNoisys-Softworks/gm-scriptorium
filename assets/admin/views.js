@@ -761,6 +761,7 @@
    * (renderAll's own guard).
    */
   function renderOverview(ovHero, ovTop, ovRest, s, slotImageRel) {
+    if (ScriptoriumAdmin.welcome) ScriptoriumAdmin.welcome.mount(ovHero);
     var state = s.state;
     var vcj = state.vaultConfigJson || {};
 

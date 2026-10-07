@@ -14,6 +14,8 @@ const vaultconfigeditor = require('./handlers/vaultconfigeditor');
 const prefs = require('./handlers/prefs');
 const variantHandlers = require('./handlers/variants');
 const remoteHandlers = require('./handlers/remote');
+const setupHandlers = require('./handlers/setup');
+const setupmode = require('./setupmode');
 const { ADMIN_COOKIE, PREVIEW_COOKIE } = require('../remote/sessions');
 
 /*
@@ -74,6 +76,14 @@ const ADMIN_ROUTES = Object.freeze([
   { method: 'GET', path: '/api/remote', auth: true, handler: remoteHandlers.apiRemote },
   { method: 'POST', path: '/api/remote/signout', auth: true, handler: remoteHandlers.signout },
   { method: 'POST', path: '/api/remote/signout-all', auth: true, handler: remoteHandlers.signoutAll },
+  // ADR 0028: browser setup (the five routes below), reached with no campaign yet. While setup is
+  // active only GET /auth, /api/session and these setup routes answer (src/admin/setupmode.js);
+  // afterwards /setup redirects to the Overview and the check and commit routes answer 409.
+  { method: 'GET', path: '/setup', auth: true, handler: setupHandlers.setupPage },
+  { method: 'GET', path: '/api/setup/state', auth: true, handler: setupHandlers.state },
+  { method: 'GET', path: '/api/setup/check', auth: true, handler: setupHandlers.check },
+  { method: 'POST', path: '/api/setup/commit', auth: true, audit: true, handler: setupHandlers.commit },
+  { method: 'POST', path: '/api/welcome/dismiss', auth: true, audit: true, handler: setupHandlers.welcomeDismiss },
 ]);
 
 /**
@@ -108,7 +118,7 @@ function sendHtmlRefusal(res, file, isHead) {
  * never ran), so the page choices are made on the raw, undecoded req.url: a literal "/" is the only
  * form a browser navigation to the panel produces, and the raw path before "?" being exactly /auth is
  * the only way a token URL reaches the sign-in page.
- *  - token on /            : locked.html (unchanged)
+ *  - token on / or /setup  : locked.html (ADR 0028 adds /setup)
  *  - session on /          : signin.html (V1.5a: a remote browser with no session)
  *  - kind on /auth         : signin.html (V1.5a: a token URL used against the external name)
  *  - everything else       : `refused: <reason>` as text
@@ -117,7 +127,7 @@ function sendGateRefusal(res, listener, rawUrl, result, isHead) {
   if (listener === 'admin') {
     const isRoot = rawUrl === '/';
     const rawPath = typeof rawUrl === 'string' ? rawUrl.split('?')[0] : '';
-    if (result.reason === 'token' && isRoot) return sendHtmlRefusal(res, 'locked.html', isHead);
+    if (result.reason === 'token' && (isRoot || rawPath === '/setup')) return sendHtmlRefusal(res, 'locked.html', isHead);
     if (result.reason === 'session' && isRoot) return sendHtmlRefusal(res, 'signin.html', isHead);
     if (result.reason === 'kind' && rawPath === '/auth') return sendHtmlRefusal(res, 'signin.html', isHead);
   }
@@ -200,6 +210,18 @@ function createAdminHandler(ctx, { routes = ADMIN_ROUTES } = {}) {
         const route = routes.find((r) => r.path !== undefined && r.path === result.pathname && r.method === matchMethod);
         if (!route) {
           respond.send(res, 404, respond.adminHeaders({ 'Content-Type': 'text/plain; charset=utf-8' }), isHead ? undefined : 'not found', { isHead });
+          return;
+        }
+
+        // ADR 0028, section 1: while browser setup is active only the setup routes answer. Anything
+        // else is a clean 409 with a fixed body (never a 500), and GET / is the setup page.
+        const verdict = setupmode.fence(ctx, matchMethod, result.pathname);
+        if (verdict === 'page') {
+          await setupHandlers.setupPage(req, res, ctx, handlerOpts);
+          return;
+        }
+        if (verdict === 'refuse') {
+          respond.send(res, 409, respond.adminHeaders({ 'Content-Type': 'application/json; charset=utf-8' }), isHead ? undefined : setupmode.FENCE_BODY, { isHead });
           return;
         }
 

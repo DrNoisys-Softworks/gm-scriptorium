@@ -12,13 +12,14 @@ const path = require('path');
 const ADMIN_ASSETS_DIR = path.join(__dirname, '..', '..', 'assets', 'admin');
 
 /**
- * Frozen: the 28 files served at /assets/<name> (V1.5a ADR 0029: 26 -> 28, adding signin.js, the sign-in
+ * Frozen: the 30 files served at /assets/<name> (ADR 0028: 28 -> 30, adding setup.js, browser setup's
+ * script, and welcome.js, the Overview welcome) (V1.5a ADR 0029: 26 -> 28, adding signin.js, the sign-in
  * page's script, and remote.js, the read-only Remote access screen) (panel v2 V1b: 20 -> 23, adding diff.js,
  * outcome.js and slip.js -- the pure client-side modules SD-4 introduces; V1e-3 SD-26: 23 -> 24,
  * adding sitepane.js, the Overview live-preview module; V1e-9 SD-100: 24 -> 25, adding
  * vaultcfg.js, the vault-config.md editor; V1e-7 SD-69: 25 -> 26, adding variants.js, the Theme
- * screen's live-frame cards -- re-measured at the V1e-7 rebase onto main). index.html and
- * locked.html are NOT in here. Keys may contain a single '/'; lookup stays exact own-property membership
+ * screen's live-frame cards -- re-measured at the V1e-7 rebase onto main). index.html,
+ * locked.html and setup.html are NOT in here. Keys may contain a single '/'; lookup stays exact own-property membership
  * (src/admin/handlers/core.js), and readAdminAsset's path.join below handles the subpath. core.js
  * is not edited.
  */
@@ -39,6 +40,8 @@ const ADMIN_ASSET_ROUTES = Object.freeze({
   'variants.js': 'text/javascript; charset=utf-8',
   'signin.js': 'text/javascript; charset=utf-8',
   'remote.js': 'text/javascript; charset=utf-8',
+  'setup.js': 'text/javascript; charset=utf-8',
+  'welcome.js': 'text/javascript; charset=utf-8',
   'vaultcfg.js': 'text/javascript; charset=utf-8',
   'vocab.js': 'text/javascript; charset=utf-8',
   'images.js': 'text/javascript; charset=utf-8',

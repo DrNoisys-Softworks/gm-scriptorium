@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const TOML = require('smol-toml');
 const { ConfigError, VaultUnreachableError } = require('../util/errors');
@@ -132,10 +133,23 @@ function assertConfigPathNotInVault(configPath, config) {
   }
 }
 
+/**
+ * Writes the config file: refuses a path inside a registered vault, creates the folder, and writes
+ * the canonical emitter's output. Moved here from src/cli/config.js (ADR 0028 section 2), which
+ * re-exports this same function, so the admin panel's one config write can reach it without ever
+ * reaching the module that starts the editor.
+ */
+function writeConfigFile(configPath, config) {
+  assertConfigPathNotInVault(configPath, config);
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, serializeConfig(config));
+}
+
 module.exports = {
   serializeConfig,
   addCampaign,
   removeCampaign,
   setDefaultCampaign,
   assertConfigPathNotInVault,
+  writeConfigFile,
 };

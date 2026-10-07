@@ -1873,6 +1873,18 @@ ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux pac
 4. Fix the headings and run `build`.
 5. Hand-add `%% test %%` to a string inside a built page's `sc-tl-data` or `sc-cx-data` island.
 6. Run `check`: it exits 2 with `leak/l6-comment-in-output`.
+### C135: browser setup through `serve --admin`, in the real win-x64 exe
+
+`docs/decisions/0028-installer-and-first-run.md`, sections 1 to 5. **Mark this OPEN: Linux-verified from source and a Linux packaged build only.** Isolate config as in C35: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 8; the two must match. Work in a local scratch folder S.
+
+1. Copy `examples\the-long-lease` to `S\vault` and delete `S\vault\_meta\scriptorium`. Run `serve --admin --config S\config.toml` (the file doesn't exist yet). The usual three lines print, then `setup: no campaign yet, so the panel starts with setup`. Open the printed link in Edge: the setup start screen shows.
+2. Local vault. Name `lease`, vault `S\vault`: the checks go green. The output defaults to `S\lease-site`, the title comes from the vault, and the theme shows its default. The review lists four entries under `_meta\scriptorium\` and the config path. Choose Build my first preview: four lines tick over, then the ready screen. Open my preview shows the site. Go to my panel shows the Overview with the welcome. `S\lease-site` doesn't exist.
+3. Parity. In folder T, make the same copy and run `init --yes --name lease --vault T\vault --config T\config.toml`. `certutil -hashfile` of `pack.toml` and `vault.config.json` gives the same value in both folders. The two `config.toml` files differ only in the vault and output paths.
+4. Network share. Share a folder holding a fresh copy, or use `\\localhost\C$\...`. Typing the path shows nothing until you leave the box. Then the network-share warning shows with the two git commands. Continue works, and the review shows the network share pill.
+5. Map `Z:` to a share, disconnect it, and type `Z:\vault`: "Can't find that folder" shows, with the mapped-drive hint in the grey rule line. Type `\\no-such-host-scriptorium\share\vault` and leave the box. The panel keeps answering (switch screens), and the field reports that it can't reach the folder within a few seconds.
+6. An output folder inside the vault (`S\vault\site`) is refused with `refusing to build inside the vault: ...`, and Continue stays off.
+7. Ctrl-C: `stopped.`, exit 0, and no `scriptorium-preview-*` folder left in `%TEMP%`. Run the same command again: the campaign panel opens, not setup. `/setup` redirects to the Overview. The welcome shows until dismissed; dismiss it, restart, and it's gone.
+8. Re-hash the real config.
 
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 

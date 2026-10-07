@@ -77,6 +77,16 @@ the panel keeps a copy of that file outside the vault before every save. Editing
 `_meta/vault-config.md` from the panel is planned. The panel answers only on this computer unless
 you turn on remote access (next command).
 
+If no campaign is registered yet, `gm-scriptorium serve --admin` starts browser setup instead of
+stopping with an error. It asks the same five questions as `init` (name, vault, output folder, site
+title and theme), checks each answer with the same rules, and shows the rule's own message when it
+refuses one. Nothing is written until its review screen, which creates the same pack files and
+registers the same campaign as `gm-scriptorium init --yes`. It then builds a first preview into the
+panel's own preview folder and opens the panel on your campaign without restarting. Setup listens on
+this computer only, whatever your remote access settings say. A vault on a network share is allowed,
+with a warning to commit to git first. On Linux, a browser installed as a snap cannot always read the
+hidden config folder, so use the link the command prints.
+
 ```
 gm-scriptorium remote show
 ```

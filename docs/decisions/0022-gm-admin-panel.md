@@ -1766,3 +1766,19 @@ All three share one unlock and one edit session, and the writes are the guarded 
 and its second addendum. The screen's preview-free reads add one route, `GET
 /api/vault-config/fields`, which reads the settings and counts the pages carrying each hidden-field
 name; the one new write route is `POST /api/vault-config/fields`.
+
+## 14. Amended by ADR 0028
+
+[ADR 0028](0028-installer-and-first-run.md) changes two things in this record.
+
+- **Section 5 (the context is resolved once).** In the ordinary case nothing changes: the campaign
+  context is resolved once, at launch, and fixed. When `serve --admin` starts with no campaign
+  registered it starts in browser setup mode, and the context is resolved once at the handover,
+  right after the setup commit, then fixed from there. The ports, the token and the cookie do not
+  change at the handover.
+- **The write exception (and the ban on reaching the config writer).** The panel's module graph
+  still never reaches `src/cli/config.js` or `src/cli/init.js`. It may now reach
+  `src/config/write.js` through exactly one chain, `src/admin/handlers/setup.js` >
+  `src/setup/register.js` > `src/config/write.js`, so that browser setup can register a first
+  campaign. That is the panel's only write to `config.toml`, and ADR 0028 section 2 names the tests
+  that fence it.

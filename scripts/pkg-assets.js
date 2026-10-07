@@ -80,6 +80,8 @@ const FIRST_PARTY_SITE_ASSETS = [
   'assets/admin/outcome.js',
   'assets/admin/pack.js',
   'assets/admin/remote.js',
+  'assets/admin/setup.html',
+  'assets/admin/setup.js',
   'assets/admin/signin.html',
   'assets/admin/signin.js',
   'assets/admin/sitepane.js',
@@ -90,6 +92,7 @@ const FIRST_PARTY_SITE_ASSETS = [
   'assets/admin/vaultcfg.js',
   'assets/admin/views.js',
   'assets/admin/vocab.js',
+  'assets/admin/welcome.js',
 ];
 
 /**
