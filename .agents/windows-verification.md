@@ -1854,6 +1854,15 @@ The process spawner (ADR 0046). **Mark this OPEN: the Linux tests cover the grou
 3. Have the shim print `%CD%`. It is an empty `scriptorium-proc-*` folder under `%TEMP%`, and it is gone afterwards.
 4. Press Ctrl-C in the console running the panel while a run is in progress. The panel stops, and `tasklist` shows no leftover `cmd.exe` or `ping.exe` from the run.
 
+### C129: outgoing connections reach only listed destinations, with TLS verified, in the real win-x64 exe
+
+This covers ADR 0024 and `src/net/egress.js`. **Mark this OPEN: the Linux tests prove the rules against loopback stubs from source, not from the exe. Runnable only from the first release candidate whose exe reaches the module; the trigger is the panel action that release provides for an AI connection.** Use a scratch `SCRIPTORIUM_CONFIG` with `--config`. Never use a real AI service or key.
+
+1. Check `netstat -ano` for listeners on 11434 and 1234. If a real local model server is running, stop it, or skip steps 1 and 2 and leave them OPEN. Start a logging stub on 127.0.0.1:11434 (for example a short PowerShell `System.Net.HttpListener` script) and use the local-model connection. The stub logs the request. `netstat` shows no other connection from the exe.
+2. Relaunch the exe with `HTTP_PROXY` and `HTTPS_PROXY` set to a second logging stub on another 127.0.0.1 port, and repeat step 1. The second stub logs nothing. If the release lets the GM type an address, enter 127.0.0.1 with an unlisted port that has a third stub on it. It is refused with a plain message, and the third stub logs nothing.
+3. On a disposable test machine only: map one listed remote host name to 127.0.0.1 in the hosts file and serve a certificate from a throwaway test CA on 443. With the CA untrusted, the connection is refused with a plain certificate message and the stub logs no request. Relaunch with `NODE_EXTRA_CA_CERTS` naming the CA file. The request reaches the stub. If the exe ignores that variable, record it; the refusal half still counts. Remove the hosts entry afterwards.
+4. No message in any step shows a URL path, query, header or response text. Nothing extra is written to the panel console.
+
 ### C97: L5 reads rendered heading forms and story headings, and L6 reads data islands, in the real win-x64 exe
 
 ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux packaged binary only; not run from the exe.** The `\p{L}` pattern, `normalize('NFC')` and the markdown-it renderer inside the packaged snapshot are only proven by running the exe. Never use the real config or vault.
