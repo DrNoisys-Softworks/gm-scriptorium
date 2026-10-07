@@ -105,6 +105,15 @@ const CHECKS = Object.freeze([
       'A published session hub paired with a Wrap-Up still carries the vault\'s learned-items heading in its own (unpublished) body, but the paired Wrap-Up that now supplies the site\'s learned items does not -- those items will never reach the timeline once the pairing withholds the hub\'s body.',
   },
   {
+    id: 'staleness/story-behind-pc',
+    category: 'census',
+    defaultSeverity: 'warn',
+    defaultEnabled: true,
+    requiresFlag: null,
+    description:
+      'A PC page\'s paired `<Name>_Story.md` (same folder, `type: character-story`) has a lower `asOfSession` than the PC page, so the story has fallen behind the stats page. Only a whole non-negative integer (a number or a digit string) counts; anything else on either side is ignored.',
+  },
+  {
     id: 'link/unresolved',
     category: 'link',
     defaultSeverity: 'error',
