@@ -37,19 +37,37 @@ function requireOutputFolder(ctxInfo, command) {
  * site config's folderMap has no entry for it. Same finding `check` reports as
  * vault/unmapped-directory, but build must say it too, including under --no-check.
  */
-function unmappedDirectoryWarnings(unmappedDirectory) {
+function unmappedDirectoryCounts(unmappedDirectory) {
   const byDir = new Map();
   for (const f of unmappedDirectory) {
     const idx = f.relPath.lastIndexOf('/');
     const dir = idx > 0 ? f.relPath.slice(0, idx) : f.relPath;
     byDir.set(dir, (byDir.get(dir) || 0) + 1);
   }
+  return byDir;
+}
+
+function unmappedDirectoryWarnings(byDir) {
   return [...byDir.keys()].sort().map((dir) => {
     const n = byDir.get(dir);
     return (
       `warning: ${n} page(s) in "${dir}" were not published: that folder has no folderMap entry in the site config. ` +
       `Add "${dir}" to folderMap (for example "${dir}": "${suggestedSlug(dir)}"), or list it in excludeDirs to leave it out on purpose.`
     );
+  });
+}
+
+/**
+ * Issue #30, FR-03: the generator's own unmapped-folder line (lib/scanner.js, "scanner: skipping
+ * "<dir>" - not in publish.folder_map ...") points at _meta/vault-config.md, which contradicts the
+ * folderMap advice unmappedDirectoryWarnings gives. Drop it for every folder Scriptorium already
+ * reports, so each folder is named once.
+ */
+const GENERATOR_UNMAPPED_RE = /^scanner: skipping "(.*)" \u2014 not in publish\.folder_map/;
+function withoutReportedUnmapped(generatorWarnings, reportedDirs) {
+  return generatorWarnings.filter((line) => {
+    const m = line.match(GENERATOR_UNMAPPED_RE);
+    return !(m && reportedDirs.has(m[1]));
   });
 }
 
@@ -330,7 +348,15 @@ function runBuildForContext(ctxInfo, flags) {
   }
 
   lines.push(`built ${result.pagesWritten} file(s) in ${result.elapsedMs.toFixed(1)}ms -> ${result.finalOut}`);
-  for (const w of unmappedDirectoryWarnings(computePublishedSet(vaultPath, jsonConfig).unmappedDirectory)) lines.push(w);
+  const unmappedByDir = unmappedDirectoryCounts(computePublishedSet(vaultPath, jsonConfig).unmappedDirectory);
+  // Issue #30, FR-01: the generator's own warn-level lines, human and JSON alike. Human-only
+  // Scriptorium warnings below are unchanged. A zero-warning build prints nothing extra.
+  const generatorWarnings = withoutReportedUnmapped(result.generatorWarnings || [], unmappedByDir);
+  if (generatorWarnings.length > 0) {
+    lines.push(`${generatorWarnings.length} generator warning(s):`);
+    for (const w of generatorWarnings) lines.push(w);
+  }
+  for (const w of unmappedDirectoryWarnings(unmappedByDir)) lines.push(w);
   // Engineering Brief "Story timeline + Connections lane" (2026-09-24), Structural decision 11:
   // each apply's warnings are human-only, printed after "built N file(s)", never in the JSON
   // envelope (residual).
@@ -391,6 +417,7 @@ function runBuildForContext(ctxInfo, flags) {
       redactions: result.redactions || [],
       staleOldDir: result.staleOldDir || null,
       outputScan: result.outputScan,
+      generatorWarnings,
       error: null,
       renderErrors: [],
       stagingRoot: null,

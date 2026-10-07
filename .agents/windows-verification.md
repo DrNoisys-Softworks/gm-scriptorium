@@ -1717,6 +1717,16 @@ Issue #108 (owner decision 2026-10-07: no new exit codes). **Mark this OPEN: Lin
 6. Exit 2 and 4 appear in none of the above.
 7. Expected code changed from 1 to 3 and is **OPEN** again until re-run from the exe: C35 step 6 (init with `--out` inside the vault), the C43 inside-the-vault build refusal (step 1), C91 step 2, C92 step 2, C33 step 4 and the C30-era "no site_config" item (line ~430), C34 (pack image refusal, was 1) and C37 step 6 (pack.toml refusals, was 1). Any other earlier criterion expecting exit 1 for a bad `pack.toml`, theme, pack folder or pack image now expects 3.
 
+### C96: generator warnings show on a successful build, in the real win-x64 exe
+
+Issue #30. This is the Windows leg of C50 step 2, which expects the generator's cache-miss line to print. **Mark this OPEN: Linux-verified from source only; not run from the exe.** Use the C50 fixture (a scratch site with `theme.fonts.source: self-host` and a non-generic heading font family, no `_meta\font-cache`), a scratch TOML via `SCRIPTORIUM_CONFIG` and `--config`, and never the real config or vault.
+
+1. `scriptorium-win-x64.exe build --no-check` exits 0. After the `built N file(s)` line, the human output prints `N generator warning(s):` and then each warning with no leading spaces, including the font line `WARNING: font "<family>" is not in the vault's font cache ... using the fallback font stack`.
+2. The same build with `--json`: `generatorWarnings` is an array holding the same lines in the same order, and no other field has changed. The font line carries no `.scriptorium-build-` staging path.
+3. Run step 2 twice: the two `generatorWarnings` arrays are identical.
+4. Search the built site (`Select-String -Recurse`) for the text `font cache`: no match. Warnings go to the console and the JSON only.
+5. A folder with typed pages but no `folderMap` entry is named once, by Scriptorium's own `warning:` line; the generator's `scanner: skipping "<folder>"` line does not also print.
+
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 
 None of these are product concerns; every one is a harness limit on the automated tester's side,
