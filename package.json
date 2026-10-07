@@ -1,6 +1,6 @@
 {
   "name": "gm-scriptorium",
-  "version": "0.3.0-rc.4",
+  "version": "0.4.0-rc.1",
   "description": "Deterministic check/build/serve/status/config/update CLI for gm-apprentice campaign vaults",
   "license": "MIT",
   "private": true,
