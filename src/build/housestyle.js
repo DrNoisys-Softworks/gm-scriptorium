@@ -38,6 +38,11 @@ const EMBEDDED_HOUSE_STYLE_PATH = path.join(REPO_ROOT, 'assets', 'site', 'script
 const HOUSE_STYLE_FILENAME = 'scriptorium.css';
 const MARKER_ATTR = 'data-scriptorium-housestyle';
 
+/** Escapes every RegExp metacharacter so `s` matches literally (CodeQL js/incomplete-sanitization). */
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Finds the first `<link ... href="...<filename>">` tag in `html`.
  *
@@ -46,7 +51,7 @@ const MARKER_ATTR = 'data-scriptorium-housestyle';
  * @returns {{ index: number, href: string } | null}
  */
 function findLinkTag(html, filename) {
-  const escaped = filename.replace(/\./g, '\\.');
+  const escaped = escapeRegExp(filename);
   const re = new RegExp(`<link\\s[^>]*href="([^"]*${escaped})"[^>]*>`);
   const match = html.match(re);
   if (!match) return null;

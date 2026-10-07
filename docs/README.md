@@ -13,6 +13,7 @@ the guides written for AI assistants, apart from one pointer to them under Contr
 - [Privacy](privacy.md): what the tool sends over the network, and what it never does.
 - [Why, and how this relates to gm-apprentice](about.md): the reasoning and the upstream credit.
 - [Image slots](image-slots.md): which images a theme can show, and the sizes to prepare them at.
+- [Remote access](remote-access.md): using the admin panel from another device, safely, and what is and is not protected.
 - [Backing up your vault](backing-up-your-vault.md): how to keep your campaign notes safe, and why GM-Scriptorium does not do it for you.
 
 ## Contributing
@@ -54,6 +55,7 @@ the way.
 - [0021. First-run setup: init creates a campaign pack and registers it, and writes nothing else in the vault](decisions/0021-init-first-run-setup.md): `init` is a wizard that sets up and registers a campaign.
 - [0022. The GM admin panel: `serve --admin`, its request gate, and the vault write exception](decisions/0022-gm-admin-panel.md): A local, GM-only web panel edits a campaign's pack and previews the site.
 - [0023. The built-in `haze` theme](decisions/0023-haze-theme.md): The built-in `haze` theme.
+- [0029. Remote access to the GM admin panel (opt-in)](decisions/0029-remote-access.md): The panel can be used from another device, but only if you turn that on from the command line.
 - [0030. The public repository becomes the update source](decisions/0030-public-repo-and-update-source.md): `update` reads releases from the public repository.
 - [0031. Privacy guard for the public repository](decisions/0031-public-repo-privacy-guard.md): A guard checks every push, pull request and release for private data.
 - [0032. The gloam base theme](decisions/0032-base-theme.md): A new built-in theme, gloam, is the default for new campaigns.
@@ -69,6 +71,7 @@ the way.
 - [0043. A table cell link with an escaped pipe is read the same way by check and by the build](decisions/0043-escaped-pipe-read-shim.md): `[[Target\|Label]]` in a table cell is read as a link with a label.
 - [0044. Obsidian %% comments are removed before the site is built, and the build refuses to publish one](decisions/0044-obsidian-comments-withheld.md): `%%private notes%%` never reach the site.
 - [0045. The leak checks read headings the way the generator renders them, and read JSON data islands](decisions/0045-leak-checks-read-rendered-headings-and-data-islands.md): a bold, indented, underlined or story-file `GM Notes` heading is caught, and comment text inside timeline and connections data is searched.
+- [0046. One process spawner for outside programs](decisions/0046-one-process-spawner.md): Programs the tool starts all go through one module with a fixed list, no shell and a scrubbed environment.
 
 ## Licensing
 

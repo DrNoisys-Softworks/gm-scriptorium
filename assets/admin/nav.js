@@ -101,6 +101,17 @@
       lede: "Your vault's own settings note. gm-apprentice and GM-Scriptorium both read it: it sets the publish mode, what stays private, the site's look and the landing page.",
     },
     {
+      id: 'remote',
+      group: 'Setup',
+      label: 'Remote access',
+      short: 'Remote',
+      icon: 'globe',
+      soon: false,
+      readOnly: false,
+      eyebrow: 'Setup · remote access',
+      lede: 'Where the panel can be used from. The panel can change your campaign files, so remote access always needs HTTPS and a password. This screen only shows the state; the commands that change it are listed below.',
+    },
+    {
       id: 'memory',
       group: 'Coming later',
       label: 'Memory',
@@ -381,9 +392,9 @@
     return -1;
   }
 
-  // Issue #109: the five unbuilt screens sit together, last, under "Coming later" (the Setup group
-  // held only Storage, so it goes with it).
-  var GROUP_ORDER = ['Site', 'Words', 'Run', 'Advanced', 'Coming later'];
+  // Issue #109: the five unbuilt screens sit together, last, under "Coming later". The Setup group
+  // is back with the one built screen it holds (Remote access), just above it.
+  var GROUP_ORDER = ['Site', 'Words', 'Run', 'Advanced', 'Setup', 'Coming later'];
   var ROADMAP_GROUP = 'Coming later';
 
   var BOTTOM_BAR = ['overview', 'vocab', 'check', 'preview'];

@@ -544,7 +544,8 @@
 
     var rel = item && item.built ? VR.pageRel(item, role) : null;
     var s = store.get().state;
-    var href = s && typeof s.previewPort === 'number' && rel !== null ? PV.variantSrc(location.hostname, s.previewPort, name, rel) : null;
+    var sess = store.get().session;
+    var href = s && typeof s.previewPort === 'number' && rel !== null ? PV.previewSrc((sess && sess.access) || null, location.hostname, s.previewPort, rel, name) : null;
     if (href !== null) {
       var openLink = el('a');
       openLink.className = 'a1-btn small ghost';

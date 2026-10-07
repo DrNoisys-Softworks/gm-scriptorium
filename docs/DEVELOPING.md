@@ -84,6 +84,10 @@ than deciding alone.
 - `test/generator-module-graph.test.js`: no network builtin may appear anywhere in the module
   graph from `bin/scriptorium.js`, except the allowlisted `src/serve/server.js`, and every
   specifier must resolve.
+- `test/proc-structure.test.js`: only `src/proc/run.js` (plus the two older spawners, `src/cli/config.js`
+  and `src/update/gh.js`) may start a program, and every test that uses the spawner must go through
+  `test/helpers/proc-fakebin.js`, so no test can start a real program. See
+  [ADR 0046](decisions/0046-one-process-spawner.md).
 - `src/util/exitcodes.js`: the exit-code table is frozen. 0 is OK, 1 is a Scriptorium bug, 2 is
   a failed check, 3 is an unreachable vault and 4 is an update prerequisite. **No new exit
   codes.** User mistakes are mapped onto these (see "Exit codes for user errors" below). A cleanup or delete failure must never change the code a user sees. Copy the pattern in

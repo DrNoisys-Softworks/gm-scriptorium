@@ -1747,6 +1747,73 @@ Issue #108 (owner decision 2026-10-07: no new exit codes). **Partly verified on 
 5. Exit 3 (issue #108, second decision): `SCRIPTORIUM_PROFILE=nonesuch` then `check`; a `pack.toml` containing `theme = [[[` then `check`; a `pack.toml` with `theme = "nonesuch"` then `build --no-check`; a `pack` key pointing at a missing folder then `check`. Each prints one plain line, no stack.
 6. Exit 2 and 4 appear in none of the above.
 7. Expected code changed from 1 to 3 and is **OPEN** again until re-run from the exe: C35 step 6 (init with `--out` inside the vault), the C43 inside-the-vault build refusal (step 1), C91 step 2, C92 step 2, C33 step 4 and the C30-era "no site_config" item (line ~430), C34 (pack image refusal, was 1) and C37 step 6 (pack.toml refusals, was 1). Any other earlier criterion expecting exit 1 for a bad `pack.toml`, theme, pack folder or pack image now expects 3.
+### C69: the hidden panel-password prompt, in conhost and Windows Terminal, in the real win-x64 exe
+
+`docs/decisions/0029-remote-access.md`: `gm-scriptorium remote password` reads the panel password with nothing echoed on a terminal, and from standard input when there is no terminal, never from an argument or an environment variable. Verified on Linux from source and from a Linux packaged build (`test/remote-cli.test.js`, the fake-terminal raw-mode tests, and the piped runs through the real `bin`). **Mark this OPEN: Linux-verified from source and a Linux packaged build only.**
+
+Isolate config exactly as in C35. Set `SCRIPTORIUM_CONFIG` to a scratch TOML and pass the same path as `--config` on every command. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 7; they must match. Work in a local scratch folder S. Let `<scratch>` be a folder inside S that holds the scratch TOML.
+
+1. In conhost (`cmd.exe`), run `remote password --config <scratch>\config.toml`. At `New panel password: ` type 12 or more characters, then at `Type it again: ` the same. Nothing may echo, not even asterisks. The command prints `panel password set. Every remote device is signed out.` and exits 0 (`echo %ERRORLEVEL%`).
+2. Repeat in Windows Terminal, including pasting the password with Ctrl+V at both prompts. Nothing echoes.
+3. Run it again: `Current panel password: ` is asked first. Type a wrong one: exit 1 with `that is not the current panel password; nothing changed`.
+4. At any prompt, type a few characters and press Backspace: the characters are removed, and the typed text is still not shown. Finish with the right password.
+5. At any prompt, press Ctrl-C. It prints `cancelled; nothing changed`, exits 1, and the console echoes normally afterwards (type `echo hi` to prove it).
+6. Piped from PowerShell, `"a new passphrase 123" | gm-scriptorium remote password --config <scratch>\config.toml` (with the current password as a first line when one is set) exits 0. With an argument, `remote password hunter2hunter2 --config <scratch>\config.toml` exits 1 with one line and no password in it. With `$env:SCRIPTORIUM_PANEL_PASSWORD` set to something else, the password that works is still the one typed or piped.
+7. `findstr /s /m /c:"<the password you typed>" "<scratch>\*"` and the same over `%APPDATA%\Scriptorium` find nothing. Re-hash the config.
+
+### C70: the access list on the panel folder and its files, in the real win-x64 exe
+
+`docs/decisions/0029-remote-access.md`: the `panel` folder beside the resolved config, with `password.json`, `sessions.json` and `audit.log`, is created by the program. On POSIX it is `0700` and `0600` from creation; on Windows it inherits the folder's access list. Verified on Linux for the POSIX modes (`test/remote-paths.test.js`). **Mark this OPEN: the Windows access list is unverified.**
+
+Isolate config as in C35. Use a scratch folder S inside the profile (under `%USERPROFILE%`) and a second, `T`, outside it (for example `C:\scriptorium-scratch`).
+
+1. For each of S and T: set a password with `remote password`, start the panel in a remote mode (C71 shows how) or run `remote signout-all` after a sign-in so that `sessions.json` exists, and make one change through the panel so that `audit.log` exists.
+2. Run `icacls <folder>\panel`, `icacls <folder>\panel\password.json`, `icacls <folder>\panel\sessions.json` and `icacls <folder>\panel\audit.log`. Record the exact output. Expect no user or group beyond the owner, SYSTEM and Administrators.
+3. Record the result for S (inside the profile) and T (outside it). A broader access list outside the profile is recorded here, not fixed.
+4. Confirm `panel` is a real folder (`dir /AL` shows nothing for it), and that placing a config folder inside a registered vault is refused with a message naming the campaign.
+
+### C71: proxy mode on a LAN address, in the real win-x64 exe
+
+`docs/decisions/0029-remote-access.md`: `proxy` mode listens on a chosen address plus 127.0.0.1, and drops every peer but the trusted proxy and this machine before any HTTP. Verified on Linux with real sockets (`test/remote-listener.test.js`, `test/remote-http.test.js`), which is Linux-only because Linux accepts every 127/8 address. **Mark this OPEN: Linux-verified only.**
+
+Isolate config as in C35. You need the PC, a second machine that will act as the trusted proxy, and a third machine.
+
+1. `remote set --mode proxy --bind <LAN IP of the PC> --trusted-proxy <second machine's IP> --admin-url https://scriptorium.home.arpa --preview-url https://preview.scriptorium.home.arpa --port 7400 --preview-port 7401 --config <scratch>\config.toml`, then `remote password`, then `serve <campaign> --admin --config <scratch>\config.toml`.
+2. The first output line starts `WARNING: remote access is on (mode proxy).`, before anything else. Record the Windows Defender Firewall prompt; allow it on Private networks only.
+3. `netstat -ano` shows ports 7400 and 7401 LISTENING on the LAN IP and on 127.0.0.1.
+4. From the third machine, `curl.exe -v http://<LAN IP>:7400/`: the connection is closed with no HTTP response.
+5. From the second machine, `curl.exe -si -H "Host: scriptorium.home.arpa" -H "X-Forwarded-Proto: https" http://<LAN IP>:7400/` returns 403 with the sign-in page, and the same with `-H "Host: <LAN IP>:7400"` returns 403 with the body `refused: host`.
+6. On the PC itself, the `on this machine:` token URL opens the panel in Edge.
+7. Ctrl-C prints `stopped.` and exits 0; `netstat` shows neither port.
+
+### C72: `tailscale serve`, from another tailnet device
+
+`docs/decisions/0029-remote-access.md`, `docs/remote-access.md` section 7: `tailscale` mode binds 127.0.0.1 and trusts `tailscale serve` as its proxy. The test proxy stands in for it in `test/remote-http.test.js`; whether the real `tailscale serve` passes the browser's Host through and sets `X-Forwarded-Proto: https` is **not confirmed anywhere**. **Mark this OPEN: owner-run.**
+
+1. Run the `remote set --mode tailscale ...` and `tailscale serve --bg --https=443 7400` and `tailscale serve --bg --https=8443 7401` commands from `docs/remote-access.md` section 7, with the PC's own `.ts.net` name. Isolate config as in C35.
+2. From another tailnet device, open `https://<name>.ts.net/`. The sign-in page appears; sign in. Open preview lands on the `:8443` address with no second password prompt, and the GM link in the preview returns to the panel.
+3. If the page says `refused: host` or `refused: proto`, `tailscale serve` is rewriting Host or not saying HTTPS. Report it; do not work around it.
+4. Run `tailscale serve reset` afterwards.
+
+### C73: an OpenSSH Server tunnel, in the real win-x64 exe
+
+`docs/decisions/0029-remote-access.md`: `ssh` mode fixes both ports and prints the exact `ssh -L` command. Verified on Linux from source for the printed line (`test/remote-serve-admin.test.js`). **Mark this OPEN.**
+
+1. `remote set --mode ssh --port 7400 --preview-port 7401 --config <scratch>\config.toml`, then `serve <campaign> --admin --config <scratch>\config.toml` on the PC (with the Windows OpenSSH Server running).
+2. From another machine, run the printed `ssh -L 7400:127.0.0.1:7400 -L 7401:127.0.0.1:7401 <user>@<host>` line, and open the printed token link through the tunnel. The panel loads.
+3. Open preview works through the second forward.
+4. A tunnel with different local ports (for example `-L 9000:127.0.0.1:7400`) fails the Host check: the panel answers `refused: host`. That is expected.
+
+### C74: Edge on the owner's desktop through a proxy: sign-in, lockout, sign out everywhere
+
+`docs/decisions/0029-remote-access.md`: the password sign-in, the lockout, "sign out every device" and the read-only Remote access screen. Verified in Chromium and Firefox through the repo's test proxy with a TLS front (Gate 5 of the V1.5a slice). **Mark this OPEN: Edge is unverified.**
+
+1. Use the repo's test proxy with a TLS front (a throwaway certificate trusted only in a scratch Edge profile), or the owner's own proxy if the owner runs one. Isolate config as in C35.
+2. Sign in. DevTools > Application > Cookies shows `__Host-scriptorium_session` with Secure, HttpOnly, SameSite Strict and an expiry about 24 hours out.
+3. Save a theme through the slip.
+4. Type five wrong passwords, then the sixth (the right one) is refused. Open the Remote access screen on the PC through the loopback link: it shows the pause.
+5. Sign out every device: the Edge tab's next request lands on the sign-in page.
+6. DevTools shows zero console errors and zero CSP violations, apart from the deliberate wrong-password 403s.
 
 ### C150: the README config-isolation blocks for PowerShell and cmd, on Windows
 
@@ -1767,6 +1834,25 @@ Issue #30. This is the Windows leg of C50 step 2, which expects the generator's 
 4. Search the built site (`Select-String -Recurse`) for the text `font cache`: no match. Warnings go to the console and the JSON only.
 5. A folder with typed pages but no `folderMap` entry is named once, by Scriptorium's own `warning:` line; the generator's `scanner: skipping "<folder>"` line does not also print.
 6. A site config as `init` scaffolds it prints none of the generator's `backend.statusBar` / `backend.inbox` "old name" lines or its "still holds campaign settings ... migrate.py" line, in human output or in `generatorWarnings`. Add a key `init` does not write (for example `excludeFields`) and the "still holds campaign settings" line returns.
+
+### C98: a .cmd shim runs with no shell, and cmd metacharacters stay inert, in the real win-x64 exe
+
+The process spawner (ADR 0046, `src/proc/run.js`). **Mark this OPEN: Linux tests prove the text of the command line the spawner builds, not how cmd.exe treats it. Runnable only from the first release candidate whose exe reaches the spawner; the trigger is the panel action that release provides for starting an outside program.** Never put a real vendor tool on the PATH of this run. Use a scratch folder, and a scratch `SCRIPTORIUM_CONFIG` with `--config`:
+
+1. Start the exe so the spawner's PATH is the scratch folder alone (for example a `bin` folder under `%TEMP%`). Real tools must be unreachable.
+2. Put a test `claude.cmd` there that writes `%*` to a file. Run the panel action with arguments containing `& | ^ ( ) < >`. Each arrives quoted and inert, and no stray file appears in the scratch folder or the working directory.
+3. Run it with an argument containing `%`, then one containing `"`, then one containing a newline. Each is refused with a plain message and nothing starts (the test `claude.cmd` writes no file).
+4. Replace the shim with a `claude.ps1` alone: not found. Then a `claude.bat` alone: not found. Then both a `claude.exe` (any harmless test program) and a `claude.cmd`: the `.exe` is the one that runs.
+5. No console window flashes, for either the `.exe` or the `.cmd` run.
+
+### C128: a cancel or timeout kills the whole tree, the environment strip holds, and the working folder is empty, in the real win-x64 exe
+
+The process spawner (ADR 0046). **Mark this OPEN: the Linux tests cover the group kill and the shape of the `taskkill` call, not Windows process trees. Runnable only from the first release candidate whose exe reaches the spawner.** Same scratch PATH rule as C98:
+
+1. Use a shim that starts `%SystemRoot%\System32\ping.exe -n 600 127.0.0.1`. Cancel the run from the panel, and check `tasklist` for the shim's `cmd.exe` and `ping.exe`: neither remains. Repeat with a run that hits its timeout. Neither remains.
+2. Set `anthropic_api_key`, `Claude_Code_Use_Bedrock` and one unlisted variable before launching the exe, each with a generated value that is not key-shaped. Run a shim that dumps `set` to a file. None of the three is in the dump. `Path` and `SystemRoot` are.
+3. Have the shim print `%CD%`. It is an empty `scriptorium-proc-*` folder under `%TEMP%`, and it is gone afterwards.
+4. Press Ctrl-C in the console running the panel while a run is in progress. The panel stops, and `tasklist` shows no leftover `cmd.exe` or `ping.exe` from the run.
 
 ### C97: L5 reads rendered heading forms and story headings, and L6 reads data islands, in the real win-x64 exe
 

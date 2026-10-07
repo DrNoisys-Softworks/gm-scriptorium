@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scriptorium admin panel</title>
+<link rel="icon" href="/assets/favicon.svg">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/admin.css">
+</head>
+<body data-page="signin">
+<main class="locked-main">
+  <h1>Scriptorium admin panel</h1>
+  <form data-role="signin-form" class="signin-form">
+    <label for="signin-password">Panel password</label>
+    <input type="password" id="signin-password" name="password" autocomplete="current-password" required>
+    <button type="submit">Sign in</button>
+    <p role="alert" data-role="signin-status" class="signin-status"></p>
+  </form>
+  <p>The password is set on the machine running GM-Scriptorium, with <code>gm-scriptorium remote password</code>.</p>
+  <p>Five wrong passwords in ten minutes pause remote sign-in for fifteen minutes. On the machine running GM-Scriptorium, the one-time link still works.</p>
+</main>
+<script defer src="/assets/app.js"></script>
+<script defer src="/assets/signin.js"></script>
+</body>
+</html>

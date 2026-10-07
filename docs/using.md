@@ -74,7 +74,18 @@ Opens the local GM admin panel instead: a small web page, on this computer only,
 pack (theme, image slots and vocabulary) and your campaign's tagline, with a live preview of the
 player site inside the panel. The tagline is saved into your vault's `_meta/vault-config.md`, and
 the panel keeps a copy of that file outside the vault before every save. Editing more of
-`_meta/vault-config.md` from the panel is planned.
+`_meta/vault-config.md` from the panel is planned. The panel answers only on this computer unless
+you turn on remote access (next command).
+
+```
+gm-scriptorium remote show
+```
+Opt-in access to the admin panel from another device, for a GM who runs GM-Scriptorium on a home
+server or a VM: behind a reverse proxy, through `tailscale serve`, or through an SSH tunnel. Set it
+up with `remote set`, `remote password`, `remote signout-all` and `remote off`. Behind a reverse
+proxy or `tailscale serve`, the panel needs HTTPS (from the proxy or Tailscale) and a password.
+Through an SSH tunnel it needs neither, because SSH has already authenticated and encrypted the
+connection. See [Remote access](remote-access.md).
 
 ```
 gm-scriptorium status my-campaign
@@ -93,7 +104,7 @@ gm-scriptorium update
 Self-updates from the latest release. See [Updating](install.md#updating), it needs one extra tool.
 
 That's the full command surface: `init`, `check`, `build`, `serve` (with a `--admin` mode),
-`status`, `config`, `update`. Run `gm-scriptorium --help` for the full flag list on each.
+`status`, `config`, `remote`, `update`. Run `gm-scriptorium --help` for the full flag list on each.
 
 ## Leak checks
 

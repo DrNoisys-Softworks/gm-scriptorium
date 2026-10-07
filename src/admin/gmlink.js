@@ -24,6 +24,17 @@ function gmLinkHref(port) {
   return `http://127.0.0.1:${port}/`;
 }
 
+/**
+ * V1.5a (docs/decisions/0029-remote-access.md section 7): the link target for the active mode. In
+ * tailscale, proxy and direct modes it is the admin's external address (never a token); in local
+ * and ssh modes it is exactly what gmLinkHref has always produced.
+ *
+ * @param {{ access?: { remote?: boolean, admin?: { origin: string } }|null, adminPort: number }} ctx
+ */
+function gmLinkHrefFor(ctx) {
+  return ctx.access && ctx.access.remote ? `${ctx.access.admin.origin}/` : gmLinkHref(ctx.adminPort);
+}
+
 /** @param {string} href */
 function gmLinkSnippet(href) {
   return `<div class="content scriptorium-gm-link" ${GM_LINK_MARKER}><p><a href="${href}" rel="noreferrer">GM</a></p></div>\n`;
@@ -65,7 +76,7 @@ function assertPreconditions(ctx) {
 function injectGmLinks(ctx) {
   assertPreconditions(ctx);
 
-  const href = gmLinkHref(ctx.adminPort);
+  const href = gmLinkHrefFor(ctx);
   const snippet = gmLinkSnippet(href);
   let pagesLinked = 0;
 
@@ -96,4 +107,4 @@ function injectGmLinks(ctx) {
   return { pagesLinked };
 }
 
-module.exports = { gmLinkHref, gmLinkSnippet, injectGmLinks };
+module.exports = { gmLinkHref, gmLinkHrefFor, gmLinkSnippet, injectGmLinks };
