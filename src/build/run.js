@@ -63,6 +63,22 @@ const sessionpairs = require('../vault/sessionpairs');
  *           { ok: false, error: Error, stagingRoot: string, renderErrors: object[] }}
  * @throws {ScriptoriumError} if siteDir is not an absolute string, or campaign is missing
  */
+/**
+ * Issue #30: the generator's `warn`-level console lines for a successful build, as the user
+ * should read them. Leading whitespace is trimmed (the generator indents its own WARNING lines).
+ * NFR-01: the generator is pointed at the per-build staging tree, so any line that names it would
+ * differ on every build. Rewrite the staged output folder to the final one (where the site ends
+ * up) and any other staging path to a fixed token, so two builds of an unchanged vault agree.
+ * Residual: only these two literal paths are rewritten; a generator line carrying a different
+ * spelling of the staging path (for example a realpath through a symlink) would not be.
+ */
+function generatorWarningLines(detail, { stagingRoot, stagingOut, finalOut }) {
+  const swap = (text, from, to) => (from ? text.split(from).join(to) : text);
+  return (detail || [])
+    .filter((entry) => entry.level === 'warn')
+    .map((entry) => swap(swap(entry.text, stagingOut, finalOut), stagingRoot, '<staging>').replace(/^\s+/, ''));
+}
+
 function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign, force = false, themePlan = null, vocab }) {
   if (typeof siteDir !== 'string' || siteDir.length === 0 || !path.isAbsolute(siteDir)) {
     throw new ScriptoriumError(`siteDir must be an absolute path, got: ${siteDir}`);
@@ -246,6 +262,7 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
     elapsedMs,
     staleOldDir,
     detail,
+    generatorWarnings: generatorWarningLines(detail, { stagingRoot, stagingOut, finalOut }),
     notice,
     houseStyle,
     storyFocus,
@@ -273,4 +290,4 @@ function countFiles(dir) {
   return count;
 }
 
-module.exports = { runAtomicBuild };
+module.exports = { runAtomicBuild, generatorWarningLines };

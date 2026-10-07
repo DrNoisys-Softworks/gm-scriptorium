@@ -1757,6 +1757,17 @@ Issues #8 and #17 (slice 1). **Mark this OPEN: the two Windows blocks were writt
 3. `%APPDATA%\Scriptorium\config.toml` is unchanged (same hash and timestamp) before and after both runs, and the cloned `examples\the-long-lease` is unchanged.
 4. In a new window, `echo %SCRIPTORIUM_CONFIG%` (or `$env:SCRIPTORIUM_CONFIG`) is empty again.
 
+### C96: generator warnings show on a successful build, in the real win-x64 exe
+
+Issue #30. This is the Windows leg of C50 step 2, which expects the generator's cache-miss line to print. **Mark this OPEN: Linux-verified from source only; not run from the exe.** Use the C50 fixture (a scratch site with `theme.fonts.source: self-host` and a non-generic heading font family, no `_meta\font-cache`), a scratch TOML via `SCRIPTORIUM_CONFIG` and `--config`, and never the real config or vault.
+
+1. `scriptorium-win-x64.exe build --no-check` exits 0. After the `built N file(s)` line, the human output prints `N generator warning(s):` and then each warning with no leading spaces, including the font line `WARNING: font "<family>" is not in the vault's font cache ... using the fallback font stack`.
+2. The same build with `--json`: `generatorWarnings` is an array holding the same lines in the same order, and no other field has changed. The font line carries no `.scriptorium-build-` staging path.
+3. Run step 2 twice: the two `generatorWarnings` arrays are identical.
+4. Search the built site (`Select-String -Recurse`) for the text `font cache`: no match. Warnings go to the console and the JSON only.
+5. A folder with typed pages but no `folderMap` entry is named once, by Scriptorium's own `warning:` line; the generator's `scanner: skipping "<folder>"` line does not also print.
+6. A site config as `init` scaffolds it prints none of the generator's `backend.statusBar` / `backend.inbox` "old name" lines or its "still holds campaign settings ... migrate.py" line, in human output or in `generatorWarnings`. Add a key `init` does not write (for example `excludeFields`) and the "still holds campaign settings" line returns.
+
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 
 None of these are product concerns; every one is a harness limit on the automated tester's side,
