@@ -7344,6 +7344,7 @@ body[data-page="signin"] {
   max-width: 720px;
 }
 
+.su-ready h1,
 .su-ready h2 {
   margin: 0;
   font: 400 36px/1.05 var(--font-display);
@@ -7769,3 +7770,24 @@ body[data-page="signin"] {
     padding: 24px 16px 20px;
   }
 }
+
+.su-mt8 {
+  margin-top: 8px;
+}
+
+.su-camp-sm {
+  font-size: 17px;
+}
+
+.su-q.wide {
+  max-width: none;
+}
+
+.su-pbar i.w3 { width: 3%; }
+.su-pbar i.w16 { width: 16%; }
+.su-pbar i.w32 { width: 32%; }
+.su-pbar i.w48 { width: 48%; }
+.su-pbar i.w64 { width: 64%; }
+.su-pbar i.w80 { width: 80%; }
+.su-pbar i.w92 { width: 92%; }
+.su-pbar i.w100 { width: 100%; }

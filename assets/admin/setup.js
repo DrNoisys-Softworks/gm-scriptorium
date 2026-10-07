@@ -188,13 +188,13 @@
     mt.appendChild(crest);
     var grow = h('div', 'grow');
     var camp = h('div', 'a1-camp', 'GM-Scriptorium setup');
-    camp.style.fontSize = '17px';
+    camp.className += ' su-camp-sm';
     grow.appendChild(camp);
     grow.appendChild(h('div', 'l', label));
     var bar = h('div', 'su-pbar');
     bar.setAttribute('aria-hidden', 'true');
     var fill = h('i');
-    fill.style.width = pct + '%';
+    fill.className = 'w' + pct;
     bar.appendChild(fill);
     grow.appendChild(bar);
     mt.appendChild(grow);
@@ -376,7 +376,7 @@
       kids[0].appendChild(document.createTextNode(' Spaces and capitals belong in the site title, question 4.'));
       if (r.facts && r.facts.suggestion) {
         var acts = h('div', 'a1-actions');
-        acts.style.marginTop = '8px';
+        acts.classList.add('su-mt8');
         acts.appendChild(button('small', 'Use ' + r.facts.suggestion, null, function () {
           var i = document.getElementById('su-name');
           i.value = r.facts.suggestion;
@@ -434,7 +434,7 @@
     }
     if (r.state === 'unreachable') {
       var acts = h('div', 'a1-actions');
-      acts.style.marginTop = '8px';
+      acts.classList.add('su-mt8');
       acts.appendChild(extraBtn());
       status.appendChild(note('err', 'warn', [h('p', null, ''), acts, ruleLine(r.rule)]));
       status.querySelector('p').appendChild(h('b', null, 'Can’t check that folder.'));
@@ -459,7 +459,7 @@
       kids[0].appendChild(h('b', null, f.candidate ? 'This folder isn’t a vault, but one folder down is.' : 'This folder isn’t a vault.'));
       if (f.candidate) {
         var a2 = h('div', 'a1-actions');
-        a2.style.marginTop = '8px';
+        a2.classList.add('su-mt8');
         a2.appendChild(button('small', 'Use ' + f.candidate, null, function () {
           input.value = f.candidate;
           input.focus();
@@ -472,7 +472,7 @@
     } else {
       rows = [['bad', 'Folder not found', code(r.value)], ['na', 'A gm-apprentice vault', 'Checked once the folder is found'], ['na', 'Where it lives', '']];
       var a3 = h('div', 'a1-actions');
-      a3.style.marginTop = '8px';
+      a3.classList.add('su-mt8');
       a3.appendChild(extraBtn());
       var p3 = h('p');
       p3.appendChild(h('b', null, 'Can’t find that folder.'));
@@ -575,9 +575,9 @@
       });
       lab.appendChild(cb);
       lab.appendChild(document.createTextNode(' Replace this folder’s contents on the first build'));
-      lab.style.marginTop = '8px';
+      lab.classList.add('su-mt8');
       var acts = h('div', 'a1-actions');
-      acts.style.marginTop = '8px';
+      acts.classList.add('su-mt8');
       acts.appendChild(button('small ghost', 'Use the suggested folder instead', null, useDefault));
       extra.push(note('warn', 'warn', [p, lab, acts, ruleLine(r.rule)]));
     } else {
@@ -586,7 +586,7 @@
       pb.appendChild(h('b', null, f.inside ? 'That folder is inside your vault.' : 'That folder can’t be used.'));
       pb.appendChild(document.createTextNode(f.inside ? ' Every build would write the website into your notes. Pick a folder outside it; the suggested one sits next to the vault.' : ''));
       var a2 = h('div', 'a1-actions');
-      a2.style.marginTop = '8px';
+      a2.classList.add('su-mt8');
       if (f.default) a2.appendChild(button('small', 'Use ' + f.default, null, useDefault));
       extra.push(note('err', 'warn', [pb, a2, ruleLine(r.rule)]));
     }
@@ -769,15 +769,14 @@
 
   function screenTheme() {
     var wrap = h('div', 'su-q');
-    wrap.style.maxWidth = 'none';
+    wrap.classList.add('wide');
     var body = h('div');
     wrap.appendChild(body);
     ask('theme', S.theme === null ? undefined : S.theme, false).then(function (r0) {
       if (!r0) return;
       var f = r0.facts || {};
       body.textContent = '';
-      body.style.display = 'grid';
-      body.style.gap = '18px';
+      body.className = 'su-q wide';
       body.appendChild(qHead(5, 'Pick a look for the player site', 'Sketches of your landing page in each theme, using your title. You can switch any time under Theme.'));
       var noteHost = h('div', 'su-themes-note');
       noteHost.setAttribute('aria-live', 'polite');
@@ -1073,9 +1072,6 @@
     wrap.appendChild(h('div', 'a1-eyebrow', 'Setup complete'));
     var h2 = h('h1', null, S.failure ? 'Registered, with a problem' : ok ? 'Your first preview is ready' : S.built === 'skipped' ? 'Your campaign is set up' : 'Your campaign is set up, but the preview didn’t build');
     h2.tabIndex = -1;
-    h2.style.margin = '0';
-    h2.style.font = '400 36px/1.05 var(--font-display)';
-    h2.style.color = 'var(--accent-strong)';
     wrap.appendChild(h2);
     var lede = h('p', 'a1-lede');
     if (S.failure) setText(lede, S.failure);
