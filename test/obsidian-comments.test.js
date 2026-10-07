@@ -183,6 +183,89 @@ test('output scan: clean output and very short comments give no finding', () => 
   assert.deepEqual(needlesFor({ text: '\nFirst line here\nsecond line here\n' }), ['first line here second line here', 'first line here', 'second line here']);
 });
 
+// ---- ADR 0045: JSON data islands ----
+
+const { serializeDataIsland } = require('../src/build/sitescript');
+
+const island = (v, attrs = 'class="sc-tl-data"') => `<script type="application/json" ${attrs}>${serializeDataIsland(v)}</script>`;
+
+test('islands (text arm): comment text only inside a sc-tl-data island is an error with the right outputPath', () => {
+  const dir = outTree({ 'timeline/index.html': `<p>clean</p>${island({ events: [{ title: 'The Duke Is The Traitor', note: 'the duke is the traitor' }] })}` });
+  try {
+    const f = scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [COMMENT] });
+    assert.equal(f.length, 1);
+    assert.equal(f[0].data.arm, 'text');
+    assert.equal(f[0].severity, 'error');
+    assert.equal(f[0].outputPath, 'timeline/index.html');
+    assert.equal(f[0].path, 'Notes/A.md');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('islands (text arm): a connections island and an id-keyed generator island are searched too', () => {
+  const dir = outTree({
+    'cx.html': island({ nodes: ['the duke is the traitor'] }, 'class="sc-cx-data"'),
+    'party.html': `<script id="party-data" type="application/json">${serializeDataIsland({ members: [{ bio: 'the duke is the traitor' }] })}</script>`,
+  });
+  try {
+    const f = scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [COMMENT] });
+    assert.deepEqual(f.map((x) => [x.outputPath, x.data.arm]).sort(), [['cx.html', 'text'], ['party.html', 'text']]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('islands (marks arm): a %% in an island string is an error; one finding per file', () => {
+  const dir = outTree({ 'a.html': `<p>x</p>${island({ rows: [{ t: 'oops %% leaked' }, { t: 'and %% again' }] })}` });
+  try {
+    const f = scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [] });
+    assert.equal(f.length, 1);
+    assert.equal(f[0].data.arm, 'marks');
+    assert.equal(f[0].outputPath, 'a.html');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('islands (exclusions kept): %% in pre, code, style, a non-JSON script, or an island with no %% gives 0', () => {
+  const dir = outTree({
+    'ok.html': `<pre>%%a%%</pre><code>%%b%%</code><style>a{width:100%%}</style><script>var x = "%% the duke is the traitor";</script><script type="text/template">%%c%%</script>${island({ t: 'fine' })}`,
+  });
+  try {
+    assert.deepEqual(scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [COMMENT] }), []);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('islands (fail closed): invalid JSON is an island-unparsable error with no island text, and its raw body is still searched', () => {
+  const dir = outTree({ 'a.html': '<p>x</p><script type="application/json" class="sc-tl-data">{"a": "the duke is the traitor", ZQXBROKEN</script>' });
+  try {
+    const f = scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [COMMENT] });
+    const un = f.filter((x) => x.data.arm === 'island-unparsable');
+    assert.equal(un.length, 1);
+    assert.equal(un[0].severity, 'error');
+    assert.equal(un[0].outputPath, 'a.html');
+    assert.ok(!JSON.stringify(un[0]).includes('ZQXBROKEN'), 'no island text in the finding');
+    assert.ok(!JSON.stringify(un[0]).includes('traitor'), 'no island text in the finding');
+    assert.ok(!/position|Unexpected|JSON\.parse/i.test(JSON.stringify(un[0])), 'no parser message in the finding');
+    assert.equal(f.filter((x) => x.data.arm === 'text').length, 1, 'comment text inside the broken island is still found');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('islands (fail closed): a %% inside an unparsable island is also a marks error', () => {
+  const dir = outTree({ 'a.html': '<script type="application/json" id="d">{ %% broken</script>' });
+  try {
+    const arms = scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [] }).map((x) => x.data.arm).sort();
+    assert.deepEqual(arms, ['island-unparsable', 'marks']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // ---- end to end: the CLI on a vault full of comments ----
 
 const BIN = path.join(__dirname, '..', 'bin', 'scriptorium.js');
