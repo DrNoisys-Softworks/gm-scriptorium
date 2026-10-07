@@ -10,7 +10,7 @@ GM-only notes off it. Built for tabletop GMs. Free and open source.
 - **Looks the part.** Built-in themes, image slots and a vocabulary pack for each campaign.
 - **Has a local admin panel.** Pick a theme and edit your tagline, with a live preview, on your
   own computer only.
-- **Is one portable program.** No Node or npm needed to run it.
+- **Is one portable program.** Releases are a single executable, with no Node or npm needed.
 - **Is free and open source** under the MIT licence.
 
 ## Get it
