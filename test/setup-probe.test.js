@@ -79,8 +79,8 @@ test('at most two probes are in flight: the third gets busy at once, and the slo
 });
 
 test('isUncPath: \\\\host\\share and //host/share forms only', () => {
-  const yes = ['\\\\host\\share', '\\\\host\\share\\vault', '//host/share', '//host/share/vault', '\\\\10.0.0.5\\campaigns\\x', '//nas.local/c$/x'];
-  const no = ['C:\\vault', 'C:/vault', '/home/gm/vault', 'vault', '', '\\\\', '//', '\\\\host', '//host', '\\host\\share', '/host/share', 'z:\\share'];
+  const yes = ['\\\\host\\share', '\\\\host\\share\\vault', '//host/share', '//host/share/vault', '\\\\nas.example\\campaigns\\x', '//nas.local/c$/x'];
+  const no = ['C:\\vault', 'C:/vault', '/srv/gm/vault', 'vault', '', '\\\\', '//', '\\\\host', '//host', '\\host\\share', '/host/share', 'z:\\share'];
   for (const s of yes) assert.equal(probe.isUncPath(s), true, JSON.stringify(s));
   for (const s of no) assert.equal(probe.isUncPath(s), false, JSON.stringify(s));
   assert.equal(probe.isUncPath(undefined), false);
