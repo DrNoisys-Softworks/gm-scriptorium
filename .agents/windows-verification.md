@@ -1094,7 +1094,7 @@ self-host-fonts fixture makes zero guarded `fetch`/`WebSocket` calls, the vault 
 byte-unchanged, and no `_meta/font-cache` is created. The guard itself (an
 `Object.defineProperty` getter/setter on `globalThis.fetch`/`WebSocket`) is plain JS with nothing
 platform-specific, but per this repo's first rule that is not evidence about the packaged exe.
-**Steps 1, 3 and 4 (the optional firewall step included) verified on Windows (2026-10-07, rc.4, Windows 11 test VM). Step 2 was reworded to match what `build` prints.**
+**Steps 1 to 3 verified on Windows (2026-10-07, rc.4, Windows 11 test VM); step 4 stays OPEN. Step 2 was reworded to match what `build` prints.** The step 4 run added its block rule with `netsh advfirewall` to the local firewall store, which the test machine's policy ignores (local firewall rules are disallowed), so the rule was almost certainly not enforced. The byte-identical rebuild shows the build does not need the network, but not that the exe was blocked. A re-run must put the rule in the effective policy store.
 
 1. Build a scratch site with `theme.fonts.source: self-host` and a non-generic heading font family
    (one the generator's own CSS stack doesn't already ship) via `scriptorium-win-x64.exe build`.
