@@ -82,8 +82,10 @@ gm-scriptorium remote show
 ```
 Opt-in access to the admin panel from another device, for a GM who runs GM-Scriptorium on a home
 server or a VM: behind a reverse proxy, through `tailscale serve`, or through an SSH tunnel. Set it
-up with `remote set`, `remote password`, `remote signout-all` and `remote off`. The panel then
-needs HTTPS and a password. See [Remote access](remote-access.md).
+up with `remote set`, `remote password`, `remote signout-all` and `remote off`. Behind a reverse
+proxy or `tailscale serve`, the panel needs HTTPS (from the proxy or Tailscale) and a password.
+Through an SSH tunnel it needs neither, because SSH has already authenticated and encrypted the
+connection. See [Remote access](remote-access.md).
 
 ```
 gm-scriptorium status my-campaign
