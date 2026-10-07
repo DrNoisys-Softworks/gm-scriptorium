@@ -132,7 +132,7 @@ proof only; this is exactly what C1 confirms on Windows):
   then hash every file (PowerShell: `Get-ChildItem -Recurse -File <out-dir> | Get-FileHash -Algorithm
   SHA256 | Sort-Object Path`) and diff against the C1 manifest for this pin, delivered over
   the Windows verification channel: `c1-manifest-node.txt` (the Linux plain-node reference). **Stale as of the `publish-v1.11.44` repin (2026-10-01), again at `publish-v1.12.0` (2026-10-02), at `publish-v1.12.3` (2026-10-03) and again at `publish-v1.14.0` (2026-10-06), not yet regenerated (OPEN):** the pin's own `css/style.css` changed at the first two and is copied into every built site, at `publish-v1.12.3` the pin's page templates and link reading changed, and at `publish-v1.14.0` the pin's grouped Story toggle, the D&D sheet templates and `css/style.css` changed, so the manifest below no longer matches a build at the current pin. Regenerate it on the Linux build host before using this criterion. **Regenerated at `publish-v1.11.40`
-  (R1 repin, 2026-09-30)** — node and pkg-linux agree exactly (42/42 files, identical hash sets),
+  (R1 repin, 2026-09-30)** — node and pkg-linux agree exactly (42/42 files, identical hash sets; this count predates the later repins, and the current manifest has 44 files),
   proven with:
 
   ```
@@ -144,7 +144,9 @@ proof only; this is exactly what C1 confirms on Windows):
   ```
 
   This is still only the Linux-side leg — the still-open half of C1 is confirming the SAME manifest
-  against the real win-x64 exe. A match confirms
+  against the real win-x64 exe. **Verified on Windows (2026-10-07, rc.4, Windows 11 test VM): the manifest for the build under test has 44
+  files, and all 44 file hashes from the win-x64 exe match it. The ICU rendering check passed on the
+  three NPC titles, and the filename-slugify check built `González.md` to `gonzalez.html`.** A match confirms
   the shim's grapheme splitting and the fixture's decomposed-accent, emoji-ZWJ and Hangul titles all
   round-trip identically on Windows; a mismatch, or any file present on Linux but missing on Windows,
   is a STOP-worthy Windows-specific divergence — report it with the exact diff.
@@ -154,13 +156,15 @@ proof only; this is exactly what C1 confirms on Windows):
   bytes through a Windows filesystem), so this is a rendering check, not a slug/filename check: open
   `characters/npcs/decomposed-accent-npc.html`, `emoji-zwj-npc.html` and `hangul-npc.html` in the built
   output and confirm each renders its full title correctly (`José María Álvarez Delgado`, the detective
-  emoji sequence, the Hangul text) AND its relationship-graph SVG shows a truncated node label ending in
-  `…` for at least one of the other three NPCs (their titles are all >15 graphemes by construction).
+  emoji sequence, the Hangul text) AND its Connections lane (`section[data-scriptorium-connections]`)
+  names the other NPCs in full, with no `…`. The Connections lane replaced the pin's relationship-graph
+  SVG on every page (`docs/decisions/0017-story-timeline-and-connections-lane.md`), so no SVG graph label exists to truncate.
+  The `Intl.Segmenter` truncation itself is covered only by the C1 manifest parity above.
   `spike/manifests/pin-5779522/selftest-node.json`, retained in the private archive at b5b48b4, is the Linux-side reference for the underlying
   ICU/NFD/Intl.Segmenter probes; there is no pkg-linux-vs-pkg-win selftest comparison here, since the
   pkg-win binary cannot run on this Linux box.
 - **Filename-slugify check, restored (DEP correction, 2026-09-16).** The grapheme-vault check above
-  only exercises frontmatter `title` through the rendering and graph-label-truncation path (its own
+  only exercises frontmatter `title` through the rendering path (its own
   filenames are deliberately plain ASCII, precisely because it is `git checkout`'d). That is a
   different code path from `slugify(baseName)` (`gm-apprentice-publish/lib/scanner.js:7-22,135`),
   which derives a page's output filename from the vault file's own FILENAME, not its title. That path
@@ -226,7 +230,7 @@ orchestrator) specifically for this test flow: install the `v0.1.0` exe from its
   notes URL) and changes nothing (confirm no file under the exe's directory changed, hash before/after).
 - **C23**: `update` (no `--check`) actually upgrades. Confirm `--version` afterwards reports the new
   version, and confirm the rename-then-swap left a `scriptorium.exe.old-<oldversion>` file
-  (`src/update/replace.js`), and that the **next** command run swept it away
+  (`src/update/replace.js`), and that the **next** `update` invocation swept it away
   (`sweepOldExecutables`, called at the top of `runUpdateCommand` on every invocation).
 - **C24**: deliberately corrupt a downloaded asset (truncate it, or swap in a different file with the
   same name before the checksum check runs) and confirm `update` fails cleanly, exit code 1, with the
@@ -248,6 +252,10 @@ orchestrator) specifically for this test flow: install the `v0.1.0` exe from its
     started moments later before it downloads, and confirm the first's temp dir survives) -- this is
     the concurrency guarantee (AC-24-04) and the one case a real repro could disprove that a simulated
     live-pid marker cannot.
+- **Verified on Windows (2026-10-07, rc.4, Windows 11 test VM):** C22, C23, C24 and C25 passed against the rc.3 exe updating to
+  rc.4. C23: the swept `.old-<version>` file is removed by the next `update` invocation, not by
+  `--version`, which does not sweep. C24 was run by corrupting the download in flight, which is not a
+  kill mid-download; AC-24-11 and AC-26-08 stay OPEN.
 - **C25**: hash every file in the vault and in `out/` before and after an `update` run
   (`update` must never touch either). Exact command, run before and after, diff the two files:
 
@@ -653,8 +661,10 @@ Harrow`, `---`, `A published page.`). Copy it to `S\Second Vault\`. Save `dir /s
 - `check` reports `config/theme-scheme-mismatch` (INFO) when a dark theme meets a light palette.
 
 Verified on Linux from source only (`test/theme-haze.test.js`, `test/theme-registry.test.js`,
-`test/theme-scheme.test.js`, `test/package-config.test.js`), plus a Linux packaged build. **Mark
-this OPEN: Linux-verified from source only.**
+`test/theme-scheme.test.js`, `test/package-config.test.js`), plus a Linux packaged build.
+**Verified on Windows (2026-10-07, rc.4, Windows 11 test VM), except step 4's "dark hero" wording, which stays OPEN:** step 4's "dark hero" reads pale on the
+mini-vault, whose palette is light (the same mismatch step 5 reports), so whether that wording suits a
+dark-palette vault is a human judgement. Step 4 was run as a scripted fetch rather than DevTools.
 
 Isolate config and scratch exactly as in C35. Never touch the real vault or a mapped drive. Hash
 `%APPDATA%\Scriptorium\config.toml` before step 1 and after step 6.
@@ -666,11 +676,11 @@ Isolate config and scratch exactly as in C35. Never touch the real vault or a ma
    `theme = "haze"`.
 3. `build c36 --no-check --config "S\config.toml"`: exit `0`.
    `certutil -hashfile "S\c36-site\css\scriptorium-theme.css" SHA256` equals
-   `557A357A4E6961A0AE3822285D1D1562CDAC68735881C81E8959D3230EB386B5`. `findstr /s /m` for
+   `7F8F53656AB5AE3E09CF1431793CE2949BB3E80C5A70C2EA6DD43DB298568FED` (re-measured on the Windows exe, 2026-10-07, rc.4, Windows 11 test VM). `findstr /s /m` for
    `data-scriptorium-housestyle` and for `data-scriptorium-theme` list the same files.
 4. `serve c36 --port <free>` in Edge or Chrome: the landing page shows the full-bleed dark hero
    with the title set large, bottom-left. In DevTools, `scriptorium-theme.css` returns 200 and
-   there are no `fonts.googleapis.com` or `fonts.gstatic.com` requests (haze self-hosts its fonts, issue #84; the five woff2 files load from `scriptorium/theme/fonts/`). The SHA-256 in step 3 predates this change and must be re-recorded. **Still OPEN after the font-sharing follow-up (fonts-share):** haze no longer carries its own fonts/ or NOTICE.txt; its `theme.json` has `fontsFrom: "gloam"` and the five woff2 files load from the same `scriptorium/theme/fonts/` URLs, served from gloam's embedded copy in the exe. Haze `scriptorium-theme.css` bytes are unchanged by this follow-up (CSS untouched), but the step 3 hash must be re-recorded once on the Windows exe, and step 4 must confirm the five woff2 files return 200 from a haze-only site (this is the case the share could break). Linux-verified only, including the packaged binary.
+   there are no `fonts.googleapis.com` or `fonts.gstatic.com` requests (haze self-hosts its fonts, issue #84; the five woff2 files load from `scriptorium/theme/fonts/`). After the font-sharing follow-up (fonts-share), haze no longer carries its own fonts/ or NOTICE.txt; its `theme.json` has `fontsFrom: "gloam"` and the five woff2 files load from the same `scriptorium/theme/fonts/` URLs, served from gloam's embedded copy in the exe. Step 4 must confirm the five woff2 files return 200 from a haze-only site (this is the case the share could break). Confirmed on the Windows exe (2026-10-07, rc.4, Windows 11 test VM): all five return 200 as `font/woff2` from a haze-only site.
 5. `check c36 --json`: exactly one finding with id `config/theme-scheme-mismatch`, severity
    `info`, and `data` `{theme:"haze", scheme:"dark", paletteScheme:"light", background:"#e8f0f3"}`.
 6. Plain is unaffected: in a second copy `S\plain vault`, `init --name c36p --vault "S\plain vault"
@@ -687,7 +697,7 @@ without needing to fall back to `test/fixtures/pin-vault`) with `test/fixtures/m
 config.json`'s own JSON config: `theme = "haze"` in `pack.toml`, built via the packaged
 `node22-linux-x64` binary (`scripts/package.js`), `--no-check`. The Windows exe is expected to
 produce byte-identical `theme.css` content (same embedded snapshot bytes, `assets/themes/**/*` in
-`pkg.assets` regardless of target platform) but this has not been run on Windows -- hence OPEN.
+`pkg.assets` regardless of target platform); the Windows run on 2026-10-07, rc.4, Windows 11 test VM confirmed it.
 
 ### C37: labels and vocabulary (pack.toml [labels], [timeline], [recaps]), in the real win-x64 exe
 
@@ -745,7 +755,8 @@ code -- and the resulting NEW exe (now running phase 5a's code, including the P5
 have `update --check` refused on it. This can only be verified once a release actually built under phase 5a's
 `npm run package` exists on GitHub. Verified on Linux from source only (the parser unit test above, plus
 `test/update-packaged-guard.test.js` for the guard, both with injected dependencies rather than a real download or a
-real pkg-built binary). **Mark this OPEN: needs a real 5a-built release plus the already-installed v0.2.3 exe.**
+real pkg-built binary). **Steps 1 and 2 verified on Windows (2026-10-07, rc.4, Windows 11 test VM), against a real v0.2.3 exe and the
+rc.4 release. Step 3 is verified in substance only: its expected exit code is stale, see below.**
 
 Isolate config throughout: `SCRIPTORIUM_CONFIG` set to a scratch TOML, and the same path passed as `--config` on
 every command. Never touch `%APPDATA%\Scriptorium\config.toml`. Use the v0.2.3 exe already installed from the last
@@ -763,8 +774,11 @@ release (do not rebuild it), and a real phase-5a-built release tag once one is p
    the win-x64 asset only (never the Linux one), verifies its checksum against the entry `parseSha256Sums` found,
    and replaces itself normally -- exactly as every prior release's update path did. `certutil -hashfile` the
    result against the win-x64 entry in the published `SHA256SUMS`.
-3. With the newly updated exe (now running phase 5a's code), `update --check --config <scratch>`: exit 0, not
-   exit 4. This confirms P5a-FR07's packaged-only guard (`isPkg`, default `typeof process.pkg !== 'undefined'`)
+3. With the newly updated exe (now running phase 5a's code), `update --check --config <scratch>`: it must not be
+   refused with the "only runs inside a packaged executable" message. While the public repository has no
+   releases, with `gh` authenticated it exits 4 with the 404 "no release has been published there yet" text, and
+   without `gh` authentication it exits 4 with the gh-not-authenticated message. Once public releases exist
+   it exits 0. Either way this confirms P5a-FR07's packaged-only guard (`isPkg`, default `typeof process.pkg !== 'undefined'`)
    recognises a real packaged Windows exe as packaged and does not refuse a legitimate `--check` -- the guard was
    built and unit-tested only with an injected `isPkg`, never against a real pkg-built binary.
 
@@ -972,8 +986,8 @@ highest version across stable and prerelease releases by real semver, not by pub
 list order. There is no downgrade flag; rolling back stays manual via the `.old-<ver>` file `update`
 already keeps beside the executable. Verified on Linux from source only, with injected release lists
 (`test/update-downgrade.test.js`, `test/update-semver.test.js`) -- no real `gh` call or GitHub release
-involved in any of it. **Mark this OPEN: Linux-verified from source only.** It gets verified on Windows
-in the next rc.
+involved in any of it. **Steps 1, 2 and 4 verified on Windows (2026-10-07, rc.4, Windows 11 test VM), with real releases and `gh`. Step 3
+was not run, because rc.4 exists and beats the rc.3 exe it would have used.**
 
 Isolate config throughout: `SCRIPTORIUM_CONFIG` set to a scratch TOML, and the same path passed as
 `--config` on every command. Never touch `%APPDATA%\Scriptorium\config.toml`.
@@ -1080,12 +1094,14 @@ self-host-fonts fixture makes zero guarded `fetch`/`WebSocket` calls, the vault 
 byte-unchanged, and no `_meta/font-cache` is created. The guard itself (an
 `Object.defineProperty` getter/setter on `globalThis.fetch`/`WebSocket`) is plain JS with nothing
 platform-specific, but per this repo's first rule that is not evidence about the packaged exe.
-**Mark this OPEN.**
+**Steps 1 to 3 verified on Windows (2026-10-07, rc.4, Windows 11 test VM); step 4 stays OPEN. Step 2 was reworded to match what `build` prints.** The step 4 run added its block rule with `netsh advfirewall` to the local firewall store, which the test machine's policy ignores (local firewall rules are disallowed), so the rule was almost certainly not enforced. The byte-identical rebuild shows the build does not need the network, but not that the exe was blocked. A re-run must put the rule in the effective policy store.
 
 1. Build a scratch site with `theme.fonts.source: self-host` and a non-generic heading font family
    (one the generator's own CSS stack doesn't already ship) via `scriptorium-win-x64.exe build`.
-2. Confirm the human build output prints the generator's own cache-miss warning line (the fallback
-   font-stack message, not a crash).
+2. Confirm the build exits 0 and prints no network error, and that `theme.css` falls back to the CSS
+   stack for the family (no `@font-face` and no Google import for it). The generator does emit a cache-miss
+   warning, but `build` captures generator output and shows it only on a failed build, so on a successful
+   build there is no warning line to look for (tracked in https://github.com/DrNoisys-Softworks/gm-scriptorium/issues/30).
 3. Confirm no `_meta\font-cache` directory was created under the vault, and that the vault's
    per-file contents are unchanged (hash before/after, `Get-FileHash` recursively).
 4. Optionally, stronger evidence: apply a Windows Firewall outbound-block rule scoped to the exe
@@ -1121,9 +1137,11 @@ copies its five self-hosted font files into `scriptorium\theme\fonts\` and write
 `css\scriptorium-theme.css`; the theme owns the vault's palette, so `check` never reports
 `config/theme-scheme-mismatch` under it. Verified on Linux from source and from a Linux packaged
 build only (`test/theme-gloam.test.js`, `test/theme-extends.test.js`, `test/theme-gloam-fonts.test.js`,
-`test/init-e2e.test.js`, `test/theme-scheme.test.js`). **Mark this OPEN: Linux-verified only.**
-Linux-derived hashes below are stated literally; a Windows run confirms them, it doesn't invent
-new ones.
+`test/init-e2e.test.js`, `test/theme-scheme.test.js`). **Partly verified on Windows (2026-10-07, rc.4, Windows 11 test VM). Two parts
+stay OPEN: the save review slip and the lazy-loaded `IM Fell English SC` font.** Step 3's `IM Fell English SC` shows `unloaded` on the landing page, which uses no small caps
+(the font loads lazily, and an explicit `document.fonts.load()` reports it `loaded`), and step 4's save
+review slip was not exercised (OPEN). Linux-derived hashes below are stated literally; a Windows run confirms
+them, it doesn't invent new ones.
 
 Isolate config and scratch exactly as in C35, using a copy of `test\fixtures\mini-vault` at
 `S\gloam vault`. Hash `%APPDATA%\Scriptorium\config.toml` before step 1 and after step 5.
@@ -1141,8 +1159,9 @@ Isolate config and scratch exactly as in C35, using a copy of `test\fixtures\min
    `25595DFB8A14B6486013C02157750C490C2B6E996C39E0B3144F00949889E7AB`,
    `BC324725E1DEAD508A492FFD50EF51D8B4A0D4D58016DA008BD9EC81EF8458D3`,
    `2E31919E93CB72DC957D9DA8A1E4788569490F3CFB7ABD52F53CA933792937A3` in that same order.
-   `css\scriptorium-theme.css` hashes to `01DF88D65017EDFB9D23A1786F5BF9122F0742CF64A56DDD8BB16C7C1ED5B61A`,
-   and `NOTICE.txt` hashes to `8DF3A8FF7998B3BEB2F272E3672F1FF0EB18197AC0101CAF758269FF4C5E3D85`.
+   `css\scriptorium-theme.css` hashes to `1D4A9DBDC60FA5CFF51C48A20BC212B95D4F58B8F5DE5A79894F87F9C1EBD27D`,
+   and the site-root `NOTICE.txt` (the only one in a gloam build) hashes to
+   `2B5A89F8DB0CAAF5223C1D41FF071B22D2275A03A14A9FEF15C16728C71FC6B7`.
 3. `serve c52 --port <free>` in Edge: DevTools' Network tab shows no request outside 127.0.0.1
    on the landing page, and the Console's `[...document.fonts].map(f => f.family + " " + f.status)`
    lists `IM Fell English`, `IM Fell English SC` and `Cormorant Garamond`, each `loaded`.
@@ -1489,15 +1508,16 @@ the public repository, the release assets are `gm-scriptorium-win-x64.exe` and
 `gm-scriptorium-linux-x64`, the CLI's help and user-facing hints say "gm-scriptorium", and a built
 site's `NOTICE.txt` credits GM-Scriptorium at the public repository's URL. Verified on Linux from
 source and from a Linux packaged build (`test/public-rename.test.js`, and the existing
-`update-linux`, `package-config`, `build-notice` and `serve-emission` suites). **Mark this OPEN.**
+`update-linux`, `package-config`, `build-notice` and `serve-emission` suites). **Steps 1, 2 and 4 verified on
+Windows (2026-10-07, rc.4, Windows 11 test VM). Step 3 is verified with `gh` authenticated and stays OPEN for the unauthenticated wording
+below.**
 
 Isolate config throughout: `SCRIPTORIUM_CONFIG` set to a scratch TOML, and the same path passed as
 `--config` on every command. Never touch `%APPDATA%\Scriptorium\config.toml`.
 
 1. `gm-scriptorium-win-x64.exe --help`. The first line reads exactly
    `gm-scriptorium <command> [campaign] [flags]`.
-2. The rc.3-to-rc.4 bridge rehearsal. This step depends on a real rc.4 release existing at the
-   public repository and cannot be run before it does: **mark it separately OPEN until then.**
+2. The rc.3-to-rc.4 bridge rehearsal (run and passed on 2026-10-07, rc.4, Windows 11 test VM).
    With an already-installed rc.3 exe (old asset names, old update source), run
    `update --check --pre --config <scratch>`. It must find the bridge release -- the same rc.4
    bytes, published under the OLD asset names at the private repository -- and report an update
@@ -1505,12 +1525,16 @@ Isolate config throughout: `SCRIPTORIUM_CONFIG` set to a scratch TOML, and the s
 3. With the rc.4 exe produced by step 2 (now pointed at the public repository), run
    `update --check --pre --config <scratch>` once more, against a tag that does not exist there.
    `gh` reports the 404, and the printed message names the public repository's releases URL and
-   contains no mention of a private repository. Exit code is 4.
+   contains no mention of a private repository. Exit code is 4. This text applies when `gh` is
+   authenticated. Without `gh` authentication the command exits 4 with the gh-not-authenticated message
+   (`gh is installed but not authenticated for github.com...`), which must also not mention a private
+   repository.
    Then, while the public repository has **no releases at all** (nothing published yet), run
    `update --check --pre --config <scratch>`: the `releases` list comes back empty. Expect exit
    code **4** (not 1, which means a Scriptorium bug) and the same wording, "no release has been
-   published there yet" (F1; Linux-verified from source in `test/update-empty-release-list.test.js`).
-   **Mark this OPEN until Win runs it in the real exe.**
+   published there yet" (F1; Linux-verified from source in `test/update-empty-release-list.test.js`, and
+   confirmed in the real exe with `gh` authenticated). Without `gh` authentication, expect the
+   gh-not-authenticated message here too, never the "no release" text.
 4. `gm-scriptorium-win-x64.exe build <campaign> --out <scratch-dir> --config <config>.toml`
    against any reachable vault. Open `<scratch-dir>\NOTICE.txt`. Its first line reads exactly
    `This site was built with GM-Scriptorium (https://github.com/DrNoisys-Softworks/gm-scriptorium),`.
@@ -1519,8 +1543,8 @@ Isolate config throughout: `SCRIPTORIUM_CONFIG` set to a scratch TOML, and the s
 
 `examples/the-long-lease/`: a GM-facing sample vault shipped in the repository, with a GM guide at
 `examples/README.md`. Verified on Linux from source and from a Linux packaged build
-(`test/example-build.test.js`). **Mark this OPEN: Linux-verified from source and from a Linux
-packaged build only.**
+(`test/example-build.test.js`). **Verified on Windows (2026-10-07, rc.4, Windows 11 test VM), from a clone made with Git for Windows
+defaults (cloned from a git bundle of the release commit using MinGit, not from the GitHub repository). Steps 1 to 3 were run with a headless Edge probe in place of interactive DevTools.**
 
 1. Isolate config as in C35. Clone the repository with Git for Windows' default line-ending
    setting into a folder inside `S` whose path contains a space.
@@ -1560,8 +1584,8 @@ only (`test/admin-bugs-b1.dom.test.js`); Firefox's emulation does not substitute
 
 Bug batch B2, issue 100 (docs/decisions/0042-stub-section-guard.md). Scriptorium now replaces the
 pinned generator's `keepOnlySections` export before `lib/build.js` loads, and refuses to build when
-that replacement did not land. Verified on Linux from source only. **Mark this OPEN: the load-order
-assumption and `require.resolve` of `lib/build.js` are unproven inside the pkg snapshot.**
+that replacement did not land. Verified on Linux from source, and **on Windows (2026-10-07, rc.4, Windows 11 test VM)**, using the repository's own stub-heading fixture
+rather than a hand-built vault.
 
 1. Make a scratch vault with a `publish: stub` NPC whose `publish_include_sections` is `[Appearance]`,
    and a body with `## Appearance`, then `## GM Notes` containing `### Appearance` with the word
@@ -1573,7 +1597,7 @@ assumption and `require.resolve` of `lib/build.js` are unproven inside the pkg s
 
 ### C82: `serve --port 0` and the serve escape probes, in the real win-x64 exe
 
-Bug batch B2, issues 78 and 79. Verified on Linux only. **Mark this OPEN.**
+Bug batch B2, issues 78 and 79. Verified on Linux, and **on Windows (2026-10-07, rc.4, Windows 11 test VM)**.
 
 1. `gm-scriptorium-win-x64.exe serve --port 0` against a built campaign prints a non-zero port, and
    opening that exact URL serves the site.
@@ -1583,7 +1607,9 @@ Bug batch B2, issues 78 and 79. Verified on Linux only. **Mark this OPEN.**
 
 ### C83: a pack folder that resolves to the vault root is refused, in the real win-x64 exe
 
-Bug batch B2, issue 80. Verified on Linux only. **Mark this OPEN.**
+Bug batch B2, issue 80. Verified on Linux, and **on Windows (2026-10-07, rc.4, Windows 11 test VM)** for both junction cases; the `mklink /D` repeat stays OPEN. A junction
+made by a standard user is untrusted on Windows 11, so create the junctions from an administrator account and
+run the exe as the standard user. The real `mklink /D` repeat was not run and stays OPEN.
 
 1. Make `_meta` a junction to the vault root itself (`mklink /J <vault>\_meta <vault>`), then run the
    panel's pack write (or `init`) on that vault. It is refused with "resolves to the vault root" and no
@@ -1595,13 +1621,18 @@ Bug batch B2, issue 80. Verified on Linux only. **Mark this OPEN.**
 Bug batch B3, issue 83. `--version` was a global boolean that printed the running version before
 any subcommand ran, so `update --version <tag>` never reached `update`. Now `update --version <tag>`
 takes the tag and runs the update; plain `--version` is unchanged. Linux-tested only from source,
-where `update` stops at the packaged-only guard. **Mark this OPEN: the packaged path has not run.**
+where `update` stops at the packaged-only guard. **Steps 1 and 3 verified on Windows (2026-10-07, rc.4, Windows 11 test VM). Step 2 reaches the
+update logic but cannot show the "newer" result until the public repository has the tag, so it stays OPEN.**
 
 1. `gm-scriptorium-win-x64.exe --version` prints the version and exits 0, as before.
-2. `gm-scriptorium-win-x64.exe update --version v0.0.1` does NOT print the version. It reaches the
-   update logic: it reports that the running version is newer and changes nothing, exit 0.
-3. `gm-scriptorium-win-x64.exe update --version` with no tag exits 1 with "--version needs a release
-   tag".
+2. `gm-scriptorium-win-x64.exe update --version <tag>` does NOT print the version. It reaches the
+   update logic and changes nothing. While the public repository has no release for `<tag>` (today it has
+   none at all), it exits 4: with `gh` authenticated, the 404 text "no release has been published there
+   yet, or the requested tag does not exist"; without it, the gh-not-authenticated message. Once the public
+   repository has releases, pick a tag that exists and is older than the running version: it reports that
+   the running version is newer, exit 0. Use a tag that does not exist for the 404 case.
+3. `gm-scriptorium-win-x64.exe update --version` with no tag exits 1 with
+   `--version needs a value: update --version <value>`.
 
 ### C86: a table cell wikilink with an escaped pipe, built by the real win-x64 exe
 
@@ -1624,7 +1655,8 @@ Bug batch B3, issue 87. **Mark this OPEN: not run from the exe.**
 
 ### C89: concurrent builds sharing an output parent, and a stale staging dir, in the real win-x64 exe
 
-Issue 102. **Mark this OPEN: not run from the exe.** The build sweep decides whether a
+Issue 102. **Partly verified on Windows (2026-10-07, rc.4, Windows 11 test VM): step 1 (eight rounds, no ENOENT) and step 3 passed. Step 2, the
+kill and sweep, was not run and stays OPEN.** The build sweep decides whether a
 `.scriptorium-build-<pid>-<ms>-<hex>` sibling is another live build's work with
 `process.kill(pid, 0)`; confirm its win32 behaviour is what the code assumes (live pid returns
 without throwing, a dead pid throws ESRCH, a protected pid throws EPERM and counts as alive).
@@ -1657,8 +1689,7 @@ and skips the cleanup by design. **Mark this OPEN: not run from the exe.**
 
 ### C90: init maps Sessions, and build warns about an unmapped folder, in the real win-x64 exe
 
-Bug batch B4, issue 103. **Mark this OPEN: not run from the exe.** Linux passes this from the
-packaged binary; Windows has not run it.
+Bug batch B4, issue 103. **Verified on Windows (2026-10-07, rc.4, Windows 11 test VM).**
 
 1. Copy `examples\the-long-lease` to `W\vault` and delete `W\vault\_meta\scriptorium`.
 2. `gm-scriptorium-win-x64.exe init --vault W\vault --name v2 --yes --out W\site`, then open
@@ -1670,7 +1701,7 @@ packaged binary; Windows has not run it.
 
 ### C91: a campaign with no output folder gives a message, not a stack trace, in the real win-x64 exe
 
-Bug batch B4, issue 104. **Mark this OPEN: not run from the exe.**
+Bug batch B4, issue 104. **Verified on Windows (2026-10-07, rc.4, Windows 11 test VM).**
 
 1. `gm-scriptorium-win-x64.exe config add nout --vault W\vault` (no `--out`): exit 1, the message says
    `config add needs --out <folder>`, and no config file is created.
@@ -1680,7 +1711,7 @@ Bug batch B4, issue 104. **Mark this OPEN: not run from the exe.**
 
 ### C92: a value flag with no value, and removing a malformed campaign, in the real win-x64 exe
 
-Bug batch B4, issue 105. **Mark this OPEN: not run from the exe.**
+Bug batch B4, issue 105. **Verified on Windows (2026-10-07, rc.4, Windows 11 test VM).**
 
 1. `config add x --vault` (nothing after it): exit 1, `--vault needs a value`, config unchanged.
 2. Edit the config so `[campaigns.x]` has `vault = true`. `config list` exits 3 (issue #108; was 1) and names `campaigns.x`
@@ -1688,7 +1719,7 @@ Bug batch B4, issue 105. **Mark this OPEN: not run from the exe.**
 
 ### C93: unknown flags are rejected, in the real win-x64 exe
 
-Bug batch B4, issue 106. **Mark this OPEN: not run from the exe.**
+Bug batch B4, issue 106. **Verified on Windows (2026-10-07, rc.4, Windows 11 test VM).**
 
 1. `build lease --prot`: exit 1, `unknown flag --prot for "build"`, nothing written to the output folder.
 2. `check lease --jsno`: exit 1, `Did you mean --json?`.
@@ -1697,7 +1728,7 @@ Bug batch B4, issue 106. **Mark this OPEN: not run from the exe.**
 
 ### C94: the first-run errors say what to do next, in the real win-x64 exe
 
-Bug batch B4, issue 107. **Mark this OPEN: not run from the exe.**
+Bug batch B4, issue 107. **Verified on Windows (2026-10-07, rc.4, Windows 11 test VM).**
 
 1. `init --vault W\plain --name emp --yes` on an ordinary folder: exit 3, the message names
    `_meta/vault-config.md`, `examples/the-long-lease` and the gm-apprentice link.
@@ -1707,7 +1738,7 @@ Bug batch B4, issue 107. **Mark this OPEN: not run from the exe.**
 
 ### C95: user errors use the existing exit codes, in the real win-x64 exe
 
-Issue #108 (owner decision 2026-10-07: no new exit codes). **Mark this OPEN: Linux-verified from source and from the Linux packaged binary only; not run from the exe.** The full case table is in `docs/DEVELOPING.md`, "Exit codes for user errors". Use a scratch TOML via `SCRIPTORIUM_CONFIG` and `--config`; never the real config or vault. Check `echo %ERRORLEVEL%` after each:
+Issue #108 (owner decision 2026-10-07: no new exit codes). **Partly verified on Windows (2026-10-07, rc.4, Windows 11 test VM); stays OPEN for two findings.** Steps 1, 3 and the rest of 2 passed, and no exit 2 or 4 appeared. (a) `chek` exits 1 but prints the full usage with no leading one-line message. (b) `serve --port 80` as a standard user binds successfully on Windows, so the administrator-rights message in step 2 cannot occur there. The full case table is in `docs/DEVELOPING.md`, "Exit codes for user errors". Use a scratch TOML via `SCRIPTORIUM_CONFIG` and `--config`; never the real config or vault. Check `echo %ERRORLEVEL%` after each:
 
 1. Exit 3, one plain line, no stack trace: `check` against a config with no campaigns; `check nope` (unknown campaign); `check --config S\missing.toml`; a config containing `config_version = [[[`; `build --no-check --out "<vault>\x"`; `serve` with no build at the output folder; `config remove nothere`.
 2. Exit 1, one plain line, no stack trace and no raw Node text: `chek`; `serve --port abc`; `serve --port 99999`; a port already in use; `serve --port 80` as a standard user (the message says it needs administrator rights, no `EACCES`); `serve --admin --host 0.0.0.0`; `init --yes --name x --vault <vault> --theme nonesuch`.
@@ -1716,6 +1747,15 @@ Issue #108 (owner decision 2026-10-07: no new exit codes). **Mark this OPEN: Lin
 5. Exit 3 (issue #108, second decision): `SCRIPTORIUM_PROFILE=nonesuch` then `check`; a `pack.toml` containing `theme = [[[` then `check`; a `pack.toml` with `theme = "nonesuch"` then `build --no-check`; a `pack` key pointing at a missing folder then `check`. Each prints one plain line, no stack.
 6. Exit 2 and 4 appear in none of the above.
 7. Expected code changed from 1 to 3 and is **OPEN** again until re-run from the exe: C35 step 6 (init with `--out` inside the vault), the C43 inside-the-vault build refusal (step 1), C91 step 2, C92 step 2, C33 step 4 and the C30-era "no site_config" item (line ~430), C34 (pack image refusal, was 1) and C37 step 6 (pack.toml refusals, was 1). Any other earlier criterion expecting exit 1 for a bad `pack.toml`, theme, pack folder or pack image now expects 3.
+
+### C150: the README config-isolation blocks for PowerShell and cmd, on Windows
+
+Issues #8 and #17 (slice 1). **Mark this OPEN: the two Windows blocks were written on Linux and never run on Windows.** Only the Linux block was run. From a clone of the repository, copy each block from the README section "Trying it beside a real campaign" exactly as written, in its own shell (PowerShell, then Command Prompt), with `gm-scriptorium` on the PATH:
+
+1. The block runs to the end with no error: the scratch folder is made, the sample vault is copied to `vault`, `config add` registers `lease`, `check` passes, and `build` writes a site to `out`.
+2. Run the same block a second time in a new window. It still works, because each run makes a new scratch folder, and the first run's folder is untouched.
+3. `%APPDATA%\Scriptorium\config.toml` is unchanged (same hash and timestamp) before and after both runs, and the cloned `examples\the-long-lease` is unchanged.
+4. In a new window, `echo %SCRIPTORIUM_CONFIG%` (or `$env:SCRIPTORIUM_CONFIG`) is empty again.
 
 ### C96: generator warnings show on a successful build, in the real win-x64 exe
 
