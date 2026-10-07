@@ -598,7 +598,7 @@ no guarantee. New structural tests pin the panel's writer set (section 9), the a
 
 **Linux (V1.5b):** Pending (V1.5b).
 
-**Windows:** C69 to C74 (V1.5a) and C75 to C80 (V1.5b) in `docs/HANDOVER-WINDOWS.md`, all OPEN
+**Windows:** C69 to C74 (V1.5a) and C75 to C80 (V1.5b) in `.agents/windows-verification.md`, all OPEN
 until a person confirms them on a real Windows machine.
 
 **Owner acceptance (owner decision):** run by the owner from the owner's desktop against the

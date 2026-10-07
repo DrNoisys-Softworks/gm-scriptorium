@@ -190,9 +190,11 @@ Removing the `gh` dependency is planned for later, but not built yet.
 
 ## Privacy
 
-- **The admin panel only listens on this computer, unless you turn on remote access.** `serve
-  --admin` binds `127.0.0.1` and refuses `--host`; reaching it from another device is a separate,
-  saved, opt-in setting (see [Remote access](docs/remote-access.md)). Each launch creates a new random token and prints it as a link; after that the token
+- **The admin panel only listens on this computer, unless you turn on remote access.** By default
+  `serve --admin` binds `127.0.0.1` and refuses `--host`; reaching it from another device is a
+  separate, saved, opt-in setting (see [Remote access](docs/remote-access.md)), and the panel then
+  listens only on the address you chose, plus this computer. Each launch creates a new random token
+  and prints it as a link; after that the token
   lives in a cookie that page scripts can't read. The panel checks every request's Host header, and
   the Origin of every change, before it checks the token.
 - **Font requests depend on the theme and your vault config.** Campaigns set up with `init` use the
