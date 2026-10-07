@@ -59,14 +59,22 @@ whitespace collapsed (a non-breaking space counts) and lower-cased.
 
 ## 4. L6: data islands
 
-- HTML output is read once, left to right, the way a browser tokenizes it, and nothing is removed by
-  pattern. A start tag may hold a quoted `>`; `<script<script>` is an unknown element, so the text after
-  it is displayed and searched; `<script>` and `<style>` bodies run to their own end tag (which may
-  carry spaces or attributes). A tag, block or quote that never closes is treated as page text, not
-  skipped. The text inside an HTML comment is searched too, because it is in the page source.
+- HTML output is read once, left to right, following the HTML tokenizer's own states, and nothing is
+  removed by pattern. HTML whitespace is only tab, line feed, form feed, carriage return and space.
+  A quote opens an attribute value only after a real attribute name and its `=`, and a quoted value
+  may hold `>`. `<script<script>` is an unknown element, so the text after it is displayed and
+  searched. `<script>` and `<style>` bodies run to their own end tag (which may carry spaces or
+  attributes).
+- Content a browser shows as text is searched, markup and all: `textarea`, `title`, `xmp`, `iframe`,
+  `noembed`, `noframes`, everything after `<plaintext>`, and CDATA sections. The text inside an HTML
+  comment is searched too, because it is in the page source.
+- A tag, block or quote that never closes is treated as page text, not skipped. A browser drops such
+  a tag and everything after it without showing anything; the scan searches the remainder anyway.
+  Work on tags that never close is bounded, so a hostile page cannot make the scan slow.
 - Every island of type `application/json` or any `application/*+json` (such as `ld+json`) is found,
-  whatever the attribute order and whether it is keyed by `class` or `id`. The first `type` attribute counts, and
-  a `type=` inside another attribute's value does not.
+  whatever the attribute order and whether it is keyed by `class` or `id`. The first `type` attribute counts,
+  a `type=` inside another attribute's value does not, and character references in the value (such as
+  `application&#47;json`) are decoded first. A type that still holds an unknown reference counts as JSON.
 - A parsed island adds its strings as one more place to search for comment text. A `%%` inside an
   island string is reported by the existing marks arm.
 - An island that does not parse is reported as `leak/l6-comment-in-output` with

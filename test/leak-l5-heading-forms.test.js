@@ -205,6 +205,14 @@ test('AC-06 an entry from the json config surface also matches', () => {
   assert.equal(found.length, 1);
 });
 
+test('tags inside a heading title are removed before comparing; a lone < or <> is text', () => {
+  assert.equal(oneBody('## GM <i></i>Notes (x)', ['GM Notes']).length, 1);
+  assert.equal(oneBody('## <span>GM Notes</span> extra', ['GM Notes']).length, 1);
+  assert.equal(oneBody('## GM Notes <', ['GM Notes']).length, 1);
+  assert.equal(oneBody('## GM <> Notes', ['GM Notes']).length, 0);
+  assert.equal(oneBody('## Not GM Notes <b>', ['GM Notes']).length, 0);
+});
+
 test('data.heading stays the raw title and data.display is the rendered text', () => {
   const [f] = oneBody('## **GM Notes** (spoilers)', ['GM Notes']);
   assert.equal(f.data.heading, '**GM Notes** (spoilers)');

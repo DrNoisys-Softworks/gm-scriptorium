@@ -120,75 +120,107 @@ function collectJsonStrings(value, out) {
 }
 
 /*
- * ADR 0045. HTML is read the way a browser tokenizes it, once, left to right. Nothing here removes
- * text by pattern, so there is no stripped result that can be rebuilt into a tag or that can hide
- * text a reader would see (the earlier strip-based reading missed `<script<script>A</script> text
- * </script>`, where `script<script` is just an unknown element name and "text" is displayed).
+ * ADR 0045. HTML is read the way a browser tokenizes it, once, left to right, following the HTML
+ * tokenizer's states for tags and attributes. Nothing is removed by pattern, so there is no stripped
+ * result that can be rebuilt into a tag or that can hide text a reader would see.
  *
- *   - A start tag is `<` + a letter; its name runs to whitespace, `/` or `>`. Quoted attribute values
- *     (after `=`) may contain `>`. A quote that never closes is ignored, and a tag with no `>` is
- *     plain text.
- *   - `<script>` and `<style>` are raw-text elements: their body runs to the next `</script` (or
- *     `</style`) followed by whitespace, `/` or `>`. A body with no end tag runs to the end of the page
- *     and counts as page text (fail closed).
- *   - `<pre>` and `<code>` are followed by depth, and only the marks reading leaves their text out.
- *     If they never balance, nothing is left out (fail closed).
+ *   - HTML whitespace is only tab, LF, FF, CR and space. A start tag is `<` + an ASCII letter; its
+ *     name runs to whitespace, `/` or `>` (so `script<script` and   are part of a name).
+ *   - Attributes follow the before-attribute-name / attribute-name / before-attribute-value states:
+ *     a `=` first in a name position is part of a name, and a quote opens a value only when it is
+ *     the first character after a real attribute name's `=`. A quoted value may hold `>`.
+ *   - A tag that is not closed by a `>` before the end of the page (including one whose quoted value
+ *     never closes) is dropped by a browser along with everything after it. Nothing is displayed, but
+ *     here the remainder is treated as page text and searched (fail closed).
+ *   - `<script>` and `<style>` are raw-text elements whose body is left out of the text reading and
+ *     whose `<script>` JSON bodies are the islands. Their body runs to the next `</script` (or
+ *     `</style`) followed by whitespace, `/` or `>`; a body with no end tag runs to the end of the page
+ *     and is searched.
+ *   - RCDATA and RAWTEXT elements (textarea, title, xmp, iframe, noembed, noframes) and `<plaintext>`
+ *     show their content as text, markup included, so the content is searched as text. A CDATA
+ *     section is text. An HTML comment is not displayed but is page source, so its text is searched.
+ *   - `<pre>` and `<code>` are followed by name, and only the marks reading leaves their text out. If
+ *     they never end, nothing is left out (fail closed).
+ *   - Total work on tags that never close is bounded, so a hostile page cannot make the scan slow.
  */
 
-const NAME_END = /[\s/>]/;
+const isWs = (c) => c === ' ' || c === '\t' || c === '\n' || c === '\f' || c === '\r';
+const isAlpha = (c) => c !== undefined && ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
 
-/** Reads the start or end tag whose `<` is at `i`. Returns null when it is not a tag (so the `<` is text). */
-function readTag(raw, i) {
+/** Elements whose content a browser shows as text, markup and all. Searched, never skipped. */
+const TEXT_ELEMENTS = new Set(['textarea', 'title', 'xmp', 'iframe', 'noembed', 'noframes']);
+
+/**
+ * Reads the start or end tag whose `<` is at `i`, per the tokenizer's tag states. Returns null when
+ * it is not a tag, or when no `>` ends it before the end of the page. `ctx` carries the position of
+ * the last `>`, the last quote of each kind, and the budget for scans that fail.
+ */
+function readTag(raw, i, ctx) {
+  const n = raw.length;
   let j = i + 1;
   const closing = raw[j] === '/';
   if (closing) j += 1;
-  if (!/[A-Za-z]/.test(raw[j] || '')) return null;
+  if (!isAlpha(raw[j])) return null;
+  if (i > ctx.lastGt || ctx.budget <= 0) return null;
   const nameStart = j;
-  while (j < raw.length && !NAME_END.test(raw[j])) j += 1;
+  while (j < n && !isWs(raw[j]) && raw[j] !== '/' && raw[j] !== '>') j += 1;
   const name = raw.slice(nameStart, j).toLowerCase();
-  const attrStart = j;
-  let afterEquals = false;
-  while (j < raw.length && raw[j] !== '>') {
-    const c = raw[j];
-    if (c === '=') {
-      afterEquals = true;
+  const attrs = [];
+  const seen = new Set();
+  for (;;) {
+    while (j < n && (isWs(raw[j]) || raw[j] === '/')) j += 1;
+    if (j >= n) break;
+    if (raw[j] === '>') return { name, closing, attrs, end: j + 1 };
+    const aStart = j;
+    j += 1; // the first character is always part of the name (a leading "=" included)
+    while (j < n && !isWs(raw[j]) && raw[j] !== '/' && raw[j] !== '>' && raw[j] !== '=') j += 1;
+    const aName = raw.slice(aStart, j).toLowerCase();
+    while (j < n && isWs(raw[j])) j += 1;
+    let value = '';
+    if (raw[j] === '=') {
       j += 1;
-    } else if (/\s/.test(c)) {
-      j += 1;
-    } else if (afterEquals && (c === '"' || c === "'")) {
-      const close = raw.indexOf(c, j + 1);
-      if (close === -1) {
-        afterEquals = false;
-        j += 1; // unclosed quote: ignore it rather than swallow the page
-      } else {
+      while (j < n && isWs(raw[j])) j += 1;
+      const q = raw[j];
+      if (q === '"' || q === "'") {
+        if (j >= (q === '"' ? ctx.lastDq : ctx.lastSq)) break; // no closing quote anywhere after
+        const close = raw.indexOf(q, j + 1);
+        value = raw.slice(j + 1, close);
         j = close + 1;
-        afterEquals = false;
+      } else {
+        const vStart = j;
+        while (j < n && !isWs(raw[j]) && raw[j] !== '>') j += 1;
+        value = raw.slice(vStart, j);
       }
-    } else {
-      afterEquals = false;
-      j += 1;
+    }
+    if (!seen.has(aName)) {
+      seen.add(aName);
+      attrs.push({ name: aName, value });
     }
   }
-  if (j >= raw.length) return null; // no closing ">"
-  return { name, closing, attrs: raw.slice(attrStart, j), end: j + 1 };
-}
-
-/** The first `type` attribute's value, lower-cased and trimmed; null when there is none. */
-function typeAttribute(attrs) {
-  const re = /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
-  let m;
-  while ((m = re.exec(attrs))) {
-    if (m[1].toLowerCase() === 'type') {
-      const v = m[2] !== undefined ? m[2] : m[3] !== undefined ? m[3] : m[4];
-      return v === undefined ? '' : v.trim().toLowerCase();
-    }
-  }
+  ctx.budget -= n - i; // a tag that ran to the end of the page
   return null;
 }
 
-/** application/json and any application/*+json (ld+json, vnd.api+json), with optional parameters. */
-function isJsonType(type) {
-  if (type === null) return false;
+const NAMED_REFS = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", sol: '/', colon: ':', plus: '+', period: '.', hyphen: '-', dash: '-', lowbar: '_', nbsp: ' ', Tab: '\t', NewLine: '\n' };
+
+/** Decodes numeric and the few named character references a MIME type can use. Unknown ones stay. */
+function decodeAttribute(v) {
+  return v.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|([A-Za-z][A-Za-z0-9]*));?/g, (whole, dec, hex, named) => {
+    if (named !== undefined) return Object.prototype.hasOwnProperty.call(NAMED_REFS, named) ? NAMED_REFS[named] : whole;
+    const cp = dec !== undefined ? parseInt(dec, 10) : parseInt(hex, 16);
+    return cp >= 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff) ? String.fromCodePoint(cp) : whole;
+  });
+}
+
+/**
+ * True for application/json and application/*+json (ld+json, vnd.api+json), with parameters. A type
+ * that still holds a character reference after decoding is counted as JSON (fail closed).
+ */
+function isJsonType(attrs) {
+  const a = attrs.find((x) => x.name === 'type');
+  if (!a) return false;
+  const type = decodeAttribute(a.value).trim().toLowerCase();
+  if (type.includes('&')) return true;
   const essence = type.split(';')[0].trim();
   return /^application\/(?:[a-z0-9.!#$&^_-]+\+)?json$/.test(essence);
 }
@@ -196,17 +228,28 @@ function isJsonType(type) {
 /**
  * @param {string} raw
  * @returns {{ kind: 'text'|'tag'|'raw', text?: string, name?: string, closing?: boolean,
- *   attrs?: string, body?: string, closed?: boolean }[]}
+ *   attrs?: {name:string,value:string}[], body?: string, closed?: boolean }[]}
  */
 function tokenize(raw) {
   const out = [];
+  const n = raw.length;
+  const ctx = { lastGt: raw.lastIndexOf('>'), lastDq: raw.lastIndexOf('"'), lastSq: raw.lastIndexOf("'"), budget: 4 * n + 100000 };
   let text = '';
   const flush = () => {
     if (text !== '') out.push({ kind: 'text', text });
     text = '';
   };
+  // Finds the end tag of a raw-text or RCDATA element: `</name` then whitespace, `/` or `>`.
+  const findEnd = (name, from) => {
+    const re = new RegExp(`</${name}(?=[\\t\\n\\f\\r />])`, 'ig');
+    re.lastIndex = from;
+    const e = re.exec(raw);
+    if (!e) return null;
+    const tag = readTag(raw, e.index, ctx);
+    return tag ? { start: e.index, tag } : null;
+  };
   let i = 0;
-  while (i < raw.length) {
+  while (i < n) {
     const lt = raw.indexOf('<', i);
     if (lt === -1) {
       text += raw.slice(i);
@@ -214,27 +257,44 @@ function tokenize(raw) {
     }
     text += raw.slice(i, lt);
     if (raw.startsWith('<!--', lt)) {
-      // An HTML comment is not displayed but is part of the page source, so its text is searched.
-      const close = raw.indexOf('-->', lt + 4);
-      flush();
-      out.push({ kind: 'tag', name: '!--', closing: false, attrs: '' });
-      text += raw.slice(lt + 4, close === -1 ? raw.length : close);
-      flush();
-      i = close === -1 ? raw.length : close + 3;
-      continue;
-    }
-    if (raw[lt + 1] === '!' || raw[lt + 1] === '?') {
-      const gt = raw.indexOf('>', lt);
-      if (gt === -1) {
-        text += raw.slice(lt);
-        break;
+      // An HTML comment is not displayed but is page source, so its text is searched.
+      let bodyStart = lt + 4;
+      let close;
+      let next;
+      if (raw[bodyStart] === '>') {
+        close = bodyStart;
+        next = bodyStart + 1;
+      } else if (raw.startsWith('->', bodyStart)) {
+        close = bodyStart;
+        next = bodyStart + 2;
+      } else {
+        const a = raw.indexOf('-->', bodyStart);
+        const b = raw.indexOf('--!>', bodyStart);
+        if (a === -1 && b === -1) {
+          close = n;
+          next = n;
+        } else if (b === -1 || (a !== -1 && a < b)) {
+          close = a;
+          next = a + 3;
+        } else {
+          close = b;
+          next = b + 4;
+        }
       }
       flush();
-      out.push({ kind: 'tag', name: raw[lt + 1], closing: false, attrs: '' });
-      i = gt + 1;
+      out.push({ kind: 'tag', name: '!--', closing: false, attrs: [] });
+      text += raw.slice(bodyStart, close);
+      flush();
+      i = next;
       continue;
     }
-    const tag = readTag(raw, lt);
+    if (raw.startsWith('<![CDATA[', lt)) {
+      const close = raw.indexOf(']]>', lt + 9);
+      text += raw.slice(lt + 9, close === -1 ? n : close);
+      i = close === -1 ? n : close + 3;
+      continue;
+    }
+    const tag = readTag(raw, lt, ctx);
     if (!tag) {
       text += '<';
       i = lt + 1;
@@ -242,26 +302,23 @@ function tokenize(raw) {
     }
     flush();
     if (!tag.closing && (tag.name === 'script' || tag.name === 'style')) {
-      const endRe = new RegExp(`</${tag.name}(?=[\\s/>])`, 'ig');
-      endRe.lastIndex = tag.end;
-      const e = endRe.exec(raw);
-      let bodyEnd = raw.length;
-      let next = raw.length;
-      let closed = false;
-      if (e) {
-        const gt = raw.indexOf('>', e.index);
-        if (gt !== -1) {
-          bodyEnd = e.index;
-          next = gt + 1;
-          closed = true;
-        }
-      }
-      out.push({ kind: 'raw', name: tag.name, attrs: tag.attrs, body: raw.slice(tag.end, bodyEnd), closed });
-      i = next;
+      const e = findEnd(tag.name, tag.end);
+      out.push({ kind: 'raw', name: tag.name, attrs: tag.attrs, body: raw.slice(tag.end, e ? e.start : n), closed: Boolean(e) });
+      i = e ? e.tag.end : n;
       continue;
     }
     out.push({ kind: 'tag', name: tag.name, closing: tag.closing, attrs: tag.attrs });
     i = tag.end;
+    if (!tag.closing && tag.name === 'plaintext') {
+      text += raw.slice(i);
+      i = n;
+    } else if (!tag.closing && TEXT_ELEMENTS.has(tag.name)) {
+      const e = findEnd(tag.name, tag.end);
+      text += raw.slice(tag.end, e ? e.start : n);
+      flush();
+      if (e) out.push({ kind: 'tag', name: e.tag.name, closing: true, attrs: e.tag.attrs });
+      i = e ? e.tag.end : n;
+    }
   }
   flush();
   return out;
@@ -309,7 +366,7 @@ function readIslands(raw) {
   const strings = [];
   const unparsableBodies = [];
   for (const t of tokenize(raw)) {
-    if (t.kind !== 'raw' || t.name !== 'script' || !isJsonType(typeAttribute(t.attrs))) continue;
+    if (t.kind !== 'raw' || t.name !== 'script' || !isJsonType(t.attrs)) continue;
     try {
       if (!t.closed) throw new Error('unterminated');
       collectJsonStrings(JSON.parse(t.body), strings);

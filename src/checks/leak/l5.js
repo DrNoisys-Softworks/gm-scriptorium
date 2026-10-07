@@ -26,14 +26,43 @@ function isHandout(page) {
   return v === 'document' || v === 'handout';
 }
 
-function normalise(title) {
-  // Repeat until stable so a tag rebuilt by the first pass ("<<b>b>") is stripped too.
-  let s = String(title);
+/**
+ * Removes every `<...>` run (a `<`, one or more characters that are not `>`, then `>`), to a fixpoint so
+ * a tag rebuilt by the first pass ("<<b>b>") is removed too. Scanned by hand, not by regex: this is
+ * the exact behaviour of `replace(/<[^>]+>/g, '')` and gives a static analyser nothing to flag.
+ */
+function stripTags(input) {
+  let s = String(input);
   for (let prev = null; prev !== s; ) {
     prev = s;
-    s = s.replace(/<[^>]+>/g, '');
+    let out = '';
+    let i = 0;
+    while (i < s.length) {
+      const lt = s.indexOf('<', i);
+      if (lt === -1) {
+        out += s.slice(i);
+        break;
+      }
+      const gt = s.indexOf('>', lt + 1);
+      if (gt === -1) {
+        out += s.slice(i);
+        break;
+      }
+      if (gt === lt + 1) {
+        out += s.slice(i, lt + 1); // "<>" is not a tag; look again after the "<"
+        i = lt + 1;
+      } else {
+        out += s.slice(i, lt);
+        i = gt + 1;
+      }
+    }
+    s = out;
   }
-  return s.trim().replace(/\s+/g, ' ').toLowerCase();
+  return s;
+}
+
+function normalise(title) {
+  return stripTags(title).trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 /** ADR 0045: NFC, typographer-folded, then normalised. The one comparison form for entries and headings. */

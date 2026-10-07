@@ -392,6 +392,92 @@ test('tag reading: a quote that never closes does not swallow the rest of the pa
   assert.deepEqual(arms(scanOne('<a href="x>the duke is the traitor</a>')), ['text']);
 });
 
+// ---- ADR 0045: HTML tokenizer states (each input below was checked in headless Chromium) ----
+
+const DUKE = 'the duke is the traitor';
+
+test('html states: a stray = before a quote starts an attribute named "=", so the quote opens no value', () => {
+  assert.deepEqual(arms(scanOne(`<p =">${DUKE}</p><b x=" ">`)), ['text']);
+  assert.deepEqual(arms(scanOne(`<p a==">${DUKE}</p><b x=" ">`)), ['text']);
+});
+
+test('html states: only tab, LF, FF, CR and space are HTML whitespace (NBSP, VT, BOM are name characters)', () => {
+  for (const ch of ['\u00a0', '\u000b', '\ufeff', '\u2028', '\u3000', '\u1680']) {
+    // "<script" + ch is an unknown element, so its content is displayed and searched.
+    assert.deepEqual(arms(scanOne(`<script${ch}>${DUKE}</script>`)), ['text'], `start tag, U+${ch.charCodeAt(0).toString(16)}`);
+    // "</script" + ch is not an end tag, so the script never ends and is searched (fail closed).
+    assert.deepEqual(arms(scanOne(`<script>var a=1;</script${ch}>${DUKE}`)), ['text'], `end tag, U+${ch.charCodeAt(0).toString(16)}`);
+    assert.deepEqual(arms(scanOne(`<script>${DUKE}</script${ch}>`)), ['text'], `end tag hides nothing, U+${ch.charCodeAt(0).toString(16)}`);
+  }
+  assert.deepEqual(scanOne(`<script>var a=1;</script\f>${'<p>fine</p>'}`), [], 'FF is whitespace: a real end tag');
+});
+
+test('html states: a quote that never closes drops the tag in a browser; the rest is searched as page text', () => {
+  // Chromium: no element, no text shown. Fail closed: the remainder counts as page text.
+  assert.deepEqual(arms(scanOne(`<script data="x>${DUKE}</script>`)), ['text']);
+  assert.deepEqual(arms(scanOne(`<script type="application/json" data="x>{BAD ${DUKE}</script>`)), ['text']);
+  assert.deepEqual(arms(scanOne('<script type="application/json" data="x>{BAD</script>', [])), []);
+});
+
+test('html states: RCDATA, RAWTEXT and plaintext content is page text and is searched', () => {
+  for (const html of [
+    `<plaintext><script>${DUKE}</script>`,
+    `<textarea><script>${DUKE}</script></textarea>`,
+    `<xmp><style>${DUKE}</style></xmp>`,
+    `<title><script>${DUKE}</script></title>`,
+    `<iframe><script>${DUKE}</script></iframe>`,
+    `<noembed><script>${DUKE}</script></noembed>`,
+    `<svg><text><![CDATA[ <script>${DUKE}</script> ]]></text></svg>`,
+    `<TEXTAREA\t><script>${DUKE}</script></TEXTAREA >`,
+  ]) {
+    assert.deepEqual(arms(scanOne(html)), ['text'], html);
+  }
+  assert.deepEqual(arms(scanOne('<textarea><style>a{b:c} oops %%</style></textarea>', [])), ['marks']);
+  assert.deepEqual(arms(scanOne('<svg><![CDATA[ <script>oops %%</script> ]]></svg>', [])), ['marks']);
+  assert.deepEqual(scanOne('<textarea>fine</textarea><title>fine</title><p>fine</p>', []), []);
+});
+
+test('html states: an unterminated RCDATA element runs to the end of the page and is searched', () => {
+  assert.deepEqual(arms(scanOne(`<textarea>${DUKE}`)), ['text']);
+});
+
+test('html states: character references in the type attribute are decoded before the MIME match', () => {
+  for (const t of ['application&#47;json', 'application&#x2F;json', 'application&sol;json', 'application&bogus;json']) {
+    assert.deepEqual(arms(scanOne(`<script type="${t}">{ZQXBROKEN</script>`, [])), ['island-unparsable'], t);
+  }
+  assert.deepEqual(arms(scanOne(`<script type="application&#47;json">{"n": "${DUKE}"}</script>`)), ['text']);
+  assert.deepEqual(scanOne('<script type="text&#47;template">{ZQXBROKEN</script>', []), []);
+});
+
+test('html states: <!--> and <!---> are empty comments, so an island right after them is read', () => {
+  assert.deepEqual(arms(scanOne('<!--><script type="application/json">{ZQXBROKEN</script>-->', [])), ['island-unparsable']);
+  assert.deepEqual(arms(scanOne('<!---><script type="application/json">{ZQXBROKEN</script>-->', [])), ['island-unparsable']);
+  assert.deepEqual(arms(scanOne('<!-- x --!><script type="application/json">{ZQXBROKEN</script>', [])), ['island-unparsable']);
+});
+
+test('html states: the first of two type attributes wins', () => {
+  assert.deepEqual(scanOne('<script type="text/plain" type="application/json">{ZQXBROKEN</script>', []), []);
+  assert.deepEqual(arms(scanOne('<script type="application/json" type="text/plain">{ZQXBROKEN</script>', [])), ['island-unparsable']);
+});
+
+test('html states: pathological input is read in linear time', () => {
+  const patterns = ['<a ', '<a x="', "<a x='", '<a x=">" ', '<a=', '<a x=\'>\' ', '<!--', '<script>', '<textarea>', '</script ', '<a x=">'];
+  for (const unit of patterns) {
+    for (const tail of ['', '>']) {
+      const html = unit.repeat(Math.ceil(200000 / unit.length)) + tail;
+      const dir = outTree({ 'a.html': html });
+      try {
+        const t0 = Date.now();
+        scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [COMMENT] });
+        const ms = Date.now() - t0;
+        assert.ok(ms < 2000, `${JSON.stringify(unit)} + ${JSON.stringify(tail)} took ${ms} ms`);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  }
+});
+
 // ---- end to end: the CLI on a vault full of comments ----
 
 const BIN = path.join(__dirname, '..', 'bin', 'scriptorium.js');
