@@ -58,7 +58,7 @@ test('defaultOutPathFor() falls back to a generic gm-scriptorium-<target> name f
 
 // -- 2. expectedAssets() equals the PIN.json-derived set --
 
-test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templates-scaffold/, plus lunr.js, THIRD-PARTY-NOTICES.txt and FIRST_PARTY_SITE_ASSETS (77 total, V1.5a adding assets/admin/remote.js, signin.html and signin.js to the 74 on main; publish-v1.14.0 added js/dnd-live.js and js/dnd-party.js; issue #84 added 6 haze font/NOTICE files and its follow-up removed them again, haze now shares gloam\'s via fontsFrom: the base theme slice adds the gloam theme\'s 5 vendored font files (C2) plus its theme.json/theme.css/NOTICE.txt (C3) to the 61 panel v2 V1b total, then V1e-3 adds assets/admin/sitepane.js, then V1e-9 adds assets/admin/vaultcfg.js, then V1e-7 adds assets/admin/variants.js)', () => {
+test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templates-scaffold/, plus lunr.js, THIRD-PARTY-NOTICES.txt and FIRST_PARTY_SITE_ASSETS (80 total, ADR 0028 adding assets/admin/setup.html, setup.js and welcome.js to the 77; V1.5a adding assets/admin/remote.js, signin.html and signin.js to the 74 on main; publish-v1.14.0 added js/dnd-live.js and js/dnd-party.js; issue #84 added 6 haze font/NOTICE files and its follow-up removed them again, haze now shares gloam\'s via fontsFrom: the base theme slice adds the gloam theme\'s 5 vendored font files (C2) plus its theme.json/theme.css/NOTICE.txt (C3) to the 61 panel v2 V1b total, then V1e-3 adds assets/admin/sitepane.js, then V1e-9 adds assets/admin/vaultcfg.js, then V1e-7 adds assets/admin/variants.js)', () => {
   const pin = JSON.parse(fs.readFileSync(path.join(ROOT, 'vendor', 'gm-apprentice-publish', 'PIN.json'), 'utf8'));
   const pinPaths = Object.keys(pin.files);
   const cssRel = pinPaths.filter((rel) => rel.startsWith('css/'));
@@ -73,7 +73,7 @@ test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templat
   ].sort();
 
   assert.deepEqual(expectedAssets(ROOT), expected);
-  assert.equal(expectedAssets(ROOT).length, 77);
+  assert.equal(expectedAssets(ROOT).length, 80);
 
   assert.equal(cssRel.length, 6);
   assert.equal(jsRel.length, 14);
@@ -93,7 +93,8 @@ test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templat
   // V1e-9 (SD-100) adds assets/admin/vaultcfg.js in sorted position (38 -> 39), same literal,
   // same reasoning. V1e-7 (SD-69) adds assets/admin/variants.js in sorted position (39 -> 40),
   // same literal, same reasoning -- re-measured at the V1e-7 rebase onto main. V1.5a (ADR 0029) adds
-  // assets/admin/remote.js, signin.html and signin.js in sorted position (74 -> 77), same literal.
+  // assets/admin/remote.js, signin.html and signin.js in sorted position (74 -> 77), same literal. ADR 0028 adds assets/admin/setup.html,
+  // setup.js and welcome.js in sorted position (77 -> 80), same literal.
   assert.deepEqual(FIRST_PARTY_SITE_ASSETS, [
     'assets/site/scriptorium.css',
     'assets/site/scriptorium.js',
@@ -128,6 +129,8 @@ test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templat
     'assets/admin/outcome.js',
     'assets/admin/pack.js',
     'assets/admin/remote.js',
+    'assets/admin/setup.html',
+    'assets/admin/setup.js',
     'assets/admin/signin.html',
     'assets/admin/signin.js',
     'assets/admin/sitepane.js',
@@ -138,6 +141,7 @@ test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templat
     'assets/admin/vaultcfg.js',
     'assets/admin/views.js',
     'assets/admin/vocab.js',
+    'assets/admin/welcome.js',
   ]);
 });
 

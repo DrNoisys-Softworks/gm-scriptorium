@@ -80,13 +80,27 @@ function listJs(dir) {
 // --- (a), (b): the panel's module graph --------------------------------------------------
 
 const PANEL_ENTRY = at('cli', 'serve-admin.js');
-const FORBIDDEN_FROM_PANEL = [at('remote', 'passwordwrite.js'), at('cli', 'remote.js'), at('config', 'write.js'), at('cli', 'config.js'), at('cli', 'init.js')];
+// ADR 0028 (section 2): src/config/write.js left this list. It is reachable from the panel through
+// one chain only (src/setup/register.js), which the fenced test just below and the FR35 test in
+// test/admin-assets.test.js pin. Every other entry is as strict as before.
+const FORBIDDEN_FROM_PANEL = [at('remote', 'passwordwrite.js'), at('cli', 'remote.js'), at('cli', 'config.js'), at('cli', 'init.js')];
 const REQUIRED_FROM_PANEL = [at('remote', 'sessions.js'), at('remote', 'audit.js'), at('remote', 'password.js'), at('remote', 'privatefile.js')];
 
 test('(a) the graph from src/cli/serve-admin.js never reaches the password writer, the remote CLI, or any config writer', () => {
   const graph = walkGraph(PANEL_ENTRY);
   const hits = FORBIDDEN_FROM_PANEL.filter((f) => graph.has(f));
   assert.deepEqual(hits.map((f) => path.relative(ROOT, f)), []);
+});
+
+test('(a) the graph from src/cli/serve-admin.js reaches the config writer (src/config/write.js) only through src/setup/register.js (ADR 0028)', () => {
+  const graph = walkGraph(PANEL_ENTRY);
+  const write = at('config', 'write.js');
+  assert.ok(graph.has(write), 'positive control: the setup chain reaches it');
+  const importers = [...graph]
+    .filter((f) => f.endsWith('.js') && fs.existsSync(f))
+    .filter((f) => extractRequireSpecs(fs.readFileSync(f, 'utf8')).some((spec) => spec.startsWith('.') && resolveRelative(f, spec) === write))
+    .map((f) => path.relative(ROOT, f));
+  assert.deepEqual(importers, [path.join('src', 'setup', 'register.js')]);
 });
 
 test('(b) positive control: the same graph DOES reach the session store, the audit log, the password reader and privatefile', () => {

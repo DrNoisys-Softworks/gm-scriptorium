@@ -50,6 +50,7 @@ const CASES = [
   ['config list, no campaigns registered (informational)', (r) => (writeCfg(r, 'config_version = 1\n'), ['config', 'list']), 0, /no campaigns registered/],
   ['unknown campaign (check)', (r) => (goodCfg(r), ['check', 'nope']), 3, /no campaign named "nope"/],
   ['unknown campaign (serve)', (r) => (goodCfg(r), ['serve', 'nope']), 3, /no campaign named "nope"/],
+  ['serve --admin with an unknown campaign and none registered', (r) => (writeCfg(r, 'config_version = 1\n'), ['serve', '--admin', 'ghost']), 3, /no campaign named "ghost"/],
   ['several campaigns, none chosen', (r) => (writeCfg(r, `config_version = 1\n[campaigns.a]\nvault = '${SAMPLE}'\noutput = '${r}/a'\n[campaigns.b]\nvault = '${SAMPLE}'\noutput = '${r}/b'\n`), ['check']), 3, /no campaign specified/],
   ['--config file does not exist', (r) => ['check'], 3, /config file not found/],
   ['malformed config (not TOML)', (r) => (writeCfg(r, 'config_version = [[[\n'), ['check']), 3, /config is not valid TOML/],

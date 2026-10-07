@@ -478,6 +478,12 @@ test('route sweep: the table equals a literal list of 31 METHOD path entries plu
     'GET /api/remote',
     'POST /api/remote/signout',
     'POST /api/remote/signout-all',
+    // ADR 0028: browser setup (state, live checks, the commit) and the Overview welcome's dismissal.
+    'GET /setup',
+    'GET /api/setup/state',
+    'GET /api/setup/check',
+    'POST /api/setup/commit',
+    'POST /api/welcome/dismiss',
   ]);
   const assetRoutes = ADMIN_ROUTES.filter((r) => r.prefix !== undefined);
   assert.deepEqual(assetRoutes.map((r) => `${r.method} ${r.prefix}`), ['GET /assets/']);
@@ -503,7 +509,7 @@ test('route sweep: every auth route without a cookie is refused (locked page for
       // (checkRequest's fixed order), so this isolates the auth (token) refusal specifically.
       const noCookieHeaders = route.method === 'POST' ? { Origin: origin } : {};
       const noCookie = await request(adminPort, { method: route.method, path: route.path, headers: noCookieHeaders });
-      if (route.path === '/') {
+      if (route.path === '/' || route.path === '/setup') {
         assert.equal(noCookie.status, 403);
         assert.deepEqual(noCookie.body, fs.readFileSync(path.join(__dirname, '..', 'assets', 'admin', 'locked.html')));
       } else {
