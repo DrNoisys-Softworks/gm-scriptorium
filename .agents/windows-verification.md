@@ -1750,7 +1750,7 @@ Issue #108 (owner decision 2026-10-07: no new exit codes). **Partly verified on 
 
 ### C150: the README config-isolation blocks for PowerShell and cmd, on Windows
 
-Issues #8 and #17 (slice 1). **Mark this OPEN: the two Windows blocks were written on Linux and never run on Windows.** Only the Linux block was run. From a clone of the repository, copy each block from the README section "Trying it beside a real campaign" exactly as written, in its own shell (PowerShell, then Command Prompt), with `gm-scriptorium` on the PATH:
+Issues #8 and #17 (slice 1). **Mark this OPEN: the two Windows blocks were written on Linux and never run on Windows.** Only the Linux block was run. From a clone of the repository, copy each block from the page `docs/trying-it-safely.md` ("Trying it beside a real campaign") exactly as written, in its own shell (PowerShell, then Command Prompt), with `gm-scriptorium` on the PATH:
 
 1. The block runs to the end with no error: the scratch folder is made, the sample vault is copied to `vault`, `config add` registers `lease`, `check` passes, and `build` writes a site to `out`.
 2. Run the same block a second time in a new window. It still works, because each run makes a new scratch folder, and the first run's folder is untouched.
