@@ -3,6 +3,7 @@
 const { stripBrackets } = require('../../vault/links');
 const pinned = require('../../generator/pinned');
 const { stripObsidianComments } = require('../../vault/comments');
+const htmltext = require('../../build/htmltext');
 
 /*
  * Section 7.0's "rendered text" derivation, re-ported against the pin
@@ -82,6 +83,66 @@ function extractHeadings(markdown) {
     if (m) headings.push({ level: m[1].length, title: m[2].trim(), line: i + 1 });
   }
   return headings;
+}
+
+/**
+ * ADR 0045. Every heading in `text` as the pinned generator reads it, one entry per line.
+ * Two readings are merged: the parser's (pinned.findHeadings, lib/processor.js:180-209: ATX at any
+ * indent the parser accepts, closed ATX, setext, headings nested in a blockquote or list) and the
+ * margin pattern extractHeadings uses, which the generator also treats as a section start, even
+ * inside code. `titles` holds each distinct raw title, parser title first. Unlike
+ * extractHeadings this is not normalised, and it does not change that function.
+ *
+ * `parseError` is true when the parser threw; the margin headings are still returned, and the
+ * caller must fail closed. The error text is never kept (it can quote the input).
+ *
+ * @param {string} text
+ * @returns {{ headings: {line:number, level:number, titles:string[], nested:boolean}[], parseError: boolean }}
+ */
+function readRenderedHeadings(text) {
+  const source = String(text == null ? '' : text);
+  const byLine = new Map(); // 1-based line > entry
+  let parseError = false;
+
+  try {
+    const { headingAt } = pinned.findHeadings(source);
+    for (const [zeroBased, h] of headingAt) {
+      const title = String(h.title || '').trim();
+      byLine.set(zeroBased + 1, { line: zeroBased + 1, level: h.level, titles: title ? [title] : [], nested: Boolean(h.nested) });
+    }
+  } catch {
+    parseError = true;
+  }
+
+  const lines = source.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^(#{1,6})\s+(.+)$/);
+    if (!m) continue;
+    const title = m[2].trim();
+    const existing = byLine.get(i + 1);
+    if (existing) {
+      if (title && !existing.titles.includes(title)) existing.titles.push(title);
+    } else {
+      byLine.set(i + 1, { line: i + 1, level: m[1].length, titles: title ? [title] : [], nested: false });
+    }
+  }
+
+  const headings = [...byLine.values()].filter((h) => h.titles.length > 0).sort((a, b) => a.line - b.line);
+  return { headings, parseError };
+}
+
+/**
+ * ADR 0045. The text a reader sees for an inline-markdown string, the way the build renders it:
+ * `[[x|Alias]]` becomes `Alias`, emphasis and link markup drop, the typographer applies and entities
+ * decode. The link map is null-prototype on purpose: a plain object would resolve `[[constructor]]`
+ * to a prototype function.
+ *
+ * @param {string} inlineMarkdown
+ * @returns {string}
+ */
+function displayTextOf(inlineMarkdown) {
+  const linked = pinned.resolveWikiLinks(String(inlineMarkdown), Object.create(null), '');
+  return htmltext.textOf(pinned.renderInline(linked));
 }
 
 /**
@@ -273,6 +334,8 @@ function buildPublishedNameIndex(publishedPages) {
 
 module.exports = {
   extractHeadings,
+  readRenderedHeadings,
+  displayTextOf,
   alignStrippedToSource,
   deriveRenderedText,
   buildPublishedNameIndex,

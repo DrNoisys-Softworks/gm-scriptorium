@@ -183,6 +183,311 @@ test('output scan: clean output and very short comments give no finding', () => 
   assert.deepEqual(needlesFor({ text: '\nFirst line here\nsecond line here\n' }), ['first line here second line here', 'first line here', 'second line here']);
 });
 
+// ---- ADR 0045: JSON data islands ----
+
+const { serializeDataIsland } = require('../src/build/sitescript');
+
+const island = (v, attrs = 'class="sc-tl-data"') => `<script type="application/json" ${attrs}>${serializeDataIsland(v)}</script>`;
+
+test('islands (text arm): comment text only inside a sc-tl-data island is an error with the right outputPath', () => {
+  const dir = outTree({ 'timeline/index.html': `<p>clean</p>${island({ events: [{ title: 'The Duke Is The Traitor', note: 'the duke is the traitor' }] })}` });
+  try {
+    const f = scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [COMMENT] });
+    assert.equal(f.length, 1);
+    assert.equal(f[0].data.arm, 'text');
+    assert.equal(f[0].severity, 'error');
+    assert.equal(f[0].outputPath, 'timeline/index.html');
+    assert.equal(f[0].path, 'Notes/A.md');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('islands (text arm): a connections island and an id-keyed generator island are searched too', () => {
+  const dir = outTree({
+    'cx.html': island({ nodes: ['the duke is the traitor'] }, 'class="sc-cx-data"'),
+    'party.html': `<script id="party-data" type="application/json">${serializeDataIsland({ members: [{ bio: 'the duke is the traitor' }] })}</script>`,
+  });
+  try {
+    const f = scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [COMMENT] });
+    assert.deepEqual(f.map((x) => [x.outputPath, x.data.arm]).sort(), [['cx.html', 'text'], ['party.html', 'text']]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('islands (marks arm): a %% in an island string is an error; one finding per file', () => {
+  const dir = outTree({ 'a.html': `<p>x</p>${island({ rows: [{ t: 'oops %% leaked' }, { t: 'and %% again' }] })}` });
+  try {
+    const f = scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [] });
+    assert.equal(f.length, 1);
+    assert.equal(f[0].data.arm, 'marks');
+    assert.equal(f[0].outputPath, 'a.html');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('islands (exclusions kept): %% in pre, code, style, a non-JSON script, or an island with no %% gives 0', () => {
+  const dir = outTree({
+    'ok.html': `<pre>%%a%%</pre><code>%%b%%</code><style>a{width:100%%}</style><script>var x = "%% the duke is the traitor";</script><script type="text/template">%%c%%</script>${island({ t: 'fine' })}`,
+  });
+  try {
+    assert.deepEqual(scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [COMMENT] }), []);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('islands (fail closed): invalid JSON is an island-unparsable error with no island text, and its raw body is still searched', () => {
+  const dir = outTree({ 'a.html': '<p>x</p><script type="application/json" class="sc-tl-data">{"a": "the duke is the traitor", ZQXBROKEN</script>' });
+  try {
+    const f = scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [COMMENT] });
+    const un = f.filter((x) => x.data.arm === 'island-unparsable');
+    assert.equal(un.length, 1);
+    assert.equal(un[0].severity, 'error');
+    assert.equal(un[0].outputPath, 'a.html');
+    assert.ok(!JSON.stringify(un[0]).includes('ZQXBROKEN'), 'no island text in the finding');
+    assert.ok(!JSON.stringify(un[0]).includes('traitor'), 'no island text in the finding');
+    assert.ok(!/position|Unexpected|JSON\.parse/i.test(JSON.stringify(un[0])), 'no parser message in the finding');
+    assert.equal(f.filter((x) => x.data.arm === 'text').length, 1, 'comment text inside the broken island is still found');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('islands (fail closed): a %% inside an unparsable island is also a marks error', () => {
+  const dir = outTree({ 'a.html': '<script type="application/json" id="d">{ %% broken</script>' });
+  try {
+    const arms = scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [] }).map((x) => x.data.arm).sort();
+    assert.deepEqual(arms, ['island-unparsable', 'marks']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---- ADR 0045: odd script tag forms (CodeQL: bad HTML filtering regexp, incomplete multi-character sanitization) ----
+
+function scanOne(html, comments = [COMMENT]) {
+  const dir = outTree({ 'a.html': html });
+  try {
+    return scanCommentsInOutput({ outDir: dir, campaign: 'c', comments });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+const arms = (f) => f.map((x) => x.data.arm).sort();
+
+for (const [name, open, close] of [
+  ['uppercase tags', '<SCRIPT TYPE="Application/JSON" ID="d">', '</SCRIPT>'],
+  ['end tag with a space', '<script type="application/json" id="d">', '</script >'],
+  ['end tag with tab, newline and an attribute', '<script type="application/json" id="d">', '</script\t\nfoo>'],
+  ['unquoted type attribute', '<script id=d type=application/json>', '</script>'],
+]) {
+  test(`island forms: ${name}: a valid island is read (text arm, no unparsable finding)`, () => {
+    const f = scanOne(`<p>x</p>${open}${serializeDataIsland({ n: 'the duke is the traitor' })}${close}`);
+    assert.deepEqual(arms(f), ['text']);
+  });
+
+  test(`island forms: ${name}: a broken island fails closed`, () => {
+    const f = scanOne(`<p>x</p>${open}{"n": "the duke is the traitor", ZQXBROKEN${close}`);
+    assert.deepEqual(arms(f), ['island-unparsable', 'text']);
+    assert.ok(!JSON.stringify(f).includes('ZQXBROKEN'));
+  });
+
+  test(`island forms: ${name}: a %% in a valid island is a marks error`, () => {
+    assert.deepEqual(arms(scanOne(`${open}${serializeDataIsland({ n: 'oops %% here' })}${close}`, [])), ['marks']);
+  });
+}
+
+test('island forms: an unterminated JSON island fails closed, and its text is still searched', () => {
+  const f = scanOne('<p>x</p><script type="application/json" id="d">{"n": "the duke is the traitor"');
+  assert.deepEqual(arms(f), ['island-unparsable', 'text']);
+});
+
+test('island forms: an unterminated island whose body is valid JSON still fails closed', () => {
+  assert.deepEqual(arms(scanOne('<p>x</p><script type="application/json" id="d">{"n": "fine"}', [])), ['island-unparsable']);
+});
+
+test('island forms: an unterminated island with a %% is also a marks error', () => {
+  assert.deepEqual(arms(scanOne('<script type="application/json">{"n": "a %% b"', [])), ['island-unparsable', 'marks']);
+});
+
+test('island forms: a reconstructed <script (<scr<script></script>ipt>) cannot hide an island or its text', () => {
+  const html = `<scr<script></script>ipt type="application/json">{"n": "the duke is the traitor"}</script>`;
+  assert.ok(arms(scanOne(html)).includes('text'));
+});
+
+test('island forms: a tag reconstructed by stripping (<<b>b>) cannot hide comment text', () => {
+  assert.deepEqual(arms(scanOne('<p><<b>i>the duke is the traitor</i></p>')), ['text']);
+});
+
+test('island forms: a non-JSON script closed with an odd end tag is still left out of the search', () => {
+  assert.deepEqual(scanOne('<script>var a = "the duke is the traitor %%";</script\t\nfoo><p>fine</p>'), []);
+  assert.deepEqual(scanOne('<STYLE>a{width:100%%}</STYLE ><p>fine</p>'), []);
+});
+
+// ---- ADR 0045: browser-shaped tag reading (a scanner must not depend on stripping blocks) ----
+
+for (const tag of ['script', 'style']) {
+  test(`tag reading: <${tag}<${tag}>A</${tag}> text </${tag}>: the text after the inner block is displayed, so it is searched`, () => {
+    const html = `<${tag}<${tag}>A</${tag}> the duke is the traitor </${tag}>`;
+    assert.deepEqual(arms(scanOne(html)), ['text']);
+  });
+
+  test(`tag reading: the same nesting hides no %% after the inner <${tag}> block`, () => {
+    assert.deepEqual(arms(scanOne(`<${tag}<${tag}>A</${tag}> oops %% </${tag}>`, [])), ['marks']);
+  });
+}
+
+test('tag reading: a quoted attribute containing > does not end the start tag; the island is read', () => {
+  const body = serializeDataIsland({ n: 'the duke is the traitor' });
+  assert.deepEqual(arms(scanOne(`<script data-x="a>b" type="application/json" id="d">${body}</script>`)), ['text']);
+  assert.deepEqual(arms(scanOne(`<script data-x='a>b' type="application/json">{ZQXBROKEN</script>`, [])), ['island-unparsable']);
+});
+
+for (const mime of ['application/ld+json', 'application/vnd.api+json', 'APPLICATION/JSON; charset=utf-8']) {
+  test(`tag reading: type="${mime}" counts as a JSON island`, () => {
+    const body = serializeDataIsland({ n: 'the duke is the traitor' });
+    assert.deepEqual(arms(scanOne(`<script type="${mime}">${body}</script>`)), ['text']);
+    assert.deepEqual(arms(scanOne(`<script type="${mime}">{ZQXBROKEN</script>`, [])), ['island-unparsable']);
+    assert.deepEqual(arms(scanOne(`<script type="${mime}">{"n": "a %% b"}</script>`, [])), ['marks']);
+  });
+}
+
+test('tag reading: other script types are not islands, and a type= inside another attribute value does not count', () => {
+  assert.deepEqual(scanOne('<script type="text/template">{ZQXBROKEN the duke is the traitor</script>'), []);
+  assert.deepEqual(scanOne('<script type="application/jsonx">{ZQXBROKEN</script>'), []);
+  assert.deepEqual(scanOne('<script data-x=" type=application/json">{ZQXBROKEN the duke is the traitor</script>'), []);
+});
+
+test('tag reading: an unterminated start tag or block fails closed (the text is searched)', () => {
+  assert.deepEqual(arms(scanOne('<p>x</p><div the duke is the traitor')), ['text']);
+  assert.deepEqual(arms(scanOne('<script>var a = 1; the duke is the traitor')), ['text']);
+  assert.deepEqual(arms(scanOne('<style>a{b:c} the duke is the traitor')), ['text']);
+  assert.deepEqual(arms(scanOne('<pre>x the duke is the traitor')), ['text']);
+  assert.deepEqual(arms(scanOne('<code>oops %% never closed', [])), ['marks']);
+});
+
+test('tag reading: <pre> and <code> nesting is followed, so a %% after the inner close is still seen', () => {
+  assert.deepEqual(arms(scanOne('<pre><pre>x</pre> oops %% </pre>', [])), ['marks']);
+  assert.deepEqual(scanOne('<pre><code>%%fine%%</code></pre><p>ok</p>', []), []);
+});
+
+test('tag reading: text inside an HTML comment is page source, so it is searched (and a %% there is a marks error)', () => {
+  assert.deepEqual(arms(scanOne('<p>x</p><!-- the duke is the traitor -->')), ['text']);
+  assert.deepEqual(arms(scanOne('<!-- oops %% -->', [])), ['marks']);
+  assert.deepEqual(scanOne('<!-- fine --><p>fine</p>'), []);
+});
+
+test('tag reading: a slash ends the tag name, so <script/ ...> is a script start tag', () => {
+  assert.deepEqual(arms(scanOne('<script/ id=d type="application/json">{ZQXBROKEN</script>', [])), ['island-unparsable']);
+});
+
+test('tag reading: a pre inside code (or the reverse) stays code until the first end tag of the outer name', () => {
+  assert.deepEqual(scanOne('<pre><code>x</code> %% still code </pre><p>fine</p>', []), []);
+});
+
+test('tag reading: a quote that never closes does not swallow the rest of the page', () => {
+  assert.deepEqual(arms(scanOne('<a href="x>the duke is the traitor</a>')), ['text']);
+});
+
+// ---- ADR 0045: HTML tokenizer states (each input below was checked in headless Chromium) ----
+
+const DUKE = 'the duke is the traitor';
+
+test('html states: a stray = before a quote starts an attribute named "=", so the quote opens no value', () => {
+  assert.deepEqual(arms(scanOne(`<p =">${DUKE}</p><b x=" ">`)), ['text']);
+  assert.deepEqual(arms(scanOne(`<p a==">${DUKE}</p><b x=" ">`)), ['text']);
+});
+
+test('html states: only tab, LF, FF, CR and space are HTML whitespace (NBSP, VT, BOM are name characters)', () => {
+  for (const ch of ['\u00a0', '\u000b', '\ufeff', '\u2028', '\u3000', '\u1680']) {
+    // "<script" + ch is an unknown element, so its content is displayed and searched.
+    assert.deepEqual(arms(scanOne(`<script${ch}>${DUKE}</script>`)), ['text'], `start tag, U+${ch.charCodeAt(0).toString(16)}`);
+    // "</script" + ch is not an end tag, so the script never ends and is searched (fail closed).
+    assert.deepEqual(arms(scanOne(`<script>var a=1;</script${ch}>${DUKE}`)), ['text'], `end tag, U+${ch.charCodeAt(0).toString(16)}`);
+    assert.deepEqual(arms(scanOne(`<script>${DUKE}</script${ch}>`)), ['text'], `end tag hides nothing, U+${ch.charCodeAt(0).toString(16)}`);
+  }
+  assert.deepEqual(scanOne(`<script>var a=1;</script\f>${'<p>fine</p>'}`), [], 'FF is whitespace: a real end tag');
+});
+
+test('html states: a quote that never closes drops the tag in a browser; the rest is searched as page text', () => {
+  // Chromium: no element, no text shown. Fail closed: the remainder counts as page text.
+  assert.deepEqual(arms(scanOne(`<script data="x>${DUKE}</script>`)), ['text']);
+  assert.deepEqual(arms(scanOne(`<script type="application/json" data="x>{BAD ${DUKE}</script>`)), ['text']);
+  assert.deepEqual(arms(scanOne('<script type="application/json" data="x>{BAD</script>', [])), []);
+});
+
+test('html states: RCDATA, RAWTEXT and plaintext content is page text and is searched', () => {
+  for (const html of [
+    `<plaintext><script>${DUKE}</script>`,
+    `<textarea><script>${DUKE}</script></textarea>`,
+    `<xmp><style>${DUKE}</style></xmp>`,
+    `<title><script>${DUKE}</script></title>`,
+    `<iframe><script>${DUKE}</script></iframe>`,
+    `<noembed><script>${DUKE}</script></noembed>`,
+    `<svg><text><![CDATA[ <script>${DUKE}</script> ]]></text></svg>`,
+    `<TEXTAREA\t><script>${DUKE}</script></TEXTAREA >`,
+  ]) {
+    assert.deepEqual(arms(scanOne(html)), ['text'], html);
+  }
+  assert.deepEqual(arms(scanOne('<textarea><style>a{b:c} oops %%</style></textarea>', [])), ['marks']);
+  assert.deepEqual(arms(scanOne('<svg><![CDATA[ <script>oops %%</script> ]]></svg>', [])), ['marks']);
+  assert.deepEqual(scanOne('<textarea>fine</textarea><title>fine</title><p>fine</p>', []), []);
+});
+
+test('html states: an unterminated RCDATA element runs to the end of the page and is searched', () => {
+  assert.deepEqual(arms(scanOne(`<textarea>${DUKE}`)), ['text']);
+});
+
+test('html states: character references in the type attribute are decoded before the MIME match', () => {
+  for (const t of ['application&#47;json', 'application&#x2F;json', 'application&sol;json', 'application&bogus;json']) {
+    assert.deepEqual(arms(scanOne(`<script type="${t}">{ZQXBROKEN</script>`, [])), ['island-unparsable'], t);
+  }
+  assert.deepEqual(arms(scanOne(`<script type="application&#47;json">{"n": "${DUKE}"}</script>`)), ['text']);
+  assert.deepEqual(scanOne('<script type="text&#47;template">{ZQXBROKEN</script>', []), []);
+});
+
+test('html states: <!--> and <!---> are empty comments, so an island right after them is read', () => {
+  assert.deepEqual(arms(scanOne('<!--><script type="application/json">{ZQXBROKEN</script>-->', [])), ['island-unparsable']);
+  assert.deepEqual(arms(scanOne('<!---><script type="application/json">{ZQXBROKEN</script>-->', [])), ['island-unparsable']);
+  assert.deepEqual(arms(scanOne('<!-- x --!><script type="application/json">{ZQXBROKEN</script>', [])), ['island-unparsable']);
+});
+
+test('html states: when the work budget runs out, later tags become plain text and are searched, never swallowed', () => {
+  const { tokenize } = require('../src/checks/leak/commentscan');
+  const html = `<p>${DUKE}</p><script>x</script>`;
+  const tokens = tokenize(html, { budget: 0 });
+  assert.ok(tokens.every((t) => t.kind === 'text'), 'no tag is read once the budget is gone');
+  assert.equal(tokens.map((t) => t.text).join(''), html, 'the whole page is kept as text');
+  // With the normal budget the same page is read as tags.
+  assert.ok(tokenize(html).some((t) => t.kind === 'raw'));
+});
+
+test('html states: the first of two type attributes wins', () => {
+  assert.deepEqual(scanOne('<script type="text/plain" type="application/json">{ZQXBROKEN</script>', []), []);
+  assert.deepEqual(arms(scanOne('<script type="application/json" type="text/plain">{ZQXBROKEN</script>', [])), ['island-unparsable']);
+});
+
+test('html states: pathological input is read in linear time', () => {
+  const patterns = ['<a ', '<a x="', "<a x='", '<a x=">" ', '<a=', '<a x=\'>\' ', '<!--', '<script>', '<textarea>', '</script ', '<a x=">'];
+  for (const unit of patterns) {
+    for (const tail of ['', '>']) {
+      const html = unit.repeat(Math.ceil(200000 / unit.length)) + tail;
+      const dir = outTree({ 'a.html': html });
+      try {
+        const t0 = Date.now();
+        scanCommentsInOutput({ outDir: dir, campaign: 'c', comments: [COMMENT] });
+        const ms = Date.now() - t0;
+        assert.ok(ms < 2000, `${JSON.stringify(unit)} + ${JSON.stringify(tail)} took ${ms} ms`);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  }
+});
+
 // ---- end to end: the CLI on a vault full of comments ----
 
 const BIN = path.join(__dirname, '..', 'bin', 'scriptorium.js');
@@ -329,6 +634,37 @@ test('CLI: if the read shim failed, the output gate refuses the build and --forc
     }
     // And the same vault builds fine without the breaker.
     assert.equal(run(['build', 'with', '--no-check']).status, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('CLI: a comment that reaches only a timeline data island is refused by the output gate, and --force cannot override it (ADR 0045)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-cmt-island-'));
+  try {
+    const vault = path.join(root, 'v');
+    fs.cpSync(LEASE, vault, { recursive: true });
+    // A comment in a timeline Title cell: the helper columns are removed from the visible table, so
+    // with the read shim emptied the text can only surface inside the sc-tl-data island.
+    const tl = path.join(vault, '_Campaign', 'Timeline.md');
+    const src = fs.readFileSync(tl, 'utf8');
+    const next = src.replace('| The Signing | backstory', '| The Signing %%ZQXISLAND-LEAK private note%% | backstory');
+    assert.notEqual(next, src, 'edit did not apply');
+    fs.writeFileSync(tl, next);
+    const run = cli(root, 'v', vault);
+    const breaker = path.join(root, 'break.js');
+    fs.writeFileSync(breaker, `require(${JSON.stringify(path.join(__dirname, '..', 'src', 'generator', 'bootstrap.js'))}).READ_TRANSFORMS_FOR_BUILD.length = 0;\n`);
+    const cfg = path.join(root, 'cfg.toml');
+    const env = { ...process.env, XDG_CONFIG_HOME: path.join(root, 'xdg'), APPDATA: path.join(root, 'ad'), SCRIPTORIUM_CONFIG: cfg, NODE_OPTIONS: `--require ${breaker}` };
+    delete env.SCRIPTORIUM_PROFILE;
+    for (const extra of [[], ['--force']]) {
+      const r = spawnSync(process.execPath, [BIN, 'build', 'v', '--no-check', ...extra, '--config', cfg], { encoding: 'utf8', env });
+      assert.equal(r.status, 2, `exit 2 (refused) expected, got ${r.status}: ${r.stdout}${r.stderr}`);
+      assert.ok((r.stdout + r.stderr).includes('leak/l6-comment-in-output'), r.stdout + r.stderr);
+      assert.ok(!fs.existsSync(path.join(root, 'out-v', 'index.html')), 'nothing may be swapped into place');
+    }
+    // Without the breaker the shim removes the comment and the same vault builds.
+    assert.equal(run(['build', 'v', '--no-check']).status, 0);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

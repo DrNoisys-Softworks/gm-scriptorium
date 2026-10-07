@@ -1863,6 +1863,17 @@ This covers ADR 0024 and `src/net/egress.js`. **Mark this OPEN: the Linux tests 
 3. On a disposable test machine only: map one listed remote host name to 127.0.0.1 in the hosts file and serve a certificate from a throwaway test CA on 443. With the CA untrusted, the connection is refused with a plain certificate message and the stub logs no request. Relaunch with `NODE_EXTRA_CA_CERTS` naming the CA file. The request reaches the stub. If the exe ignores that variable, record it; the refusal half still counts. Remove the hosts entry afterwards.
 4. No message in any step shows a URL path, query, header or response text. Nothing extra is written to the panel console.
 
+### C97: L5 reads rendered heading forms and story headings, and L6 reads data islands, in the real win-x64 exe
+
+ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux packaged binary only; not run from the exe.** The `\p{L}` pattern, `normalize('NFC')` and the markdown-it renderer inside the packaged snapshot are only proven by running the exe. Never use the real config or vault.
+
+1. With config isolated via `SCRIPTORIUM_CONFIG` and `--config`, use a scratch copy of the sample campaign.
+2. Put `## **GM Notes**` in an NPC body, and `GM Notes (spoilers)` over a `---` line in a PC's `_Story.md`.
+3. Run `check`: it exits 2 with two `leak/l5-gm-heading-survives` errors, the second on the `_Story.md` path.
+4. Fix the headings and run `build`.
+5. Hand-add `%% test %%` to a string inside a built page's `sc-tl-data` or `sc-cx-data` island.
+6. Run `check`: it exits 2 with `leak/l6-comment-in-output`.
+
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 
 None of these are product concerns; every one is a harness limit on the automated tester's side,
