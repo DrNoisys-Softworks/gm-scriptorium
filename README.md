@@ -63,7 +63,7 @@ Open the local admin panel for themes, image slots and your tagline.
 - [Install, update and build from source](docs/install.md)
 - [Trying it beside a real campaign](docs/trying-it-safely.md)
 - [Backing up your vault](docs/backing-up-your-vault.md)
-- [Privacy](docs/privacy.md): no telemetry, no analytics, and the admin panel never leaves your computer.
+- [Privacy](docs/privacy.md): no telemetry, no analytics, and the admin panel stays on your computer unless you turn on remote access.
 - [Why, and how this relates to gm-apprentice](docs/about.md)
 - [All documentation](docs/README.md)
 

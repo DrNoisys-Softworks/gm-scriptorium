@@ -2,10 +2,14 @@
 
 This page is for a GM who wants to know what GM-Scriptorium sends over the network, and to whom.
 
-- **The admin panel only listens on this computer.** `serve --admin` binds `127.0.0.1` and refuses
-  `--host`. Each launch creates a new random token and prints it as a link; after that the token
-  lives in a cookie that page scripts can't read. The panel checks every request's Host header, and
-  the Origin of every change, before it checks the token.
+- **The admin panel only listens on this computer, unless you turn on remote access.** By default
+  `serve --admin` binds `127.0.0.1` and refuses `--host`. Reaching it from another device is a
+  separate, saved, opt-in setting (see [Remote access](remote-access.md)). Behind a reverse proxy
+  it listens on the address you chose plus this computer, and only your proxy and this computer can
+  connect. With `tailscale serve` or an SSH tunnel it still listens on `127.0.0.1` only. Each launch
+  creates a new random token and prints it as a link; after that the token lives in a cookie that
+  page scripts can't read. The panel checks every request's Host header, and the Origin of every
+  change, before it checks the token.
 - **Font requests depend on the theme and your vault config.** Campaigns set up with `init` use the
   built-in `gloam` theme, which ships its own font files inside the built site, so the theme itself
   asks no font service for anything. The `haze` theme does the same. The `plain` theme (used when a pack names no theme) ships no

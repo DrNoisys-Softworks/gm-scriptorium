@@ -79,6 +79,56 @@ function previewFrameCsp(hostname, adminPort) {
   return `frame-ancestors http://${hostname}:${adminPort}`;
 }
 
+/*
+ * V1.5a (docs/decisions/0029-remote-access.md section 7, amendment A1): the same two builders for a
+ * REMOTE request, where the frame and its parent live on configured https origins instead of
+ * loopback ports. They take the gate profile (src/remote/settings.js gateProfile), and fail closed
+ * to ADMIN_CSP / `frame-ancestors 'none'` unless the origin is a plain https origin (no path,
+ * quote, space or semicolon can ride in). The builders above stay byte-identical.
+ */
+const ORIGIN_RE = /^https:\/\/(?:[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])?|\[[0-9a-f:]+\])(?::[0-9]{1,5})?$/;
+
+/** @param {unknown} origin @returns {boolean} */
+function isFramingOrigin(origin) {
+  return typeof origin === 'string' && origin.length <= 300 && ORIGIN_RE.test(origin);
+}
+
+/**
+ * The admin shell's CSP for a remote request: ADMIN_CSP with `frame-src 'self' <preview origin>;`
+ * after connect-src. 'self' is needed because every frame first loads the admin-origin
+ * /open-preview hand-off.
+ *
+ * @param {{ preview?: { origin?: string } }|null} access
+ * @returns {string}
+ */
+function remoteShellCsp(access) {
+  const origin = access && access.preview && access.preview.origin;
+  if (!isFramingOrigin(origin)) return ADMIN_CSP;
+  return ADMIN_CSP.replace(CONNECT_SRC_MARKER, `${CONNECT_SRC_MARKER} frame-src 'self' ${origin};`);
+}
+
+/**
+ * `frame-ancestors <admin origin>` for a remote preview response: only the panel's own page may
+ * frame it.
+ *
+ * @param {{ admin?: { origin?: string } }|null} access
+ * @returns {string}
+ */
+function remoteFrameAncestorsCsp(access) {
+  const origin = access && access.admin && access.admin.origin;
+  if (!isFramingOrigin(origin)) return "frame-ancestors 'none'";
+  return `frame-ancestors ${origin}`;
+}
+
+/**
+ * ADMIN_CSP with frame-ancestors 'self': carried by the /open-preview redirect only, the one
+ * deliberate exception to frame-ancestors 'none', so the hand-off works inside the panel's own
+ * frame whether or not a browser enforces frame-ancestors on a redirect.
+ */
+function handoffCsp() {
+  return ADMIN_CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'");
+}
+
 /**
  * @param {import('http').ServerResponse} res
  * @param {number} status
@@ -95,4 +145,4 @@ function send(res, status, headers, body, { isHead = false } = {}) {
   }
 }
 
-module.exports = { ADMIN_CSP, adminHeaders, previewHeaders, adminShellCsp, previewFrameCsp, send };
+module.exports = { ADMIN_CSP, adminHeaders, previewHeaders, adminShellCsp, previewFrameCsp, remoteShellCsp, remoteFrameAncestorsCsp, handoffCsp, send };

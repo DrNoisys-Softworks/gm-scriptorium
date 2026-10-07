@@ -37,9 +37,36 @@ function cookieName(port) {
   return `scriptorium_admin_${port}`;
 }
 
-/** @param {number} port @param {string} token */
-function sessionCookieHeader(port, token) {
-  return `${cookieName(port)}=${token}; Path=/; HttpOnly; SameSite=Strict`;
+/**
+ * The loopback cookie, unchanged without `secure`. V1.5b adds `Secure` for a TLS-serving loopback
+ * listener; V1.5a never turns it on.
+ *
+ * @param {number} port @param {string} token @param {{ secure?: boolean }} [opts]
+ */
+function sessionCookieHeader(port, token, { secure } = {}) {
+  const base = `${cookieName(port)}=${token}; Path=/; HttpOnly; SameSite=Strict`;
+  return secure ? `${base}; Secure` : base;
+}
+
+/*
+ * V1.5a (docs/decisions/0029-remote-access.md section 6): the remote session cookies. The `__Host-`
+ * prefix makes a browser accept them only with Secure, Path=/ and no Domain, so a cookie planted
+ * for the parent domain (say, from the preview name) can never carry a name the panel reads.
+ */
+
+/** @param {string} name @param {string} value @param {number} maxAgeSeconds */
+function remoteCookieHeader(name, value, maxAgeSeconds) {
+  return `${name}=${value}; Path=/; Max-Age=${maxAgeSeconds}; Secure; HttpOnly; SameSite=Strict`;
+}
+
+/** @param {string} name */
+function clearRemoteCookieHeader(name) {
+  return `${name}=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Strict`;
+}
+
+/** @param {number} port @param {{ secure?: boolean }} [opts] */
+function clearLoopbackCookieHeader(port, { secure } = {}) {
+  return `${cookieName(port)}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`;
 }
 
 /**
@@ -73,4 +100,14 @@ function isAuthenticated(req, { adminPort, token }) {
   return cookies.some(([n, v]) => n === name && tokenMatches(v, token));
 }
 
-module.exports = { createToken, tokenMatches, cookieName, sessionCookieHeader, parseCookies, isAuthenticated };
+module.exports = {
+  createToken,
+  tokenMatches,
+  cookieName,
+  sessionCookieHeader,
+  remoteCookieHeader,
+  clearRemoteCookieHeader,
+  clearLoopbackCookieHeader,
+  parseCookies,
+  isAuthenticated,
+};
