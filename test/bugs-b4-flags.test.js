@@ -120,7 +120,7 @@ test('B4-106-7: init, config, status and update reject unknown flags too, and no
 });
 
 test('B4-106-8: every flag used in a command example in the README and the examples README is accepted', () => {
-  const docs = ['README.md', path.join('examples', 'README.md')];
+  const docs = ['README.md', path.join('docs', 'using.md'), path.join('docs', 'install.md'), path.join('examples', 'README.md')];
   let checked = 0;
   for (const rel of docs) {
     const text = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');

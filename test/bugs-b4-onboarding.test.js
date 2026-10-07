@@ -13,7 +13,8 @@ const { locateVault } = require('../src/vault/locate');
  * first errors they hit. The README now says so, and both errors name a next step.
  */
 
-const README = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8');
+// The README is short and product-first; the onboarding detail lives in docs/using.md.
+const README = fs.readFileSync(path.join(__dirname, '..', 'docs', 'using.md'), 'utf8');
 const UPSTREAM = 'https://github.com/AntTheLimey/gm-apprentice';
 
 function section(text, heading) {
@@ -24,7 +25,7 @@ function section(text, heading) {
   return next === -1 ? rest : rest.slice(0, next);
 }
 
-test('B4-107-1: the README has a "What you need" section before Quick start, with the three pointers', () => {
+test('B4-107-1: docs/using.md has a "What you need" section before Quick start, with the three pointers', () => {
   assert.ok(README.indexOf('\n## What you need\n') !== -1);
   assert.ok(README.indexOf('\n## What you need\n') < README.indexOf('\n## Quick start\n'));
   const need = section(README, 'What you need');
@@ -39,7 +40,7 @@ test('B4-107-2: the Quick start mentions the sample vault', () => {
   assert.ok(quick.includes('examples/the-long-lease'), 'Quick start should point at the sample');
 });
 
-test('B4-107-3: the new README text follows the house style (no em dashes, no spaced double hyphens, no arrows, no emojis)', () => {
+test('B4-107-3: the onboarding text follows the house style (no em dashes, no spaced double hyphens, no arrows, no emojis)', () => {
   const text = `${section(README, 'What you need')}${section(README, 'Quick start')}`;
   assert.doesNotMatch(text, /—|–/);
   assert.doesNotMatch(text, / -- /);
@@ -88,4 +89,11 @@ test('B4-107-6: the l1-no-manifest error says what to do, with the file layout a
     assert.ok(finding.message.includes('examples/the-long-lease/_meta/publish-manifest.md'));
     assert.doesNotMatch(finding.message, /—/);
   });
+});
+
+test('B4-107-7: the README points a new GM at the sample vault and the privacy page', () => {
+  const readme = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8');
+  assert.ok(readme.includes('examples/the-long-lease'));
+  assert.ok(readme.includes('docs/privacy.md'));
+  assert.ok(readme.includes('docs/using.md'));
 });

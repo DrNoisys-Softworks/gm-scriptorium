@@ -6,8 +6,15 @@ the guides written for AI assistants, apart from one pointer to them under Contr
 
 ## Using
 
+- [Install, update and build from source](install.md): downloading and verifying a release, the
+  Windows warning, updating, and building from source.
+- [Using GM-Scriptorium](using.md): what a vault needs, every command, and the leak checks.
+- [Trying it safely](trying-it-safely.md): using the tool beside a campaign you care about, without touching your real config.
+- [Privacy](privacy.md): what the tool sends over the network, and what it never does.
+- [Why, and how this relates to gm-apprentice](about.md): the reasoning and the upstream credit.
 - [Image slots](image-slots.md): which images a theme can show, and the sizes to prepare them at.
 - [Remote access](remote-access.md): using the admin panel from another device, safely, and what is and is not protected.
+- [Backing up your vault](backing-up-your-vault.md): how to keep your campaign notes safe, and why GM-Scriptorium does not do it for you.
 
 ## Contributing
 
