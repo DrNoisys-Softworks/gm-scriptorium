@@ -1717,6 +1717,25 @@ Issue #108 (owner decision 2026-10-07: no new exit codes). **Mark this OPEN: Lin
 6. Exit 2 and 4 appear in none of the above.
 7. Expected code changed from 1 to 3 and is **OPEN** again until re-run from the exe: C35 step 6 (init with `--out` inside the vault), the C43 inside-the-vault build refusal (step 1), C91 step 2, C92 step 2, C33 step 4 and the C30-era "no site_config" item (line ~430), C34 (pack image refusal, was 1) and C37 step 6 (pack.toml refusals, was 1). Any other earlier criterion expecting exit 1 for a bad `pack.toml`, theme, pack folder or pack image now expects 3.
 
+### C98: a .cmd shim runs with no shell, and cmd metacharacters stay inert, in the real win-x64 exe
+
+The process spawner (ADR 0046, `src/proc/run.js`). **Mark this OPEN: Linux tests prove the text of the command line the spawner builds, not how cmd.exe treats it. Runnable only from the first release candidate whose exe reaches the spawner; the trigger is the panel action that release provides for starting an outside program.** Never put a real vendor tool on the PATH of this run. Use a scratch folder, and a scratch `SCRIPTORIUM_CONFIG` with `--config`:
+
+1. Start the exe so the spawner's PATH is the scratch folder alone (for example a `bin` folder under `%TEMP%`). Real tools must be unreachable.
+2. Put a test `claude.cmd` there that writes `%*` to a file. Run the panel action with arguments containing `& | ^ ( ) < >`. Each arrives quoted and inert, and no stray file appears in the scratch folder or the working directory.
+3. Run it with an argument containing `%`, then one containing `"`, then one containing a newline. Each is refused with a plain message and nothing starts (the test `claude.cmd` writes no file).
+4. Replace the shim with a `claude.ps1` alone: not found. Then a `claude.bat` alone: not found. Then both a `claude.exe` (any harmless test program) and a `claude.cmd`: the `.exe` is the one that runs.
+5. No console window flashes, for either the `.exe` or the `.cmd` run.
+
+### C128: a cancel or timeout kills the whole tree, the environment strip holds, and the working folder is empty, in the real win-x64 exe
+
+The process spawner (ADR 0046). **Mark this OPEN: the Linux tests cover the group kill and the shape of the `taskkill` call, not Windows process trees. Runnable only from the first release candidate whose exe reaches the spawner.** Same scratch PATH rule as C98:
+
+1. Use a shim that starts `%SystemRoot%\System32\ping.exe -n 600 127.0.0.1`. Cancel the run from the panel, and check `tasklist` for the shim's `cmd.exe` and `ping.exe`: neither remains. Repeat with a run that hits its timeout. Neither remains.
+2. Set `anthropic_api_key`, `Claude_Code_Use_Bedrock` and one unlisted variable before launching the exe, each with a generated value that is not key-shaped. Run a shim that dumps `set` to a file. None of the three is in the dump. `Path` and `SystemRoot` are.
+3. Have the shim print `%CD%`. It is an empty `scriptorium-proc-*` folder under `%TEMP%`, and it is gone afterwards.
+4. Press Ctrl-C in the console running the panel while a run is in progress. The panel stops, and `tasklist` shows no leftover `cmd.exe` or `ping.exe` from the run.
+
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 
 None of these are product concerns; every one is a harness limit on the automated tester's side,
