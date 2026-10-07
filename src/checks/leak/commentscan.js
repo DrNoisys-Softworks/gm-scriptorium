@@ -119,46 +119,188 @@ function collectJsonStrings(value, out) {
   else if (value && typeof value === 'object') Object.values(value).forEach((v) => collectJsonStrings(v, out));
 }
 
-// A start tag is `<name` followed by whitespace, `/` or `>`; an end tag is `</name` followed by anything
-// up to `>` (the HTML tokenizer accepts `</script \t\nfoo>`). Case-insensitive throughout.
-const SCRIPT_RE = /<script(?=[\s/>])([^>]*)>([\s\S]*?)(?:(<\/script(?=[\s/>])[^>]*>)|$)/gi;
-const BLOCK_RE_CACHE = new Map();
-
-/**
- * Replaces each CLOSED `<tag ...>...</tag ...>` block (tags given as an alternation) with a space, to
- * a fixpoint so text that a removal brings together cannot rebuild a tag. An unclosed block is left
- * in place, so its text is still searched (fail closed).
+/*
+ * ADR 0045. HTML is read the way a browser tokenizes it, once, left to right. Nothing here removes
+ * text by pattern, so there is no stripped result that can be rebuilt into a tag or that can hide
+ * text a reader would see (the earlier strip-based reading missed `<script<script>A</script> text
+ * </script>`, where `script<script` is just an unknown element name and "text" is displayed).
+ *
+ *   - A start tag is `<` + a letter; its name runs to whitespace, `/` or `>`. Quoted attribute values
+ *     (after `=`) may contain `>`. A quote that never closes is ignored, and a tag with no `>` is
+ *     plain text.
+ *   - `<script>` and `<style>` are raw-text elements: their body runs to the next `</script` (or
+ *     `</style`) followed by whitespace, `/` or `>`. A body with no end tag runs to the end of the page
+ *     and counts as page text (fail closed).
+ *   - `<pre>` and `<code>` are followed by depth, and only the marks reading leaves their text out.
+ *     If they never balance, nothing is left out (fail closed).
  */
-function stripBlocks(html, tags) {
-  if (!BLOCK_RE_CACHE.has(tags)) {
-    BLOCK_RE_CACHE.set(tags, new RegExp(`<(${tags})(?=[\\s/>])[^>]*>[\\s\\S]*?<\\/\\1(?=[\\s/>])[^>]*>`, 'gi'));
+
+const NAME_END = /[\s/>]/;
+
+/** Reads the start or end tag whose `<` is at `i`. Returns null when it is not a tag (so the `<` is text). */
+function readTag(raw, i) {
+  let j = i + 1;
+  const closing = raw[j] === '/';
+  if (closing) j += 1;
+  if (!/[A-Za-z]/.test(raw[j] || '')) return null;
+  const nameStart = j;
+  while (j < raw.length && !NAME_END.test(raw[j])) j += 1;
+  const name = raw.slice(nameStart, j).toLowerCase();
+  const attrStart = j;
+  let afterEquals = false;
+  while (j < raw.length && raw[j] !== '>') {
+    const c = raw[j];
+    if (c === '=') {
+      afterEquals = true;
+      j += 1;
+    } else if (/\s/.test(c)) {
+      j += 1;
+    } else if (afterEquals && (c === '"' || c === "'")) {
+      const close = raw.indexOf(c, j + 1);
+      if (close === -1) {
+        afterEquals = false;
+        j += 1; // unclosed quote: ignore it rather than swallow the page
+      } else {
+        j = close + 1;
+        afterEquals = false;
+      }
+    } else {
+      afterEquals = false;
+      j += 1;
+    }
   }
-  const re = BLOCK_RE_CACHE.get(tags);
-  let out = String(html);
-  for (let prev = null; prev !== out; ) {
-    prev = out;
-    out = out.replace(re, ' ');
-  }
-  return out;
+  if (j >= raw.length) return null; // no closing ">"
+  return { name, closing, attrs: raw.slice(attrStart, j), end: j + 1 };
 }
 
-/** Removes every tag, to a fixpoint (`<<b>i>` must not leave a tag behind). */
-function stripTags(html, replacement) {
-  let out = String(html);
-  for (let prev = null; prev !== out; ) {
-    prev = out;
-    out = out.replace(/<[^>]*>/g, replacement);
+/** The first `type` attribute's value, lower-cased and trimmed; null when there is none. */
+function typeAttribute(attrs) {
+  const re = /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
+  let m;
+  while ((m = re.exec(attrs))) {
+    if (m[1].toLowerCase() === 'type') {
+      const v = m[2] !== undefined ? m[2] : m[3] !== undefined ? m[3] : m[4];
+      return v === undefined ? '' : v.trim().toLowerCase();
+    }
   }
-  return out;
+  return null;
 }
-const JSON_TYPE_RE = /\btype\s*=\s*["']?\s*application\/json\b/i;
+
+/** application/json and any application/*+json (ld+json, vnd.api+json), with optional parameters. */
+function isJsonType(type) {
+  if (type === null) return false;
+  const essence = type.split(';')[0].trim();
+  return /^application\/(?:[a-z0-9.!#$&^_-]+\+)?json$/.test(essence);
+}
 
 /**
- * ADR 0045. Every `<script type="application/json">` data island in an HTML page, read from the raw
- * HTML before the script strip. Scriptorium's own pages carry `sc-tl-data` and `sc-cx-data` islands
- * and the generator's carry id-keyed ones; both forms are matched (attribute order is free). A parsed
- * island contributes its strings; an island that does not parse is kept as raw body text and counted,
- * and the caller fails closed on it. No parser message is kept: Node's JSON error quotes the input.
+ * @param {string} raw
+ * @returns {{ kind: 'text'|'tag'|'raw', text?: string, name?: string, closing?: boolean,
+ *   attrs?: string, body?: string, closed?: boolean }[]}
+ */
+function tokenize(raw) {
+  const out = [];
+  let text = '';
+  const flush = () => {
+    if (text !== '') out.push({ kind: 'text', text });
+    text = '';
+  };
+  let i = 0;
+  while (i < raw.length) {
+    const lt = raw.indexOf('<', i);
+    if (lt === -1) {
+      text += raw.slice(i);
+      break;
+    }
+    text += raw.slice(i, lt);
+    if (raw.startsWith('<!--', lt)) {
+      // An HTML comment is not displayed but is part of the page source, so its text is searched.
+      const close = raw.indexOf('-->', lt + 4);
+      flush();
+      out.push({ kind: 'tag', name: '!--', closing: false, attrs: '' });
+      text += raw.slice(lt + 4, close === -1 ? raw.length : close);
+      flush();
+      i = close === -1 ? raw.length : close + 3;
+      continue;
+    }
+    if (raw[lt + 1] === '!' || raw[lt + 1] === '?') {
+      const gt = raw.indexOf('>', lt);
+      if (gt === -1) {
+        text += raw.slice(lt);
+        break;
+      }
+      flush();
+      out.push({ kind: 'tag', name: raw[lt + 1], closing: false, attrs: '' });
+      i = gt + 1;
+      continue;
+    }
+    const tag = readTag(raw, lt);
+    if (!tag) {
+      text += '<';
+      i = lt + 1;
+      continue;
+    }
+    flush();
+    if (!tag.closing && (tag.name === 'script' || tag.name === 'style')) {
+      const endRe = new RegExp(`</${tag.name}(?=[\\s/>])`, 'ig');
+      endRe.lastIndex = tag.end;
+      const e = endRe.exec(raw);
+      let bodyEnd = raw.length;
+      let next = raw.length;
+      let closed = false;
+      if (e) {
+        const gt = raw.indexOf('>', e.index);
+        if (gt !== -1) {
+          bodyEnd = e.index;
+          next = gt + 1;
+          closed = true;
+        }
+      }
+      out.push({ kind: 'raw', name: tag.name, attrs: tag.attrs, body: raw.slice(tag.end, bodyEnd), closed });
+      i = next;
+      continue;
+    }
+    out.push({ kind: 'tag', name: tag.name, closing: tag.closing, attrs: tag.attrs });
+    i = tag.end;
+  }
+  flush();
+  return out;
+}
+
+/**
+ * The text a reader of the page could see, as one piece per run of text (tags separate pieces).
+ * `leaveOut` names elements whose content is not wanted: raw-text blocks that end properly, and
+ * `pre`/`code` content up to the first end tag of the same name (a nested start tag does not extend
+ * it, so text after the first end tag is still searched). A `pre`/`code` that never ends, and a
+ * raw-text block with no end tag, are kept (fail closed).
+ */
+function visibleText(raw, leaveOut) {
+  const kept = [];
+  const all = [];
+  let inside = null;
+  for (const t of tokenize(raw)) {
+    if (t.kind === 'text') {
+      all.push(t.text);
+      if (inside === null) kept.push(t.text);
+    } else if (t.kind === 'raw') {
+      all.push(t.body);
+      if (!t.closed || !leaveOut.has(t.name)) {
+        if (inside === null) kept.push(t.body);
+      }
+    } else if ((t.name === 'pre' || t.name === 'code') && leaveOut.has(t.name)) {
+      if (inside === null && !t.closing) inside = t.name;
+      else if (inside === t.name && t.closing) inside = null;
+    }
+  }
+  return inside === null ? kept : all;
+}
+
+/**
+ * ADR 0045. Every `<script type="application/json">` data island (or any `application/*+json`) in an
+ * HTML page. Scriptorium's own pages carry `sc-tl-data` and `sc-cx-data` islands and the generator's
+ * carry id-keyed ones; the attributes may come in any order. A parsed island contributes its strings.
+ * An island that does not parse, or that has no end tag, is kept as raw body text and counted, and
+ * the caller fails closed on it. No parser message is kept: Node's JSON error quotes the input.
  *
  * @param {string} raw
  * @returns {{ strings: string[], unparsableBodies: string[] }}
@@ -166,18 +308,13 @@ const JSON_TYPE_RE = /\btype\s*=\s*["']?\s*application\/json\b/i;
 function readIslands(raw) {
   const strings = [];
   const unparsableBodies = [];
-  SCRIPT_RE.lastIndex = 0;
-  let m;
-  while ((m = SCRIPT_RE.exec(raw))) {
-    if (!JSON_TYPE_RE.test(m[1])) continue;
-    // An island with no end tag runs to the end of the page; it cannot be trusted, so it is
-    // reported as unparsable whatever the text holds.
-    const closed = m[3] !== undefined;
+  for (const t of tokenize(raw)) {
+    if (t.kind !== 'raw' || t.name !== 'script' || !isJsonType(typeAttribute(t.attrs))) continue;
     try {
-      if (!closed) throw new Error('unterminated');
-      collectJsonStrings(JSON.parse(m[2]), strings);
+      if (!t.closed) throw new Error('unterminated');
+      collectJsonStrings(JSON.parse(t.body), strings);
     } catch {
-      unparsableBodies.push(m[2]);
+      unparsableBodies.push(t.body);
     }
   }
   return { strings, unparsableBodies };
@@ -186,8 +323,8 @@ function readIslands(raw) {
 /** The text views of one output file that a comment could surface in. */
 function haystacksFor(ext, raw) {
   if (ext === '.html' || ext === '.htm') {
-    const noScript = stripBlocks(raw, 'script|style');
-    const hays = [collapse(stripTags(noScript, ' ')), collapse(stripTags(noScript, ''))];
+    const pieces = visibleText(raw, new Set(['script', 'style']));
+    const hays = [collapse(pieces.join(' ')), collapse(pieces.join(''))];
     const { strings, unparsableBodies } = readIslands(raw);
     if (strings.length > 0) hays.push(collapse(strings.join('\n')));
     for (const body of unparsableBodies) hays.push(collapse(body));
@@ -207,11 +344,11 @@ function haystacksFor(ext, raw) {
 
 /**
  * True when an HTML page carries a literal `%%` in prose, i.e. outside <code>/<pre>/<script>/<style>
- * and tags, or inside a JSON data island (ADR 0045: a string there, or the raw body of an island
- * that does not parse).
+ * and tags, or inside a JSON data island (a string there, or the raw body of an island that does not
+ * parse).
  */
 function htmlHasLiteralMarks(raw) {
-  const prose = stripTags(stripBlocks(raw, 'script|style|pre|code'), ' ');
+  const prose = visibleText(raw, new Set(['script', 'style', 'pre', 'code'])).join(' ');
   if (normaliseEmitted(prose).includes('%%')) return true;
   const { strings, unparsableBodies } = readIslands(raw);
   return strings.some((x) => normaliseEmitted(x).includes('%%')) || unparsableBodies.some((x) => normaliseEmitted(x).includes('%%'));

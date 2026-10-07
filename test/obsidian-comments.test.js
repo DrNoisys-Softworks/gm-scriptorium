@@ -327,6 +327,71 @@ test('island forms: a non-JSON script closed with an odd end tag is still left o
   assert.deepEqual(scanOne('<STYLE>a{width:100%%}</STYLE ><p>fine</p>'), []);
 });
 
+// ---- ADR 0045: browser-shaped tag reading (a scanner must not depend on stripping blocks) ----
+
+for (const tag of ['script', 'style']) {
+  test(`tag reading: <${tag}<${tag}>A</${tag}> text </${tag}>: the text after the inner block is displayed, so it is searched`, () => {
+    const html = `<${tag}<${tag}>A</${tag}> the duke is the traitor </${tag}>`;
+    assert.deepEqual(arms(scanOne(html)), ['text']);
+  });
+
+  test(`tag reading: the same nesting hides no %% after the inner <${tag}> block`, () => {
+    assert.deepEqual(arms(scanOne(`<${tag}<${tag}>A</${tag}> oops %% </${tag}>`, [])), ['marks']);
+  });
+}
+
+test('tag reading: a quoted attribute containing > does not end the start tag; the island is read', () => {
+  const body = serializeDataIsland({ n: 'the duke is the traitor' });
+  assert.deepEqual(arms(scanOne(`<script data-x="a>b" type="application/json" id="d">${body}</script>`)), ['text']);
+  assert.deepEqual(arms(scanOne(`<script data-x='a>b' type="application/json">{ZQXBROKEN</script>`, [])), ['island-unparsable']);
+});
+
+for (const mime of ['application/ld+json', 'application/vnd.api+json', 'APPLICATION/JSON; charset=utf-8']) {
+  test(`tag reading: type="${mime}" counts as a JSON island`, () => {
+    const body = serializeDataIsland({ n: 'the duke is the traitor' });
+    assert.deepEqual(arms(scanOne(`<script type="${mime}">${body}</script>`)), ['text']);
+    assert.deepEqual(arms(scanOne(`<script type="${mime}">{ZQXBROKEN</script>`, [])), ['island-unparsable']);
+    assert.deepEqual(arms(scanOne(`<script type="${mime}">{"n": "a %% b"}</script>`, [])), ['marks']);
+  });
+}
+
+test('tag reading: other script types are not islands, and a type= inside another attribute value does not count', () => {
+  assert.deepEqual(scanOne('<script type="text/template">{ZQXBROKEN the duke is the traitor</script>'), []);
+  assert.deepEqual(scanOne('<script type="application/jsonx">{ZQXBROKEN</script>'), []);
+  assert.deepEqual(scanOne('<script data-x=" type=application/json">{ZQXBROKEN the duke is the traitor</script>'), []);
+});
+
+test('tag reading: an unterminated start tag or block fails closed (the text is searched)', () => {
+  assert.deepEqual(arms(scanOne('<p>x</p><div the duke is the traitor')), ['text']);
+  assert.deepEqual(arms(scanOne('<script>var a = 1; the duke is the traitor')), ['text']);
+  assert.deepEqual(arms(scanOne('<style>a{b:c} the duke is the traitor')), ['text']);
+  assert.deepEqual(arms(scanOne('<pre>x the duke is the traitor')), ['text']);
+  assert.deepEqual(arms(scanOne('<code>oops %% never closed', [])), ['marks']);
+});
+
+test('tag reading: <pre> and <code> nesting is followed, so a %% after the inner close is still seen', () => {
+  assert.deepEqual(arms(scanOne('<pre><pre>x</pre> oops %% </pre>', [])), ['marks']);
+  assert.deepEqual(scanOne('<pre><code>%%fine%%</code></pre><p>ok</p>', []), []);
+});
+
+test('tag reading: text inside an HTML comment is page source, so it is searched (and a %% there is a marks error)', () => {
+  assert.deepEqual(arms(scanOne('<p>x</p><!-- the duke is the traitor -->')), ['text']);
+  assert.deepEqual(arms(scanOne('<!-- oops %% -->', [])), ['marks']);
+  assert.deepEqual(scanOne('<!-- fine --><p>fine</p>'), []);
+});
+
+test('tag reading: a slash ends the tag name, so <script/ ...> is a script start tag', () => {
+  assert.deepEqual(arms(scanOne('<script/ id=d type="application/json">{ZQXBROKEN</script>', [])), ['island-unparsable']);
+});
+
+test('tag reading: a pre inside code (or the reverse) stays code until the first end tag of the outer name', () => {
+  assert.deepEqual(scanOne('<pre><code>x</code> %% still code </pre><p>fine</p>', []), []);
+});
+
+test('tag reading: a quote that never closes does not swallow the rest of the page', () => {
+  assert.deepEqual(arms(scanOne('<a href="x>the duke is the traitor</a>')), ['text']);
+});
+
 // ---- end to end: the CLI on a vault full of comments ----
 
 const BIN = path.join(__dirname, '..', 'bin', 'scriptorium.js');
