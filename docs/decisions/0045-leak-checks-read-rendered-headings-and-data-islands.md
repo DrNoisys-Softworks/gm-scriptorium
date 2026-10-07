@@ -120,3 +120,5 @@ Will not catch, and these are residuals:
 - `.json` output files get no marks arm (unchanged).
 - The generator's own exact-match gap. The section is still published by the generator; this
   change only reports it.
+- Text a browser shows from an attribute value (an `iframe` `srcdoc`, a `title` tooltip, `alt` text)
+  is not searched. This was already true before this change.

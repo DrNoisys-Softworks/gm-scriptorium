@@ -227,13 +227,15 @@ function isJsonType(attrs) {
 
 /**
  * @param {string} raw
+ * @param {{ budget?: number }} [opts] `budget` is the work allowed for tags that never close; a test can
+ *   set it to 0 to prove that running out makes later `<` plain text (searched), never a swallowed tag.
  * @returns {{ kind: 'text'|'tag'|'raw', text?: string, name?: string, closing?: boolean,
  *   attrs?: {name:string,value:string}[], body?: string, closed?: boolean }[]}
  */
-function tokenize(raw) {
+function tokenize(raw, { budget } = {}) {
   const out = [];
   const n = raw.length;
-  const ctx = { lastGt: raw.lastIndexOf('>'), lastDq: raw.lastIndexOf('"'), lastSq: raw.lastIndexOf("'"), budget: 4 * n + 100000 };
+  const ctx = { lastGt: raw.lastIndexOf('>'), lastDq: raw.lastIndexOf('"'), lastSq: raw.lastIndexOf("'"), budget: budget === undefined ? 4 * n + 100000 : budget };
   let text = '';
   const flush = () => {
     if (text !== '') out.push({ kind: 'text', text });
@@ -489,6 +491,7 @@ function runCommentInOutput(ctx) {
 
 module.exports = {
   collectComments,
+  tokenize,
   needlesFor,
   scanCommentsInOutput,
   runCommentWithheld,

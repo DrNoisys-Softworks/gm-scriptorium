@@ -455,6 +455,16 @@ test('html states: <!--> and <!---> are empty comments, so an island right after
   assert.deepEqual(arms(scanOne('<!-- x --!><script type="application/json">{ZQXBROKEN</script>', [])), ['island-unparsable']);
 });
 
+test('html states: when the work budget runs out, later tags become plain text and are searched, never swallowed', () => {
+  const { tokenize } = require('../src/checks/leak/commentscan');
+  const html = `<p>${DUKE}</p><script>x</script>`;
+  const tokens = tokenize(html, { budget: 0 });
+  assert.ok(tokens.every((t) => t.kind === 'text'), 'no tag is read once the budget is gone');
+  assert.equal(tokens.map((t) => t.text).join(''), html, 'the whole page is kept as text');
+  // With the normal budget the same page is read as tags.
+  assert.ok(tokenize(html).some((t) => t.kind === 'raw'));
+});
+
 test('html states: the first of two type attributes wins', () => {
   assert.deepEqual(scanOne('<script type="text/plain" type="application/json">{ZQXBROKEN</script>', []), []);
   assert.deepEqual(arms(scanOne('<script type="application/json" type="text/plain">{ZQXBROKEN</script>', [])), ['island-unparsable']);
