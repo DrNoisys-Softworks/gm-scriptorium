@@ -224,7 +224,7 @@ test('the peer check precedes the proto check: an untrusted peer with a good pro
 });
 
 test('Ma2: the client address is the RIGHTMOST X-Forwarded-For entry, never the leftmost', () => {
-  const { result } = gate(req({ headers: { 'x-forwarded-proto': 'https', 'x-forwarded-for': '10.9.9.9, 203.0.113.9, 198.51.100.77' } }));
+  const { result } = gate(req({ headers: { 'x-forwarded-proto': 'https', 'x-forwarded-for': '192.0.2.99, 203.0.113.9, 198.51.100.77' } }));
   assert.equal(result.clientAddress, '198.51.100.77');
 });
 
@@ -254,7 +254,7 @@ test('direct (inert in V1.5a): requireTls means socket.encrypted === true, forwa
   assert.deepEqual(plain.result, { ok: false, status: 403, reason: 'proto' });
   const spoof = gate(req({ host, peer: '203.0.113.9', headers: FWD }), { access: DIRECT });
   assert.equal(spoof.result.reason, 'proto', 'X-Forwarded-Proto does not stand in for TLS');
-  const tls = gate(req({ host, peer: '203.0.113.9', encrypted: true, headers: { 'x-forwarded-for': '10.0.0.1' } }), { access: DIRECT });
+  const tls = gate(req({ host, peer: '203.0.113.9', encrypted: true, headers: { 'x-forwarded-for': '192.0.2.1' } }), { access: DIRECT });
   assert.equal(tls.result.ok, true);
   assert.equal(tls.result.clientAddress, '203.0.113.9');
   assert.equal(gate(req({ host, peer: '203.0.113.9', encrypted: 'true' }), { access: DIRECT }).result.reason, 'proto');

@@ -591,7 +591,7 @@ test('/auth/password on the loopback Host is refused as kind (Ma23); the passwor
 
 test('Ma1/Ma2: a forged leftmost X-Forwarded-For is ignored: the audit `from` is the address the proxy appended', linuxOnly, async (t) => {
   const env = await startPanel(t, { proxyOpts: { clientAddress: '198.51.100.77' } });
-  await signin(env, 'wrong', { headers: { 'X-Forwarded-For': '203.0.113.9, 10.9.9.9' } });
+  await signin(env, 'wrong', { headers: { 'X-Forwarded-For': '203.0.113.9, 192.0.2.99' } });
   await signin(env, PASSWORD, { headers: { 'X-Forwarded-For': '203.0.113.200' } });
   const signins = readAudit(env).filter((e) => e.event === 'signin');
   assert.equal(signins.length, 2);
