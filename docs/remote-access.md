@@ -18,9 +18,11 @@ reaches other devices only because you ran `gm-scriptorium remote set ...` and
 a single socket. If anything is missing it stops with one line saying what, and it never falls back
 to a wider address.
 
-Every way in over a network needs HTTPS, a password, and the panel's own checks on who is asking
-(the Host and Origin of every request, and which machine the request came through). The panel can
-change your campaign files, so none of these is optional.
+A reverse proxy or `tailscale serve` needs HTTPS and a password. An SSH tunnel needs neither,
+because SSH has already authenticated and encrypted the connection (see section 8). Every mode also
+gets the panel's own checks on who is asking: the Host and Origin of every request, and which
+machine the request came through. The panel can change your campaign files, so those checks are
+not optional.
 
 ## 2. The modes
 
