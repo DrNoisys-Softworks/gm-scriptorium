@@ -132,7 +132,7 @@ proof only; this is exactly what C1 confirms on Windows):
   then hash every file (PowerShell: `Get-ChildItem -Recurse -File <out-dir> | Get-FileHash -Algorithm
   SHA256 | Sort-Object Path`) and diff against the C1 manifest for this pin, delivered over
   the Windows verification channel: `c1-manifest-node.txt` (the Linux plain-node reference). **Stale as of the `publish-v1.11.44` repin (2026-10-01), again at `publish-v1.12.0` (2026-10-02), at `publish-v1.12.3` (2026-10-03) and again at `publish-v1.14.0` (2026-10-06), not yet regenerated (OPEN):** the pin's own `css/style.css` changed at the first two and is copied into every built site, at `publish-v1.12.3` the pin's page templates and link reading changed, and at `publish-v1.14.0` the pin's grouped Story toggle, the D&D sheet templates and `css/style.css` changed, so the manifest below no longer matches a build at the current pin. Regenerate it on the Linux build host before using this criterion. **Regenerated at `publish-v1.11.40`
-  (R1 repin, 2026-09-30)** — node and pkg-linux agree exactly (42/42 files, identical hash sets),
+  (R1 repin, 2026-09-30)** — node and pkg-linux agree exactly (42/42 files, identical hash sets; this count predates the later repins, and the current manifest has 44 files),
   proven with:
 
   ```
@@ -662,7 +662,7 @@ Harrow`, `---`, `A published page.`). Copy it to `S\Second Vault\`. Save `dir /s
 
 Verified on Linux from source only (`test/theme-haze.test.js`, `test/theme-registry.test.js`,
 `test/theme-scheme.test.js`, `test/package-config.test.js`), plus a Linux packaged build.
-**Verified on Windows (2026-10-07, rc.4, Windows 11 test VM), with one sentence left to a person:** step 4's "dark hero" reads pale on the
+**Verified on Windows (2026-10-07, rc.4, Windows 11 test VM), except step 4's "dark hero" wording, which stays OPEN:** step 4's "dark hero" reads pale on the
 mini-vault, whose palette is light (the same mismatch step 5 reports), so whether that wording suits a
 dark-palette vault is a human judgement. Step 4 was run as a scripted fetch rather than DevTools.
 
@@ -1101,7 +1101,7 @@ platform-specific, but per this repo's first rule that is not evidence about the
 2. Confirm the build exits 0 and prints no network error, and that `theme.css` falls back to the CSS
    stack for the family (no `@font-face` and no Google import for it). The generator does emit a cache-miss
    warning, but `build` captures generator output and shows it only on a failed build, so on a successful
-   build there is no warning line to look for (tracked in a public issue).
+   build there is no warning line to look for (tracked in https://github.com/DrNoisys-Softworks/gm-scriptorium/issues/30).
 3. Confirm no `_meta\font-cache` directory was created under the vault, and that the vault's
    per-file contents are unchanged (hash before/after, `Get-FileHash` recursively).
 4. Optionally, stronger evidence: apply a Windows Firewall outbound-block rule scoped to the exe
@@ -1137,10 +1137,10 @@ copies its five self-hosted font files into `scriptorium\theme\fonts\` and write
 `css\scriptorium-theme.css`; the theme owns the vault's palette, so `check` never reports
 `config/theme-scheme-mismatch` under it. Verified on Linux from source and from a Linux packaged
 build only (`test/theme-gloam.test.js`, `test/theme-extends.test.js`, `test/theme-gloam-fonts.test.js`,
-`test/init-e2e.test.js`, `test/theme-scheme.test.js`). **Verified on Windows (2026-10-07, rc.4, Windows 11 test VM), with two parts
-left open:** step 3's `IM Fell English SC` shows `unloaded` on the landing page, which uses no small caps
+`test/init-e2e.test.js`, `test/theme-scheme.test.js`). **Partly verified on Windows (2026-10-07, rc.4, Windows 11 test VM). Two parts
+stay OPEN: the save review slip and the lazy-loaded `IM Fell English SC` font.** Step 3's `IM Fell English SC` shows `unloaded` on the landing page, which uses no small caps
 (the font loads lazily, and an explicit `document.fonts.load()` reports it `loaded`), and step 4's save
-review slip was not exercised. Linux-derived hashes below are stated literally; a Windows run confirms
+review slip was not exercised (OPEN). Linux-derived hashes below are stated literally; a Windows run confirms
 them, it doesn't invent new ones.
 
 Isolate config and scratch exactly as in C35, using a copy of `test\fixtures\mini-vault` at
@@ -1544,7 +1544,7 @@ Isolate config throughout: `SCRIPTORIUM_CONFIG` set to a scratch TOML, and the s
 `examples/the-long-lease/`: a GM-facing sample vault shipped in the repository, with a GM guide at
 `examples/README.md`. Verified on Linux from source and from a Linux packaged build
 (`test/example-build.test.js`). **Verified on Windows (2026-10-07, rc.4, Windows 11 test VM), from a clone made with Git for Windows
-defaults. Steps 1 to 3 were run with a headless Edge probe in place of interactive DevTools.**
+defaults (cloned from a git bundle of the release commit using MinGit, not from the GitHub repository). Steps 1 to 3 were run with a headless Edge probe in place of interactive DevTools.**
 
 1. Isolate config as in C35. Clone the repository with Git for Windows' default line-ending
    setting into a folder inside `S` whose path contains a space.
@@ -1607,7 +1607,7 @@ Bug batch B2, issues 78 and 79. Verified on Linux, and **on Windows (2026-10-07,
 
 ### C83: a pack folder that resolves to the vault root is refused, in the real win-x64 exe
 
-Bug batch B2, issue 80. Verified on Linux, and **on Windows (2026-10-07, rc.4, Windows 11 test VM)** for both junction cases. A junction
+Bug batch B2, issue 80. Verified on Linux, and **on Windows (2026-10-07, rc.4, Windows 11 test VM)** for both junction cases; the `mklink /D` repeat stays OPEN. A junction
 made by a standard user is untrusted on Windows 11, so create the junctions from an administrator account and
 run the exe as the standard user. The real `mklink /D` repeat was not run and stays OPEN.
 
