@@ -61,6 +61,7 @@ the way.
 - [0042. Stub pages: withheld sections win over include entries (guard on keepOnlySections)](decisions/0042-stub-section-guard.md): A stub page can no longer publish a heading nested inside a withheld section.
 - [0043. A table cell link with an escaped pipe is read the same way by check and by the build](decisions/0043-escaped-pipe-read-shim.md): `[[Target\|Label]]` in a table cell is read as a link with a label.
 - [0044. Obsidian %% comments are removed before the site is built, and the build refuses to publish one](decisions/0044-obsidian-comments-withheld.md): `%%private notes%%` never reach the site.
+- [0045. The leak checks read headings the way the generator renders them, and read JSON data islands](decisions/0045-leak-checks-read-rendered-headings-and-data-islands.md): a bold, indented, underlined or story-file `GM Notes` heading is caught, and comment text inside timeline and connections data is searched.
 
 ## Licensing
 

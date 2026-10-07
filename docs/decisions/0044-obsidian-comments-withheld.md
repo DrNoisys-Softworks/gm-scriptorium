@@ -95,3 +95,11 @@ Will not catch, and these are residuals:
 - Comments in notes that are not published are not listed by `check` (they are still removed if the
   build reads them).
 - `fs.readFileSync` is patched process-wide for the length of one build, as in ADR 0043.
+
+## Addendum: JSON data islands (ADR 0045)
+
+The output scan first ignored every `<script>` block, which hid the JSON data islands that
+timeline and connections pages carry. Those islands are now searched, and an island that cannot be
+parsed is an error. This replaces the "outside `<script>`" scope for JSON islands only; other
+`<script>` and `<style>` content is still left out. See
+[ADR 0045](0045-leak-checks-read-rendered-headings-and-data-islands.md).

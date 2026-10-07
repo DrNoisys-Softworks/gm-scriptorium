@@ -1717,6 +1717,17 @@ Issue #108 (owner decision 2026-10-07: no new exit codes). **Mark this OPEN: Lin
 6. Exit 2 and 4 appear in none of the above.
 7. Expected code changed from 1 to 3 and is **OPEN** again until re-run from the exe: C35 step 6 (init with `--out` inside the vault), the C43 inside-the-vault build refusal (step 1), C91 step 2, C92 step 2, C33 step 4 and the C30-era "no site_config" item (line ~430), C34 (pack image refusal, was 1) and C37 step 6 (pack.toml refusals, was 1). Any other earlier criterion expecting exit 1 for a bad `pack.toml`, theme, pack folder or pack image now expects 3.
 
+### C97: L5 reads rendered heading forms and story headings, and L6 reads data islands, in the real win-x64 exe
+
+ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux packaged binary only; not run from the exe.** The `\p{L}` pattern, `normalize('NFC')` and the markdown-it renderer inside the packaged snapshot are only proven by running the exe. Never use the real config or vault.
+
+1. With config isolated via `SCRIPTORIUM_CONFIG` and `--config`, use a scratch copy of the sample campaign.
+2. Put `## **GM Notes**` in an NPC body, and `GM Notes (spoilers)` over a `---` line in a PC's `_Story.md`.
+3. Run `check`: it exits 2 with two `leak/l5-gm-heading-survives` errors, the second on the `_Story.md` path.
+4. Fix the headings and run `build`.
+5. Hand-add `%% test %%` to a string inside a built page's `sc-tl-data` or `sc-cx-data` island.
+6. Run `check`: it exits 2 with `leak/l6-comment-in-output`.
+
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 
 None of these are product concerns; every one is a harness limit on the automated tester's side,

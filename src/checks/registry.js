@@ -286,7 +286,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A rendered heading equals or starts with an entry in the union of both exclude_sections surfaces (the "starts with" arm catches "GM Notes (spoilers)", which filterSections\' exact-match misses). Also flags a surviving <!-- gm-only --> marker. ADR 0044: on a type: document handout page, also flags a still-rendered Keeper heading (Context, Clues..., Prop Notes, Delivery), which the pinned generator withholds itself, so this is a safety net.',
+      'A heading, as the generator parses and renders it, equals or starts with an entry in the union of both exclude_sections surfaces. Read in the page body and in the paired _Story.md, in indented, setext, closed, blockquote and list forms, and by rendered text (so "GM Notes (spoilers)", "**GM Notes**" and "[[Lore|GM Notes]]" all match), which filterSections\' exact-match misses. If the parser fails the source is reported. Also flags a surviving <!-- gm-only --> marker. ADR 0044: on a type: document handout page, also flags a still-rendered Keeper heading (Context, Clues..., Prop Notes, Delivery), which the pinned generator withholds itself, so this is a safety net.',
   },
   {
     id: 'leak/l6-comment-withheld',
@@ -313,7 +313,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'ADR 0044: text from an Obsidian %% comment, or a literal %% outside code, reached the built output (page, search index, backlinks, excerpts). Reads the real built tree when a build exists (INFO when none), and the staging tree before the swap during build, where --force cannot override it.',
+      'ADR 0044: text from an Obsidian %% comment, or a literal %% outside code, reached the built output (page, search index, backlinks, excerpts, or a JSON data island in a page; an island that cannot be parsed is itself an error). Reads the real built tree when a build exists (INFO when none), and the staging tree before the swap during build, where --force cannot override it.',
   },
   {
     id: 'graph/orphan',
