@@ -365,7 +365,7 @@ Rejected:
 - a self-signed server certificate trusted as its own root. The trusted key would then be the
   working key, and whether a stolen copy could issue for other names would depend on every
   verifier enforcing `CA:FALSE` on trust anchors, which not all do.
-- an unconstrained local CA of the kind mkcert makes. FR-23 rejects it.
+- an unconstrained local CA of the kind mkcert makes. The certificate checks reject it.
 - keeping the CA key for later leaves. It is a standing issuing key on disk.
 
 **Parameters.**
