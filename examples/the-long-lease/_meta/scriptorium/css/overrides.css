@@ -1,0 +1,65 @@
+/*
+ * The Long Lease: campaign stylesheet, shipped in the campaign pack and copied to the built
+ * site as css/overrides.css. It loads after the gloam theme, which declares the pack.toml
+ * image slots as custom properties:
+ *
+ *   --sc-img-ground  a faint map-linework tile, behind every page
+ *   --sc-img-paper   a transparent parchment grain, laid over the reading leaf and the recap panel
+ *   --sc-img-hero    the campaign banner, reused as the backdrop of the 404 page
+ *
+ * Nothing here names a file path: the slots are the only way this stylesheet reaches an image.
+ */
+
+/* The banner is wide and flat, so it's sized by height to fill the ground band, and graded a
+ * touch darker than the theme default so the parchment colours still read against it. */
+:root {
+  --sc-ground-size: auto 132%;
+  --sc-hero-filter: sepia(0.35) hue-rotate(212deg) saturate(0.75) brightness(0.46) contrast(1.12);
+}
+
+/* Keep the dragon on the cliffs in frame when the banner crops to the landing hero. */
+.landing-hero > .landing-hero-img {
+  object-position: 78% 45%;
+}
+
+/* Heraldic crest layout for the faction pages: a tall sigil above a centred title, instead of
+ * the generic portrait-and-text header. */
+.char-header:has(> .portrait[src*="/sigils/"]) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: var(--sc-space-7);
+}
+.char-header .portrait[src*="/sigils/"] {
+  aspect-ratio: 2 / 3;
+  width: auto;
+  height: calc(var(--sc-space-8) * 4.5);
+  max-width: 100%;
+  object-fit: contain;
+  margin-bottom: 0;
+}
+.char-header:has(> .portrait[src*="/sigils/"]) h1 {
+  text-align: center;
+  margin-top: var(--sc-space-4);
+  margin-bottom: 0;
+  font-size: 1.75rem;
+}
+@media (min-width: 1024px) {
+  .char-header .portrait[src*="/sigils/"] { height: calc(var(--sc-space-8) * 6); }
+  .char-header:has(> .portrait[src*="/sigils/"]) h1 { font-size: var(--sc-step-3); }
+}
+
+/* GM workflow markers (draft, stub and threat badges) and the status badge are hidden from
+ * players: this is a GM's own working vault, not a finished publication. */
+.badge-draft,
+.badge-stub,
+.threat-badge {
+  display: none;
+}
+.metadata-badge[data-field="status"] {
+  display: none;
+}

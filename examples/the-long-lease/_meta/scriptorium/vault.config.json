@@ -1,0 +1,21 @@
+{
+  "siteTitle": "The Long Lease",
+  "landingTagline": "Three hundred years ago a queen rented this valley from a dragon. At midsummer the dragon came back for the rent.",
+  "host": "github-pages",
+  "attachmentsDir": "_attachments",
+  "folderMap": {
+    "Sessions": "sessions",
+    "Characters/PCs": "characters/pcs",
+    "Characters/NPCs": "characters/npcs",
+    "Locations": "locations",
+    "Factions & Organizations": "factions",
+    "Items & Artifacts": "items",
+    "Creatures": "creatures",
+    "Events": "events",
+    "_Campaign": "campaign"
+  },
+  "excludeDirs": ["_meta", "_Templates"],
+  "excludeSections": ["GM Notes", "DM Notes", "Player Notes", "Source References", "Reconciliation Context", "Handoff to Reconcile"],
+  "excludeCallouts": false,
+  "backend": { "statusBar": false, "inbox": false }
+}

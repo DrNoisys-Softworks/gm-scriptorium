@@ -1,0 +1,15 @@
+{
+  "siteTitle": "Session Chain Vault",
+  "siteUrl": "https://example.invalid",
+  "vaultPath": "./session-chain-vault",
+  "outputDir": "./out",
+  "attachmentsDir": "_attachments",
+  "folderMap": {
+    "Sessions": "sessions",
+    "WrapUps": "wrap-ups",
+    "NPCs": "npcs",
+    "Locations": "locations",
+    "Plans": "plans"
+  },
+  "excludeDirs": ["_meta", "_Templates"]
+}

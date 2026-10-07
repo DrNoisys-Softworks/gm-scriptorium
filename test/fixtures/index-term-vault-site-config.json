@@ -1,0 +1,12 @@
+{
+  "siteTitle": "Index Term Vault",
+  "siteUrl": "https://example.invalid",
+  "vaultPath": "./index-term-vault",
+  "outputDir": "./out",
+  "attachmentsDir": "_attachments",
+  "folderMap": {
+    "Characters/NPCs": "characters/npcs",
+    "Locations": "locations"
+  },
+  "excludeDirs": ["_meta"]
+}

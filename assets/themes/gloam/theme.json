@@ -1,0 +1,15 @@
+{
+  "name": "gloam",
+  "scheme": "dark",
+  "slots": [
+    "hero",
+    "ground",
+    "paper",
+    "404"
+  ],
+  "extends": "haze",
+  "owns": [
+    "fonts",
+    "palette"
+  ]
+}

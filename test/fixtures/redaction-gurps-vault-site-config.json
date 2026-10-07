@@ -1,0 +1,11 @@
+{
+  "siteTitle": "Redaction GURPS Vault",
+  "siteUrl": "https://example.invalid",
+  "vaultPath": "./redaction-gurps-vault",
+  "outputDir": "./out",
+  "attachmentsDir": "_attachments",
+  "folderMap": {
+    "Characters/PCs": "characters/pcs"
+  },
+  "excludeDirs": ["_meta", "_Templates", "_inbox", ".obsidian"]
+}

@@ -1,0 +1,10 @@
+node_modules/
+*.log
+.DS_Store
+dist/
+
+# Agent briefs: untracked by decision; they can contain private campaign material.
+docs/agent-runs/
+
+# Local, machine-specific notes: never committed (FR-03).
+CLAUDE.local.md

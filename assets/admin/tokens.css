@@ -1,0 +1,151 @@
+/*
+ * The only place any colour is written for the admin panel (shared design 1.8). One semantic
+ * layer on :root, dark only; a later light mode or theme would be a second block redefining the
+ * same names (e.g. :root[data-scheme="light"]), never added here. admin.css uses var(--...) only.
+ * D-7: --text-faint and --slip-muted were darkened/lightened from the mock to meet WCAG AA;
+ * --line-control is new (form-control borders only; the mock's --line-crease stays decorative).
+ */
+:root {
+  color-scheme: dark;
+  --font-display: "IM Fell English", Georgia, "Times New Roman", serif;
+  --font-caps: "IM Fell English SC", Georgia, "Times New Roman", serif;
+  --font-body: "Alegreya Sans", system-ui, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, "Courier New", monospace;
+  --surface-ground: #1b1916; --surface-glow: #2d2923; --surface-deep: #141216;
+  --surface-panel: #23211d; --surface-raised: #2c2924; --surface-frame: #15130f; --surface-sheet: #211e1a;
+  --surface-side: rgba(8, 7, 6, 0.3); --surface-bar: rgba(8, 7, 6, 0.45); --surface-bar-solid: #121110; --surface-bottom: rgba(20, 18, 16, 0.97);
+  --surface-pending: rgba(36, 33, 28, 0.96); --surface-input: rgba(0, 0, 0, 0.26); --surface-sunken: rgba(0, 0, 0, 0.18);
+  --surface-thumb: #efe6cf;
+  --line-edge: #39352d; --line-crease: #4b453b; --line-control: #7d7465;  /* control borders, 3:1 (NFR-04) */
+  --text: #ece5d5; --text-muted: #aca494; --text-faint: #978f82;            /* D-7: was #857e71 */
+  --accent: #c9a55a; --accent-strong: #f0d99a; --on-accent: #21190b; --seal: #7a61ad; --focus: #b9a1e6;
+  --pending: #dc9d88; --ok: #a6c48f; --error: #e38672;
+  --wash-hover: rgba(255, 255, 255, 0.035); --wash-current: rgba(201, 165, 90, 0.1); --wash-crest: rgba(201, 165, 90, 0.08);
+  --wash-selected: rgba(201, 165, 90, 0.22); --wash-pending: rgba(220, 157, 136, 0.14);
+  --wash-note: rgba(122, 97, 173, 0.12); --line-note: rgba(185, 161, 230, 0.35); --shadow: #000;
+  --slip: #dacfb6; --slip-hi: #e7dec9; --slip-ink: #2e2013; --slip-muted: #5e4e3a;  /* D-7: was #6b5943, darkened */
+  --slip-rule: #bba985; --slip-code: #cfc2a4; --slip-add-bg: rgba(76, 110, 52, 0.16); --slip-add-ink: #35561f;
+  --slip-del-bg: rgba(160, 60, 40, 0.13); --slip-del-ink: #8a2f1d; --slip-gap-bg: rgba(0, 0, 0, 0.04);
+  --slip-link: #4a3770; --slip-focus: #4a3770; --slip-chg-bg: #2e2013; --slip-chg-ink: #f0d99a;
+  --slip-side-bg: #4a3770; --slip-side-ink: #f3ecdc; --slip-refused-line: #a3452f;
+  --slip-refused-wash: rgba(163, 69, 47, 0.1); --slip-refused-ink: #7c2a18;
+  --slip-warmth: rgba(120, 80, 40, 0.14); --slip-shadow: rgba(0, 0, 0, 0.85);
+  --seal-hi: #a58fd6; --seal-mid: #5b4a82; --seal-lo: #3e2f63; --seal-ink: #e6dbff;
+  --specimen-light-ground: #fbf6ea; --specimen-light-ink: #2a2019; --specimen-light-bar: #1f3a6b; --specimen-light-mark: #a3321f;
+  --specimen-dark-ground: #24221e; --specimen-dark-ink: #e8e1d2; --specimen-dark-bar: #1b1f1a; --specimen-dark-mark: #f0d99a;
+  --radius: 3px; --radius-slip: 2px; --side-w: 238px; --bar-h: 62px; --tap-min: 44px;
+  /* V1d-1 SD-2 additions (M:237, M:301, M:311, M:272, and the .a1-under dim -> dialog::backdrop
+     mapping): */
+  --line-link: rgba(201, 165, 90, 0.45);
+  --line-row: rgba(75, 69, 59, 0.55);
+  --line-pending: rgba(220, 157, 136, 0.55);
+  --wash-hatch: rgba(255, 255, 255, 0.03);
+  --backdrop: rgba(0, 0, 0, 0.6);
+  /* V1d-2 SD-2 addition: the .a1-seal box-shadow (M:344) is a colour literal the brief's own
+     map never named (only the gradient stops and the ink were listed). */
+  --seal-shadow: rgba(0, 0, 0, 0.45);
+  /* V1e-1 additions: the slip's .vc-bk "Backed up first" block (vaultcfg.css:139, mock literal
+     rgba(76, 110, 52, .09)) -- the same green hue as --slip-add-bg/--slip-add-ink, at its own
+     alpha, so it reads as "safe, informational" rather than "added line". */
+  --slip-backup-wash: rgba(76, 110, 52, 0.09);
+  /* V1e-2 additions: the pane slot's own dock/edge-tab background (mock overview.css:28,34
+     literal rgba(8, 7, 6, .34)), and the view switcher's pressed-button wash (mock common.css:293
+     literal rgba(201, 165, 90, .16)). Neither matches an existing token's exact value. */
+  --surface-pane: rgba(8, 7, 6, 0.34);
+  --wash-seg-on: rgba(201, 165, 90, 0.16);
+  /* V1e-4 additions (title.css:41-49, plus common.css's .a1-switch and tt2's browser/site-chrome
+     block, ported here first). tt2's "where these words appear" gallery mimics real browser and
+     site chrome on purpose, so those colours are literal, never the admin panel's own theme.
+     --specimen-light-bar and --specimen-light-mark (added for the Theme screen's specimen cards)
+     already match the top-bar background and the browser tab's favicon dot exactly; --line-note
+     and --seal already match <mark>'s highlight background and outline exactly; --pending and
+     --wash-pending already match the mock's --bk-rose warning colour and its 0.14-alpha wash.
+     Everything below is new. */
+  --tt2-tabs-bg: #d9dce2;
+  --tt2-tab-bg: #f5f6f8;
+  --tt2-tab-ink: #202124;
+  --tt2-tab-faint: #5f6368;
+  --tt2-bar-ink: #e9e3d3;
+  --switch-track: rgba(0, 0, 0, 0.35);
+  --switch-track-on: rgba(220, 157, 136, 0.28);
+  /* V1e-6 additions: vo3's "shows as" sample chips (vocab.css:37-49) are drawn in panel fonts
+     and tokens (DV-E41), not the mock's own site fonts -- so most of that block's literals reuse
+     --specimen-light-ground/-ink/-mark, the same light-paper-specimen hues the Theme screen's
+     mini pages already use. These six don't match an existing token's exact value: the sample
+     glyph ink, the ink shown against the --specimen-light-mark background (.smp.lens.on), a
+     muted meta/count ink, and three alphas of --specimen-light-mark's own rgb (163, 50, 31) used
+     as a border, a rule and an underline colour. */
+  --specimen-light-glyph: #6b5a48;
+  --specimen-light-tint: #fbf1e4;
+  --specimen-light-meta: #7a6a58;
+  --specimen-mark-border: rgba(163, 50, 31, 0.35);
+  --specimen-mark-rule: rgba(163, 50, 31, 0.3);
+  --specimen-mark-decor: rgba(163, 50, 31, 0.4);
+  /* V1e-3 additions: the status pill "fill" backgrounds (mock common.css:228, literal
+     rgba(166, 196, 143, .12) and rgba(220, 157, 136, .1)) -- the same hues as --ok/--pending, at
+     their own alpha, neither matching --wash-pending's existing 0.14 alpha exactly. */
+  --wash-pill-sage: rgba(166, 196, 143, 0.12);
+  --wash-pill-rose: rgba(220, 157, 136, 0.1);
+  /* V1e-5 additions (SD-59): colour literals in r3-src/images.css with no identical-value
+     existing token. Each is named for the one rule it serves, since none recurs elsewhere. */
+  --im-well-ring: rgba(0, 0, 0, 0.15);
+  --im-well-empty-stripe: rgba(255, 255, 255, 0.03);
+  --im-drop-bg: rgba(0, 0, 0, 0.16);
+  --im1-well-bg: rgba(0, 0, 0, 0.25);
+  --im-picker-bg: #1f1c18;
+  --im2-ground-tint: #d8cfbb;
+  --im2-empty-border: rgba(122, 97, 173, 0.6);
+  --im2-empty-stripe: rgba(122, 97, 173, 0.06);
+  --im2-sel-glow: rgba(185, 161, 230, 0.25);
+  --im2-hero-tint: #e9dfc9;
+  --im2-hero-glow: rgba(251, 246, 234, 0.9);
+  --im2-nf-glow: rgba(251, 246, 234, 0.95);
+  --im2-col-bg: rgba(251, 246, 234, 0.92);
+  --im2-paper-tint: #fffdf7;
+  --im2-paper-line: rgba(42, 32, 25, 0.25);
+  --im2-crest-bg: #efe4c8;
+  --im2-portrait-q: rgba(42, 32, 25, 0.3);
+  --im2-mk-shadow: rgba(0, 0, 0, 0.5);
+  --im2-insp-bg: rgba(8, 7, 6, 0.32);
+  --im2-mk-sel-ink: #fff;
+  /* V1e-9 additions: vc1's own literals (vaultcfg.css), none matching an existing token's exact
+     value. Alpha variants of an existing hue get their own token (the --line-pending precedent),
+     named for where each is used. */
+  --vc-switch-bg: rgba(0, 0, 0, 0.2);
+  --vc-switch-on-border: rgba(220, 157, 136, 0.6);
+  --vc-switch-on-bg: rgba(220, 157, 136, 0.08);
+  --vc-code-bg: rgba(0, 0, 0, 0.3);
+  --vc-jump-bg: rgba(185, 161, 230, 0.12);
+  --vc-str-ink: #cfe0b8;
+  --vc-dialog-bg: #1f1c18;
+  --vc-dialog-border: rgba(227, 134, 114, 0.6);
+  --vc-dialog-ring: rgba(227, 134, 114, 0.12);
+  --vc-dband-bg2: #6a2414;
+  --vc-warn-ink: #f7e4d8;
+  --vc-danger-hover: #933520;
+  --vc-ack-border: rgba(227, 134, 114, 0.45);
+  --vc-ack-bg: rgba(227, 134, 114, 0.07);
+  --vc-editing-bg1: rgba(220, 157, 136, 0.09);
+  --vc-editing-bg2: rgba(220, 157, 136, 0.04);
+  --vc-ed-border: rgba(220, 157, 136, 0.5);
+  --vc-ed-bg: rgba(0, 0, 0, 0.34);
+  --vc-bad-ink: #fff;
+  --vc-bad-bg: rgba(227, 134, 114, 0.45);
+  --vc-eff-bg: rgba(0, 0, 0, 0.16);
+  --vc-eff-bad-bg: rgba(227, 134, 114, 0.1);
+  --vc-check-ok-bg: rgba(76, 110, 52, 0.1);
+  --vc-check-bad-bg: rgba(160, 60, 40, 0.1);
+  --vc-warnpill-border: rgba(220, 157, 136, 0.5);
+  /* V1e-7 additions (theme.css:1,6, the strip's busy/stale border colours): the same hues as
+     --focus/--pending, at their own alpha, neither matching an existing wash exactly. */
+  --wash-busy: rgba(185, 161, 230, 0.4);
+  --line-pending-strong: rgba(220, 157, 136, 0.5);
+  /* V1e-10 additions: vc2/vc3 literals (vaultcfg.css:75-127) with no identical-value token. */
+  --vc2-warn-wash1: rgba(124, 42, 24, 0.22);
+  --vc2-warn-wash2: rgba(124, 42, 24, 0.08);
+  --vc2-warn-rule: rgba(227, 134, 114, 0.35);
+  --vc2-eff-bg: rgba(8, 7, 6, 0.32);
+  --vc3-priv-border: rgba(227, 134, 114, 0.45);
+  --vc3-live-wash: rgba(124, 42, 24, 0.14);
+  --vc3-bad-decor: rgba(227, 134, 114, 0.6);
+}

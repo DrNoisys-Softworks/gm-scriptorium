@@ -1,0 +1,11 @@
+{
+  "siteTitle": "Vocab Vault",
+  "siteUrl": "https://example.invalid",
+  "attachmentsDir": "_attachments",
+  "excludeDirs": ["_meta"],
+  "folderMap": {
+    "Chronicle": "chronicle",
+    "Episodes": "episodes",
+    "People": "people"
+  }
+}

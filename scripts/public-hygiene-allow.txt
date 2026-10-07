@@ -1,0 +1,10 @@
+# Public hygiene allowlist (SD-6). `path` entries only, each with a reason.
+# Nothing else is allowed: every other hit the public-hygiene patterns raise
+# against the tracked tree is a leak, reported rather than allowed here.
+#
+# Measured at PARENT (409f9e9), word mode, scripts/public-hygiene-patterns.txt
+# against the whole tracked tree from a copy outside the repository.
+
+path scripts/public-hygiene-patterns.txt -- the file's own pattern definitions contain the literal path fragments they are written to match (SD-6's self-match note)
+path THIRD-PARTY-NOTICES.txt -- verbatim third-party licence text, not owner content
+path scripts/vendor/node-v22.23.2-LICENSE.txt -- verbatim third-party licence text, not owner content

@@ -1,0 +1,13 @@
+{
+  "siteTitle": "Stub Heading Collision Vault",
+  "siteUrl": "https://example.invalid",
+  "vaultPath": "./stub-heading-collision-vault",
+  "outputDir": "./out",
+  "attachmentsDir": "_attachments",
+  "folderMap": {
+    "Characters/NPCs": "characters/npcs",
+    "Locations": "locations"
+  },
+  "excludeDirs": ["_meta", "_Templates", "_inbox", ".obsidian"],
+  "excludeSections": ["GM Notes", "Hush"]
+}

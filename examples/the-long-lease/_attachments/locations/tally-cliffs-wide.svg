@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 600" width="1800" height="600">
+<defs>
+<linearGradient id="tally-cliffs-wide-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3ead3"/><stop offset="1" stop-color="#e9ddbb"/></linearGradient>
+<linearGradient id="tally-cliffs-wide-fall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef3f3"/><stop offset="1" stop-color="#cfe0e0"/></linearGradient>
+</defs>
+<rect width="1800" height="600" fill="url(#tally-cliffs-wide-sky)"/>
+<path d="M0 600 L0 220 L420 70 L900 230 L1180 90 L1800 260 L1800 600 Z" fill="#d9cfa8" stroke="#a8781c" stroke-width="3" stroke-linejoin="round"/>
+<path d="M900 230 L930 230 L940 600 L880 600 Z" fill="url(#tally-cliffs-wide-fall)" stroke="#a8781c" stroke-opacity=".4" stroke-width="2"/>
+<g stroke="#a8781c" stroke-opacity=".55" stroke-width="3">
+<path d="M560 180 h22"/><path d="M590 180 h22"/><path d="M620 180 h22"/><path d="M650 180 h22"/><path d="M680 180 h22"/>
+<path d="M560 210 h22"/><path d="M590 210 h22"/><path d="M620 210 h22"/><path d="M650 210 h22"/>
+<path d="M560 240 h22"/><path d="M590 240 h22"/><path d="M620 240 h22"/><path d="M650 240 h22"/><path d="M680 240 h22"/><path d="M710 240 h22"/>
+</g>
+<path d="M1120 150 C1160 130 1220 128 1260 150 C1240 168 1200 174 1160 168 C1140 166 1128 160 1120 150 Z" fill="#d9a93a" stroke="#2a2019" stroke-width="3"/>
+<path d="M1160 168 C1150 190 1150 210 1165 224" fill="none" stroke="#2a2019" stroke-width="3"/>
+</svg>

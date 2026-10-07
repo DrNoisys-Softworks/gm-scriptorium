@@ -1,0 +1,3084 @@
+/*
+ * Scriptorium house stylesheet.
+ *
+ * Embedded in the exe (package.json's pkg.assets), written into every built
+ * site as css/scriptorium.css, and linked on every page after the pin's own
+ * stylesheets and before the campaign's overrides.css
+ * (src/build/housestyle.js; docs/decisions/0012-product-stylesheet.md).
+ *
+ * SD-7's split governs what may live here: a rule belongs in this file only
+ * if it holds for ANY gm-apprentice vault, i.e. it fixes a defect in the
+ * pin's own generic templates/CSS and does not depend on a particular
+ * vault's palette, fonts or content. The sections below were moved
+ * verbatim, comments included, from
+ * a campaign's css/overrides.css (docs/decisions/0012-product-stylesheet.md), whose own copies were
+ * replaced with a one-line pointer to here. Do not add a campaign-specific
+ * selector, asset name, or colour literal to this file (AC-20).
+ *
+ * SD-8: this file owns no colour value. Permitted colour syntax, exactly:
+ * var(--...), color-mix() over a var, currentColor, transparent, and
+ * #000/#fff only inside a mask/gradient alpha ramp where the value is an
+ * alpha channel. Where colour is needed, consume the tokens lib/theme.js
+ * emits into theme.css (--bg, --bg-card, --bg-header, --bg-hero, --text,
+ * --text-muted, --accent, --accent-dim, --border). Own tokens, once this
+ * file grows any, are namespaced --sc-* so they cannot collide with what
+ * lib/theme.js regenerates each build.
+ *
+ * E1 (this file's origin) moves only pre-existing pin-defect fixes; it adds
+ * no new rules and no redesign. See the Engineering Brief's four-run split
+ * for what a later run appends.
+ */
+
+/* Focus and motion (from handoff section 3) */
+
+/*
+ * UI-AC-06: css/style.css:1232 and :1644 strip the outline on two form controls
+ * (.name-filter:focus, .search-input) without replacing it, and nothing in the pin
+ * defines a general :focus-visible ring for the ordinary interactive elements the
+ * six-tab-stop walk actually lands on (nav toggles, cards, links) — Chromium's
+ * default focus ring is platform-drawn and not guaranteed to meet 3:1 against every
+ * one of this theme's three surfaces (--bg, --bg-card, --bg-header/--bg-hero). One
+ * explicit ring, keyboard-only (:focus-visible, so no visible ring on mouse/touch
+ * activation), in the accent colour that is already the site's link/active colour:
+ * measured against all three surfaces in the scratch build (see Engineer report),
+ * all clear 3:1.
+ */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Reviewer rework: the generic :focus-visible rule above never reaches
+ * .name-filter. css/style.css:1232 is `.name-filter:focus { outline: none; ...
+ * }`, specificity (0,2,0) (one class + one pseudo-class); the generic rule is
+ * (0,1,0). A lower-specificity rule loses no matter how late it loads in the
+ * cascade, unlike .search-input just below it in style.css (:1644), which is
+ * an unscoped `.search-input { outline: none; }` at (0,1,0) — an actual tie
+ * that source order settles, which is why that one already worked. Audited
+ * every other outline-removing rule in the pin (`grep -n outline css/style.css
+ * css/themes/ *.css`): these two are the only resets; :3312 and :3837 set real
+ * outlines, not resets, and nothing else strips one. Matching the exact
+ * selector (.name-filter:focus-visible) gets the same (0,2,0) specificity, so
+ * source order (this file loads after style.css) settles it correctly, same
+ * technique as the transition-duration overrides below, no !important.
+ * Re-measured on characters/npcs/index.html (where .name-filter actually
+ * renders): computed outlineStyle is "none" without this rule, "solid" with
+ * it, confirmed against a live .name-filter element, not just the rule's
+ * presence in the file.
+ */
+.name-filter:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * UI-AC-07: css/style.css:36 sets `scroll-behavior: smooth` on <html> with no
+ * `prefers-reduced-motion` guard anywhere in the pin (no grep hit in style.css,
+ * overrides.css or either theme file per the baseline). `prefers-reduced-motion:
+ * reduce` is meant to suppress exactly this kind of motion. `html` here matches
+ * style.css:36's selector at equal (type-selector) specificity, so source order
+ * (overrides.css loads last, lib/templates/base.js:62-63) settles it without
+ * !important.
+ *
+ * UI-AC-07: every selector in style.css that declares a non-zero
+ * transition-duration site-wide — css/style.css:122 .nav-group-toggle, :566
+ * .img-lightbox-wrap::after, :669 .pc-tab, :862 .entity-card, :900 .pc-card, :950
+ * .npc-card, :1147 .explore-card, :1206 .pill-filter, :1538 .npc-location-card,
+ * :1565 .rel-card, :2954 .coc-sheet-root .foliotab, :3684 .back-to-top (the 30
+ * elements the baseline counted on index.html are six of these: nav-group-toggle,
+ * pc-card, npc-card, entity-card, explore-card, back-to-top) — is repeated here
+ * verbatim so each override selector matches its style.css counterpart at the same
+ * specificity; the later source position in overrides.css is then enough to win,
+ * again with no !important needed. Duration goes to exactly 0s: UI-AC-07 counts
+ * non-zero transition-duration elements and expects 0, and nothing in js/ or
+ * lib/templates listens for `transitionend`, so there is no reason to keep a
+ * near-zero value alive for an event that nothing reads.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .nav-group-toggle,
+  .img-lightbox-wrap::after,
+  .pc-tab,
+  .entity-card,
+  .pc-card,
+  .npc-card,
+  .explore-card,
+  .pill-filter,
+  .npc-location-card,
+  .rel-card,
+  .coc-sheet-root .foliotab,
+  .back-to-top {
+    transition-duration: 0s;
+    transition-delay: 0s;
+  }
+}
+
+/* Layout and overflow (from handoff section 4) */
+
+/*
+ * UI-11/UI-AC-04 (baseline BASELINE.md "Horizontal overflow at 390px":
+ * an item page with a long title scrolls at 419px vs 390px clientWidth). Root cause: CSS
+ * grid items default to min-width: auto, so a track's minmax() lower bound never
+ * actually wins over the item's own intrinsic (min-content) width. On this page
+ * that chain starts at .content-with-sidebar's own grid (css/style.css:277-283,
+ * :285-296 sets grid-template-columns) — its ".main" item refuses to shrink below
+ * the width of .stat-block inside it, which uses the identical recipe
+ * (grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr)), css/style.css:
+ * 1914-1917) around a font-mono .stat-value that won't wrap. min-width: 0 on
+ * every grid item in the chain lets each track shrink to its minmax() lower
+ * bound instead of its content's; overflow-wrap lets the value text wrap inside
+ * that width rather than forcing it wider. The same auto-fit/auto-fill +
+ * minmax(_, 1fr) recipe is reused by .card-grid (:847-852), .quick-stats
+ * (:1940-1943) and .relationship-cards (:1552-1557), so all four grids get the
+ * same treatment pre-emptively.
+ */
+.content-with-sidebar > .main,
+.content-with-sidebar > .context-sidebar,
+.card-grid > *,
+.stat-block .stat-item,
+.quick-stats .stat-item,
+.relationship-cards > * {
+  min-width: 0;
+}
+.stat-block .stat-value,
+.quick-stats .stat-value {
+  overflow-wrap: break-word;
+}
+
+/*
+ * #97: stat values use the theme's body face. The generator sets them in var(--font-mono), an
+ * unshipped system chain (ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, Monaco,
+ * Consolas) that neither theme defines, so they rendered in whatever monospace the viewer's OS
+ * had, unrelated to the theme (reported as reading like Comic Sans). Same specificity as the
+ * generator's rules; this file loads after css/style.css. Lining tabular figures keep short
+ * numeric stats ("8 lb.") aligned in a face whose default figures are old-style.
+ */
+.stat-block .stat-value,
+.quick-stats .stat-item .stat-value {
+  font-family: var(--font-body);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/*
+ * UI-11/UI-AC-04 (baseline: campaign/player-characters.html scrolls at 640px vs
+ * 390px clientWidth, 250px over — the worst offender, and not on the original
+ * findings list at all). Different cause from the grid items above: this is a
+ * plain markdown table (six columns, e.g. "Personal quest thread") with no
+ * scroll container — only .npc-table gets one, via a real wrapper div
+ * (css/style.css:1265-1269, .npc-table-wrap) — and th cells force
+ * white-space: nowrap (css/style.css:780), so the header row alone can't shrink
+ * below its content width. No markup wrapper is reachable from a stylesheet, so
+ * the table element itself becomes its own block-level scroll container;
+ * .npc-table is excluded because it already has a real wrapper and this would
+ * duplicate it (and defeat its sticky header, css/style.css:1286-1288, which
+ * needs a normal table display to work).
+ */
+@media (max-width: 767px) {
+  .content table:not(.npc-table) {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Relationship graph (from handoff section 7) */
+
+/*
+ * UI-09/UI-AC-05 (component half). label size and hop-2 opacity are SVG
+ * presentation attributes set inline by renderRelationshipSVG
+ * (lib/relationship-graph.js:161 opacity, :187 font-size) — presentation
+ * attributes carry the lowest possible priority, so a plain class-less
+ * stylesheet rule beats them with no !important needed (the !important
+ * red line only applies to real style="" attributes, and SVG presentation
+ * attributes are not that). Baseline findings measured hop-2 labels at 9px
+ * with 0.5 opacity; raising both lifts them to the same legibility as hop-1
+ * labels (11px, full opacity) without touching hop-0/1, which were already
+ * fine. The 22-node crowding on pages like an NPC page's graph (all nodes
+ * packed into one ring) is a layout problem in renderRelationshipSVG's radial
+ * placement, not something any CSS rule can fix without JS-driven collision
+ * detection or a rewritten layout algorithm — left as-is and flagged (see
+ * Engineer report); UI-09's node-count reduction stays an upstream draft.
+ */
+.relationship-graph svg text {
+  font-size: 11px;
+}
+.relationship-graph svg g[opacity] {
+  opacity: 1;
+}
+
+/*
+ * UI-AC-04: .relationship-graph already has its own horizontal scroll
+ * container (css/style.css:1737-1741, overflow-x: auto) so the graph never
+ * contributes to page-level overflow at 390px; nothing to add here for
+ * UI-AC-04, noted so a reviewer doesn't go looking for a missing fix.
+ */
+
+/* Tap targets (from handoff section 8) */
+
+/*
+ * UI-27/UI-AC-08 (baseline-adjacent finding, ui-findings.md UI-27, sizes not a
+ * contrast figure so carried forward as-is): the three .recap-link instances
+ * ("Read full session", "View all N NPCs", "Full timeline" —
+ * lib/templates/landing.js:94,169,217) measured 105x23 / 104x22 / 85x22,
+ * under both the finding's 24px-tall minimum and the 44px tap-target
+ * guidance. inline-flex + min-height gives each a real 44px tap box without
+ * moving the visible text or its margins.
+ */
+.recap-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/*
+ * UI-27: the mobile-nav close button (css/style.css:201-210) sets no
+ * width/height, so its tap target is just the "×" glyph's own box — measured
+ * 19x37 in the baseline, short on both axes. Centring the glyph inside an
+ * explicit 44x44 box fixes the target without moving its visible position
+ * (top/right offsets are untouched).
+ */
+.mobile-nav-close {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/*
+ * UI-10/UI-AC-10 (trap 3, risk-7). .nav-search-btn is display: none below the
+ * 768px breakpoint (css/style.css:170, only reversed at :249's
+ * @media (min-width: 768px)), so there is no phone search affordance at all.
+ * window.openSearch (js/search.js:130-136) is already viewport-agnostic, so
+ * showing the button is enough to make it work. The remaining problem is that
+ * .nav-search-btn and .nav-mobile-toggle both carry margin-left: auto
+ * (css/style.css:168, :185); un-hiding the first without touching the second
+ * means both compete for the same auto-margin gap and the toggle gets shoved.
+ * Giving the toggle a fixed left margin once the search button is visible lets
+ * the pair sit together at the header's right edge instead of fighting over
+ * it. The keyboard-shortcut hint is dropped on phone (no keyboard, no point
+ * spending the width). .mobile-nav-search (css/style.css:241-243) is dead CSS
+ * -- lib/templates/nav.js never emits an element with that class -- and is
+ * left alone.
+ *
+ * R1b follow-up. The pin now also emits its own .nav-search-icon-btn magnifier
+ * (lib/templates/nav.js:126-129), always rendered, always shown below 768px by
+ * the pin's own CSS (css/style.css:301). Once that button exists, the
+ * unconditional un-hide above gives phones two search buttons at once instead
+ * of one. The selector is scoped to fire only when the header has no icon
+ * button, so exactly one control shows at every width: our text button when
+ * the icon is missing, the pin's icon button whenever it is present. If a
+ * future pin drops the icon button again, this rule's :not(:has(...)) clause
+ * goes back to matching and phone search keeps working with no further
+ * change. Rejected: deleting the rule outright (phones lose search again the
+ * moment a future pin drops the icon); a second rule that re-hides the text
+ * button (two rules fighting over the same display property); a sibling-
+ * combinator form anchored on the text button itself, testing for a
+ * next-sibling icon button, instead of the header-level scope used here
+ * (the color-mode toggle can sit between the two buttons, so a sibling
+ * combinator can't always reach the icon from the text button).
+ */
+@media (max-width: 767px) {
+  .top-nav:not(:has(.nav-search-icon-btn)) .nav-search-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+  }
+  .nav-search-btn .search-kbd {
+    display: none;
+  }
+  .nav-mobile-toggle {
+    margin-left: 0.5rem;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Inline-style overrides (from handoff section 9; !important, with the reason) */
+
+/*
+ * UI-AC-05: the Latest Session date span carries a real style="" attribute
+ * (opacity:0.7;font-size:0.85rem — lib/templates/landing.js:92), which beats
+ * any non-!important stylesheet rule regardless of selector specificity.
+ * Measured 4.18:1 in the scratch build (still failing 4.5:1) even after
+ * Chunk B's --text-muted correction, because the inline opacity is applied on
+ * top of that already-corrected colour. Overriding just the opacity (leaving
+ * colour and font-size alone) is enough to clear AA.
+ */
+.dashboard-section h2 span[style] {
+  opacity: 1 !important;
+}
+
+/*
+ * UI-AC-05: search result subtitles carry a runtime-injected style=""
+ * attribute (opacity:0.6 — js/search.js:114), same reasoning as above. Scoped
+ * to .search-result-item so it can't reach into an unrelated span[style]
+ * elsewhere on the page.
+ */
+.search-result-item span[style] {
+  opacity: 1 !important;
+}
+
+/* ==========================================================================
+ * Desktop redesign (E2). Appends only; nothing above this line is touched.
+ * Lead requirements: docs/agent-runs/track-redesign-lead-requirements-2026-09-20.md.
+ * Engineering brief: docs/agent-runs/redesign-engineering-brief-2026-09-20.md.
+ *
+ * Strategy per that brief: the pin's own CSS is mobile-first (base rules
+ * single-column, desktop added at min-width:768/1024 in style.css itself), so
+ * this file stays additive too — new min-width:1024/1280/1440 rules that
+ * widen and rescale, never a rewrite of the base rules. A narrow viewport is
+ * therefore untouched by construction: nothing here fires below 1024px
+ * except the :root token declarations themselves, which are inert until a
+ * gated rule below reads them.
+ *
+ * SD-8: this section owns no colour value either. Every rule below consumes
+ * only var(--sc-*) (this file's own tokens, declared once and never
+ * redeclared with a literal) or the existing var(--bg|--text|--accent|...)
+ * tokens theme.css emits.
+ * ========================================================================== */
+
+/* ---- Tokens: shell width, spacing scale, type scale (FR-07) ---- */
+
+/*
+ * FR-07/AC-06: every length this section and the four that follow introduce
+ * is one of these three token families (--sc-shell, --sc-step-0..4,
+ * --sc-space-1..8, exactly SD-8's own list), or a bare 0, a percentage, or a
+ * @media breakpoint (custom properties are not valid inside a media-query
+ * condition, so 1024/1280/1440 can only ever be literals). A Reviewer
+ * grepping the file for any other raw length should find none.
+ */
+:root {
+  /* Content shell (AC-01). 75rem = 1200px, comfortably inside the "roughly
+     1100-1200px at 1440" target and clear of AC-01's 1120px floor even after
+     .content's own padding, since padding lives inside this box (global
+     box-sizing: border-box, style.css:6-10). Only consumed at >=1024 below;
+     .content's pin-authored 52rem cap (style.css:271) still governs <1024. */
+  --sc-shell: 75rem;
+
+  /* Spacing scale, 8 steps. Every margin/padding/gap/radius this section and
+     the three after it introduce is one of these, so the redesign reads as
+     one rhythm rather than ad-hoc rem values. */
+  --sc-space-1: 0.25rem;
+  --sc-space-2: 0.5rem;
+  --sc-space-3: 0.75rem;
+  --sc-space-4: 1rem;
+  --sc-space-5: 1.5rem;
+  --sc-space-6: 2rem;
+  --sc-space-7: 3rem;
+  --sc-space-8: 4rem;
+
+  /*
+   * Type scale, 5 steps (AC-05). Today's is 16/17.6/20.8/28/40 (body/h3/h2/
+   * .page-title/.landing-hero h1 at >=768), ratios 1.10/1.18/1.35/1.43 — the
+   * bottom two ratios are under AC-05's 1.2 floor, which is the measurable
+   * half of "looks like mobile". This scale is 17/21/26/33/42, ratios
+   * 1.235/1.238/1.269/1.273: every adjacent ratio clears 1.2, and body
+   * clears AC-05's 17px floor. Declared unconditionally (inert until the
+   * >=1024 rules below apply it) so it stays a single source of truth rather
+   * than being repeated inside each gated selector.
+   */
+  --sc-step-0: 1.0625rem; /* 17px — body */
+  --sc-step-1: 1.3125rem; /* 21px — h3 */
+  --sc-step-2: 1.625rem;  /* 26px — h2 */
+  --sc-step-3: 2.0625rem; /* 33px — .page-title */
+  --sc-step-4: 2.625rem;  /* 42px — .landing-hero h1 */
+}
+
+/*
+ * AC-05. Each selector here matches its style.css counterpart at equal
+ * specificity (css/style.css: body untyped at :39, h3 element at :352,
+ * .story-prose h3 at :692, h2 element at :345, .page-title class at :336,
+ * .landing-hero h1 at :1011 plus its own min-width:768 bump at :3701), so
+ * this file's later source position is enough to win with no !important —
+ * same technique as the focus/motion overrides above. Gated to >=1024 only:
+ * below that, style.css's own rules (including its own 768px bump on
+ * .landing-hero h1) are untouched, which is what keeps mobile identical to
+ * today. .dashboard-section h2 and .context-sidebar h3 are both more
+ * specific than the plain h2/h3 here and so are deliberately left alone —
+ * the former gets its own eyebrow treatment below (cluster 5), the latter is
+ * a sidebar label, not prose, and stays out of the type scale.
+ */
+@media (min-width: 1024px) {
+  body {
+    font-size: var(--sc-step-0);
+  }
+  h3,
+  .story-prose h3 {
+    font-size: var(--sc-step-1);
+  }
+  h2 {
+    font-size: var(--sc-step-2);
+  }
+  .page-title {
+    font-size: var(--sc-step-3);
+  }
+  .landing-hero h1 {
+    font-size: var(--sc-step-4);
+  }
+}
+
+/* ---- Shell width, nav alignment, prose measure (FR-01/02/04, AC-01/AC-04) ---- */
+
+@media (min-width: 1024px) {
+  /*
+   * FR-01/AC-01: css/style.css:270-274 caps main.content at 52rem (832px) at
+   * every viewport — the pin's own CSS never widens it (no desktop bump of
+   * its own). `main.content` (element+class, specificity 0,1,1) beats the
+   * pin's bare `.content` (0,1,0) regardless of source order, which is also
+   * what keeps this scoped off the notice footer's `<div class="content
+   * scriptorium-notice">` (src/build/notice.js:85) — that div is never
+   * inside a `<main>`, so `main.content` cannot match it (SD-9's risk 2).
+   * This only ever widens the shell; it never releases it edge-to-edge (no
+   * 100vw here) — that trap belongs to cluster 4, scoped to .landing-hero
+   * alone, per SD-9.
+   */
+  main.content {
+    max-width: var(--sc-shell);
+  }
+
+  /*
+   * FR-04: .top-nav (css/style.css:71-81) is a full-bleed flex bar with its
+   * own fixed padding: 0 1rem, regardless of viewport, so at the new shell
+   * width its brand/links would sit flush to the browser edge while the
+   * page content below sits inset by the shell's own auto margins. The
+   * max() keeps today's 1rem gutter at any width up to the shell (nothing
+   * changes there — "every breakpoint" per FR-04 means every breakpoint the
+   * shell itself is active at, since below 1024 .content and .top-nav
+   * already agree on the same 1rem gutter with nothing to align) and
+   * centers the nav's contents against the shell once the viewport exceeds
+   * it, matching main.content's own edges exactly.
+   */
+  .top-nav {
+    padding-inline: max(var(--sc-space-4), calc((100% - var(--sc-shell)) / 2));
+  }
+
+  /*
+   * FR-02/AC-04: widening main.content above also widens every bare
+   * paragraph inside it, which is wrong on prose pages. Three of the
+   * `campaign/` pages (track-redesign-lead-requirements-2026-09-20.md's
+   * page-type 6) render bare prose with no wrapper div at all —
+   * lib/templates/wiki.js's contentHtml is just mainContent, un-wrapped,
+   * whenever a page has no backlinks/relationships to populate a sidebar
+   * (verified in the scratch build: campaign/timeline.html,
+   * campaign/campaign-overview.html and campaign/player-characters.html all
+   * render `<p>` as a direct child of `main.content`, no wrapper). The fix
+   * constrains the prose children themselves, not the shell they sit in, so
+   * the shell widen above stays available to what DOES want the width (the
+   * four grids, cluster 3's entity two-column layout) while a paragraph
+   * still reads at a sane measure. `.content-with-sidebar > .main > p` and
+   * siblings reach the equivalent position one level down on entity/recap
+   * pages, where the same bare-paragraph shape recurs inside the article
+   * column (confirmed on sessions/recap-01-the-road.html and
+   * an NPC page). calc(var(--sc-space-8) * 12) is
+   * 48rem/768px, under AC-04's 780px ceiling; composed from the spacing
+   * scale rather than a new literal, per this file's own AC-06 rule — see
+   * the token block's header comment for why --sc-shell is the one
+   * additional named token beyond --sc-space-* and --sc-step-*, and why
+   * that is SD-8's own list, not a gap in it.
+   */
+  main.content > p,
+  main.content > ul,
+  main.content > ol,
+  main.content > blockquote,
+  .content-with-sidebar > .main > p,
+  .content-with-sidebar > .main > ul,
+  .content-with-sidebar > .main > ol,
+  .content-with-sidebar > .main > blockquote {
+    max-width: calc(var(--sc-space-8) * 12);
+  }
+}
+
+/* ---- Entity two-column layout, double-padding removal (FR-03, AC-02) ---- */
+
+@media (min-width: 1024px) {
+  /*
+   * FR-03: css/style.css:277-296 already gives `.content-with-sidebar` its
+   * own `grid-template-columns: 1fr 18rem` at min-width:1024, unconditional
+   * on the parent's width — verified live in the scratch build, AC-02
+   * already passes before this rule (two tracks, second 288px, on
+   * an NPC page). What is actually broken is
+   * spacing, not layout: `.content-with-sidebar` (style.css:279-284) and its
+   * parent `main.content` (style.css:270-274) both carry an identical
+   * `padding: 1.5rem 1rem 3rem`, so the article column loses 1rem of
+   * horizontal space twice over — once from main.content's own gutter,
+   * again from content-with-sidebar's own. `main.content > .content-with-
+   * sidebar` (compound + child combinator, specificity 0,2,1) beats
+   * style.css's bare `.content-with-sidebar` (0,1,0) at any source order, so
+   * this stays correct however the two stylesheets end up ordered. Only the
+   * horizontal padding is removed — main.content's own left/right gutter is
+   * now the sole source of that inset — the vertical 1.5rem/3rem rhythm
+   * (breadcrumb-to-content, and the page's own bottom margin) is
+   * deliberately left alone; FR-03 only calls out "double horizontal
+   * padding". 0 is exempt from this file's own AC-06 token rule (see the
+   * header comment on the tokens block above).
+   */
+  main.content > .content-with-sidebar {
+    padding-inline: 0;
+  }
+}
+
+/* ---- Full-bleed hero (FR-05, AC-07; SD-9) ---- */
+
+@media (min-width: 1024px) {
+  /*
+   * SD-9, verified: .landing-hero and every .dashboard-section are direct
+   * children of main.content (lib/templates/landing.js:270-271 builds
+   * [heroZone, ...sections] into baseShell's content; base.js:69-72 puts
+   * that content straight inside <main class="content">). The only
+   * sanctioned way to make the hero full-bleed without a viewport unit is to
+   * release the shell on this one page and re-impose it on the siblings
+   * that still want it — exactly SD-9's own two rules, unchanged. :has()
+   * scopes the release to landing.html alone (the only page with a
+   * .landing-hero child; already an established technique in this codebase,
+   * css/style.css:2767 uses `.content:has(.coc-sheet-root)` the same way) —
+   * no JS, no per-template flag, no markup change. Zero 100vw, zero
+   * negative margins, so there is nothing here for a scrollbar to interact
+   * with (AC-07's trap) — confirmed by measurement below, not by construction
+   * alone. `overflow-x: clip|hidden` on html/body, the other way to fake
+   * this, is not used anywhere in this file (SD-9 forbids it outright: it
+   * would make AC-07 pass by clamping scrollWidth, proving nothing, and it
+   * risks .top-nav's `position: sticky`, css/style.css:71-81).
+   */
+  main.content:has(> .landing-hero) {
+    max-width: none;
+    padding-inline: 0;
+  }
+  main.content:has(> .landing-hero) > .dashboard-section {
+    max-width: var(--sc-shell);
+    margin-inline: auto;
+  }
+
+  /*
+   * FR-05. .landing-hero (css/style.css:995-1003) is now as wide as
+   * main.content itself (edge to edge, per the release above), so its own
+   * padding becomes the text gutter — the same max() technique as .top-nav
+   * above, so the hero's text lines up with the nav and the sections below
+   * it — and its border-radius is dropped: a rounded rect touching both
+   * viewport edges reads as a bug, not a corner. display:flex + justify-
+   * content:center vertically centers the still-static h1/.hero-tagline/
+   * .hero-dates inside that height; text-align:center is unchanged from the
+   * base rule.
+   *
+   * A fixed `height`, not `min-height`, deliberately: the image rule below
+   * needs .landing-hero-img's own height:100% to resolve against a definite
+   * ancestor height (a percentage height only resolves against an ancestor
+   * whose own height is explicitly specified, not content-derived — see
+   * that rule's comment for the two failed attempts this ruled out).
+   * Residual gap, written down rather than left for a Reviewer to find by
+   * testing: this vault's hero text (title + one-line tagline + one stat
+   * row) fits inside 448px with room spare, but overflow:hidden means a
+   * vault with a much longer tagline could see it clipped rather than
+   * growing the hero. Out of scope for this vault's own build (FR-05 is
+   * scoped to what this campaign's content needs); flagged for whoever next
+   * touches this rule for a vault with materially longer hero copy.
+   *
+   * z-index:0, added alongside position:relative from the base rule, is
+   * what actually makes .landing-hero a stacking context (CSS2.1:
+   * position:relative with z-index:auto, the base rule's own combination,
+   * does NOT establish one). Without it, a negative z-index on a
+   * descendant escapes past .landing-hero into whatever ancestor context
+   * does exist and paints behind .landing-hero's own background instead of
+   * merely behind its text — measured directly (the image was fully
+   * invisible with z-index:-1, and reappeared under manual z-index:0), and
+   * the reason the two rules below use 0/1 rather than -1/auto.
+   */
+  .landing-hero {
+    padding-inline: max(var(--sc-space-4), calc((100% - var(--sc-shell)) / 2));
+    padding-block: var(--sc-space-8);
+    border-radius: 0;
+    height: var(--sc-hero-h, calc(var(--sc-space-8) * 7));
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    z-index: 0;
+  }
+
+  /*
+   * FR-05 (stacking). .landing-hero's own children (h1, .hero-tagline,
+   * .hero-dates) are flex items now that .landing-hero is display:flex —
+   * the Flexbox spec has flex items "painted like inline-blocks" (CSS2.1
+   * Appendix E, tier 6), a DIFFERENT paint tier from ordinary in-flow
+   * static content (tier 3), which sits BEFORE the stacking-context root's
+   * own negative-z-index descendants, not after. A negative z-index on
+   * .landing-hero-img therefore paints it behind .landing-hero's own solid
+   * background, not merely behind the (now not-actually-tier-3) text — the
+   * image was fully invisible under a flat --bg-hero fill until this was
+   * caught by forcing z-index in devtools and watching the image reappear.
+   * Explicit z-index:1 here (flex items honour z-index even at the default
+   * position:static, another Flexbox-spec carve-out — no position:relative
+   * needed) settles it unambiguously against the image/scrim's z-index:0
+   * below, both now ordinary tier-6 comparisons rather than tier assumptions.
+   */
+  .landing-hero h1,
+  .landing-hero .hero-tagline,
+  .landing-hero .hero-dates {
+    z-index: 1;
+  }
+
+  /*
+   * FR-05. .landing-hero-img (css/style.css:1004-1010) is a small centred
+   * logo-sized image today (max-width:100%; width:32rem; height:auto).
+   * Absolute + cover turns it into the hero's own background art, filling
+   * .landing-hero (position:relative, unchanged from the base rule) edge to
+   * edge. width/height:100% need .landing-hero's own height to be
+   * explicit, which is exactly why the rule above uses `height`, not
+   * `min-height`.
+   *
+   * `.landing-hero .landing-hero-img` (two classes, specificity 0,2,0), not
+   * the bare class alone: css/style.css:544 has a second, easy-to-miss rule,
+   * `.content img { height: auto; ... }` (a class + type selector, 0,1,1),
+   * which sits ABOVE a bare `.landing-hero-img` (0,1,0) regardless of source
+   * order — every img inside main.content matches it, this one included.
+   * With that rule still winning, `height:100%` never actually applied and
+   * the replaced element's used height fell back to its own intrinsic
+   * ratio (measured 1440x901.4px against a 1440x448 box — 901.4 is exactly
+   * 1440 at the source image's 2048:1282 ratio), silently clipped to
+   * nothing visible by .landing-hero's own overflow:hidden. Caught with
+   * getComputedStyle + a manual walk of every matching stylesheet rule
+   * (document.styleSheets), not by eye; recorded here so nobody re-adds a
+   * bare `.landing-hero-img` height override and reintroduces it.
+   * z-index:0, kept behind h1/.hero-tagline/.hero-dates' explicit z-index:1
+   * above rather than a negative value — see that rule's own comment for
+   * why a negative z-index paints behind .landing-hero's own background
+   * here, not merely behind the text (this file's second stacking-order
+   * surprise on the same element).
+   * .landing-hero-img will also carry a campaign-owned mask-image once E3
+   * folds the campaign stylesheet in (the campaign's own css/overrides.css, docs/decisions/0023-haze-theme.md;
+   * SD-7 section 6, kept campaign-side deliberately — it's
+   * keyed to this vault's specific art asset), which stacks on top of this
+   * cover layout unchanged; E2's own scratch build deliberately still runs
+   * the 11-line overrides.css scaffold (no mask present yet), so that
+   * interaction is E3/E4's to confirm, not asserted here as already
+   * checked — see the Engineer report.
+   */
+  .landing-hero .landing-hero-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    object-fit: cover;
+    border-radius: 0;
+    margin-bottom: 0;
+    z-index: 0;
+  }
+
+  /*
+   * FR-05 (scrim). A hero photo behind the tagline text needs a legibility
+   * gradient; color-mix() over a generator token keeps this inside SD-8's
+   * colour allowance (no new literal, no named colour, no asset reference).
+   * Issue #47: this used to mix toward --bg (the page's general background),
+   * tuned for the assumption that a dark --bg always pairs with light hero
+   * text. That assumption breaks whenever a vault's `primary` colour (which
+   * is what actually drives --bg-hero, and what the pin's own --text-on-header
+   * contrast choice is computed from -- lib/theme.js's headerIsLight) diverges
+   * from `background`'s own scheme, which a light-palette vault can do freely
+   * (e.g. a light parchment --bg with a dark navy --bg-hero). Mixing toward
+   * --bg-hero instead tracks the token the text colour actually contrasts
+   * against, so the scrim's polarity follows the hero/header scheme rather
+   * than the page scheme -- correct in both directions, not just the one
+   * vault this was written against. Same z-index as the image above — paint
+   * order among ties follows generation order, so this ::after (generated
+   * after the real .landing-hero-img child) layers on top of the image,
+   * while both stay behind the text's explicit z-index:1.
+   */
+  .landing-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      color-mix(in srgb, var(--bg-hero) 80%, transparent) 0%,
+      color-mix(in srgb, var(--bg-hero) 15%, transparent) 55%,
+      transparent 100%
+    );
+    z-index: 0;
+  }
+}
+
+/* ---- Card treatment, eyebrow headings (FR-06/08, AC-03) ---- */
+
+@media (min-width: 1024px) {
+  /*
+   * FR-06. .entity-card (css/style.css:854-864), .pc-card (:891-903),
+   * .npc-card (:940-954), .explore-card (:1140-1153), .loc-card (:2123-
+   * 2127) and .intel-card (:2480-2487) already share background:var(--bg-
+   * card); border:1px solid var(--border); border-radius:0.5rem — the
+   * "surface a shade lighter than the page, hairline border" half of FR-06
+   * already holds, since --bg-card is deliberately lighter than --bg in
+   * every theme.js palette. What's inconsistent: .loc-card and .intel-card
+   * carry no hover state at all, and among the four that do, only
+   * .entity-card gets a lift (a hardcoded box-shadow:...rgba(0,0,0,0.2),
+   * which this file can't reuse verbatim under SD-8's colour allowance).
+   * One rule per property, matching class selector for class selector so
+   * each card keeps its own internal layout (flex/grid/block, untouched)
+   * — a slightly more generous radius and the same hover everywhere:
+   * border to --accent, plus a soft accent-tinted lift via color-mix()
+   * rather than a bare rgba().
+   */
+  .entity-card,
+  .pc-card,
+  .npc-card,
+  .explore-card,
+  .loc-card,
+  .intel-card {
+    border-radius: var(--sc-space-3);
+  }
+  .entity-card:hover,
+  .pc-card:hover,
+  .npc-card:hover,
+  .explore-card:hover,
+  .loc-card:hover,
+  .intel-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 var(--sc-space-1) var(--sc-space-3) color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+
+  /*
+   * FR-08. .dashboard-section h2 (css/style.css:1043-1049) is the
+   * "accent-underlined h2" FR-08 names directly — uppercase and letter-
+   * spaced already, just carrying a 2px border-bottom under the full-width
+   * text. Distinct per-section eyebrow *copy* ("OUR STORY" vs "THE
+   * ROSTER") is out of reach from a stylesheet (track-redesign-lead-
+   * requirements-2026-09-20.md's "Not reachable in CSS" list says so
+   * directly — every section is an identical div.dashboard-section with no
+   * per-section hook besides :has(), and inventing text via ::before{
+   * content:"Section"} would be both wrong (identical string on every
+   * match) and inaccessible (generated content is not reliably exposed to
+   * assistive tech the way real text is). What IS reachable: replace the
+   * underline with a short decorative rule ABOVE the heading
+   * (content:"" only, no copy — exactly FR-08's own instruction) and let
+   * the real heading text — the only text this component actually has —
+   * read as the "large heading" the eyebrow sits over, at the type scale's
+   * step-1 instead of the pin's own 1.15rem. Same selector, same
+   * specificity as the base rule (0,1,1), later source wins with no
+   * !important.
+   */
+  .dashboard-section h2 {
+    font-size: var(--sc-step-1);
+    border-bottom: 0;
+    padding-bottom: 0;
+    margin-bottom: var(--sc-space-4);
+  }
+  .dashboard-section h2::before {
+    content: "";
+    display: block;
+    width: var(--sc-space-6);
+    height: calc(var(--sc-space-1) / 2);
+    background: var(--accent);
+    margin-bottom: var(--sc-space-2);
+  }
+}
+
+/* ==========================================================================
+ * Visual treatment: Vellum (material and texture). Chosen 2026-09-20 —
+ * "Vellum is the nicest" — over Plate and Strata. Design exploration:
+ * a private design-exploration folder (not in this repo), containing
+ * vellum.css, OPTIONS.md. SD-7's split governs which of its rules landed
+ * here versus the campaign layer (a campaign's css/overrides.css, and since docs/decisions/0023-haze-theme.md the built-in haze theme): everything
+ * below holds for any vault (material given to the pin's own generic card/
+ * heading/hero classes, coloured only via var()/color-mix() over the
+ * generator's own tokens per SD-8). The exploration file's own three-rule
+ * "CAMPAIGN LAYER" grouping is narrower than what actually depends on this
+ * vault: its pull-quote brass mark is a raw hex literal (#c9a55a, SD-8
+ * forbids that here) and its hero-image deckle extends a mask already keyed
+ * to this vault's specific art defect (campaign-side, in the campaign's own css/overrides.css); the brass mark now lives in the built-in haze theme (assets/themes/haze/theme.css).
+ * The third rule it grouped there, the hero-banner "sheet"
+ * lip, uses only var()/color-mix() over generic pin classes (.hero-banner,
+ * .hero-banner-no-img — lib/templates/base.js's own template classes, not a
+ * selector naming this vault) and so passes SD-7's own test; it is moved
+ * here instead. Own tokens namespaced --sc-* per SD-8, joining the redesign
+ * section's --sc-shell, --sc-space-N and --sc-step-N tokens (no collision).
+ * ========================================================================== */
+
+:root {
+  /* One grain tile, reused by every textured surface so the browser decodes
+     it once. Inline SVG data URI, no external request, no palette. */
+  --sc-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  /* Material tokens: a top highlight and a floor shadow, both derived from
+     the theme's own text/bg tokens so they track any palette. #000 here is
+     an alpha-ramp seed for color-mix(), the same construction the NPC-table
+     fix below uses — never a standalone colour value. */
+  --sc-lip: color-mix(in srgb, var(--text) 9%, transparent);
+  --sc-floor: color-mix(in srgb, #000 45%, transparent);
+}
+
+/* ---- 1. Paper tooth over the whole page ----------------------------------
+ * A fixed grain layer at 3.5% behind all content. High enough to kill the
+ * dead-flat fill, low enough that it never reads as noise on top of 17px
+ * body text. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: var(--sc-grain);
+  opacity: 0.028;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* The page ground stops being one flat value: a long, very shallow vertical
+ * wash so the top of the page is fractionally lighter than the bottom. */
+body {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg-card) 40%, transparent) 0%,
+    transparent 720px
+  );
+  background-repeat: no-repeat;
+}
+
+/* ---- 2. Cards become sheets, not rectangles ------------------------------
+ * A gradient (lit from above), an inset 1px lip on the top edge, and a floor
+ * shadow together read as a raised sheet rather than a flat rectangle. */
+.entity-card,
+.pc-card,
+.npc-card,
+.explore-card,
+.loc-card,
+.intel-card,
+.rel-card,
+.npc-location-card,
+.recap {
+  background-image:
+    var(--sc-grain),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--text) 4%, transparent) 0%,
+      transparent 40%,
+      color-mix(in srgb, #000 12%, transparent) 100%
+    );
+  background-blend-mode: overlay, normal;
+  background-size: 180px 180px, auto;
+  box-shadow:
+    inset 0 1px 0 var(--sc-lip),
+    0 1px 2px var(--sc-floor),
+    0 6px 16px color-mix(in srgb, #000 28%, transparent);
+}
+
+/* Issue #36: the lift had no transition (an instant 2px jump reads as a glitch), and
+ * :hover sticks after a tap on touch, so the lift is gated to devices that can actually
+ * hover. transition lives on the un-hovered selector list so it applies leaving as well as
+ * entering. The reduced-motion suppression below matches this same :hover selector list at
+ * equal (0,2,0) specificity and wins on source order (no !important), the technique already
+ * documented at this file's :focus-visible/.name-filter rule above. */
+@media (hover: hover) {
+  .entity-card,
+  .pc-card,
+  .npc-card,
+  .explore-card,
+  .loc-card,
+  .intel-card {
+    transition: transform 160ms cubic-bezier(0.2, 0, 0, 1), box-shadow 160ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .entity-card:hover,
+  .pc-card:hover,
+  .npc-card:hover,
+  .explore-card:hover,
+  .loc-card:hover,
+  .intel-card:hover {
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--accent) 35%, transparent),
+      0 2px 4px var(--sc-floor),
+      0 12px 28px color-mix(in srgb, #000 38%, transparent);
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entity-card:hover,
+  .pc-card:hover,
+  .npc-card:hover,
+  .explore-card:hover,
+  .loc-card:hover,
+  .intel-card:hover {
+    transform: none;
+    transition: none;
+  }
+}
+
+/* Entity hero banners get the same lip as the cards, so an image-backed
+ * banner (.hero-banner) and a gradient-backed one (.hero-banner-no-img) read
+ * as the same material. Both are the pin's own generic template classes
+ * (lib/templates/base.js), not this vault's — see this section's header
+ * comment for why this rule moved out of the exploration's "campaign" group. */
+.hero-banner,
+.hero-banner-no-img {
+  box-shadow: inset 0 1px 0 var(--sc-lip), 0 6px 16px color-mix(in srgb, #000 30%, transparent);
+}
+
+/* ---- 3. Ornamental rules instead of template underlines ------------------
+ * The pin's h2 carries a full-width 2px accent border, which is the single
+ * most "generated by a tool" mark on an entity page. Replace it with a
+ * hairline that fades out, plus a short solid accent lead-in. */
+@media (min-width: 1024px) {
+  .content-with-sidebar h2,
+  main.content > h2:not(.dashboard-section h2) {
+    border-bottom: 0;
+    padding-bottom: var(--sc-space-2);
+    position: relative;
+  }
+  .content-with-sidebar h2::after,
+  main.content > h2:not(.dashboard-section h2)::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      var(--accent) 0,
+      var(--accent) var(--sc-space-8),
+      color-mix(in srgb, var(--border) 90%, transparent) var(--sc-space-8),
+      transparent 100%
+    );
+  }
+
+  /* The landing's eyebrow dash becomes a lozenge and a hairline that runs the
+     full section width — the ornament a printed gazetteer would use. Shares
+     .dashboard-section h2 with the redesign's own eyebrow rule above; the
+     two compose (this rule's flex/::after are new properties, its ::before
+     geometry wins over the redesign's on the properties they share, since
+     this rule loads later — verified in the scratch build, see Engineer
+     report). */
+  .dashboard-section h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--sc-space-4);
+  }
+  .dashboard-section h2::before {
+    width: var(--sc-space-2);
+    height: var(--sc-space-2);
+    margin-bottom: 0;
+    background: var(--accent);
+    transform: rotate(45deg);
+    flex: none;
+  }
+  .dashboard-section h2::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, var(--border), transparent);
+  }
+}
+
+/* ---- 4. Drop cap ---------------------------------------------------------
+ * One per entity page, on the first body paragraph of the main column only —
+ * never on a recap, a list or a sidebar, where it would be decoration for its
+ * own sake. Sized in the heading face so it reads as a printed initial. */
+@media (min-width: 1024px) {
+  .content-with-sidebar > .main > p:first-of-type::first-letter {
+    float: left;
+    font-family: var(--font-heading);
+    font-size: 3.4em;
+    line-height: 0.82;
+    padding-right: var(--sc-space-3);
+    padding-top: var(--sc-space-1);
+    color: var(--accent);
+  }
+}
+
+/* ---- 5. Hero: vignette instead of a flat scrim ---------------------------
+ * Also the fix for a real baseline defect: at 1440 the hero h1 measures
+ * 1.79:1 against the painting behind it because the pin's scrim is a
+ * bottom-up gradient and the title sits at the top of it. An inset vignette
+ * darkens the corners and a centred radial pool sits behind the text block.
+ * Both are pure alpha ramps, over --bg-hero (issue #47 -- see the ::after
+ * scrim's own comment just above for why --bg-hero and not --bg). */
+@media (min-width: 1024px) {
+  /* z-index 1, not 0: .landing-hero-img is an absolutely positioned element
+     at z-index 0 and paints AFTER a ::before at the same level, so a
+     ::before vignette at z-index 0 is invisible. The redesign section's
+     ::after scrim (FR-05, above) keeps z-index 0 and composes underneath
+     this. */
+  .landing-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(
+        ellipse 52% 62% at 50% 47%,
+        color-mix(in srgb, var(--bg-hero) 96%, transparent) 0%,
+        color-mix(in srgb, var(--bg-hero) 86%, transparent) 52%,
+        transparent 88%
+      ),
+      radial-gradient(
+        ellipse 95% 92% at 50% 50%,
+        transparent 34%,
+        color-mix(in srgb, #000 62%, transparent) 100%
+      );
+  }
+  .landing-hero h1,
+  .landing-hero .hero-tagline,
+  .landing-hero .hero-dates {
+    position: relative;
+    z-index: 2;
+  }
+}
+
+/* ---- 6. The recap panel becomes a bound page ----------------------------- */
+.recap {
+  border-left: calc(var(--sc-space-1) / 2) solid var(--accent);
+  border-radius: 0 var(--sc-space-3) var(--sc-space-3) 0;
+  padding: var(--sc-space-6) var(--sc-space-7);
+}
+
+/* ==========================================================================
+ * NPC table surface. css/style.css:1270 gives .npc-table no background at
+ * all — only the sticky <th> row is filled — so on the NPC index 22 rows of
+ * body text sit straight on the page ground with nothing between them. Fine
+ * while the ground was one flat fill; the first thing to break once it
+ * isn't (the campaign layer's Atlas ground, folded in alongside this). A
+ * generator defect, fixed with tokens only, so it holds for any vault and
+ * any ground treatment a vault might add later — product layer per SD-7.
+ * Every ground treatment explored alongside Atlas carried this same rule
+ * (design exploration: .../ground/ground.css:50-64).
+ * ========================================================================== */
+.npc-table-wrap {
+  background-color: color-mix(in srgb, #000 18%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: var(--sc-space-2);
+}
+
+/* ==========================================================================
+ * SVG portraits in .char-header. css/style.css:533 styles .char-header
+ * .portrait with aspect-ratio:16/9, object-fit:cover, object-position:center
+ * top -- correct for the raster character photos it was written for, wrong
+ * for a square vector portrait. Found on a real campaign vault's faction sigils (13
+ * SVGs, the vault's first SVG portraits): every one rendered cropped, ~44%
+ * of the image lost off the bottom (measured: a 320x180 box against 1:1
+ * content). A vault-agnostic pin defect -- any vault that gives an entity an
+ * SVG portrait hits it, not just this one's factions -- so per SD-7 this is
+ * product layer, not campaign. .char-header .portrait is shared by the
+ * faction/creature/event/heritage/item templates (lib/templates/ *.js), so
+ * the fix reaches all of them, not just factions.
+ * portraitImg() (lib/templates/base.js:186) emits a bare <img class="portrait">,
+ * no marker distinguishing raster from vector, and that file is
+ * the pinned/vendored generator (never edited directly per CLAUDE.md), so
+ * matching the file extension on src is the only hook available.
+ * aspect-ratio:1/1 matches the sigils' actual square content; object-fit:
+ * contain (not cover) tolerates a sigil that isn't exactly square without
+ * cropping it either way. max-width caps the box near the old raster box's
+ * own rendered height (20rem wide * 9/16 = 11.25rem tall), so a page mixing
+ * SVG and raster portraits doesn't grow a visibly taller header just because
+ * its portrait is vector: --sc-space-8 (4rem) * 2.75 = 11rem, verified in a
+ * live scratch build (factions/house-fen.html) to show the full sigil with
+ * nothing clipped, box measured square by getBoundingClientRect().
+ * The hero-cinematic (PC/NPC) and hero-banner (locations) portrait paths
+ * carry the same raster-shaped assumption but have no SVG portrait anywhere
+ * in this vault today, so they are unaffected and left alone here -- a
+ * future SVG portrait in one of those templates would need its own rule.
+ *
+ * STATUS 2026-09-21: dead selector in this vault. A real campaign vault's thirteen
+ * faction SVGs were replaced with painted .webp renders (vault commit
+ * e895484), and nothing else here has ever used an SVG portrait, so this
+ * rule currently matches zero elements. Kept, not deleted: the defect it
+ * fixes is in the pinned generator (css/style.css:533), not this vault's
+ * content, so it holds for any vault -- this one or a future one -- that
+ * gives any char-header entity an SVG portrait again. A dead selector costs
+ * nothing at runtime; deleting it would silently drop that protection. The
+ * new painted portraits are raster, not vector, so they need their own hook
+ * -- see the campaign's own css/overrides.css:
+ * campaign layer, because the hook available (image path) is
+ * this vault's folder mapping, not a generator-level distinction.
+ * ========================================================================== */
+.char-header .portrait[src$=".svg" i] {
+  aspect-ratio: 1 / 1;
+  width: auto;
+  max-width: calc(var(--sc-space-8) * 2.75);
+  object-fit: contain;
+}
+
+/* Character headers: headline placement
+   ==========================================================================
+
+   SD-7 (product layer, append-only): only pc.js:252-262 and npc.js:32-38
+   emit .hero-cinematic (PC and NPC, with art), pc.js:265-273 emits
+   .hero-cinematic.hero-cinematic-no-img (PC, no art), and npc.js:41-45 emits
+   .hero-banner.hero-banner-no-img with a direct .pc-portrait child (NPC, no
+   art). No vault path is involved, so this belongs here, not in
+   overrides.css. That file is unchanged.
+
+   Drops the card (background, border, radius, padding, box-shadow) pin's
+   css/style.css gives these headers and replaces it with a centred column:
+   portrait on top, then the centred name, then the centred meta line --
+   the same faction headline treatment as
+   the campaign's own css/overrides.css (commit 0b81e54),
+   reapplied to the character templates.
+
+   Specificity, against the pin rules this beats:
+     .hero-cinematic (0,1,0)                                ties style.css:428, wins on source order
+       (scriptorium.css loads after style.css on every entity page)
+     .hero-banner-no-img:has(> .pc-portrait) (0,2,0)         beats style.css:358 and :412
+     .hero-cinematic h1,
+     .hero-banner-no-img:has(> .pc-portrait) > h1 (0,1,1)/(0,2,1)  beats/ties style.css:394 and :448
+     .hero-cinematic .meta,
+     .hero-banner-no-img:has(> .pc-portrait) > .meta (0,2,0)/(0,2,1)  ties/beats style.css:399 and :451
+
+   600px breakpoint: the pin's @media (max-width: 600px) block
+   (style.css:470-474) sets .hero-cinematic's flex-direction/text-align,
+   .hero-cinematic-img's width/height, and .hero-cinematic-overlay .meta's
+   justify-content. The unconditional rules below already set every one of
+   those properties to the target value, so that block has nothing left to
+   change -- the image rule in particular carries two classes, (0,2,0)
+   against the pin's (0,1,0) media rule, so it wins on specificity and does
+   not depend on stylesheet order. No mirror @media (max-width: 600px) block
+   is added here: it would be redundant, and it would couple this section to
+   the pin's breakpoint value.
+
+   Vellum lip: the lip box-shadow at scriptorium.css:845-848 is
+   ".hero-banner,\n.hero-banner-no-img" at (0,1,0) per selector. The
+   :has(> .pc-portrait) rule below is (0,2,0) and sets box-shadow: none
+   (with background/min-height/padding/border-radius), so it wins only where
+   a .pc-portrait is a direct child -- i.e. NPC-without-art headers.
+   Location-without-art headers never have that child (location.js:56-59),
+   so they keep the lip, the gradient and the 12rem min-height untouched.
+   Rejected: editing 845-848 to add :not(:has(.pc-portrait)). That rewrites
+   an existing rule instead of appending, and puts the character scoping in
+   two places instead of one.
+
+   Letter badge: kept at its existing inline size (4rem NPC, 5rem PC,
+   pc.js:265-273 / npc.js:41-45). The only way to override an inline style
+   is !important, and the one precedent for that in this file
+   (scriptorium.css:274-296) exists because no alternative was possible --
+   here nothing requires it, and reaching for !important would also force
+   any future campaign override of the badge to use !important in turn.
+   align-items: center on the container centres the badge regardless of its
+   own margin. No .pc-portrait rule is added here, so the landing
+   .pc-card .pc-portrait (landing.js:115-116) is never reached by this
+   section.
+
+   Will catch: a selector drifting to cover .char-header, .pc-card or
+   .landing; the Vellum lip reappearing on the character path; a colour
+   literal or !important sneaking into this section; the 600px pin block
+   regaining control of the image size; the h1 falling off .page-title's
+   step.
+   Will not catch, deliberately: .hero-cinematic-no-img is unverified
+   visually -- this vault has no PC without art, so nobody has ever loaded
+   that markup in a browser against these rules. A future pin markup change
+   (e.g. the image stopping being a direct child of .hero-cinematic) would
+   silently drop the image sizing here; nothing in this file would notice.
+   ========================================================================== */
+.hero-cinematic {
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  text-align: center;
+  margin-bottom: var(--sc-space-7);
+}
+.hero-banner-no-img:has(> .pc-portrait) {
+  align-items: center;
+  min-height: 0;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+  text-align: center;
+  margin-bottom: var(--sc-space-7);
+}
+.hero-cinematic > .hero-cinematic-img {
+  width: auto;
+  height: calc(var(--sc-space-8) * 4.5);
+  max-width: 100%;
+  object-fit: contain;
+}
+.hero-cinematic > .hero-cinematic-overlay {
+  flex: none;
+  align-self: stretch;
+  margin-top: var(--sc-space-4);
+}
+.hero-cinematic h1,
+.hero-banner-no-img:has(> .pc-portrait) > h1 {
+  margin: 0 0 var(--sc-space-2);
+  font-size: calc(var(--sc-space-4) * 1.75);
+  text-align: center;
+}
+.hero-cinematic .meta,
+.hero-banner-no-img:has(> .pc-portrait) > .meta {
+  justify-content: center;
+}
+@media (min-width: 1024px) {
+  .hero-cinematic > .hero-cinematic-img {
+    height: calc(var(--sc-space-8) * 6);
+  }
+  .hero-cinematic h1,
+  .hero-banner-no-img:has(> .pc-portrait) > h1 {
+    font-size: var(--sc-step-3);
+  }
+}
+
+/* ====================================================================== *
+ * Landing shell: full-bleed below 1024
+ *
+ * Engineering Brief: "Into the Haze home + recap emphasis" (docs/agent-runs/
+ * hazehome-engineering-brief-2026-09-24.md). SD-2: the campaign owns the Haze look itself
+ * (colours, fonts, image treatment, the hero, the nav overlay, the slip); this file only ever
+ * carries the "landing shell release" and #38's transform, because scriptorium.css:9-16 limits
+ * the product layer to fixes that hold for any vault. The existing "Full-bleed hero" section
+ * above already releases main.content:has(> .landing-hero) at >=1024px (SD-9); this section is
+ * the same release below that breakpoint, so the campaign's full-bleed hero and full-width
+ * .dashboard-section (SD-4/SD-8) are not fighting main.content's default 52rem shell and 1rem
+ * padding-inline on any vault that opts into a full-bleed landing look, campaign-owned or not.
+ * ====================================================================== */
+main.content:has(> .landing-hero) {
+  max-width: none;
+  padding-inline: 0;
+  padding-top: 0;
+}
+@media (max-width: 1023px) {
+  main.content:has(> .landing-hero) > .dashboard-section {
+    padding-inline: var(--sc-space-4);
+  }
+  main.content:has(> .landing-hero) > .landing-hero {
+    border-radius: 0;
+  }
+}
+
+/* ====================================================================== *
+ * Book leaves (Track B)
+ *
+ * Engineering Brief: "Book leaves + motion" (docs/agent-runs/bookleaves-engineering-brief-2026-09-24.md),
+ * plus AMENDMENT 1. Ports the owner's picks (a1 Dark vellum, b1 Framed miniature, c3 Thumb index and
+ * footnotes, d1 Edge to edge) from the design exploration (scratchpad's inner-build/leaf.css) onto
+ * the real pin markup, CSS only -- no markup, no vault path, no colour literal (SD-8). Every rule
+ * below carries the exact scope LEAF:
+ *
+ *   body:has(> .top-nav) > main.content:not(:has(> .landing-hero))
+ *
+ * (0,3,2) by construction, so it never depends on stylesheet order. LEAF excludes the landing page
+ * (Track A's cover; the last :not() clause) and 404.html (no .top-nav; the first :has() clause) by
+ * construction, never by a body class or by JS (rejected -- Structural decision 1).
+ *
+ * Colour: every leaf rule below consumes only the --sc-leaf-* tokens declared in the block
+ * immediately below (product defaults route through the existing theme tokens: --bg-card, --bg,
+ * --text, --text-muted, --accent, --border, --bg-header, --accent-dim, --font-heading). The
+ * campaign layer re-declares every one of them with the mock's literal vellum/brass/haze values,
+ * plus AMENDMENT E-4's five fold tokens (the built-in haze theme's token block, assets/themes/haze/theme.css). Black alphas use
+ * color-mix(in srgb, #000 N%, transparent), the Vellum precedent.
+ * ====================================================================== */
+
+:root {
+  --sc-leaf-paper: var(--bg-card);
+  --sc-leaf-paper-hi: var(--bg-card);
+  --sc-leaf-paper-2: var(--bg);
+  --sc-leaf-ink: var(--text);
+  --sc-leaf-muted: var(--text-muted);
+  --sc-leaf-brass: var(--accent);
+  --sc-leaf-rule: color-mix(in srgb, var(--accent) 42%, transparent);
+  --sc-leaf-rule-faint: color-mix(in srgb, var(--accent) 18%, transparent);
+  --sc-leaf-edge: var(--border);
+  --sc-leaf-desk: var(--bg-header);
+  --sc-leaf-initial-bg: linear-gradient(135deg, var(--accent-dim), var(--bg));
+  --sc-leaf-initial-ink: var(--text);
+  --sc-leaf-initial-glow: var(--accent);
+  --sc-leaf-font-sc: var(--font-heading);
+  /* AMENDMENT E-4: the fold's five paper/crease stops. */
+  --sc-leaf-verso: var(--sc-leaf-paper-2);
+  --sc-leaf-verso-2: var(--sc-leaf-paper-2);
+  --sc-leaf-verso-3: var(--sc-leaf-paper-2);
+  --sc-leaf-crease-hi: color-mix(in srgb, var(--sc-leaf-paper) 70%, var(--sc-leaf-ink));
+  --sc-leaf-crease: color-mix(in srgb, var(--sc-leaf-paper) 65%, var(--sc-leaf-ink));
+  /* AMENDMENT E-5: 0 everywhere except the fore-edge thumb-tab breakpoint below. */
+  --sc-vt-over: 0px;
+}
+
+/* ---- a1 Dark vellum: leaf material, inset double brass rule, binding shadow (FR-02/AC-02) ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) {
+  position: relative;
+  isolation: isolate;
+  padding: 4rem clamp(1.75rem, 7vw, 5.75rem) 4.5rem;
+  background:
+    linear-gradient(to right, color-mix(in srgb, #000 34%, transparent), transparent 6%),
+    radial-gradient(120% 70% at 50% 0%, var(--sc-leaf-paper-hi), var(--sc-leaf-paper) 62%);
+  box-shadow: 0 2.125rem 4.375rem color-mix(in srgb, #000 50%, transparent), 0 0 0 1px var(--sc-leaf-edge);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero))::before {
+  content: "";
+  position: absolute;
+  inset: 1.25rem;
+  border: 1px solid var(--sc-leaf-rule);
+  outline: 1px solid var(--sc-leaf-rule-faint);
+  outline-offset: 5px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ---- Breadcrumbs: centred running head (FR-02/AC-02) ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .breadcrumbs {
+  text-align: center;
+  font-family: var(--sc-leaf-font-sc);
+  letter-spacing: 0.05em;
+  color: var(--sc-leaf-muted);
+  margin-bottom: 2.625rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .breadcrumbs a {
+  color: var(--sc-leaf-muted);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .breadcrumbs .sep {
+  margin-inline: 0.35em;
+  color: var(--sc-leaf-brass);
+}
+
+/* ---- FR-03: h2 rule, replacing the Vellum hairline on leaves (Structural decision 5).
+ * Reviewer rework (Polish, 2026-09-24): widened past decision 5's original literal selector to
+ * also reach the section-nested h2s decision 5 missed -- index-page.js's dashboard sections
+ * (.cdd-section-title, e.g. "Premise"/"Setting" on campaign/index.html), story-landing.js's
+ * <section class="story-branch"><h2>Character Stories</h2> on story.html, and story.js's
+ * <aside class="story-refs"><h2>In this session</h2> on a session/chapter narrative page -- none
+ * of the three is inside .main/.tab-panel nor main.content's direct child, so the base selector
+ * never reached them. ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) :is(.main, .tab-panel) h2,
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) > h2,
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .cdd-section-title,
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .story-refs h2,
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .story-branch h2 {
+  border-bottom: 0;
+  padding-bottom: 0;
+  position: static;
+  font-family: var(--font-heading);
+  font-weight: 400;
+  text-align: center;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) :is(.main, .tab-panel) h2::after,
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) > h2::after,
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .cdd-section-title::after,
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .story-refs h2::after,
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .story-branch h2::after {
+  content: "";
+  position: static;
+  display: block;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: 3.5rem;
+  height: 1px;
+  margin: 0.75rem auto 0;
+  background: var(--sc-leaf-brass);
+}
+
+/* ---- FR-03: italic h3, meta fleurons, pull-quote, relationship list, story-nav ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) :is(.main, .accordion-body) h3 {
+  font-family: var(--font-heading);
+  font-style: italic;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .meta {
+  justify-content: center;
+  gap: 0.25rem 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .meta > span + span::before {
+  content: "\2766";
+  color: var(--sc-leaf-brass);
+  font-size: 0.9rem;
+  margin: 0 1rem;
+  font-style: normal;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .pull-quote {
+  text-align: center;
+  max-width: 40ch;
+  margin-inline: auto;
+  text-wrap: balance;
+  border-inline: 0;
+  padding-inline: 0;
+  border-block: 1px solid var(--sc-leaf-rule);
+  padding-block: 0.75rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .pull-quote::before {
+  content: none;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .rel-label {
+  font-family: var(--sc-leaf-font-sc);
+  font-weight: 400;
+  color: var(--sc-leaf-brass);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .story-nav {
+  font-style: italic;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .main > .story-nav:last-child {
+  margin-top: 2.75rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--sc-leaf-rule);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) blockquote {
+  font-style: italic;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) blockquote strong {
+  font-family: var(--sc-leaf-font-sc);
+  font-style: normal;
+  font-weight: 400;
+  color: var(--accent);
+}
+
+/* ---- #96: no frame around portrait images. FR-04's b1 "Framed miniature" (padding, desk
+ * background, brass border, outline, shadow on .hero-cinematic-img and .char-header img.portrait)
+ * was removed for every theme on the owner's review note. The generator's own css/style.css puts
+ * no box on these images (only a 0.375rem radius), so removing the rule is the whole fix. Not an
+ * opt-in slot: nothing used one. ---- */
+
+/* ---- FR-04: brass small-caps titles. On .hero-banner/.hero-banner-no-img (location, NPC without
+ * art) only the title typography changes -- the banner layout itself is untouched. ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) :is(.hero-cinematic-overlay h1, .char-header h1, .page-title, .hero-banner h1, .hero-banner-no-img h1) {
+  font-family: var(--sc-leaf-font-sc);
+  font-weight: 400;
+  color: var(--sc-leaf-brass);
+  letter-spacing: 0.03em;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .page-title {
+  text-align: center;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .metadata-badges {
+  justify-content: center;
+  font-style: italic;
+  color: var(--sc-leaf-muted);
+}
+
+/* ---- FR-04: at most one illuminated initial per leaf (Structural decision 3). The reset comes
+ * first in source; the b1 initial's #tab-sheet-bearing branch outranks it where they coincide. ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .content-with-sidebar > .main > p:first-of-type::first-letter {
+  float: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit;
+  padding: 0;
+  margin: 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) :is(#tab-sheet .accordion:first-of-type .accordion-body > p:first-child, .main > h2:first-of-type + p:not(:has(> em:only-child)), .main > h2:first-of-type + p:has(> em:only-child) + p)::first-letter {
+  float: left;
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 4.1em;
+  line-height: 1;
+  padding: 0.12em 0.17em 0.02em;
+  margin: 0.08em 0.16em 0 0;
+  color: var(--sc-leaf-initial-ink);
+  background: var(--sc-leaf-initial-bg);
+  border: 2px solid var(--sc-leaf-brass);
+  box-shadow: 0 0 0 3px var(--sc-leaf-paper), 0 0 0 4px var(--sc-leaf-brass);
+  text-shadow: 0 0 14px var(--sc-leaf-initial-glow);
+}
+
+/* ---- FR-12 (the owner, option (c)): accordions open on arrival, foldable. Never set
+ * .accordion-body{display:...} -- the open state stays with .open (accordions.js). ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .accordion {
+  border: 0;
+  border-radius: 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .accordion-header {
+  display: block;
+  text-align: center;
+  background: none;
+  background-image: linear-gradient(var(--sc-leaf-brass), var(--sc-leaf-brass));
+  background-position: 50% 100%;
+  background-size: 3.5rem 1px;
+  background-repeat: no-repeat;
+  color: var(--sc-leaf-ink);
+  font-family: var(--font-heading);
+  font-weight: 400;
+  padding: 0;
+  margin: 2.75rem 0 1rem;
+  cursor: pointer;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .accordion-header::after {
+  font-size: 1rem;
+  color: var(--sc-leaf-brass);
+  margin-left: 0.5rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .accordion-body {
+  background: none;
+  padding: 0;
+}
+
+/* ---- Structural decision 4: reading column, centred, not left-aligned inside the shell ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .content-with-sidebar {
+  display: block;
+  padding: 0;
+  max-width: none;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .content-with-sidebar > .main,
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) > :is(p, ul, ol, blockquote, h3) {
+  max-width: calc(var(--sc-space-8) * 12);
+  margin-inline: auto;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .tab-panel {
+  max-width: 47.5rem;
+  margin-inline: auto;
+}
+
+/* ---- FR-05: c3 footnotes. Handles location.js's Parent h3+p, not only <ul> (risk area). ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .context-sidebar {
+  margin-top: 3.5rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--sc-leaf-muted);
+  columns: 2 16rem;
+  column-gap: 3rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .context-sidebar::before {
+  content: "";
+  display: block;
+  width: 9.375rem;
+  height: 1px;
+  background: var(--sc-leaf-brass);
+  margin-bottom: 1rem;
+  column-span: all;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .context-sidebar h3 {
+  display: inline;
+  font-family: var(--font-heading);
+  font-style: italic;
+  color: var(--sc-leaf-ink);
+  margin: 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .context-sidebar h3::after {
+  content: ". ";
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .context-sidebar h3 + p {
+  display: inline;
+  margin: 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .context-sidebar ul {
+  display: inline;
+  padding: 0;
+  margin: 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .context-sidebar ul::after {
+  content: "";
+  display: block;
+  height: 0.75rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .context-sidebar li {
+  display: inline;
+  margin: 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .context-sidebar li + li::before {
+  content: "; ";
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sidebar-badge {
+  font-size: 0.875rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sidebar-badge::before {
+  content: "(";
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sidebar-badge::after {
+  content: ")";
+}
+
+/* ---- FR-05: PC Relationships restyled as footnotes inside #tab-sheet ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) #tab-sheet > h2:has(+ .relationship-list) {
+  font-family: var(--font-heading);
+  font-style: italic;
+  text-align: left;
+  margin: 3.25rem 0 0.5rem;
+  padding-top: 1rem;
+  background: linear-gradient(var(--sc-leaf-brass), var(--sc-leaf-brass)) left top / 9.375rem 1px no-repeat;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) #tab-sheet > h2:has(+ .relationship-list)::after {
+  display: none;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) #tab-sheet > .relationship-list {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--sc-leaf-muted);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) #tab-sheet > .relationship-list li {
+  border: 0;
+  padding: 0;
+  margin: 0 0 0.375rem;
+}
+
+/* ---- FR-05: thumb-tab breakpoint. AMENDMENT E-5 moves this from 82.5rem/1320px to 84rem/1344px
+ * (the .vt-fx overhang needs 56px of gutter, and 82.5rem only has 51.5px). No overlapping ranges:
+ * the row-under-headline fallback covers 701px up to 84rem; the d1 strip covers <=700px. ---- */
+@media (min-width: 701px) and (max-width: 83.99rem) {
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .tab-bar {
+    position: static;
+    flex-direction: row;
+    justify-content: center;
+    gap: 0.625rem;
+    margin: 1.875rem 0 1.5rem;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .pc-tab {
+    writing-mode: horizontal-tb;
+    width: auto;
+    padding: 0.375rem 1rem;
+    border: 1px solid var(--sc-leaf-rule);
+    border-radius: 0 0 0.625rem 0.625rem;
+    margin: 0;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .pc-tab.active {
+    width: auto;
+    margin: 0;
+  }
+}
+@media (min-width: 84rem) {
+  :root {
+    --sc-vt-over: 56px;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .tab-bar {
+    position: absolute;
+    top: 18.75rem;
+    right: -2.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.375rem;
+    margin: 0;
+    z-index: 3;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .pc-tab {
+    writing-mode: vertical-rl;
+    font-family: var(--sc-leaf-font-sc);
+    letter-spacing: 0.05em;
+    width: 2.625rem;
+    padding: 1.125rem 0;
+    color: var(--sc-leaf-muted);
+    background: var(--sc-leaf-paper-2);
+    border: 1px solid var(--sc-leaf-rule);
+    border-left: 0;
+    border-radius: 0 0.6875rem 0.6875rem 0;
+    box-shadow: 0.25rem 0.375rem 0.75rem color-mix(in srgb, #000 30%, transparent);
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .pc-tab.active {
+    width: 3rem;
+    margin-left: -0.375rem;
+    color: var(--sc-leaf-brass);
+    background: var(--sc-leaf-paper);
+  }
+}
+
+/* ---- FR-06: d1 Edge to edge (<=700px). main.content's own padding (css/style.css:270-274,
+ * .content{padding:1.5rem 1rem 3rem}) is INSIDE its border box, not an ancestor's outer margin --
+ * the box already spans the full viewport width at this breakpoint (margin:0 auto has nothing to
+ * centre once max-width exceeds the viewport). So border-radius:0 plus a reduced padding-inline is
+ * enough for edge-to-edge; no negative margin is needed (an earlier -1rem margin-inline here
+ * widened the box by 32px and caused real horizontal overflow -- caught by CDP scrollWidth
+ * measurement against the real vault, not by a unit test). AC-06: scrollWidth <= clientWidth on
+ * every leaf type at 390 (verified). ---- */
+@media (max-width: 700px) {
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) {
+    border-radius: 0;
+    padding: 2.5rem 1.25rem 3rem;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero))::before {
+    inset: 0.5625rem;
+    outline: 0;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .tab-bar {
+    position: static;
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 1.625rem -0.25rem 1.25rem;
+    padding: 0 0.25rem;
+    border-block: 1px solid var(--sc-leaf-rule);
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .pc-tab {
+    writing-mode: horizontal-tb;
+    flex: none;
+    width: auto;
+    padding: 0.75rem 0.875rem;
+    border: 0;
+    border-radius: 0;
+    box-shadow: inset 0 -2px 0 transparent;
+    background: none;
+    color: var(--sc-leaf-muted);
+    font-family: var(--sc-leaf-font-sc);
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .pc-tab.active {
+    box-shadow: inset 0 -2px 0 var(--sc-leaf-brass);
+    color: var(--sc-leaf-brass);
+    width: auto;
+    margin: 0;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .context-sidebar {
+    margin-top: 2.75rem;
+    padding: 1.125rem 1rem 0.75rem;
+    border: 1px solid var(--sc-leaf-rule);
+    background: color-mix(in srgb, #000 8%, transparent);
+    columns: auto;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) :is(.main, .tab-panel) h2,
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .accordion-header {
+    font-size: 1.625rem;
+    margin-top: 2.5rem;
+  }
+}
+
+/* ----------------------------------------------------------------------------------------------
+ * Reviewer rework (B-3, 2026-09-24): book furniture for the remaining grey app-chrome. Six pin
+ * components still rendered as style.css's flat --bg-card pills/cards inside the vellum leaf
+ * (.section-nav, .metadata-badge, .story-nav a, .rel-card/.relationship-cards,
+ * .npc-location-card, .cdd-param/.cdd-genre) -- restyled here in the spirit of the b1/c3 picks:
+ * small-caps text with brass fleuron separators for chip rows, marginal/footnote-style entries
+ * (the same columned, run-in idiom the c3 footnotes above already use) for the relationship and
+ * location cards. No colour literal; every value is one of this file's own tokens.
+ * ---------------------------------------------------------------------------------------------- */
+
+/* .section-nav (PC page accordion contents line) */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .section-nav {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0 0 1.5rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .section-nav a {
+  font-family: var(--sc-leaf-font-sc);
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: none;
+  color: var(--sc-leaf-muted);
+  padding: 0.125rem 0;
+  border-radius: 0;
+  white-space: nowrap;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .section-nav a:hover {
+  background: none;
+  color: var(--sc-leaf-brass);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .section-nav a + a::before {
+  content: "\2766";
+  display: inline-block;
+  color: var(--sc-leaf-brass);
+  font-size: 0.75rem;
+  margin: 0 1rem;
+}
+
+/* .metadata-badge (session number / date / status pills -> italic small-caps text) */
+/* display is deliberately untouched here (span default is already inline): this rule's own
+ * specificity, LEAF (0,3,2) plus the class, is high enough to beat the campaign layer's
+ * [data-field="status"]{display:none} (0,1,0) on the display property if it set one, which would
+ * silently un-hide the status badge -- caught by screenshot after a first draft did exactly that. */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .metadata-badge {
+  background: none;
+  color: var(--sc-leaf-muted);
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.9375rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .metadata-badge + .metadata-badge::before {
+  content: "\2766";
+  display: inline-block;
+  color: var(--sc-leaf-brass);
+  font-style: normal;
+  margin: 0 1.25rem;
+}
+
+/* .story-nav a (prev/next -> italic text links, arrows already in the text, no box) */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .story-nav a {
+  display: inline;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  min-height: 0;
+  color: var(--sc-leaf-muted);
+  font-style: italic;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .story-nav a:hover {
+  color: var(--sc-leaf-brass);
+  border-color: transparent;
+}
+
+/* .relationship-cards/.rel-card and .npc-location-card (NPC "Connections"/"Where to find them")
+ * -> marginal, footnote-style entries, the same columned run-in idiom as the c3 footnotes. */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .relationship-cards {
+  display: block;
+  columns: 2 16rem;
+  column-gap: 3rem;
+  margin: 1rem 0;
+  gap: 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .rel-card {
+  display: block;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0 0 0.5rem;
+  break-inside: avoid;
+  color: var(--sc-leaf-ink);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .rel-card:hover {
+  border-color: transparent;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .rel-card .rel-type {
+  display: inline;
+  font-family: var(--sc-leaf-font-sc);
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0.04em;
+  font-size: 0.8125rem;
+  color: var(--sc-leaf-brass);
+  margin-bottom: 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .rel-card .rel-type::after {
+  content: ": ";
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .rel-card .rel-name {
+  display: inline;
+  font-weight: 400;
+  font-size: 1rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .npc-location-card {
+  display: block;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 1rem 0;
+  gap: 0;
+  color: var(--sc-leaf-ink);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .npc-location-card:hover {
+  border-color: transparent;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .npc-location-card .loc-label {
+  font-family: var(--sc-leaf-font-sc);
+  text-transform: none;
+  letter-spacing: 0.04em;
+  color: var(--sc-leaf-brass);
+  font-size: 0.8125rem;
+}
+
+/* .cdd-param/.cdd-genre (campaign/index.html's System/Setting Year/... cards and genre pills) */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .cdd-params {
+  justify-content: center;
+  gap: 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .cdd-param {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.35em;
+  min-width: 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .cdd-param + .cdd-param::before {
+  content: "\2766";
+  display: inline-block;
+  color: var(--sc-leaf-brass);
+  margin: 0 1.25rem;
+  align-self: center;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .cdd-param-label {
+  font-family: var(--sc-leaf-font-sc);
+  font-style: normal;
+  text-transform: none;
+  color: var(--sc-leaf-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .cdd-param-value {
+  font-weight: 400;
+  color: var(--sc-leaf-ink);
+  font-size: 1rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .cdd-genres {
+  justify-content: center;
+  gap: 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .cdd-genre {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  font-family: var(--sc-leaf-font-sc);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0.03em;
+  color: var(--sc-leaf-muted);
+  font-size: 0.8125rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .cdd-genre + .cdd-genre::before {
+  content: "\00b7";
+  display: inline-block;
+  color: var(--sc-leaf-brass);
+  margin: 0 0.6rem;
+}
+
+
+/* ====================================================================== *
+ * Page motion (Track B)
+ *
+ * Engineering Brief: "Book leaves + motion" (docs/agent-runs/bookleaves-engineering-brief-2026-09-24.md),
+ * FR-09/FR-10/FR-11/FR-11b, plus AMENDMENT 1 E-2 through E-6. Cross-document View Transitions:
+ * the shared scaffold, A Ink title, C Mirror (head script, src/build/pageturn.js), D Scaled down,
+ * and B filled with round 3's b2 Folded verso (the owner's ruling, AMENDMENT E-2). Colour-free (SD-8):
+ * every declaration below is a keyframe, a structural property, or one of this file's/the campaign
+ * layer's own tokens. View-transition names are gated under :root:active-view-transition so no
+ * page carries a name at rest -- landing and 404 stay pixel-identical to B0 by construction.
+ * ====================================================================== */
+
+@view-transition {
+  navigation: auto;
+}
+
+/* ---- Scaffold (FR-09) ---- */
+:root:active-view-transition .top-nav {
+  view-transition-name: topnav;
+}
+:root:active-view-transition main.content {
+  view-transition-name: leaf;
+}
+:root:active-view-transition .landing-hero {
+  view-transition-name: cover;
+}
+:root:active-view-transition main.content:has(> .landing-hero) {
+  view-transition-name: none;
+}
+:root:active-view-transition .nav-brand,
+:root:active-view-transition .landing-hero h1 {
+  view-transition-name: brand;
+}
+:root:active-view-transition:has(.landing-hero) .nav-brand {
+  view-transition-name: none;
+}
+
+::view-transition-group(topnav) {
+  z-index: 10;
+  animation: none;
+}
+::view-transition-group(leaf) {
+  animation: none;
+}
+::view-transition-image-pair(leaf) {
+  isolation: auto;
+}
+::view-transition-old(leaf),
+::view-transition-new(leaf) {
+  mix-blend-mode: normal;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+}
+/* AMENDMENT E-4 (SHARED_REAL): the leaf-fx group's own snapshot is empty -- the fold paints on the
+ * pseudo directly (in the slot below) -- so its group/image-pair get the same treatment as leaf's. */
+::view-transition-group(leaf-fx) {
+  animation: none;
+}
+::view-transition-image-pair(leaf-fx) {
+  isolation: auto;
+}
+::view-transition-old(leaf-fx),
+::view-transition-new(leaf-fx) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+@keyframes sc-vt-ink-out {
+  to {
+    filter: blur(16px) contrast(1.6);
+    opacity: 0;
+  }
+}
+@keyframes sc-vt-ink-in {
+  from {
+    filter: blur(8px);
+    opacity: 0;
+  }
+}
+@keyframes sc-vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes sc-vt-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---- A: Ink title (FR-10), desktop ---- */
+::view-transition-group(brand) {
+  z-index: 11;
+  animation-duration: 700ms;
+  animation-timing-function: cubic-bezier(0.55, 0, 0.15, 1);
+}
+:root:active-view-transition::view-transition-old(cover) {
+  animation: sc-vt-ink-out 450ms cubic-bezier(0.5, 0, 0.8, 0.4) both;
+}
+:root:active-view-transition::view-transition-new(leaf):only-child {
+  animation: sc-vt-ink-in 500ms ease-out 200ms both;
+}
+:root:active-view-transition::view-transition-new(cover) {
+  animation: sc-vt-ink-out 450ms cubic-bezier(0.2, 0.6, 0.5, 1) 250ms reverse both;
+}
+:root:active-view-transition::view-transition-old(leaf):only-child {
+  animation: sc-vt-ink-in 500ms ease-in reverse both;
+}
+
+/* ---- A: Ink title, phone -- plain fade, no blur ---- */
+@media (max-width: 700px) {
+  ::view-transition-group(brand) {
+    animation-duration: 420ms;
+  }
+  :root:active-view-transition::view-transition-old(cover) {
+    animation: sc-vt-fade-out 280ms ease-in both;
+  }
+  :root:active-view-transition::view-transition-new(leaf):only-child {
+    animation: sc-vt-fade-in 280ms ease-out 140ms both;
+  }
+  :root:active-view-transition::view-transition-new(cover) {
+    animation: sc-vt-fade-out 280ms ease-out 140ms reverse both;
+  }
+  :root:active-view-transition::view-transition-old(leaf):only-child {
+    animation: sc-vt-fade-in 280ms ease-in reverse both;
+  }
+}
+
+/* ---- Structural decision 10: suppress Track A's FR-03 blur-clear on transition arrival. Beats
+ * Track A's ".landing-hero > h1" rule (0,1,1) by specificity (0,2,2), not !important and not
+ * source order (overrides.css loads after this file). Read from Track A's committed overrides.css
+ * (the "haze-clear" keyframe's target selector) before writing this. ---- */
+html[data-sc-vt-arrived] .landing-hero > h1 {
+  animation: none;
+}
+
+/* ----------------------------------------------------------------------------------------------
+ * Page turn slot (B): b2 Folded verso, Track B
+ *
+ * AMENDMENT E-2: the owner's ruling ("every Scriptorium site is a book") fills the slot with round 3's
+ * b2 pick (scratchpad's round3-build/turns.js, the TURNS entry id:'fold', FOLD_CLIP, FOLD_FLAP,
+ * SHARED_REAL, realCSS()), a scope change FR-11b itself authorises. The rest of the base contract
+ * holds: at most 400ms per transition (380 desktop, 260 phone, both present below), sc-turn-*
+ * keyframe names, no :only-child, specificity no higher than (0,2,1) on every rule in this slot
+ * (the leaf-fx cover-isolation rule that DOES use :only-child is deliberately placed with A's
+ * cover rules above, not in this slot -- AMENDMENT E-4), no new assets, D (below) wins.
+ *
+ * Renames from the exploration (AMENDMENT E-4): --vt-over -> --sc-vt-over (declared above, in the
+ * Book leaves section, next to the thumb-tab breakpoint it shares its 56px figure with);
+ * --fold -> --sc-turn-fold; fold-over -> sc-turn-fold; page-rise -> sc-turn-rise. Colour literals
+ * to tokens: black alphas via color-mix(in srgb, #000 N%, transparent); brass alphas via
+ * color-mix(in srgb, var(--sc-leaf-brass) N%, transparent); the five paper/crease stops via the
+ * --sc-leaf-verso/-verso-2/-verso-3/-crease-hi/-crease tokens declared above. Every other value in
+ * FOLD_CLIP/FOLD_FLAP (the --p/--l/--r arithmetic and the px offsets, ported as their rem
+ * equivalents at a 16px base) is ported verbatim.
+ *
+ * Fallback (no new code): without @property, --sc-turn-fold cannot interpolate and the fold is an
+ * instant cut. Every browser with cross-document view transitions (Chromium 126+, Safari 18.2+)
+ * supports @property; Firefox has no cross-document view transitions and navigates as today.
+ * ---------------------------------------------------------------------------------------------- */
+
+@property --sc-turn-fold {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+@keyframes sc-turn-fold {
+  from {
+    --sc-turn-fold: 0;
+  }
+  to {
+    --sc-turn-fold: 1;
+  }
+}
+@keyframes sc-turn-rise {
+  from {
+    filter: brightness(0.6);
+  }
+}
+
+/* Forward (desktop, 380ms). */
+:root:active-view-transition::view-transition-old(leaf) {
+  z-index: 1;
+  clip-path: inset(-2.5rem calc(var(--sc-turn-fold) * (100% + var(--sc-vt-over)) - var(--sc-vt-over)) -2.5rem -2.5rem);
+  animation: sc-turn-fold 380ms cubic-bezier(0.5, 0.05, 0.3, 1) both;
+}
+:root:active-view-transition::view-transition-new(leaf) {
+  animation: sc-turn-rise 380ms ease-out both;
+}
+:root:active-view-transition::view-transition-old(leaf-fx) {
+  --p: calc((1 - var(--sc-turn-fold)) * 100%);
+  --l: calc((1 - 2 * var(--sc-turn-fold)) * 100%);
+  --r: calc(var(--l) + var(--sc-vt-over));
+  clip-path: inset(0 max(0%, calc(92% - var(--p))) 0 max(0%, calc(var(--l) - 5%)));
+  background: linear-gradient(
+    to right,
+    transparent calc(var(--l) - 5%),
+    color-mix(in srgb, #000 34%, transparent) var(--l),
+    transparent var(--l) var(--r),
+    var(--sc-leaf-verso) var(--r) calc(var(--r) + 0.875rem),
+    color-mix(in srgb, var(--sc-leaf-brass) 22%, transparent) calc(var(--r) + 0.875rem) calc(var(--r) + 0.9375rem),
+    var(--sc-leaf-verso-2) calc(var(--r) + 0.9375rem) calc(var(--r) + 1.25rem),
+    color-mix(in srgb, var(--sc-leaf-brass) 50%, transparent) calc(var(--r) + 1.25rem) calc(var(--r) + 1.3125rem),
+    var(--sc-leaf-verso-3) calc(var(--r) + 1.3125rem),
+    var(--sc-leaf-crease-hi) calc(var(--p) - 1.4%),
+    var(--sc-leaf-crease) calc(var(--p) - 0.3%),
+    color-mix(in srgb, #000 55%, transparent) var(--p),
+    color-mix(in srgb, #000 36%, transparent) calc(var(--p) + 0.5%),
+    transparent calc(var(--p) + 8%)
+  );
+  animation: sc-turn-fold 380ms cubic-bezier(0.5, 0.05, 0.3, 1) both;
+}
+
+/* Mirror: back and up (a breadcrumb up to an index leaf turns back too, FR-11 C Mirror). */
+:root:active-view-transition-type(back, up)::view-transition-old(leaf) {
+  z-index: 0;
+  clip-path: none;
+  animation: sc-turn-rise 380ms ease-in reverse both;
+}
+:root:active-view-transition-type(back, up)::view-transition-new(leaf) {
+  z-index: 1;
+  clip-path: inset(-2.5rem calc(var(--sc-turn-fold) * (100% + var(--sc-vt-over)) - var(--sc-vt-over)) -2.5rem -2.5rem);
+  animation: sc-turn-fold 380ms cubic-bezier(0.7, 0, 0.5, 0.95) reverse both;
+}
+:root:active-view-transition-type(back, up)::view-transition-old(leaf-fx) {
+  background: none;
+}
+:root:active-view-transition-type(back, up)::view-transition-new(leaf-fx) {
+  --p: calc((1 - var(--sc-turn-fold)) * 100%);
+  --l: calc((1 - 2 * var(--sc-turn-fold)) * 100%);
+  --r: calc(var(--l) + var(--sc-vt-over));
+  clip-path: inset(0 max(0%, calc(92% - var(--p))) 0 max(0%, calc(var(--l) - 5%)));
+  background: linear-gradient(
+    to right,
+    transparent calc(var(--l) - 5%),
+    color-mix(in srgb, #000 34%, transparent) var(--l),
+    transparent var(--l) var(--r),
+    var(--sc-leaf-verso) var(--r) calc(var(--r) + 0.875rem),
+    color-mix(in srgb, var(--sc-leaf-brass) 22%, transparent) calc(var(--r) + 0.875rem) calc(var(--r) + 0.9375rem),
+    var(--sc-leaf-verso-2) calc(var(--r) + 0.9375rem) calc(var(--r) + 1.25rem),
+    color-mix(in srgb, var(--sc-leaf-brass) 50%, transparent) calc(var(--r) + 1.25rem) calc(var(--r) + 1.3125rem),
+    var(--sc-leaf-verso-3) calc(var(--r) + 1.3125rem),
+    var(--sc-leaf-crease-hi) calc(var(--p) - 1.4%),
+    var(--sc-leaf-crease) calc(var(--p) - 0.3%),
+    color-mix(in srgb, #000 55%, transparent) var(--p),
+    color-mix(in srgb, #000 36%, transparent) calc(var(--p) + 0.5%),
+    transparent calc(var(--p) + 8%)
+  );
+  animation: sc-turn-fold 380ms cubic-bezier(0.7, 0, 0.5, 0.95) reverse both;
+}
+
+/* Phone, 260ms, no thumb tabs (--sc-vt-over is already 0px at these widths). */
+@media (max-width: 700px) {
+  :root:active-view-transition::view-transition-old(leaf),
+  :root:active-view-transition::view-transition-new(leaf),
+  :root:active-view-transition::view-transition-old(leaf-fx) {
+    animation-duration: 260ms;
+  }
+  :root:active-view-transition-type(back, up)::view-transition-old(leaf),
+  :root:active-view-transition-type(back, up)::view-transition-new(leaf),
+  :root:active-view-transition-type(back, up)::view-transition-new(leaf-fx) {
+    animation-duration: 260ms;
+  }
+}
+
+/* End Page turn slot (B) */
+
+/* ---- AMENDMENT E-4: cover isolation. When a leaf goes home the old leaf-fx is an only child (the
+ * landing page has none), so the forward flap rule would otherwise paint a flap over the closing
+ * cover. Placed with A's cover rules, not inside the slot above -- this uses :only-child (0,3,1),
+ * which the slot's own rules never do. ---- */
+:root:active-view-transition::view-transition-old(leaf-fx):only-child,
+:root:active-view-transition::view-transition-new(leaf-fx):only-child {
+  animation: none;
+  background: none;
+  clip-path: none;
+}
+
+/* ---- AMENDMENT E-3: the .vt-fx element (src/build/pageturn.js inserts it, on leaf pages only).
+ * main.content is already position:relative on every leaf via the a1 rule above. ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) > .vt-fx {
+  position: absolute;
+  inset: 0 calc(-1 * var(--sc-vt-over)) 0 0;
+  pointer-events: none;
+}
+:root:active-view-transition .vt-fx {
+  view-transition-name: leaf-fx;
+}
+:root:active-view-transition:has(.landing-hero) .vt-fx {
+  view-transition-name: none;
+}
+
+/* ---- AMENDMENT E-6: the scrolled guard (every leaf transition, not only the fold). Placed after
+ * A's cover rules and after the slot, so it wins ties by source order; (0,3,1) beats both the
+ * slot's (0,2,1) and A's :only-child rules' (0,3,1, earlier in the file) by being later. Cover,
+ * brand and topnav are untouched; D (below) still wins over everything. ---- */
+:root:active-view-transition:active-view-transition-type(scrolled)::view-transition-old(leaf),
+:root:active-view-transition:active-view-transition-type(scrolled)::view-transition-new(leaf),
+:root:active-view-transition:active-view-transition-type(scrolled)::view-transition-old(leaf-fx),
+:root:active-view-transition:active-view-transition-type(scrolled)::view-transition-new(leaf-fx) {
+  clip-path: none;
+  background: none;
+  z-index: auto;
+}
+:root:active-view-transition:active-view-transition-type(scrolled)::view-transition-old(leaf) {
+  animation: sc-vt-fade-out 150ms linear both;
+}
+:root:active-view-transition:active-view-transition-type(scrolled)::view-transition-new(leaf) {
+  animation: sc-vt-fade-in 150ms linear both;
+}
+
+/* ---- D: Scaled down, reduced motion (NFR-01). !important is permitted only in this block. Every
+ * duration here is <=150ms. AMENDMENT E-4 extends this to leaf-fx (background forced to none). ---- */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*) {
+    animation: none !important;
+  }
+  ::view-transition-old(*) {
+    animation: sc-vt-fade-out 150ms linear both !important;
+    transform: none !important;
+    mask: none !important;
+    clip-path: none !important;
+    filter: none !important;
+    background: none !important;
+  }
+  ::view-transition-new(*) {
+    animation: sc-vt-fade-in 150ms linear both !important;
+    transform: none !important;
+    mask: none !important;
+    clip-path: none !important;
+    filter: none !important;
+    background: none !important;
+  }
+}
+
+
+/* ====================================================================== *
+ * Story timeline
+ *
+ * Engineering Brief: "Story timeline + Connections lane" (docs/agent-runs/
+ * timeline-connections-engineering-brief-2026-09-24.md), FR-T4 through FR-T8. The a1 ruler on
+ * desktop, the d1 upright spine at <=700px, kind glyphs and a key, and the tap card. Every
+ * selector below carries LEAF (body:has(> .top-nav) > main.content:not(:has(> .landing-hero))),
+ * so it never depends on stylesheet order and never touches the landing page or 404.html. Colour
+ * comes only from --sc-leaf-* tokens, --accent, and the two new product tokens below (Structural
+ * decision 10, NFR-01).
+ * ====================================================================== */
+
+:root {
+  --sc-tl-fight: var(--sc-leaf-ink);
+  --sc-tl-journey: var(--sc-leaf-muted);
+  --sc-on-brass: var(--sc-leaf-paper);
+  --sc-on-named: var(--sc-leaf-paper);
+}
+
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-src {
+  margin: 1.5rem 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl {
+  position: relative;
+  margin: 2rem 0;
+  font-family: var(--font-heading);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl button {
+  font: inherit;
+  color: inherit;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-lens button {
+  font-family: var(--sc-leaf-font-sc);
+  background: var(--sc-leaf-paper-2);
+  color: var(--sc-leaf-ink);
+  border: 1px solid var(--sc-leaf-edge);
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-lens button[aria-pressed="true"] {
+  background: var(--sc-leaf-brass);
+  color: var(--sc-on-brass);
+  border-color: var(--sc-leaf-brass);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.8125rem;
+  color: var(--sc-leaf-muted);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-g {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-star .sc-tl-g {
+  fill: var(--sc-leaf-brass);
+  stroke: var(--sc-leaf-brass);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-book .sc-tl-g {
+  fill: var(--sc-leaf-muted);
+  stroke: var(--sc-leaf-muted);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-k-fight .sc-tl-g {
+  stroke: var(--sc-tl-fight);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-k-journey .sc-tl-g {
+  stroke: var(--sc-tl-journey);
+}
+
+/* ---- a1 ruler (desktop) ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-ruler {
+  position: relative;
+  background: var(--sc-leaf-paper-2);
+  border: 1px solid var(--sc-leaf-edge);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-pan {
+  display: flex;
+  align-items: stretch;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-pb {
+  flex: none;
+  width: 2.25rem;
+  border: none;
+  background: var(--sc-leaf-paper);
+  color: var(--sc-leaf-brass);
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-scroll {
+  overflow-x: auto;
+  flex: 1;
+  mask-image: linear-gradient(to right, transparent 0, color-mix(in srgb, #000 100%, transparent) 1.5rem, color-mix(in srgb, #000 100%, transparent) calc(100% - 1.5rem), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, color-mix(in srgb, #000 100%, transparent) 1.5rem, color-mix(in srgb, #000 100%, transparent) calc(100% - 1.5rem), transparent 100%);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-track {
+  position: relative;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-rp {
+  position: absolute;
+  top: 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--sc-leaf-rule);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: var(--sc-leaf-rule-faint);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-t2 {
+  position: absolute;
+  top: calc(186px + 0.875rem);
+  font-style: italic;
+  font-size: 0.8125rem;
+  color: var(--sc-leaf-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-t1 {
+  position: absolute;
+  top: calc(186px + 2.625rem);
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--sc-leaf-rule-faint);
+  /* Issue #50: this div's inline width (assets/site/scriptorium.js's renderRuler) already
+     matches its tier group's own non-overlapping span on the ruler, the same guarantee
+     .sc-tl-t2 below relies on for its own clipping. Without overflow:hidden here, an
+     unclipped nowrap span (below) can render past this box's right edge and into the next
+     group's, which is exactly how several short segments in a row collide. */
+  overflow: hidden;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-t1 span:not(.sc-tl-fleuron) {
+  display: block;
+  padding-left: 0.5rem;
+  font-family: var(--sc-leaf-font-sc);
+  font-size: 0.95rem;
+  letter-spacing: 0.03em;
+  color: var(--sc-leaf-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-fleuron {
+  font-style: normal;
+  font-size: 0.8rem;
+  color: var(--sc-leaf-brass);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-break {
+  position: absolute;
+  width: 1px;
+  height: 20px;
+  background: var(--sc-leaf-brass);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-mk {
+  position: absolute;
+  left: 0;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid var(--sc-leaf-edge);
+  background: var(--sc-leaf-paper);
+  padding: 0.2rem;
+  cursor: pointer;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-mk.sc-tl-is-sel,
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-mk:focus-visible {
+  border-color: var(--sc-leaf-brass);
+  outline: none;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-ghost {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sc-leaf-rule-faint);
+  transform: translate(-50%, -50%);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-rt {
+  position: absolute;
+  left: 0;
+  font-size: 0.75rem;
+  color: var(--sc-leaf-ink);
+  max-width: 8rem;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-stem {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  background: var(--sc-leaf-rule-faint);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-ov {
+  position: relative;
+  display: flex;
+  height: 1.75rem;
+  margin: 0 2.25rem 0.5rem;
+  border: 1px solid var(--sc-leaf-rule-faint);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-ov button {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border: none;
+  border-right: 1px solid var(--sc-leaf-edge);
+  background: var(--sc-leaf-paper);
+  color: var(--sc-leaf-muted);
+  font-family: var(--sc-leaf-font-sc);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  padding: 0 0.4rem;
+  text-align: left;
+  cursor: pointer;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-ov button span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-ov button:hover {
+  color: var(--sc-leaf-ink);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-win {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  border: 1.5px solid var(--sc-leaf-brass);
+  background: color-mix(in srgb, var(--sc-leaf-brass) 10%, transparent);
+  pointer-events: none;
+}
+
+/* ---- d1 upright spine (<=700px, FR-T7/AC-08) ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-spine {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-left: 2px solid var(--sc-leaf-rule);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  max-width: 100%;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-margin {
+  font-size: 0.75rem;
+  color: var(--sc-leaf-muted);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-rail .sc-tl-mk {
+  position: static;
+  transform: none;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-body {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-when {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--sc-leaf-muted);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-st {
+  margin: 0.15rem 0 0;
+  font-size: 1rem;
+}
+
+/* ---- c1 tap card (FR-T6) ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-card {
+  position: absolute;
+  z-index: 2;
+  max-width: 22rem;
+  background: var(--sc-leaf-paper);
+  border: 1px solid var(--sc-leaf-brass);
+  box-shadow: 0 0.75rem 1.5rem color-mix(in srgb, #000 45%, transparent);
+  padding: 1rem 1.25rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-x {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  border: none;
+  background: none;
+  font-size: 1.1rem;
+  color: var(--sc-leaf-muted);
+  cursor: pointer;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-meta {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--sc-leaf-muted);
+  margin: 0 0 0.35rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-dt {
+  margin: 0 0 0.25rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-kl {
+  margin: 0 0 0.5rem;
+  font-style: italic;
+  color: var(--sc-leaf-muted);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-dx {
+  margin: 0 0 0.6rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-dl {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 700px) {
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-card.sc-tl-is-sheet {
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: none;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-tl-scroll {
+    scroll-behavior: auto;
+    transition: none;
+    animation: none;
+  }
+}
+
+
+/* ====================================================================== *
+ * Connections lane
+ *
+ * Engineering Brief: "Story timeline + Connections lane" (docs/agent-runs/
+ * timeline-connections-engineering-brief-2026-09-24.md), FR-C2 through FR-C5. Ties/hub/mentions
+ * lane, brass/haze/iron studs, and the reflow to a spine under 600px of the lane's OWN container
+ * width (container queries, not the viewport -- the lane can sit inside a narrow sidebar on a
+ * wide screen, e.g. the PC Journey tab). Every selector carries LEAF.
+ * ====================================================================== */
+
+:root {
+  --sc-cx-stud: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--sc-leaf-brass) 55%, var(--sc-leaf-ink)), var(--sc-leaf-brass) 45%, color-mix(in srgb, var(--sc-leaf-brass) 50%, var(--sc-leaf-paper-2)));
+  --sc-cx-stud-edge: color-mix(in srgb, var(--sc-leaf-brass) 50%, var(--sc-leaf-paper-2));
+  --sc-cx-stud-ink: var(--sc-on-brass);
+  --sc-cx-named: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--accent) 55%, var(--sc-leaf-ink)), var(--accent) 45%, color-mix(in srgb, var(--accent) 50%, var(--sc-leaf-paper-2)));
+  --sc-cx-named-edge: color-mix(in srgb, var(--accent) 50%, var(--sc-leaf-paper-2));
+  --sc-cx-iron: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--sc-leaf-muted) 55%, var(--sc-leaf-ink)), var(--sc-leaf-muted) 45%, color-mix(in srgb, var(--sc-leaf-muted) 50%, var(--sc-leaf-paper-2)));
+  --sc-cx-iron-edge: color-mix(in srgb, var(--sc-leaf-muted) 50%, var(--sc-leaf-paper-2));
+  --sc-cx-iron-ink: var(--sc-leaf-ink);
+  --sc-cx-seal: radial-gradient(circle at 38% 30%, color-mix(in srgb, var(--accent) 55%, var(--sc-leaf-ink)), var(--accent) 45%, color-mix(in srgb, var(--accent) 50%, var(--sc-leaf-paper-2)));
+  /* #85: the tie/named relation words used to read --sc-leaf-brass/--accent directly. Brass and
+   * accent are both genre-preset colours, and neither one is guaranteed to sit far enough from
+   * the leaf's own paper -- under the plain theme with a genre preset, both the tie and the named
+   * word land under 4.5:1. Routing both through their own token, defaulted to body ink (the one
+   * colour that's read straight from the page's own text pair, so it passes on every preset in
+   * both colour states), fixes that. A theme (haze) or a campaign's overrides.css (which loads
+   * later) can re-declare either token to bring a kind's own colour back. */
+  --sc-cx-rel-tie: var(--sc-leaf-ink);
+  --sc-cx-rel-named: var(--sc-leaf-ink);
+}
+
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx {
+  container-type: inline-size;
+  margin: 2rem 0;
+  border-top: 1px double var(--sc-leaf-rule);
+  border-bottom: 1px double var(--sc-leaf-rule);
+  padding: 1.25rem 0;
+  /* #85: the tray heading and the tray quote set no colour of their own (see .sc-cx-tray-h and
+   * .sc-cx-tray-say below), so without this they inherit the page's own --text, which a genre
+   * preset can land close to the leaf's paper. Leaf ink is the leaf's own body-text colour, so
+   * it always passes against the leaf's own paper. */
+  color: var(--sc-leaf-ink);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx button {
+  font: inherit;
+  color: inherit;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-hub {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+  order: -1;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-hub-seal {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background: var(--sc-cx-seal);
+  color: var(--sc-on-named);
+  font-family: var(--sc-leaf-font-sc);
+  font-size: 1.15rem;
+  border: 2px solid var(--sc-leaf-brass);
+  box-shadow: 0 0 0 3px var(--sc-leaf-paper), 0 0 0 4px var(--sc-leaf-rule);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-hub-name {
+  font-family: var(--font-heading);
+  font-size: 1.3rem;
+  color: var(--sc-leaf-ink);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-sess {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-sess a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.1rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 2px;
+  background: transparent;
+  border: 1px solid var(--sc-leaf-rule);
+  color: var(--sc-leaf-brass);
+  font-family: var(--sc-leaf-font-sc);
+  font-size: 0.7rem;
+  line-height: 1.3;
+  text-decoration: none;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-gh {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-family: var(--sc-leaf-font-sc);
+  font-size: 0.9rem;
+  letter-spacing: 0.03em;
+  color: var(--sc-leaf-brass);
+  margin: 1.1rem 0 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 3px double var(--sc-leaf-rule);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-fleuron {
+  font-style: normal;
+  font-size: 0.85rem;
+  color: var(--sc-leaf-brass);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-side {
+  display: none;
+  font-family: var(--sc-leaf-font-sc);
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  color: var(--sc-leaf-muted);
+  justify-content: space-between;
+  margin: 0 0 0.5rem;
+  padding: 0 0.25rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-lane-scroll {
+  overflow-x: visible;
+  overscroll-behavior-x: contain;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-lane {
+  display: flex;
+  flex-direction: column;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-seg {
+  display: flex;
+  flex-direction: column;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-gh small {
+  font-family: var(--sc-leaf-font-sc);
+  font-weight: 400;
+  font-style: normal;
+  color: var(--sc-leaf-muted);
+  font-size: 0.75rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.2rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-lbl {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-ic {
+  width: 0.8rem;
+  height: 0.8rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+/* Studs: the JS-enhanced live lane wraps each item's icon in a .sc-cx-stud bead, coloured by
+ * kind with the product tokens (brass tie / haze named / iron mention). The static (no-JS)
+ * fallback has no icon markup at all (the brief's own literal example), so it gets an
+ * equivalent plain bead via ::before instead -- scoped to .sc-cx-static so the live version,
+ * once rendered, shows exactly one bead per item, not two. */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-stud {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: var(--sc-cx-stud);
+  border: 1px solid var(--sc-cx-stud-edge);
+  color: var(--sc-cx-stud-ink);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-kind-named .sc-cx-stud {
+  background: var(--sc-cx-named);
+  border-color: var(--sc-cx-named-edge);
+  color: var(--sc-on-named);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-kind-mention .sc-cx-stud {
+  background: var(--sc-cx-iron);
+  border-color: var(--sc-cx-iron-edge);
+  color: var(--sc-cx-iron-ink);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-static .sc-cx-list li::before {
+  content: "";
+  flex: none;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  background: var(--sc-cx-stud);
+  border: 1px solid var(--sc-cx-stud-edge);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-static .sc-cx-kind-named::before {
+  background: var(--sc-cx-named);
+  border-color: var(--sc-cx-named-edge);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-static .sc-cx-kind-mention::before {
+  background: var(--sc-cx-iron);
+  border-color: var(--sc-cx-iron-edge);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-list a,
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-nolink {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-nolink {
+  color: var(--sc-leaf-muted);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-rel {
+  font-size: 0.8125rem;
+  font-style: italic;
+  color: var(--sc-leaf-muted);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-kind-tie .sc-cx-rel {
+  color: var(--sc-cx-rel-tie);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-kind-named .sc-cx-rel {
+  color: var(--sc-cx-rel-named);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-more {
+  display: inline-block;
+  margin-top: 0.75rem;
+  background: none;
+  border: 1px solid var(--sc-leaf-edge);
+  color: var(--sc-leaf-ink);
+  font-family: var(--sc-leaf-font-sc);
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-tray {
+  margin-top: 1.1rem;
+  padding-top: 0.85rem;
+  border-top: 3px double var(--sc-leaf-rule);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-tray-h {
+  font-family: var(--font-heading);
+  font-size: 1.1rem;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-tray-src {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sc-leaf-muted);
+  margin: 0.2rem 0;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-tray-say q {
+  font-style: italic;
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-same {
+  margin-top: 0.6rem;
+  font-size: 0.8125rem;
+  color: var(--sc-leaf-muted);
+}
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-same b {
+  display: block;
+  font-family: var(--sc-leaf-font-sc);
+  font-weight: 400;
+  color: var(--sc-leaf-brass);
+  font-size: 0.75rem;
+  margin-bottom: 0.15rem;
+}
+
+/* ---- a1 lane (FR-C2/AC-12): declared ties + "Named by" on the left, the hub in the middle,
+ * mentions grouped on the right, beads on a connecting brass line, at 600px+ of the lane's OWN
+ * container width -- matching landing-mockups/connections.html's A1 option and conn-work/cx.css's
+ * .cx-lane. Below 600px this same markup (src/build's own "same markup, progressively enhanced")
+ * reflows to the vertical spine (FR-C5/AC-08): the base rules above already set that column
+ * layout, so this block only ADDS the row treatment, it never duplicates markup or JS branches. */
+@container (min-width: 600px) {
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-side {
+    display: flex;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-lane-scroll {
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    mask-image: linear-gradient(to right, transparent 0, color-mix(in srgb, #000 100%, transparent) 3.5rem, color-mix(in srgb, #000 100%, transparent) calc(100% - 3.5rem), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0, color-mix(in srgb, #000 100%, transparent) 3.5rem, color-mix(in srgb, #000 100%, transparent) calc(100% - 3.5rem), transparent 100%);
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-lane {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+    position: relative;
+    width: max-content;
+    min-width: 100%;
+    padding: 0 0.5rem;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-lane::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 3.05rem;
+    height: 3px;
+    border-top: 1px solid var(--sc-leaf-brass);
+    border-bottom: 1px solid var(--sc-leaf-brass);
+    opacity: 0.8;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-seg {
+    padding-inline: 0.6rem;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-gh {
+    justify-content: center;
+    min-height: 1.9rem;
+    white-space: nowrap;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-list {
+    flex-wrap: nowrap;
+    gap: 0.15rem;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-list li {
+    flex-direction: column;
+    width: 5.75rem;
+    gap: 0.35rem;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-lbl {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.05rem;
+    text-align: center;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-lbl .sc-cx-name,
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-lbl .sc-cx-nolink {
+    overflow-wrap: anywhere;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-hub {
+    flex-direction: column;
+    text-align: center;
+    width: 7rem;
+    flex: none;
+    margin: 0.3rem 0.75rem 0;
+    order: 0;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-hub-name {
+    margin-top: 0.4rem;
+  }
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-more {
+    margin-top: 0.9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) .sc-cx-tray {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ---- Shared hidden-until-render rule (Structural decision 8/NFR-03): the static fallback and
+ * the source tables/lists stay visible until a successful JS render sets [hidden]. `display` is
+ * deliberately never set elsewhere on these four classes (ADR 0016 B-3 regression). ---- */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) [hidden]:is(.sc-tl-src, .sc-tl-card, .sc-cx-static, .sc-cx-live) {
+  display: none;
+}
+
+/* ====================================================================== *
+ * Sessions index: no list controls
+ *
+ * R1b follow-up. The pin's generic index template (lib/templates/index-page.js:
+ * 1099-1108) now renders a Sessions page itself, complete with a breadcrumb,
+ * a "Showing N of N" count, a sort menu, type-filter pill buttons and a name
+ * filter. Those controls make sense on a list a reader might want to search
+ * or reorder; a session log reads front to back, so the house style hides
+ * them on that one page and leaves its heading in place.
+ *
+ * The Sessions index is recognised by its content, not by its URL or its nav
+ * placement, using a main.content that has a .card-grid of .entity-card
+ * elements, with at least one card typed exactly "session". This only ever matches a
+ * generic index page built from type: session notes -- nothing else in the
+ * pin's output puts those cards directly under main.content > .card-grid --
+ * so the rule does not depend on the folder being named "sessions" or on
+ * knowing the page's URL in advance. The match on data-entity-type is exact
+ * (never a prefix, substring or other partial match): a prefix match would
+ * also catch a "session_wrap" note, which is a different note type sharing
+ * the same folder in some vaults.
+ *
+ * Rejected: writing a marker into the page's HTML after the build (breaks
+ * the rule that this fix is CSS only, and adds a second, more fragile way to
+ * find the same page); bringing back this project's own Sessions page writer
+ * (undoes the pin's own fix for the missing Sessions page); recognising the
+ * page from its breadcrumb or nav link text (a campaign with zero sessions
+ * would then hide the controls on every other index page instead of none).
+ *
+ * Every selector below starts from that same scope, so this section only
+ * ever touches the one page it identifies. Hiding the type-filter pills is
+ * this project's own addition, for consistency with the other four controls
+ * -- it changes nothing on the owner's live site today, because that site's
+ * Sessions folder has only one note type and the pin never renders the pill
+ * row when there is nothing to filter between. `display: none` is the only
+ * declaration used: nothing here relies on visually-hidden or clip tricks,
+ * and none of the filtering script (js/filters.js) can act on a control that
+ * was never shown, so there is no half-filtered state left behind.
+ *
+ * Will catch: any generic index page, on any vault, whose cards are exactly
+ * type "session".
+ * Will not catch: a Sessions folder with zero notes yet (the page keeps its
+ * controls, since there is no card to match against); a note typed anything
+ * other than "session" (e.g. "session_wrap") sharing the Sessions folder,
+ * which keeps its own page's controls if that page is otherwise a different
+ * kind of index; a browser without :has() support, which simply keeps
+ * showing every control, exactly like the search rule above.
+ */
+main.content:has(> .card-grid > .entity-card[data-entity-type="session"]) > .breadcrumbs,
+main.content:has(> .card-grid > .entity-card[data-entity-type="session"]) > .index-header > .index-count,
+main.content:has(> .card-grid > .entity-card[data-entity-type="session"]) > .index-header > .sort-control,
+main.content:has(> .card-grid > .entity-card[data-entity-type="session"]) > .pill-filters,
+main.content:has(> .card-grid > .entity-card[data-entity-type="session"]) > .name-filter {
+  display: none;
+}
+
+/* ====================================================================== *
+ * 404 page: a readable home button
+ *
+ * #86. The pin's own 404 template sets the "Return to Safety" button's colours in a page-local
+ * <style> block that loads after our sheets: background: var(--theme-accent, var(--accent));
+ * color: var(--white, #fff). Nothing declares --theme-accent or --white, so the button is
+ * always white text on the preset's accent colour, which fails 4.5:1 for several presets, and
+ * badly for haze and gloam.
+ *
+ * The fix reads the page's own body-text pair instead, inverted: the button's background is the
+ * page's text colour, and its own text is the page's background colour. That pair already has
+ * to pass 4.5:1 for the page's own paragraphs to be legible, so it passes on every theme and
+ * preset with no new colour. The selector matches the button's markup exactly (from the pin's
+ * own template), so its specificity beats the page-local <style> block's single-class rule.
+ *
+ * Rejected: declaring --theme-accent/--white at :root (that also recolours .story-begin below,
+ * and the two names sit outside this file's own --sc-* namespace); keeping the accent
+ * background (nothing on accent passes 4.5:1 in light fantasy, scifi or military); a ghost
+ * (outline) button (a weaker affordance, with no stronger contrast guarantee).
+ *
+ * gloam keeps this one button lavender instead, with its own rule that loads after this one
+ * (assets/themes/gloam/theme.css).
+ */
+main.content > .four-oh-four-hero > .four-oh-four-home {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* ====================================================================== *
+ * Story landing: a readable begin-reading button
+ *
+ * Owner addition alongside #86. The pin's own story-landing template gives .story-begin the
+ * same defect as the 404 button, in its own stylesheet: background: var(--accent); color:
+ * var(--white, #fff). Nothing declares --white, so this button fails 4.5:1 for the same presets
+ * the 404 button did.
+ *
+ * Same fix, same reasoning: the button reads the page's own body-text pair, inverted, through a
+ * selector that matches the button's markup exactly (from the pin's own template), so it beats
+ * the page-local <style> block's single-class rule without touching --white or --theme-accent.
+ */
+main.content > .story-branch > p > .story-begin {
+  background: var(--text);
+  color: var(--bg);
+}

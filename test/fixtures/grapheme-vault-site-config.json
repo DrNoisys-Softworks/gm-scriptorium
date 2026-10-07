@@ -1,0 +1,12 @@
+{
+  "siteTitle": "Grapheme Vault",
+  "siteUrl": "https://example.invalid",
+  "vaultPath": "./grapheme-vault",
+  "outputDir": "./out",
+  "attachmentsDir": "_attachments",
+  "folderMap": {
+    "Characters/NPCs": "characters/npcs"
+  },
+  "excludeDirs": ["_meta", "_Templates", "_inbox", ".obsidian"],
+  "excludeSections": ["GM Notes"]
+}

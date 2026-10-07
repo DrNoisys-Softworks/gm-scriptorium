@@ -1,0 +1,16 @@
+{
+  "siteTitle": "Mini Vault",
+  "siteUrl": "https://example.invalid",
+  "vaultPath": "./mini-vault",
+  "outputDir": "./out",
+  "attachmentsDir": "_attachments",
+  "folderMap": {
+    "Recaps": "sessions",
+    "Characters/PCs": "characters/pcs",
+    "Characters/NPCs": "characters/npcs",
+    "Locations": "locations",
+    "_Templates_alt": "templates-alt"
+  },
+  "excludeDirs": ["_meta", "_Templates", "_inbox", ".obsidian"],
+  "excludeSections": ["GM Notes"]
+}

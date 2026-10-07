@@ -1,0 +1,13 @@
+{
+  "siteTitle": "Nested Exclude Vault",
+  "siteUrl": "https://example.invalid",
+  "vaultPath": "./nested-exclude-vault",
+  "outputDir": "./out",
+  "attachmentsDir": "_attachments",
+  "folderMap": {
+    "Characters/NPCs": "characters/npcs",
+    "Locations": "locations"
+  },
+  "excludeDirs": ["_meta", "_Templates", "_inbox", ".obsidian"],
+  "excludeSections": ["GM Notes", "Needs"]
+}

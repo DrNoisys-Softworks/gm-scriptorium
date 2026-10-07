@@ -1,0 +1,13 @@
+# The Long Lease: campaign pack for GM-Scriptorium (ADR 0018).
+theme = "gloam"
+
+# Image slots. Every slot names a hand-drawn SVG from the vault's own _attachments folder.
+[images]
+hero = "vault:_attachments/campaign/long-lease-banner.svg"
+ground = "vault:_attachments/campaign/long-lease-banner.svg"
+paper = "vault:_attachments/campaign/parchment.svg"
+
+# A small vocabulary change: the party are the Wardens of the Lease.
+[labels]
+learned_lens = "What the Wardens learned"
+group_pc = "The Wardens"

@@ -1,0 +1,46 @@
+theme = "plain"
+
+[labels]
+learned_lens = "What the crew found out"
+story_lens = "The tale"
+chapter = "Episode"
+recap = "Episode"
+recap_learned_link = "Lessons Gathered"
+same_recap = "Same episode"
+group_npc = "Folk"
+connections_heading = "Ties and threads"
+
+[timeline]
+weights = ["footnote", "scene", "watershed"]
+session_token = '\bEp(\d+)\b'
+segment_units = '\b(night|league)\s+(\d+)\b'
+
+[[timeline.kinds]]
+key = "clash"
+glyph = "fight"
+aliases = ["battle"]
+
+[[timeline.kinds]]
+key = "parley"
+glyph = "meeting"
+
+[[timeline.kinds]]
+key = "omen"
+glyph = "M10 2 L18 18 L2 18 Z"
+
+[[timeline.kinds]]
+key = "origin"
+glyph = "backstory"
+before = true
+
+[timeline.columns]
+title = ["heading"]
+kind = ["sort"]
+place = ["where"]
+in_game = ["in-world"]
+real_world = ["table"]
+session = ["episode"]
+learned = ["lesson"]
+
+[recaps]
+learned_heading = "Lessons Gathered"

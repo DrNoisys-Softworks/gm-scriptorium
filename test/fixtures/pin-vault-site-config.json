@@ -1,0 +1,17 @@
+{
+  "siteTitle": "Pin Vault",
+  "siteUrl": "https://example.invalid",
+  "vaultPath": "./pin-vault",
+  "outputDir": "./out",
+  "attachmentsDir": "_attachments",
+  "folderMap": {
+    "Characters/NPCs": "characters/npcs",
+    "Characters/PCs": "characters/pcs",
+    "Locations": "locations",
+    "Locations/personal": "locations/personal",
+    "Scenes": "scenes",
+    "Items": "items",
+    "Factions": "factions"
+  },
+  "excludeDirs": ["_meta", "_Templates", "Threads"]
+}

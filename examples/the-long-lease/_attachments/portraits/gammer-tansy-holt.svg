@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" width="200" height="280">
+<defs>
+<radialGradient id="bg" cx="50%" cy="45%" r="70%"><stop offset="0" stop-color="#f3ead3"/><stop offset="1" stop-color="#e2d3ad"/></radialGradient>
+<linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></linearGradient>
+</defs>
+<rect width="200" height="280" fill="url(#bg)"/>
+<rect x="8" y="8" width="184" height="264" rx="6" fill="none" stroke="#a8781c" stroke-opacity=".45" stroke-width="2"/>
+<path d="M100 30 L106 42 L100 54 L94 42 Z" fill="#a8781c" fill-opacity=".6"/>
+<path d="M44 62 H156 V148 C156 200 126 230 100 244 C74 230 44 200 44 148 Z" fill="#2f6b3a" stroke="#d9a93a" stroke-width="5" stroke-linejoin="round"/>
+<g>
+<path d="M100 210 C98 180 92 150 80 124 M100 210 C100 176 100 146 100 112 M100 210 C102 180 110 150 122 126 M100 210 C96 186 84 164 66 150 M100 210 C104 186 118 166 136 154" fill="none" stroke="#f4efe2" stroke-width="3" stroke-linecap="round"/>
+<g fill="#d9a93a" stroke="#a8781c" stroke-width="2">
+<circle cx="80" cy="120" r="11"/><circle cx="100" cy="106" r="12"/><circle cx="122" cy="122" r="11"/><circle cx="64" cy="146" r="9"/><circle cx="138" cy="150" r="9"/>
+</g>
+<g fill="#a8781c"><circle cx="80" cy="120" r="3"/><circle cx="100" cy="106" r="3"/><circle cx="122" cy="122" r="3"/><circle cx="64" cy="146" r="2.5"/><circle cx="138" cy="150" r="2.5"/></g></g>
+<path d="M44 62 H156 V148 C156 200 126 230 100 244 C74 230 44 200 44 148 Z" fill="url(#sheen)"/>
+<path d="M70 258 H130" stroke="#a8781c" stroke-opacity=".5" stroke-width="2" stroke-linecap="round"/>
+</svg>

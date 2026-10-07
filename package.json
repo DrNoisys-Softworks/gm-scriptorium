@@ -1,0 +1,57 @@
+{
+  "name": "gm-scriptorium",
+  "version": "0.3.0-rc.4",
+  "description": "Deterministic check/build/serve/status/config/update CLI for gm-apprentice campaign vaults",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DrNoisys-Softworks/gm-scriptorium.git"
+  },
+  "homepage": "https://github.com/DrNoisys-Softworks/gm-scriptorium#readme",
+  "bugs": {
+    "url": "https://github.com/DrNoisys-Softworks/gm-scriptorium/issues"
+  },
+  "bin": {
+    "scriptorium": "bin/scriptorium.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/**/*.test.js",
+    "notices": "node scripts/generate-notices.js",
+    "package": "node scripts/package.js",
+    "verify-generator": "node scripts/generator-pin.js verify"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/gm-apprentice-publish/css/**/*",
+      "node_modules/gm-apprentice-publish/js/**/*",
+      "node_modules/gm-apprentice-publish/templates-scaffold/**/*",
+      "node_modules/gm-apprentice-publish/node_modules/lunr/lunr.js",
+      "THIRD-PARTY-NOTICES.txt",
+      "assets/site/**/*",
+      "assets/themes/**/*",
+      "assets/admin/**/*"
+    ],
+    "patches": {
+      "node_modules/gm-apprentice-publish/lib/templates/gurps/blocks/reference.js": [
+        { "do": "erase" },
+        "// Redacted at packaging time by Scriptorium. See docs/decisions/0007-rules-content-redaction.md.\nmodule.exports = { renderReference: () => '' };\n"
+      ],
+      "node_modules/gm-apprentice-publish/lib/templates/coc/skills-data.js": [
+        { "do": "erase" },
+        "// Redacted at packaging time by Scriptorium. See docs/decisions/0007-rules-content-redaction.md.\nmodule.exports = { REGENCY_SKILLS: [], BASE_SKILLS: [] };\n"
+      ]
+    }
+  },
+  "dependencies": {
+    "gm-apprentice-publish": "file:vendor/gm-apprentice-publish/gm-apprentice-publish-1.14.0.tgz",
+    "gray-matter": "4.0.3",
+    "smol-toml": "1.8.0"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "6.22.0"
+  }
+}

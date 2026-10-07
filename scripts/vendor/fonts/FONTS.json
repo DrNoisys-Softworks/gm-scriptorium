@@ -1,0 +1,142 @@
+{
+  "families": [
+    {
+      "family": "IM Fell English",
+      "slug": "im-fell-english",
+      "license": "OFL-1.1",
+      "licenseFile": "im-fell-english-OFL.txt",
+      "copyright": "Copyright (c) 2010, Igino Marini (mail@iginomarini.com)",
+      "reservedFontName": "none declared",
+      "source": {
+        "repository": "google/fonts",
+        "ref": "main",
+        "commit": "23e54b51ddffbc7713c583748e3bd86f62b1fa4a",
+        "path": "ofl/imfellenglish"
+      }
+    },
+    {
+      "family": "IM Fell English SC",
+      "slug": "im-fell-english-sc",
+      "license": "OFL-1.1",
+      "licenseFile": "im-fell-english-sc-OFL.txt",
+      "copyright": "Copyright (c) 2010, Igino Marini (mail@iginomarini.com)",
+      "reservedFontName": "none declared",
+      "source": {
+        "repository": "google/fonts",
+        "ref": "main",
+        "commit": "23e54b51ddffbc7713c583748e3bd86f62b1fa4a",
+        "path": "ofl/imfellenglishsc"
+      }
+    },
+    {
+      "family": "Alegreya Sans",
+      "slug": "alegreya-sans",
+      "license": "OFL-1.1",
+      "licenseFile": "alegreya-sans-OFL.txt",
+      "copyright": "Copyright 2013 The Alegreya Sans Project Authors (https://github.com/huertatipografica/Alegreya-Sans)",
+      "reservedFontName": "none declared",
+      "source": {
+        "repository": "google/fonts",
+        "ref": "main",
+        "commit": "23e54b51ddffbc7713c583748e3bd86f62b1fa4a",
+        "path": "ofl/alegreyasans"
+      }
+    },
+    {
+      "family": "IBM Plex Mono",
+      "slug": "ibm-plex-mono",
+      "license": "OFL-1.1",
+      "licenseFile": "ibm-plex-mono-OFL.txt",
+      "copyright": "Copyright © 2017 IBM Corp. with Reserved Font Name \"Plex\"",
+      "reservedFontName": "Plex",
+      "source": {
+        "repository": "IBM/plex",
+        "ref": "@ibm/plex-mono@2.5.0",
+        "commit": "2f9ba1b25957d958db71a849e85d72e3ecfb845a",
+        "path": "packages/plex-mono"
+      }
+    }
+  ],
+  "files": [
+    {
+      "file": "IMFeENrm28P.ttf",
+      "family": "IM Fell English",
+      "weight": 400,
+      "style": "normal",
+      "format": "truetype",
+      "contentType": "font/ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/imfellenglish/IMFeENrm28P.ttf",
+      "sha256": "fe9705bbde51af802719246d4608d08d37bde956ab99d9a590da996a5221a24c"
+    },
+    {
+      "file": "IMFeENsc28P.ttf",
+      "family": "IM Fell English SC",
+      "weight": 400,
+      "style": "normal",
+      "format": "truetype",
+      "contentType": "font/ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/imfellenglishsc/IMFeENsc28P.ttf",
+      "sha256": "102324fb5434bb5da7963533426b0ad44c85bbc9e7755067535c9d11464a176b"
+    },
+    {
+      "file": "AlegreyaSans-Regular.ttf",
+      "family": "Alegreya Sans",
+      "weight": 400,
+      "style": "normal",
+      "format": "truetype",
+      "contentType": "font/ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/alegreyasans/AlegreyaSans-Regular.ttf",
+      "sha256": "8fab634196007afca839f1e5a6fb300976daff55d8528b590ef032f01b14ea10"
+    },
+    {
+      "file": "AlegreyaSans-Medium.ttf",
+      "family": "Alegreya Sans",
+      "weight": 500,
+      "style": "normal",
+      "format": "truetype",
+      "contentType": "font/ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/alegreyasans/AlegreyaSans-Medium.ttf",
+      "sha256": "4b89fe7804fd1485ec2757795a53ffdb66e1206dd56f844c2d72b3c944815b43"
+    },
+    {
+      "file": "AlegreyaSans-Bold.ttf",
+      "family": "Alegreya Sans",
+      "weight": 700,
+      "style": "normal",
+      "format": "truetype",
+      "contentType": "font/ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/alegreyasans/AlegreyaSans-Bold.ttf",
+      "sha256": "a3055a1893759bdbd7504bb22abc583769e7974c49353176eac0b03792c9fb8e"
+    },
+    {
+      "file": "AlegreyaSans-Italic.ttf",
+      "family": "Alegreya Sans",
+      "weight": 400,
+      "style": "italic",
+      "format": "truetype",
+      "contentType": "font/ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/alegreyasans/AlegreyaSans-Italic.ttf",
+      "sha256": "f49f6f2bdd84df850b25b0f8185d8a051e1d1eb2dd08e2f91b8c7b86d9a9e1a6"
+    },
+    {
+      "file": "IBMPlexMono-Regular.woff2",
+      "family": "IBM Plex Mono",
+      "weight": 400,
+      "style": "normal",
+      "format": "woff2",
+      "contentType": "font/woff2",
+      "url": "https://raw.githubusercontent.com/IBM/plex/2f9ba1b25957d958db71a849e85d72e3ecfb845a/packages/plex-mono/fonts/complete/woff2/IBMPlexMono-Regular.woff2",
+      "sha256": "ba204497f16b6d334cee9d1e963a831b73e3a56e1d6300a8489d18df7214b350"
+    },
+    {
+      "file": "IBMPlexMono-SemiBold.woff2",
+      "family": "IBM Plex Mono",
+      "weight": 600,
+      "style": "normal",
+      "format": "woff2",
+      "contentType": "font/woff2",
+      "url": "https://raw.githubusercontent.com/IBM/plex/2f9ba1b25957d958db71a849e85d72e3ecfb845a/packages/plex-mono/fonts/complete/woff2/IBMPlexMono-SemiBold.woff2",
+      "sha256": "6a825b4824c01cbb401e829e5a066a1818411bcb3538b5a5792c5ca9b82343c3"
+    }
+  ]
+}

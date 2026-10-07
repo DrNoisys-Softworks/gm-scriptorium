@@ -1,0 +1,16 @@
+{
+  "siteTitle": "Story Vault",
+  "siteUrl": "https://example.invalid",
+  "vaultPath": "./story-vault",
+  "outputDir": "./out",
+  "attachmentsDir": "_attachments",
+  "folderMap": {
+    "Campaign": "campaign",
+    "Sessions": "sessions",
+    "Characters/PCs": "characters/pcs",
+    "Characters/NPCs": "characters/npcs",
+    "Locations": "locations",
+    "Factions": "factions"
+  },
+  "excludeDirs": ["_meta"]
+}

@@ -1,0 +1,11 @@
+{
+  "siteTitle": "Wrap-Up Vault",
+  "siteUrl": "https://example.invalid",
+  "vaultPath": "./wrapup-vault",
+  "outputDir": "./out",
+  "attachmentsDir": "_attachments",
+  "folderMap": {
+    "Sessions": "sessions"
+  },
+  "excludeDirs": ["_meta"]
+}

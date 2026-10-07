@@ -1,0 +1,25 @@
+# Public hygiene patterns (SD-6, docs/decisions/0031-public-repo-privacy-guard.md).
+#
+# Generic shapes only, never anything owner-specific: a path under a personal
+# home directory, a private IPv4 range, or a personal webmail address. This
+# file is itself one of the tracked public files Run B scans with these same
+# patterns (SD-4 d), so no entry's value or example text below is literal
+# digits or a literal path -- only placeholder character classes -- which is
+# also why the comments name no concrete address or path.
+#
+# Parsed by scripts/denylist-scan.js's Patterns format: `<literal|regex>
+# <category> <value>`. Every regex compiles with 'giu' (SD-6), so every
+# backslash below is doubled: one `\\` in this file is one literal backslash
+# once compiled.
+
+regex path /home/[A-Za-z0-9_.-]+/
+regex path /Users/[A-Za-z0-9_.-]+/
+regex path /mnt/
+regex path [A-Za-z]:\\{1,2}Users\\{1,2}[^\\\s]+
+
+regex ip \b10\.\d{1,3}\.\d{1,3}\.\d{1,3}\b
+regex ip \b172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}\b
+regex ip \b192\.168\.\d{1,3}\.\d{1,3}\b
+regex ip \b100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}\b
+
+regex email [A-Za-z0-9._%+-]+@(gmail|yahoo|hotmail|outlook|icloud|protonmail)\.com\b

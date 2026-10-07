@@ -1,0 +1,213 @@
+/*
+ * GM-Scriptorium built-in base theme (docs/decisions/0032-base-theme.md).
+ * Composed at load time: this file's own theme.json names "extends" over a built-in dark theme
+ * (docs/decisions/0023-haze-theme.md), so the loader prepends that parent's own tokens ahead of
+ * everything below (src/build/themes.js). This file has no @import of its own. The composed CSS
+ * is written into a built site as css/scriptorium-theme.css, after css/scriptorium.css and
+ * before a campaign's css/overrides.css, so an equal-specificity campaign rule still wins
+ * (docs/decisions/0019-themes-image-slots-and-asset-step.md). This theme owns its own palette
+ * and its own fonts (theme.json "owns"): a vault's own palette and font config never reach the
+ * page under it. Fonts are self-hosted from this theme's own fonts/ folder, embedded in the
+ * executable and copied into every built site; nothing below references a third-party origin.
+ * Slots drawn, and the knobs a campaign layer may re-declare: docs/image-slots.md. Scheme: dark
+ * (theme.json).
+ */
+
+@font-face {
+  font-family: 'IM Fell English';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../scriptorium/theme/fonts/IMFeENrm28P.woff2") format("woff2");
+}
+@font-face {
+  font-family: 'IM Fell English';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../scriptorium/theme/fonts/IMFeENit28P.woff2") format("woff2");
+}
+@font-face {
+  font-family: 'IM Fell English SC';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../scriptorium/theme/fonts/IMFeENsc28P.woff2") format("woff2");
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("../scriptorium/theme/fonts/CormorantGaramond-wght.woff2") format("woff2");
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: italic;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("../scriptorium/theme/fonts/CormorantGaramond-Italic-wght.woff2") format("woff2");
+}
+
+:root {
+  color-scheme: dark;
+
+  --sc-base-bg: #24221e;
+  --sc-base-ink: #e8e1d2;
+  --sc-base-accent: #b9a1e6;
+  --sc-base-desk: #1b1f1a;
+  --sc-base-muted: #a8a092;
+  --sc-base-nav-muted: #9da5ae;
+
+  --sc-base-alive: #2ea043;
+  --sc-base-alive-ink: #56d364;
+  --sc-base-dead: #da3633;
+  --sc-base-missing: #d29922;
+  --sc-base-captured: #8250df;
+  --sc-base-captured-ink: #b392f0;
+  --sc-base-retired: #6e7681;
+  --sc-base-retired-ink: #9aa4b2;
+  --sc-base-killed: #50c878;
+  --sc-base-active: #c0392b;
+
+  --bg: var(--sc-base-bg);
+  --text: var(--sc-base-ink);
+  --accent: var(--sc-base-accent);
+  --bg-header: var(--sc-base-desk);
+  --bg-hero: var(--sc-base-desk);
+  --bg-card: color-mix(in srgb, var(--sc-base-bg) 95%, #fff);
+  --border: color-mix(in srgb, var(--sc-base-bg) 88%, #fff);
+  --accent-dim: color-mix(in srgb, var(--sc-base-accent) 15%, transparent);
+  --text-muted: var(--sc-base-muted);
+  --muted: var(--sc-base-muted);
+  --text-on-header: var(--sc-base-ink);
+  --text-muted-on-header: var(--sc-base-nav-muted);
+
+  --font-heading: 'IM Fell English', Georgia, serif;
+  --font-body: 'Cormorant Garamond', Georgia, serif;
+
+  --sc-ground-size: cover;
+  --sc-ground-position: 50% 0;
+  --sc-ground-filter: saturate(0.45) brightness(0.3) contrast(1.05);
+  --sc-ground-opacity: 0.6;
+  --sc-ground-fade-from: 52%;
+  --sc-ground-fade-to: 84%;
+  --sc-hero-filter: sepia(0.35) hue-rotate(212deg) saturate(0.8) brightness(0.6) contrast(1.1);
+  --sc-hero-position: 50% 50%;
+}
+
+/* ---- The ground: one large image, fixed behind every inner page, crushed dark ----
+ * Brightness and saturation are pulled down hard so the source image's highlights can never
+ * push body text under 4.5:1; the lower part is masked away, and a vignette plus a bottom shade
+ * sits over it. An unset ground slot resolves to `none`: no url() and no request. */
+html::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-image: var(--sc-img-ground, none);
+  background-size: var(--sc-ground-size);
+  background-position: var(--sc-ground-position);
+  background-repeat: no-repeat;
+  filter: var(--sc-ground-filter);
+  opacity: var(--sc-ground-opacity);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, #000 100%, transparent) 0%,
+    color-mix(in srgb, #000 100%, transparent) var(--sc-ground-fade-from),
+    transparent var(--sc-ground-fade-to)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, #000 100%, transparent) 0%,
+    color-mix(in srgb, #000 100%, transparent) var(--sc-ground-fade-from),
+    transparent var(--sc-ground-fade-to)
+  );
+}
+html::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse 78% 70% at 50% 42%, transparent 0%, color-mix(in srgb, #000 40%, transparent) 100%),
+    linear-gradient(to bottom, transparent 0%, transparent 44%, color-mix(in srgb, #000 45%, transparent) 100%);
+}
+
+/* ---- Paper grain (optional slot): laid over the reading leaf when --sc-img-paper is set ----
+ * Same selector and last two layers as the product's own leaf background
+ * (assets/site/scriptorium.css), with the grain on top, blended multiply so it adds texture
+ * instead of lifting the dark leaf into blotches. */
+body:has(> .top-nav) > main.content:not(:has(> .landing-hero)) {
+  background:
+    var(--sc-img-paper, none) 0 0 / 400px 400px,
+    linear-gradient(to right, color-mix(in srgb, #000 34%, transparent), transparent 6%),
+    radial-gradient(120% 70% at 50% 0%, var(--sc-leaf-paper-hi), var(--sc-leaf-paper) 62%);
+  background-blend-mode: multiply, normal, normal;
+}
+
+/* ---- Feathered imagery: images dissolve into the ground instead of ending in a hard edge ---- */
+.landing-hero > .landing-hero-img {
+  filter: var(--sc-hero-filter);
+  object-position: var(--sc-hero-position);
+}
+.landing-hero-img {
+  -webkit-mask-image:
+    linear-gradient(to bottom, color-mix(in srgb, #000 100%, transparent) 0%, color-mix(in srgb, #000 100%, transparent) 84%, transparent 100%),
+    linear-gradient(to right, transparent 0%, color-mix(in srgb, #000 100%, transparent) 6%, color-mix(in srgb, #000 100%, transparent) 94%, transparent 100%);
+  mask-image:
+    linear-gradient(to bottom, color-mix(in srgb, #000 100%, transparent) 0%, color-mix(in srgb, #000 100%, transparent) 84%, transparent 100%),
+    linear-gradient(to right, transparent 0%, color-mix(in srgb, #000 100%, transparent) 6%, color-mix(in srgb, #000 100%, transparent) 94%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.four-oh-four-image {
+  filter: var(--sc-hero-filter);
+  -webkit-mask-image: linear-gradient(to bottom, color-mix(in srgb, #000 100%, transparent) 0%, color-mix(in srgb, #000 100%, transparent) 86%, transparent 100%);
+  mask-image: linear-gradient(to bottom, color-mix(in srgb, #000 100%, transparent) 0%, color-mix(in srgb, #000 100%, transparent) 86%, transparent 100%);
+}
+/* The hero slot as the 404 backdrop, faded into the ground; falls back to the hero slot, then
+ * to nothing (docs/image-slots.md). */
+.four-oh-four-hero {
+  background:
+    linear-gradient(color-mix(in srgb, var(--bg) 86%, transparent), var(--bg) 70%),
+    var(--sc-img-404, var(--sc-img-hero, none)) center 30% / cover no-repeat;
+}
+
+/* ---- Dark-scheme component tints: pills and badges re-keyed for a dark ground ---- */
+.breadcrumbs .sep { opacity: 0.85; }
+.metadata-badge { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+.status-alive { background: color-mix(in srgb, var(--sc-base-alive) 5%, transparent); color: var(--sc-base-alive-ink); }
+.status-dead, .status-deceased { background: color-mix(in srgb, var(--sc-base-dead) 5%, transparent); }
+.status-missing, .status-unknown { background: color-mix(in srgb, var(--sc-base-missing) 10%, transparent); }
+.status-captured, .status-captive { background: color-mix(in srgb, var(--sc-base-captured) 5%, transparent); color: var(--sc-base-captured-ink); }
+.status-presumed_dead { background: color-mix(in srgb, var(--sc-base-dead) 5%, transparent); }
+.status-retired { background: color-mix(in srgb, var(--sc-base-retired) 8%, transparent); color: var(--sc-base-retired-ink); }
+.creature-killed { background: color-mix(in srgb, var(--sc-base-killed) 6%, transparent); }
+.creature-active { background: color-mix(in srgb, var(--sc-base-active) 5%, transparent); }
+
+/* ---- Party roster: a generic column rule. auto-fill keeps empty tracks, so a small party keeps
+ * portrait-sized cards (docs/decisions/0023-haze-theme.md section 13's residual, closed here). ---- */
+.dashboard-section > .pc-roster {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr));
+}
+@media (max-width: 600px) {
+  .dashboard-section > .pc-roster {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---- #86, owner decision: every other theme's 404 button reads the page's own body-text pair
+ * (assets/site/scriptorium.css, "404 page: a readable home button"), inverted. That would turn
+ * this theme's button the same off-white as its own body text, losing the lavender this theme is
+ * built around. This rule loads after that one (this file composes after haze's, which composes
+ * after the product sheet), so it wins on the same selector: the button keeps its own accent
+ * colour as its background, with the page's own background colour as its text -- about 7:1 here,
+ * comfortably over 4.5:1. ---- */
+main.content > .four-oh-four-hero > .four-oh-four-home {
+  background: var(--accent);
+  color: var(--bg);
+}

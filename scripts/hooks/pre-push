@@ -1,0 +1,2 @@
+#!/bin/sh
+exec node "$(git rev-parse --show-toplevel)/scripts/public-guard.js" pre-push "$1" "$2"

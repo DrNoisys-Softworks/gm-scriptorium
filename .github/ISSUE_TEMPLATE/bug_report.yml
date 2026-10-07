@@ -1,0 +1,45 @@
+name: Bug report
+description: Report a problem with the CLI, admin panel or update mechanism.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not paste campaign content, real player or character names, or
+        vault paths. Use made-up examples.**
+  - type: input
+    id: version
+    attributes:
+      label: Scriptorium version
+      description: Output of `gm-scriptorium --version` or `gm-scriptorium status`.
+      placeholder: "0.3.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: "Windows 11 / Linux"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what happened instead. Use made-up examples for any vault content.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Command output or error text. Redact anything from your campaign vault.
+      render: shell
+    validations:
+      required: false
