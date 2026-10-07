@@ -29,7 +29,7 @@ test('signin.html: every src/href starts with /assets/ and names a route in ADMI
 });
 
 test('signin.html: no inline script, <style>, style= or on*=', () => {
-  assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/i);
+  assert.doesNotMatch(html, /<script\b(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script\b[^>]*>/i);
   assert.doesNotMatch(html, /<style[\s>]/i);
   assert.doesNotMatch(html, /\sstyle\s*=/i);
   assert.doesNotMatch(html, /\son[a-z]+\s*=/i);
@@ -45,7 +45,8 @@ test('signin.html: the body marker, the labelled password field, the submit butt
   assert.ok(html.includes('The password is set on the machine running GM-Scriptorium, with <code>gm-scriptorium remote password</code>.'));
   assert.match(html, /role="alert"/);
   assert.ok(html.includes('Five wrong passwords in ten minutes pause remote sign-in for fifteen minutes. On the machine running GM-Scriptorium, the one-time link still works.'));
-  const scripts = html.match(/<script[^>]*>/g);
+  const scripts = html.match(/<script\b[^>]*>/gi);
+  assert.ok(scripts && scripts.length > 0, 'the page has at least one script tag');
   assert.ok(scripts.every((s) => /\bdefer\b/.test(s)), 'every script is deferred');
 });
 
