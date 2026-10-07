@@ -7749,3 +7749,23 @@ body[data-page="signin"] {
 .su-cmd {
   min-width: 0;
 }
+
+/* The review slip, drawn inline on the page (mock .a1-slip and .a1-slip.inline). */
+.a1-slip.inline {
+  position: relative;
+  justify-self: stretch;
+  width: 100%;
+  max-width: 680px;
+  z-index: 1;
+  background: var(--slip);
+  color: var(--slip-ink);
+  padding: 28px 30px 26px;
+  border-radius: var(--radius-slip);
+  box-shadow: 0 0 0 1px var(--slip-rule), 0 40px 80px -24px var(--slip-shadow), inset 0 0 60px var(--slip-warmth);
+}
+
+@media (max-width: 699px) {
+  .a1-slip.inline {
+    padding: 24px 16px 20px;
+  }
+}

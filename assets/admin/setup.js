@@ -757,6 +757,16 @@
     return pv;
   }
 
+  /** Marks the picked theme, and the default one while it is not the picked one. */
+  function pills(grid) {
+    Array.prototype.forEach.call(grid.querySelectorAll('.st'), function (st) {
+      var name = st.getAttribute('data-theme');
+      st.textContent = '';
+      if (name === S.theme) st.appendChild(h('span', 'a1-pill sage', 'picked'));
+      else if (name === S.server.defaultTheme) st.appendChild(h('span', 'a1-pill muted', 'default'));
+    });
+  }
+
   function screenTheme() {
     var wrap = h('div', 'su-q');
     wrap.style.maxWidth = 'none';
@@ -803,7 +813,7 @@
           cap.appendChild(h('span', 'nm', name));
           if (copy.scheme) cap.appendChild(h('span', 'a1-pill muted', copy.scheme));
           var st = h('span', 'st');
-          if (name === S.server.defaultTheme) st.appendChild(h('span', 'a1-pill muted', 'default'));
+          st.setAttribute('data-theme', name);
           cap.appendChild(st);
           label.appendChild(input);
           label.appendChild(frame);
@@ -813,15 +823,12 @@
             S.theme = name;
             Array.prototype.forEach.call(grid.children, function (c) { c.classList.remove('sel'); });
             label.classList.add('sel');
-            Array.prototype.forEach.call(grid.querySelectorAll('.st'), function (s) { s.textContent = ''; });
-            if (name === S.server.defaultTheme) { /* keep the default pill */ }
-            var picked = h('span', 'a1-pill sage', 'picked');
-            st.textContent = '';
-            st.appendChild(picked);
+            pills(grid);
             ask('theme', name, false).then(function (r) { drawNote(r); });
           });
           grid.appendChild(label);
         });
+        pills(grid);
         body.appendChild(grid);
       }
       drawNote(r0);
