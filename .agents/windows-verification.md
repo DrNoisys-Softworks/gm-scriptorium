@@ -1726,6 +1726,7 @@ Issue #30. This is the Windows leg of C50 step 2, which expects the generator's 
 3. Run step 2 twice: the two `generatorWarnings` arrays are identical.
 4. Search the built site (`Select-String -Recurse`) for the text `font cache`: no match. Warnings go to the console and the JSON only.
 5. A folder with typed pages but no `folderMap` entry is named once, by Scriptorium's own `warning:` line; the generator's `scanner: skipping "<folder>"` line does not also print.
+6. A site config as `init` scaffolds it prints none of the generator's `backend.statusBar` / `backend.inbox` "old name" lines or its "still holds campaign settings ... migrate.py" line, in human output or in `generatorWarnings`. Add a key `init` does not write (for example `excludeFields`) and the "still holds campaign settings" line returns.
 
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 

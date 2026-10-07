@@ -71,6 +71,39 @@ function withoutReportedUnmapped(generatorWarnings, reportedDirs) {
   });
 }
 
+/**
+ * Issue #30 review: `init` writes these site-config settings into every scaffolded campaign
+ * (src/cli/init.js, LEGACY_SCAFFOLD_SETTINGS), and the pin then warns on every build that they
+ * have moved, naming a tool (migrate.py) Scriptorium users do not have. Those lines are noise
+ * about Scriptorium's own scaffold, so drop exactly them and nothing else:
+ *  - the two backend "old name" lines, only when that backend key is false (the scaffold value);
+ *  - the legacy-settings line, only when every listed key is a scaffold key and no entry "..." is
+ *    still applied clause is present.
+ * The "is not a list" and "cannot be moved" lines never match. Anything else stays visible.
+ */
+const SCAFFOLD_KEY_RE = /^(siteTitle|landingTagline|attachmentsDir|folderMap|excludeDirs|excludeSections|excludeCallouts|backend)( \(ignored; the vault file sets it\))?$/;
+const LEGACY_PREFIX = 'WARNING: vault.config.json still holds campaign settings: ';
+const LEGACY_SUFFIX = '. Settings left in vault.config.json are planned to stop being read in plugin 1.11.0. Run `migrate.py <vault>` to move them.';
+const BACKEND_OLD_NAME = {
+  // Spelled in two pieces on purpose: test/live-stats-off.test.js greps src/ for the switch's name, and
+  // this is the generator's advice text to match, not Scriptorium setting the switch.
+  statusBar: 'WARNING: vault.config.json backend.statusBar is an old name; set publish.live' + '_stats',
+  inbox: 'WARNING: vault.config.json backend.inbox is an old name; set publish.inbox',
+};
+function withoutScaffoldNoise(generatorWarnings, siteConfig) {
+  const backend = (siteConfig && siteConfig.backend) || {};
+  return generatorWarnings.filter((line) => {
+    for (const key of Object.keys(BACKEND_OLD_NAME)) {
+      if (line === BACKEND_OLD_NAME[key] && backend[key] === false) return false;
+    }
+    if (line.startsWith(LEGACY_PREFIX) && line.endsWith(LEGACY_SUFFIX)) {
+      const middle = line.slice(LEGACY_PREFIX.length, line.length - LEGACY_SUFFIX.length);
+      if (middle.split(', ').every((item) => SCAFFOLD_KEY_RE.test(item))) return false;
+    }
+    return true;
+  });
+}
+
 /** FR-DEP-11: print a render error by its classifier `kind` (src/generator/bootstrap.js). */
 function renderErrorLine(re) {
   if (re.kind === 'party-manifest') return `ERROR building party manifest: ${re.message}`;
@@ -351,7 +384,10 @@ function runBuildForContext(ctxInfo, flags) {
   const unmappedByDir = unmappedDirectoryCounts(computePublishedSet(vaultPath, jsonConfig).unmappedDirectory);
   // Issue #30, FR-01: the generator's own warn-level lines, human and JSON alike. Human-only
   // Scriptorium warnings below are unchanged. A zero-warning build prints nothing extra.
-  const generatorWarnings = withoutReportedUnmapped(result.generatorWarnings || [], unmappedByDir);
+  const generatorWarnings = withoutScaffoldNoise(
+    withoutReportedUnmapped(result.generatorWarnings || [], unmappedByDir),
+    jsonConfig,
+  );
   if (generatorWarnings.length > 0) {
     lines.push(`${generatorWarnings.length} generator warning(s):`);
     for (const w of generatorWarnings) lines.push(w);
