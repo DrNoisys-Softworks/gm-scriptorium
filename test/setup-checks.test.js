@@ -183,7 +183,7 @@ test('checkOutput: a new sibling folder is ok and the default is <vault parent>/
   const r = await checks.checkOutput(want, { vault, name: 'lease' });
   assert.equal(r.state, 'ok');
   assert.equal(r.value, want);
-  assert.deepEqual(r.facts, { default: want, inside: false, nonEmptyForeign: false });
+  assert.deepEqual(r.facts, { default: want, inside: false, nonEmptyForeign: false, exists: false });
 });
 
 test('checkOutput: an empty value answers with the default so the browser can prefill it', async (t) => {

@@ -120,7 +120,7 @@ async function checkVault(value, { name = '', commit = false } = {}, deps = {}) 
 }
 
 async function checkOutput(value, { vault = '', name = '', commit = false } = {}, deps = {}) {
-  const baseFacts = { default: null, inside: false, nonEmptyForeign: false };
+  const baseFacts = { default: null, inside: false, nonEmptyForeign: false, exists: false };
   if (typeof vault !== 'string' || vault === '') return result('output', 'bad', '', NEED_VAULT_RULE, baseFacts);
   const facts = { ...baseFacts, default: defaultOutputFor(vault, name) };
 
@@ -140,7 +140,7 @@ async function checkOutput(value, { vault = '', name = '', commit = false } = {}
   if (isNonEmptyForeignOutput(typed.abs)) {
     return result('output', 'warn', typed.abs, nonEmptyOutputWarning(typed.abs), { ...facts, nonEmptyForeign: true });
   }
-  return result('output', 'ok', typed.abs, null, facts);
+  return result('output', 'ok', typed.abs, null, { ...facts, exists: fs.existsSync(typed.abs) });
 }
 
 async function checkTitle(value, { vault = '', name = '' } = {}) {

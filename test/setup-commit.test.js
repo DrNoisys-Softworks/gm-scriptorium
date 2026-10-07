@@ -110,6 +110,9 @@ test('commitSetup returns what it did: created entries (dirs suffixed /), no unt
   const vault = copySample(root);
   const l = layout(root);
   const done = await register.commitSetup(answersFor(root), l);
+  assert.equal(typeof done.ms.pack, 'number');
+  assert.equal(typeof done.ms.register, 'number');
+  delete done.ms;
   assert.deepEqual(done, {
     created: ['css/', 'images/', 'pack.toml', 'vault.config.json'],
     untouched: [],

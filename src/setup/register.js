@@ -93,13 +93,18 @@ async function commitSetup(answers, { configPath, panelDir }, deps = {}) {
   const missing = SCAFFOLD.filter((entry) => !fs.existsSync(path.join(packDir, entry.rel)));
   const untouched = SCAFFOLD.filter((entry) => fs.existsSync(path.join(packDir, entry.rel)));
   let created = [];
+  const packStart = process.hrtime.bigint();
   if (missing.length > 0) {
     const entries = scaffoldEntries(vaultAbs, missing, { title: titleRes.value, theme: themeRes.value });
     created = createPackEntries(vaultAbs, entries, { campaign: name }).created;
   }
 
+  const packMs = Number(process.hrtime.bigint() - packStart) / 1e6;
+
   // 6. The one config write.
+  const registerStart = process.hrtime.bigint();
   configWrite.writeConfigFile(configPath, next);
+  const registerMs = Number(process.hrtime.bigint() - registerStart) / 1e6;
   const isDefault = !latest.default_campaign && next.default_campaign === name;
 
   // 7. The welcome list: best effort, swallowed. A failure here never changes what the GM sees.
@@ -115,6 +120,7 @@ async function commitSetup(answers, { configPath, panelDir }, deps = {}) {
     packDir,
     configPath,
     isDefault,
+    ms: { pack: packMs, register: registerMs },
   };
 }
 

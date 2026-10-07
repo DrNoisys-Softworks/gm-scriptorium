@@ -7791,3 +7791,109 @@ body[data-page="signin"] {
 .su-pbar i.w80 { width: 80%; }
 .su-pbar i.w92 { width: 92%; }
 .su-pbar i.w100 { width: 100%; }
+
+/* Warning, error and ok notes (mock .a1-note.warn / .err / .ok), on the panel's own tokens. */
+.a1-note.warn {
+  border-color: var(--line-pending);
+  background: var(--wash-pending);
+}
+
+.a1-note.warn > .ico {
+  color: var(--pending);
+}
+
+.a1-note.err {
+  border-color: var(--error);
+  background: var(--wash-pending);
+}
+
+.a1-note.err > .ico {
+  color: var(--error);
+}
+
+.a1-note.ok {
+  border-color: var(--ok);
+  background: var(--surface-sunken);
+}
+
+.a1-note.ok > .ico {
+  color: var(--ok);
+}
+
+.su-q .a1-note,
+.su-page .a1-note,
+.su-themes-note .a1-note {
+  margin: 0;
+}
+
+/* Setup's readable widths. The general 1180px content cap (.a1-body:not(.has-dock) > main > *)
+   outranks a bare class, so these name the same path to win. */
+.a1-body:not(.has-dock) > [data-role="main"] > .su-q:not(.wide),
+.a1-body:not(.has-dock) > [data-role="main"] > .su-page,
+.a1-body:not(.has-dock) > [data-role="main"] > .su-ready {
+  max-width: 720px;
+}
+
+.a1-body:not(.has-dock) > [data-role="main"] > .su-q:not(.wide) .su-intro {
+  max-width: 700px;
+}
+
+.su-prog .t {
+  font: 12.5px var(--font-mono);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.su-foot .a1-btn.primary:disabled {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--line-crease);
+}
+
+.su-foot .a1-btn.primary:disabled .ico {
+  color: var(--text-muted);
+}
+
+.su-page > header,
+.su-intro {
+  margin-bottom: 4px;
+}
+
+.wel {
+  margin-bottom: 22px;
+}
+
+@media (max-width: 699px) {
+  .su-foot.has-back {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .su-foot.has-back .grow {
+    flex: none;
+    min-width: 0;
+  }
+
+  .su-foot.has-back .grow:empty {
+    display: none;
+  }
+
+  .su-ready .a1-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .su-ready .a1-actions .a1-btn {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 699px) {
+  .su-ready .a1-actions .a1-btn + .a1-btn {
+    margin-left: 0;
+  }
+}
+
+.su-ro .a1-hint {
+  margin: 0;
+}

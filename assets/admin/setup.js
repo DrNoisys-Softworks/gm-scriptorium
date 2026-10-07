@@ -54,8 +54,9 @@
   function button(cls, label, ico, onClick) {
     var b = h('button', 'a1-btn ' + cls);
     b.type = 'button';
-    if (ico) b.appendChild(icon(ico));
+    if (ico && ico !== 'arrow') b.appendChild(icon(ico));
     b.appendChild(document.createTextNode(label));
+    if (ico === 'arrow') b.appendChild(icon('arrow'));
     b.addEventListener('click', onClick);
     return b;
   }
@@ -215,7 +216,7 @@
   }
 
   function foot(back, nextLabel, onNext, note) {
-    var f = h('div', 'su-foot');
+    var f = h('div', 'su-foot' + (back ? ' has-back' : ''));
     if (back) f.appendChild(button('ghost', 'Back', null, function () { go(back); }));
     var grow = h('span', 'grow');
     grow.setAttribute('data-part', 'foot-note');
@@ -443,7 +444,7 @@
     var rows;
     var extra = [];
     if (r.state === 'ok' || r.state === 'warn') {
-      rows = [['ok', 'Folder found', code(r.value)], ['ok', 'A gm-apprentice vault', f.campaignTitle ? h('span', null, joinPath(['_meta', 'vault-config.md']) + ' says “' + f.campaignTitle + '”') : joinPath(['_meta', 'vault-config.md']) + ' is there']];
+      rows = [['ok', 'Folder found', code(r.value)], ['ok', 'A gm-apprentice vault', (function () { var sp = h('span'); add(sp, [code(joinPath(['_meta', 'vault-config.md'])), f.campaignTitle ? ' says “' + f.campaignTitle + '”' : ' is there']); return sp; })()]];
       if (f.unc) rows.push(['warn', 'On a network share', code(r.value)]);
       rows.push(['info', f.packExists ? 'A campaign pack already exists' : 'No campaign pack yet', f.packExists ? 'Setup leaves every existing pack file as it is' : h('span', null, 'Setup adds ' + joinPath(['_meta', 'scriptorium']) + ' at the end')]);
       if (f.unc) {
@@ -457,6 +458,7 @@
       rows = [['ok', 'Folder found', code(r.value)], ['bad', 'Not a gm-apprentice vault', 'There is no ' + joinPath(['_meta', 'vault-config.md']) + ' in this folder'], ['na', 'Where it lives', 'Checked once it is a vault']];
       var kids = [h('p'), null];
       kids[0].appendChild(h('b', null, f.candidate ? 'This folder isn’t a vault, but one folder down is.' : 'This folder isn’t a vault.'));
+      if (f.candidate) add(kids[0], [' ', code(f.candidate.split(/[\\/]/).pop()), ' has a ', code(joinPath(['_meta', 'vault-config.md'])), '.']);
       if (f.candidate) {
         var a2 = h('div', 'a1-actions');
         a2.classList.add('su-mt8');
@@ -537,6 +539,8 @@
 
   function outputDraw(status, input, r) {
     status.textContent = '';
+    var sug = document.getElementById('su-out-hint');
+    if (sug) sug.hidden = !(r && r.state === 'ok');
     markInput(input, r ? r.state : null);
     if (!r) return;
     var f = r.facts || {};
@@ -557,12 +561,15 @@
       onOutput(input, false);
     };
     if (r.state === 'ok') {
-      rows = [['ok', 'Outside the vault', ''], ['ok', 'Folder is free to use', 'Created by the first build'], ['info', 'Next to your vault', 'Suggested, so it’s easy to find']];
+      rows = [['ok', 'Outside the vault', ''], [ 'ok', f.exists ? 'Folder is free to use' : 'New folder', f.exists ? 'Empty, or an earlier GM-Scriptorium build' : 'Created by the first build'], ['info', 'Next to your vault', 'Suggested, so it’s easy to find']];
     } else if (r.state === 'warn') {
       rows = [['ok', 'Outside the vault', ''], ['warn', 'Not empty', 'Has other files, and isn’t an earlier GM-Scriptorium build']];
       var p = h('p');
-      p.appendChild(code(r.value));
-      p.appendChild(document.createTextNode(' already has other files in it. The first build replaces everything in this folder.'));
+      var pb2 = h('b');
+      pb2.appendChild(code(r.value));
+      pb2.appendChild(document.createTextNode(' already has other files in it.'));
+      p.appendChild(pb2);
+      p.appendChild(document.createTextNode(' The first build replaces everything in this folder.'));
       var lab = h('label', 'st-check');
       lab.setAttribute('for', 'su-outok');
       var cb = h('input');
@@ -581,7 +588,11 @@
       acts.appendChild(button('small ghost', 'Use the suggested folder instead', null, useDefault));
       extra.push(note('warn', 'warn', [p, lab, acts, ruleLine(r.rule)]));
     } else {
-      rows = [['bad', f.inside ? 'Inside the vault' : 'Not allowed', f.inside ? 'Your vault contains it' : 'That folder can’t be used']];
+      var vaultCode = S.res.vault ? S.res.vault.value : S.vault;
+      var innerDetail = h('span');
+      if (f.inside) add(innerDetail, [code(vaultCode), ' contains it']);
+      else setText(innerDetail, 'That folder can’t be used');
+      rows = [['bad', f.inside ? 'Inside the vault' : 'Not allowed', innerDetail]];
       var pb = h('p');
       pb.appendChild(h('b', null, f.inside ? 'That folder is inside your vault.' : 'That folder can’t be used.'));
       pb.appendChild(document.createTextNode(f.inside ? ' Every build would write the website into your notes. Pick a folder outside it; the suggested one sits next to the vault.' : ''));
@@ -624,6 +635,7 @@
     var fb = fieldBlock('su-out', 'Output folder', input, 'su-out-st');
     wrap.appendChild(fb.field);
     var hint = h('p', 'a1-hint', 'Suggested: next to your vault, named after the campaign.');
+    hint.id = 'su-out-hint';
     fb.field.insertBefore(hint, fb.status);
     wrap.appendChild(foot('vault', 'Continue', function () {
       if (S.res.output && S.res.output.state === 'deferred') onOutput(input, true);
@@ -680,7 +692,7 @@
   function screenTitle() {
     var wrap = h('div', 'su-q');
     wrap.appendChild(h('div'));
-    var body = h('div');
+    var body = h('div', 'su-q');
     wrap.appendChild(body);
     ask('title', undefined, false).then(function (r0) {
       if (!r0) return;
@@ -982,7 +994,11 @@
     });
   }
 
-  function progLine(kind, title, detail) {
+  function secs(ms) {
+    return (Math.round(ms / 100) / 10).toFixed(1) + ' s';
+  }
+
+  function progLine(kind, title, detail, ms) {
     var li = h('li', kind);
     if (kind === 'run') {
       var sp = h('span', 'spin');
@@ -992,7 +1008,7 @@
     else if (kind === 'bad') li.appendChild(icon('x'));
     else li.appendChild(icon('more'));
     li.appendChild(h('b', null, title));
-    li.appendChild(h('span'));
+    li.appendChild(h('span', 't', ms === undefined ? '' : secs(ms)));
     if (detail) {
       var d = h('span', 'd');
       if (typeof detail === 'string') setText(d, detail);
@@ -1016,8 +1032,8 @@
   function progressList(lines, running) {
     var ul = h('ul', 'su-prog');
     var res = S.result || { created: [] };
-    ul.appendChild(progLine('ok', res.created.length === 0 ? 'Nothing new to create' : 'Created ' + res.created.length + ' item' + (res.created.length === 1 ? '' : 's'), res.created.length ? code(res.created.join(', ') + ' in ' + joinPath(['_meta', 'scriptorium'])) : 'Every pack file already existed'));
-    ul.appendChild(progLine('ok', 'Registered ' + S.name.trim(), res.isDefault ? 'Your default campaign' : 'In your config'));
+    ul.appendChild(progLine('ok', res.created.length === 0 ? 'Nothing new to create' : 'Created ' + res.created.length + ' item' + (res.created.length === 1 ? '' : 's'), res.created.length ? code(res.created.join(', ') + ' in ' + joinPath(['_meta', 'scriptorium'])) : 'Every pack file already existed', res.ms && res.ms.pack));
+    ul.appendChild(progLine('ok', 'Registered ' + S.name.trim(), res.isDefault ? 'Your default campaign' : 'In your config', res.ms && res.ms.register));
     lines.forEach(function (l) { ul.appendChild(l); });
     if (running) ul.appendChild(progLine('run', running[0], running[1]));
     return ul;
@@ -1041,21 +1057,24 @@
       host.appendChild(progressList(lines, running));
     };
     draw(['Checking your vault…', 'Reading every page against the leak rules.']);
+    var t0 = performance.now();
+    var t1 = 0;
     A.api('/api/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(function (c) {
       var cb = c.body || {};
-      if (c.ok && cb.envelope && cb.exitCode === 0) lines.push(progLine('ok', 'Check: clean', counts(cb.envelope)));
-      else if (c.ok && cb.envelope) lines.push(progLine('bad', 'Check found problems', counts(cb.envelope)));
+      if (c.ok && cb.envelope && cb.exitCode === 0) lines.push(progLine('ok', 'Check: clean', counts(cb.envelope), performance.now() - t0));
+      else if (c.ok && cb.envelope) lines.push(progLine('bad', 'Check found problems', counts(cb.envelope), performance.now() - t0));
       else lines.push(progLine('bad', 'Check could not run', firstLine(cb.error || cb.human || 'The panel did not answer.')));
       S.checkExit = c.ok ? cb.exitCode : 1;
+      t1 = performance.now();
       draw(['Building preview…', 'Into the panel’s own preview folder. Your output folder is filled the first time you build the site.']);
       return A.api('/api/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     }).then(function (p) {
       var pb = p.body || {};
       if (p.ok && pb.exitCode === 0) {
-        lines.push(progLine('ok', 'Preview built', 'In the panel’s own preview folder'));
+        lines.push(progLine('ok', 'Preview built', 'In the panel’s own preview folder', performance.now() - t1));
         S.built = 'ok';
       } else {
-        lines.push(progLine('bad', 'Preview refused', firstLine(pb.human || pb.error || 'The build did not finish.')));
+        lines.push(progLine('bad', 'Preview refused', firstLine(pb.human || pb.error || 'The build did not finish.'), performance.now() - t1));
         S.built = 'refused';
       }
       S.progress = lines;
@@ -1096,7 +1115,9 @@
     }
     wrap.appendChild(acts);
     var fine = h('p', 'a1-fine');
-    add(fine, ['Commit your vault now: setup added files under ', code(joinPath(['_meta', 'scriptorium'])), '.']);
+    var made = S.result && S.result.created ? S.result.created.length : 0;
+    var words = ['nothing new', 'one new item', 'two new items', 'three new items', 'four new items'];
+    add(fine, ['Commit your vault now: setup added ' + (words[made] || made + ' new items') + ' under ', code(joinPath(['_meta', 'scriptorium'])), '.']);
     wrap.appendChild(fine);
     return wrap;
   }

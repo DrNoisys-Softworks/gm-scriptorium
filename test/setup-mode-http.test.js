@@ -537,7 +537,10 @@ async function commitOk(t, { vaultFix } = {}) {
 test('handover: the commit answers 200 with what it did, then the same process serves the campaign on the same ports with the same cookie', async (t) => {
   const { root, configPath, vault, h, res, portsBefore, ctxBefore } = await commitOk(t);
   assert.equal(res.status, 200, res.body.toString());
-  assert.deepEqual(json(res), {
+  const committed = json(res);
+  assert.equal(typeof committed.ms.pack, 'number');
+  delete committed.ms;
+  assert.deepEqual(committed, {
     created: ['css/', 'images/', 'pack.toml', 'vault.config.json'],
     untouched: [],
     packDir: path.join(vault, '_meta', 'scriptorium'),
