@@ -1717,6 +1717,15 @@ Issue #108 (owner decision 2026-10-07: no new exit codes). **Mark this OPEN: Lin
 6. Exit 2 and 4 appear in none of the above.
 7. Expected code changed from 1 to 3 and is **OPEN** again until re-run from the exe: C35 step 6 (init with `--out` inside the vault), the C43 inside-the-vault build refusal (step 1), C91 step 2, C92 step 2, C33 step 4 and the C30-era "no site_config" item (line ~430), C34 (pack image refusal, was 1) and C37 step 6 (pack.toml refusals, was 1). Any other earlier criterion expecting exit 1 for a bad `pack.toml`, theme, pack folder or pack image now expects 3.
 
+### C150: the README config-isolation blocks for PowerShell and cmd, on Windows
+
+Issues #8 and #17 (slice 1). **Mark this OPEN: the two Windows blocks were written on Linux and never run on Windows.** Only the Linux block was run. From a clone of the repository, copy each block from the README section "Trying it beside a real campaign" exactly as written, in its own shell (PowerShell, then Command Prompt), with `gm-scriptorium` on the PATH:
+
+1. The block runs to the end with no error: the scratch folder is made, the sample vault is copied to `vault`, `config add` registers `lease`, `check` passes, and `build` writes a site to `out`.
+2. Run the same block a second time in a new window. It still works, because each run makes a new scratch folder, and the first run's folder is untouched.
+3. `%APPDATA%\Scriptorium\config.toml` is unchanged (same hash and timestamp) before and after both runs, and the cloned `examples\the-long-lease` is unchanged.
+4. In a new window, `echo %SCRIPTORIUM_CONFIG%` (or `$env:SCRIPTORIUM_CONFIG`) is empty again.
+
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 
 None of these are product concerns; every one is a harness limit on the automated tester's side,

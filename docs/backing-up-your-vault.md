@@ -10,7 +10,7 @@ second copy you can get back if the first one is lost or damaged.
 ## What GM-Scriptorium does with your notes
 
 It never moves vault content anywhere. `check` only reads. `build` reads the vault and writes a
-site to a separate output folder. `serve` shows that site on your own computer. There is no
+site to a separate output folder. `serve` shows that site on your own computer by default. There is no
 telemetry and no sync. The only network call the tool makes is `update`, and it fetches the tool's
 own release files, never anything about your campaign.
 
