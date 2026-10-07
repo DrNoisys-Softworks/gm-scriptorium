@@ -265,3 +265,31 @@ test('an unreachable vault at commit time is refused as invalid with the unreach
   assert.match(res.invalid.rule, /within a few seconds/);
   assert.equal(fs.existsSync(l.configPath), false);
 });
+
+test('race during the probes: a campaign registered while the commit is awaiting a slow folder check is not lost (taken, nothing written, the other campaign intact)', async (t) => {
+  const root = scratchRoot(t);
+  const vault = copySample(root);
+  const other = copySample(root, 'other-vault');
+  const l = layout(root);
+  fs.mkdirSync(path.dirname(l.configPath), { recursive: true });
+  const real = fs.promises;
+  // The first folder check takes 150 ms; meanwhile another instance registers a campaign.
+  let registered = false;
+  const slowFsp = {
+    readdir: real.readdir,
+    stat: async (p) => {
+      if (!registered) {
+        registered = true;
+        await new Promise((r) => setTimeout(r, 150));
+        writeConfigFile(l.configPath, { config_version: 1, default_campaign: 'first', campaigns: { first: { vault: other, output: path.join(root, 'first-site') } } });
+      }
+      return real.stat(p);
+    },
+  };
+  const res = await register.commitSetup(answersFor(root), l, { fsp: slowFsp });
+  assert.deepEqual(res, { refused: 'taken' });
+  const cfg = fs.readFileSync(l.configPath, 'utf8');
+  assert.match(cfg, /\[campaigns\.first\]/);
+  assert.ok(!/\[campaigns\.lease\]/.test(cfg), 'the late registration is not overwritten by a stale copy');
+  assert.equal(fs.existsSync(path.join(vault, '_meta', 'scriptorium')), false);
+});

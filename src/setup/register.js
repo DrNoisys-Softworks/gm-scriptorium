@@ -66,6 +66,12 @@ async function commitSetup(answers, { configPath, panelDir }, deps = {}) {
   const themeRes = await checks.checkTheme(answers.theme, { vault: vaultAbs, name });
   if (BAD_STATES.has(themeRes.state)) return invalid('theme', themeRes.rule);
 
+  // The probes above can each wait seconds on a slow share, so the first read of the config may be
+  // stale. This is the last await: read the config again, and from here to the write everything is
+  // synchronous, so nothing can register a campaign in between except a truly simultaneous write.
+  const latest = loadConfig({ config: configPath }).config;
+  if (Object.keys(latest.campaigns || {}).length > 0) return { refused: 'taken' };
+
   // 3. The pack folder must not be a file.
   const packDir = packDirFor(vaultAbs);
   const packStat = read.statOrNull(packDir);
@@ -74,7 +80,7 @@ async function commitSetup(answers, { configPath, panelDir }, deps = {}) {
   }
 
   // 4. The registration, and the two refusals that must come before anything is written.
-  const next = addCampaign(config, name, { vault: vaultAbs, output: outAbs });
+  const next = addCampaign(latest, name, { vault: vaultAbs, output: outAbs });
   try {
     assertConfigPathNotInVault(configPath, next);
     assertNotInsideAnyVault(panelDir, next);
@@ -94,7 +100,7 @@ async function commitSetup(answers, { configPath, panelDir }, deps = {}) {
 
   // 6. The one config write.
   configWrite.writeConfigFile(configPath, next);
-  const isDefault = !config.default_campaign && next.default_campaign === name;
+  const isDefault = !latest.default_campaign && next.default_campaign === name;
 
   // 7. The welcome list: best effort, swallowed. A failure here never changes what the GM sees.
   try {

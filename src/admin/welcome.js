@@ -56,6 +56,8 @@ function writePending(panelDir, names) {
     fs.writeSync(fd, data, 0, data.length, null);
     fs.closeSync(fd);
     fd = undefined;
+    // Deliberately no fsync and no Windows rename retry (privatefile.js has both): a welcome lost to a
+    // crash or a briefly locked file is shown again or dismissed again, which costs nothing.
     fs.renameSync(tmp, file);
   } catch (err) {
     if (fd !== undefined) {

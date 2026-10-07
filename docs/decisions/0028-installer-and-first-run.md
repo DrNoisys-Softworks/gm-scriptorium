@@ -25,7 +25,7 @@ ADR 0022 forbade the panel's module graph from reaching the config writer. Brows
 - The panel graph still never reaches `src/cli/config.js` or `src/cli/init.js`. The shared pieces `init` and setup both need (the scaffold entries, the default output and title, the non-empty output texts) live in `src/setup/scaffold.js`, and `init.js` re-exports the identical objects.
 - Tests pin it from both sides. The graph tests show `write.js` has one importer chain. A source scan shows no other module under `src/admin` or `src/setup` names the writer. A behavioural sweep spies on the writer, hits every route of the table in normal mode and in setup mode with empty bodies, and expects no call except one valid setup commit, which expects one. Setup code stays write-free apart from the create-only pack writer in `src/vault/packwrite.js`.
 
-The commit re-reads the config before anything is written. If it now holds any campaign (another instance, or a terminal `init`, got there first) the commit is refused with nothing written. Two first-run instances racing inside the few milliseconds of one config write are not caught; see the last section. The commit also refuses a config file path or a panel folder inside a vault, and a non-empty output folder that is not an earlier build unless the review sent an explicit confirmation. Pack entries go through `createPackEntries`, which is create-only, so a pack file that already exists is left alone and listed. Nothing is ever rolled back.
+The commit re-reads the config before anything is written. If it now holds any campaign (another instance, or a terminal `init`, got there first) the commit is refused with nothing written. The config is read again after the last slow folder check, and everything from there to the write is synchronous; only a truly simultaneous write by another process can slip through (see the last section). The commit also refuses a config file path or a panel folder inside a vault, and a non-empty output folder that is not an earlier build unless the review sent an explicit confirmation. Pack entries go through `createPackEntries`, which is create-only, so a pack file that already exists is left alone and listed. Nothing is ever rolled back.
 
 ## 3. Checking answers without stalling the panel
 
@@ -68,7 +68,7 @@ Will catch:
 Will not catch, deliberately:
 
 - a share that drops between the probe and the write;
-- two first-run instances racing within one config write;
+- two first-run instances writing in the same instant: the config is read again after the last slow folder check and everything from there to the write is synchronous, so only a truly simultaneous write can get through;
 - a mapped network drive, which is treated as a local disk;
 - a hanging probe holding one of the thread pool's four threads until the operating system gives up;
 - on Linux, a snap-packaged browser that cannot read hidden folders (relevant once the browser is opened by a launcher file; the workaround is the printed link).
