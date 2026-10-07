@@ -7,6 +7,7 @@ the guides written for AI assistants, apart from one pointer to them under Contr
 ## Using
 
 - [Image slots](image-slots.md): which images a theme can show, and the sizes to prepare them at.
+- [Backing up your vault](backing-up-your-vault.md): how to keep your campaign notes safe, and why GM-Scriptorium does not do it for you.
 
 ## Contributing
 
