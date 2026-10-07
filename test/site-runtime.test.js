@@ -126,18 +126,47 @@ test('CX.centerScrollLeft: centres the hub in the scroller, clamped to [0, scrol
 // -- file's own programmatic writes; CX.recentreOnFontsReady is the one-time post-fonts
 // -- correction itself, gated on "nothing has moved the lane on since the initial render".
 
-test('CX.scrollGuard: swallows the scroll immediately following markProgrammatic, reports every other scroll as real', () => {
+test('CX.scrollGuard: swallows the echo of a programmatic write, reports every other scroll as real', () => {
   const guard = CX.scrollGuard();
-  assert.equal(guard.onScroll(), true); // no markProgrammatic call at all: a real scroll
+  assert.equal(guard.onScroll(120), true); // no markProgrammatic call at all: a real scroll
 
-  guard.markProgrammatic();
-  assert.equal(guard.onScroll(), false); // this one's an echo of our own write
-  assert.equal(guard.onScroll(), true); // the flag was consumed; the next one is real again
+  guard.markProgrammatic(300, 0);
+  assert.equal(guard.onScroll(300), false); // this one's an echo of our own write
+  assert.equal(guard.onScroll(300), true); // the mark was consumed; the next one is real again
 
-  guard.markProgrammatic();
-  guard.markProgrammatic(); // marking twice in a row still only swallows one echo
-  assert.equal(guard.onScroll(), false);
-  assert.equal(guard.onScroll(), true);
+  guard.markProgrammatic(300, 0);
+  guard.markProgrammatic(300, 0); // marking twice in a row still only swallows one echo
+  assert.equal(guard.onScroll(300), false);
+  assert.equal(guard.onScroll(300), true);
+});
+
+test('CX.scrollGuard: a coalesced user scroll (observed position is not the written one) is real, issue #22', () => {
+  const guard = CX.scrollGuard();
+  guard.markProgrammatic(300, 0);
+  // The user scrolled in the same tick as our write: one merged event, at a position we never wrote.
+  assert.equal(guard.onScroll(340), true);
+  // The mark is spent, so a following genuine echo-looking position is not swallowed either.
+  assert.equal(guard.onScroll(300), true);
+});
+
+test('CX.scrollGuard: a write that leaves the position unchanged does not stay armed, issue #22', () => {
+  const guard = CX.scrollGuard();
+  guard.markProgrammatic(300, 300); // no scroll event will follow
+  assert.equal(guard.onScroll(450), true); // the next real scroll must not be swallowed
+  guard.markProgrammatic(300, 299.6); // within 1px counts as unchanged as well
+  assert.equal(guard.onScroll(450), true);
+});
+
+test('CX.scrollGuard: a write the browser clamps or rounds (within 1px) is still recognised as its echo, issue #22', () => {
+  const guard = CX.scrollGuard();
+  guard.markProgrammatic(300.4, 0);
+  assert.equal(guard.onScroll(300), false);
+  guard.markProgrammatic(300.5, 0);
+  assert.equal(guard.onScroll(301), false);
+  guard.markProgrammatic(300, 0);
+  assert.equal(guard.onScroll(302), true); // 2px away is a real scroll
+  guard.markProgrammatic(300, 0);
+  assert.equal(guard.onScroll(), true); // no observed position: cannot be classified as an echo
 });
 
 test('CX.recentreOnFontsReady: reproduces + fixes the race -- never measures before fonts.ready resolves, then measures exactly once against the fresh (post-swap) layout', async () => {
@@ -328,12 +357,9 @@ test('PT.nearestScrollLeft + CX.recentreOnFontsReady composed exactly as initPcT
 // -- with CX.scrollGuard() + a 'scroll' listener (initConnections, ~L943-953). initPcTabs now
 // -- reuses that same CX.scrollGuard (not a copy) the same way.
 //
-// Inherited residual, stated rather than left for someone to rediscover: CX.scrollGuard's single
-// boolean cannot distinguish a coalesced scroll -- a real user scroll landing in the same tick as
-// one of initPcTabs's own programmatic scrollLeft writes could still be misread as that write's
-// own echo (issue #59, filed against the Connections lane's identical mechanism). initPcTabs reuses
-// the exact same primitive for the exact same reason (CX.recentreOnFontsReady already reused
-// unmodified), so it inherits that same bounded residual unchanged; not closed here.
+// The old single-boolean guard could not tell a coalesced scroll from its own echo (issue #22,
+// formerly noted as #59). CX.scrollGuard now compares positions, so initPcTabs inherits the fix
+// with no change of its own beyond the new call shape.
 
 // -- Reviewer re-pass on eebd2b2: the previous version of this test only checked that the token
 // -- `scrollGuard.onScroll()` appeared inside the scroll listener's body, not that its RETURN
@@ -470,6 +496,6 @@ test('initPcTabs (source-level): every direct bar.scrollLeft write is preceded b
   const assignments = [...body.matchAll(/([\s\S]{0,80})bar\.scrollLeft\s*=/g)];
   assert.ok(assignments.length >= 2, `expected at least 2 direct bar.scrollLeft assignments (initial + corrected), found ${assignments.length}`);
   for (const m of assignments) {
-    assert.match(m[1], /scrollGuard\.markProgrammatic\(\);\s*$/, `expected markProgrammatic() immediately before this scrollLeft write: ...${m[1].slice(-60)}`);
+    assert.match(m[1], /scrollGuard\.markProgrammatic\(\w+, bar\.scrollLeft\);\s*$/, `expected markProgrammatic(<value>, bar.scrollLeft) immediately before this scrollLeft write: ...${m[1].slice(-60)}`);
   }
 });

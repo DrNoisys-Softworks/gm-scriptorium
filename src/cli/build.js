@@ -37,19 +37,65 @@ function requireOutputFolder(ctxInfo, command) {
  * site config's folderMap has no entry for it. Same finding `check` reports as
  * vault/unmapped-directory, but build must say it too, including under --no-check.
  */
-function unmappedDirectoryWarnings(unmappedDirectory) {
+function unmappedDirectoryCounts(unmappedDirectory) {
   const byDir = new Map();
   for (const f of unmappedDirectory) {
     const idx = f.relPath.lastIndexOf('/');
     const dir = idx > 0 ? f.relPath.slice(0, idx) : f.relPath;
     byDir.set(dir, (byDir.get(dir) || 0) + 1);
   }
+  return byDir;
+}
+
+function unmappedDirectoryWarnings(byDir) {
   return [...byDir.keys()].sort().map((dir) => {
     const n = byDir.get(dir);
     return (
       `warning: ${n} page(s) in "${dir}" were not published: that folder has no folderMap entry in the site config. ` +
       `Add "${dir}" to folderMap (for example "${dir}": "${suggestedSlug(dir)}"), or list it in excludeDirs to leave it out on purpose.`
     );
+  });
+}
+
+/**
+ * Issue #30, FR-03: the generator's own unmapped-folder line (lib/scanner.js, "scanner: skipping
+ * "<dir>" - not in publish.folder_map ...") points at _meta/vault-config.md, which contradicts the
+ * folderMap advice unmappedDirectoryWarnings gives. Drop it for every folder Scriptorium already
+ * reports, so each folder is named once.
+ */
+const GENERATOR_UNMAPPED_RE = /^scanner: skipping "(.*)" \u2014 not in publish\.folder_map/;
+function withoutReportedUnmapped(generatorWarnings, reportedDirs) {
+  return generatorWarnings.filter((line) => {
+    const m = line.match(GENERATOR_UNMAPPED_RE);
+    return !(m && reportedDirs.has(m[1]));
+  });
+}
+
+/**
+ * Issue #30 review: `init` writes these site-config settings into every scaffolded campaign
+ * (src/cli/init.js, LEGACY_SCAFFOLD_SETTINGS), and the pin then warns on every build that they
+ * have moved, naming a tool (migrate.py) Scriptorium users do not have. Those lines are noise
+ * about Scriptorium's own scaffold, so drop exactly them and nothing else:
+ *  - the two backend "old name" lines, only when that backend key is false (the scaffold value);
+ *  - the legacy-settings line, only when every listed key is a scaffold key and no entry "..." is
+ *    still applied clause is present.
+ * The "is not a list" and "cannot be moved" lines never match. Anything else stays visible.
+ */
+const SCAFFOLD_KEY_RE = /^(siteTitle|landingTagline|attachmentsDir|folderMap|excludeDirs|excludeSections|excludeCallouts|backend)( \(ignored; the vault file sets it\))?$/;
+const LEGACY_PREFIX = 'WARNING: vault.config.json still holds campaign settings: ';
+const LEGACY_SUFFIX = '. Settings left in vault.config.json are planned to stop being read in plugin 1.11.0. Run `migrate.py <vault>` to move them.';
+const STATUS_BAR_OLD_NAME_PREFIX = 'WARNING: vault.config.json backend.statusBar is an old name; set ';
+const INBOX_OLD_NAME = 'WARNING: vault.config.json backend.inbox is an old name; set publish.inbox';
+function withoutScaffoldNoise(generatorWarnings, siteConfig) {
+  const backend = (siteConfig && siteConfig.backend) || {};
+  return generatorWarnings.filter((line) => {
+    if (line.startsWith(STATUS_BAR_OLD_NAME_PREFIX) && backend.statusBar === false) return false;
+    if (line === INBOX_OLD_NAME && backend.inbox === false) return false;
+    if (line.startsWith(LEGACY_PREFIX) && line.endsWith(LEGACY_SUFFIX)) {
+      const middle = line.slice(LEGACY_PREFIX.length, line.length - LEGACY_SUFFIX.length);
+      if (middle.split(', ').every((item) => SCAFFOLD_KEY_RE.test(item))) return false;
+    }
+    return true;
   });
 }
 
@@ -330,7 +376,18 @@ function runBuildForContext(ctxInfo, flags) {
   }
 
   lines.push(`built ${result.pagesWritten} file(s) in ${result.elapsedMs.toFixed(1)}ms -> ${result.finalOut}`);
-  for (const w of unmappedDirectoryWarnings(computePublishedSet(vaultPath, jsonConfig).unmappedDirectory)) lines.push(w);
+  const unmappedByDir = unmappedDirectoryCounts(computePublishedSet(vaultPath, jsonConfig).unmappedDirectory);
+  // Issue #30, FR-01: the generator's own warn-level lines, human and JSON alike. Human-only
+  // Scriptorium warnings below are unchanged. A zero-warning build prints nothing extra.
+  const generatorWarnings = withoutScaffoldNoise(
+    withoutReportedUnmapped(result.generatorWarnings || [], unmappedByDir),
+    jsonConfig,
+  );
+  if (generatorWarnings.length > 0) {
+    lines.push(`${generatorWarnings.length} generator warning(s):`);
+    for (const w of generatorWarnings) lines.push(w);
+  }
+  for (const w of unmappedDirectoryWarnings(unmappedByDir)) lines.push(w);
   // Engineering Brief "Story timeline + Connections lane" (2026-09-24), Structural decision 11:
   // each apply's warnings are human-only, printed after "built N file(s)", never in the JSON
   // envelope (residual).
@@ -391,6 +448,7 @@ function runBuildForContext(ctxInfo, flags) {
       redactions: result.redactions || [],
       staleOldDir: result.staleOldDir || null,
       outputScan: result.outputScan,
+      generatorWarnings,
       error: null,
       renderErrors: [],
       stagingRoot: null,

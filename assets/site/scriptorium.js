@@ -429,25 +429,32 @@
   /**
    * Distinguishes a genuine user scroll of the lane from this file's own programmatic writes to
    * scrollLeft (the initial centring, and CX.recentreOnFontsReady's own one-time correction) --
-   * the DOM's 'scroll' event carries no signal for which one caused it. markProgrammatic() must
-   * be called immediately before every such write; the next 'scroll' event after that is treated
-   * as that write's own echo, never a new interaction -- every other one reaching onScroll() is
-   * real. Pure state, no DOM of its own, so it is testable without a real scroller.
+   * the DOM's 'scroll' event carries no signal for which one caused it, so the guard compares
+   * positions instead of trusting "the next event". markProgrammatic(target, current) must be
+   * called immediately before every such write, with the position being written and the position
+   * the element holds now. onScroll(observed) is then given the element's scrollLeft as the event
+   * is handled, and treats the event as that write's echo only when observed is within 1px of
+   * target (the browser may clamp or round the write); any other position is a real scroll, so a
+   * user scroll coalesced into the echo's event is never swallowed. The mark is spent by the first
+   * event either way. A write that leaves the position unchanged (target within 1px of current)
+   * fires no event, so it is not armed at all and cannot swallow a later real scroll. onScroll
+   * with no position cannot be classified, so it reports a real scroll. Pure state, no DOM of
+   * its own, so it is testable without a real scroller.
    *
-   * @returns {{ markProgrammatic: () => void, onScroll: () => boolean }}
+   * @returns {{ markProgrammatic: (target: number, current: number) => void, onScroll: (observed?: number) => boolean }}
    */
   CX.scrollGuard = function () {
-    var expecting = false;
+    var TOLERANCE = 1;
+    var expected = null;
     return {
-      markProgrammatic: function () {
-        expecting = true;
+      markProgrammatic: function (target, current) {
+        expected = Math.abs(target - current) <= TOLERANCE ? null : target;
       },
-      onScroll: function () {
-        if (expecting) {
-          expecting = false;
-          return false;
-        }
-        return true;
+      onScroll: function (observed) {
+        var target = expected;
+        expected = null;
+        if (target === null || typeof observed !== 'number') return true;
+        return Math.abs(observed - target) > TOLERANCE;
       },
     };
   };
@@ -956,11 +963,11 @@
         if (scroller && hubEl) {
           var sl = CX.centerScrollLeft(hubEl.offsetLeft, hubEl.offsetWidth, scroller.clientWidth, scroller.scrollWidth);
           if (sl !== null) {
-            scrollGuard.markProgrammatic();
+            scrollGuard.markProgrammatic(sl, scroller.scrollLeft);
             scroller.scrollLeft = sl; // direct assignment: always instant, never smooth
           }
           scroller.addEventListener('scroll', function () {
-            if (scrollGuard.onScroll()) interacted = true;
+            if (scrollGuard.onScroll(scroller.scrollLeft)) interacted = true;
           });
         }
 
@@ -984,7 +991,7 @@
             function (v) {
               var sc = section.querySelector('.sc-cx-lane-scroll');
               if (!sc) return;
-              scrollGuard.markProgrammatic();
+              scrollGuard.markProgrammatic(v, sc.scrollLeft);
               sc.scrollLeft = v;
             }
           );
@@ -1111,11 +1118,10 @@
     // strip back, overwriting a position the reader just chose. CX.scrollGuard (reused, not
     // copied -- the Connections lane's own initConnections pairs it with a scroll listener the
     // same way) distinguishes that real scroll from this function's own programmatic writes,
-    // both of which must call markProgrammatic() immediately before assigning bar.scrollLeft so
-    // their own resulting 'scroll' event isn't misread as a real interaction. Inherits the same
-    // bounded residual CX.scrollGuard already has (issue #59): a single boolean cannot
-    // distinguish a coalesced scroll, so a real scroll landing in the same tick as one of this
-    // function's own writes could still be misread as that write's echo. Not closed here.
+    // both of which must call markProgrammatic(value, bar.scrollLeft) immediately before assigning
+    // bar.scrollLeft so their own resulting 'scroll' event isn't misread as a real interaction.
+    // The guard compares positions, so a real scroll coalesced into one of those events is
+    // still reported as real (issue #22).
     var scrollGuard = CX.scrollGuard();
 
     function place() {
@@ -1127,12 +1133,12 @@
     // rule CX.centerScrollLeft's own comment states for the Connections lane.
     var sl = place();
     if (sl !== null) {
-      scrollGuard.markProgrammatic();
+      scrollGuard.markProgrammatic(sl, bar.scrollLeft);
       bar.scrollLeft = sl;
     }
 
     bar.addEventListener('scroll', function () {
-      if (scrollGuard.onScroll()) settled = true;
+      if (scrollGuard.onScroll(bar.scrollLeft)) settled = true;
     });
 
     CX.recentreOnFontsReady(
@@ -1142,7 +1148,7 @@
       },
       place,
       function (v) {
-        scrollGuard.markProgrammatic();
+        scrollGuard.markProgrammatic(v, bar.scrollLeft);
         bar.scrollLeft = v;
       },
     );

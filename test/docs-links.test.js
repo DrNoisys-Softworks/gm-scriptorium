@@ -43,6 +43,11 @@ const SCOPED_FILES = [
   'docs/COLLABORATING.md',
   'docs/PROVENANCE.md',
   'docs/image-slots.md',
+  'docs/install.md',
+  'docs/using.md',
+  'docs/about.md',
+  'docs/privacy.md',
+  'docs/trying-it-safely.md',
   'docs/issues/README.md',
   'examples/README.md',
 ];

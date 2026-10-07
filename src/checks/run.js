@@ -9,6 +9,7 @@ const unmapped = require('./unmapped');
 const sessionmodel = require('./sessionmodel');
 const configdiv = require('./configdiv');
 const themescheme = require('./themescheme');
+const staleness = require('./staleness');
 const l1 = require('./leak/l1');
 const l2 = require('./leak/l2');
 const l3 = require('./leak/l3');
@@ -27,6 +28,7 @@ const RUNNERS = {
   'census/session-wrap-hub-unpublished': sessionmodel.runWrapUpHubUnpublished,
   'census/session-wrap-link-unpaired': sessionmodel.runWrapUpLinkUnpaired,
   'census/session-wrap-learned-missing': sessionmodel.runWrapUpLearnedMissing,
+  'staleness/story-behind-pc': staleness.runStoryBehindPc,
   'link/unresolved': link.runUnresolved,
   'link/in-code': link.runInCode,
   'link/ambiguous-target': link.runAmbiguousTarget,
