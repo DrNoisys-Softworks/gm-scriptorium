@@ -201,6 +201,13 @@ function makeFakeBin(t, { empty = false } = {}) {
     attempts: [],
     refusals: [],
     cleaned: false,
+    pidfiles: [],
+  };
+
+  // Register a pidfile base path: cleanup() kills the exact pids recorded there (never a pattern).
+  fb.trackPidfile = (pidfile) => {
+    fb.pidfiles.push(pidfile);
+    return pidfile;
   };
 
   // (b) The guard on every real spawn.
@@ -311,6 +318,16 @@ function makeFakeBin(t, { empty = false } = {}) {
   fb.cleanup = () => {
     if (fb.cleaned) return;
     fb.cleaned = true;
+    for (const base of fb.pidfiles) {
+      for (const f of [base, base + '.leader']) {
+        try {
+          const pid = Number(fs.readFileSync(f, 'utf8'));
+          if (Number.isSafeInteger(pid) && pid > 1) process.kill(pid, 'SIGKILL');
+        } catch {
+          /* never written, or already gone */
+        }
+      }
+    }
     assert.equal(process.env.PATH, PATH_AT_LOAD, 'proc-fakebin: process PATH was modified');
     try {
       fs.rmSync(root, { recursive: true, force: true });

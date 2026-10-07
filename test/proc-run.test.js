@@ -84,17 +84,6 @@ function readPid(file) {
   return pid;
 }
 
-/** Exact-pid cleanup so a failing test cannot leave a fake behind. Never a pattern kill. */
-function killExact(pidfile) {
-  for (const f of [pidfile, pidfile + '.leader']) {
-    try {
-      process.kill(readPid(f), 'SIGKILL');
-    } catch {
-      /* already gone, or never written */
-    }
-  }
-}
-
 /** Starts a run whose fake prints READY, resolving `ready` when that line is seen. */
 function startWatched(fb, opts, deps) {
   let acc = '';
@@ -436,8 +425,7 @@ describe('src/proc/run.js against fakes', { skip: SKIP }, () => {
   for (const stream of ['stdout', 'stderr']) {
     test(`caps: ${stream} flood is cut at exactly the cap, the child is killed, and the run rejects`, async (t) => {
       const fb = makeFakeBin(t);
-      const pidfile = path.join(fb.root, 'pids-cap-' + stream);
-      t.after(() => killExact(pidfile));
+      const pidfile = fb.trackPidfile(path.join(fb.root, 'pids-cap-' + stream));
       const delivered = [];
       const key = stream === 'stdout' ? 'maxStdoutBytes' : 'maxStderrBytes';
       const cb = stream === 'stdout' ? 'onStdout' : 'onStderr';
@@ -487,8 +475,7 @@ describe('src/proc/run.js against fakes', { skip: SKIP }, () => {
 
   test('kill the tree: a timeout kills a SIGTERM-ignoring fake and its grandchild', async (t) => {
     const fb = makeFakeBin(t);
-    const pidfile = path.join(fb.root, 'pids-timeout');
-    t.after(() => killExact(pidfile));
+    const pidfile = fb.trackPidfile(path.join(fb.root, 'pids-timeout'));
     const w = startWatched(fb, {
       command: 'claude',
       env: fb.baseEnv(),
@@ -505,8 +492,7 @@ describe('src/proc/run.js against fakes', { skip: SKIP }, () => {
 
   test('kill the tree: an abort kills a SIGTERM-ignoring fake and its grandchild', async (t) => {
     const fb = makeFakeBin(t);
-    const pidfile = path.join(fb.root, 'pids-abort');
-    t.after(() => killExact(pidfile));
+    const pidfile = fb.trackPidfile(path.join(fb.root, 'pids-abort'));
     const ac = new AbortController();
     const w = startWatched(fb, {
       command: 'claude',
@@ -526,8 +512,7 @@ describe('src/proc/run.js against fakes', { skip: SKIP }, () => {
 
   test('kill the tree: a polite child dies on the first signal, reported as cancelled with a signal', async (t) => {
     const fb = makeFakeBin(t);
-    const pidfile = path.join(fb.root, 'pids-polite');
-    t.after(() => killExact(pidfile));
+    const pidfile = fb.trackPidfile(path.join(fb.root, 'pids-polite'));
     const ac = new AbortController();
     const w = startWatched(fb, {
       command: 'gemini',
@@ -545,8 +530,7 @@ describe('src/proc/run.js against fakes', { skip: SKIP }, () => {
 
   test('exit drain: a child that exits while a grandchild holds the pipes still settles, and the grandchild is killed', async (t) => {
     const fb = makeFakeBin(t);
-    const pidfile = path.join(fb.root, 'pids-linger');
-    t.after(() => killExact(pidfile));
+    const pidfile = fb.trackPidfile(path.join(fb.root, 'pids-linger'));
     const started = Date.now();
     const r = await fb.run({
       command: 'codex',
@@ -566,8 +550,7 @@ describe('src/proc/run.js against fakes', { skip: SKIP }, () => {
 
   test('a throwing callback kills the tree and rejects with E_PROC_CALLBACK, without echoing its message', async (t) => {
     const fb = makeFakeBin(t);
-    const pidfile = path.join(fb.root, 'pids-callback');
-    t.after(() => killExact(pidfile));
+    const pidfile = fb.trackPidfile(path.join(fb.root, 'pids-callback'));
     const secret = 'cbsent-' + hex();
     const err = await rejection(
       fb.run({
@@ -704,7 +687,7 @@ describe('src/proc/run.js against fakes', { skip: SKIP }, () => {
     const pidfiles = [];
     const watched = [];
     for (let i = 0; i < 8; i++) {
-      const pidfile = path.join(fb.root, 'pids-limit-' + i);
+      const pidfile = fb.trackPidfile(path.join(fb.root, 'pids-limit-' + i));
       pidfiles.push(pidfile);
       watched.push(
         startWatched(fb, {
@@ -715,7 +698,6 @@ describe('src/proc/run.js against fakes', { skip: SKIP }, () => {
         }),
       );
     }
-    t.after(() => pidfiles.forEach(killExact));
     assert.equal(liveRunCount(), 8);
     const before = fb.attempts.length;
     const err = await rejection(fb.run({ command: 'claude', env: fb.baseEnv(), stdin: 'limit-stdin' }));
