@@ -25,17 +25,17 @@ function scratch(t) {
 }
 
 test('remotePaths: every path is derived from the directory of the resolved config path', () => {
-  const p = remotePaths('/home/gm/.config/scriptorium/config.toml');
+  const p = remotePaths('/srv/gm/.config/scriptorium/config.toml');
   assert.deepEqual(
     { ...p },
     {
-      configDir: '/home/gm/.config/scriptorium',
-      panelDir: '/home/gm/.config/scriptorium/panel',
-      passwordFile: '/home/gm/.config/scriptorium/panel/password.json',
-      sessionsFile: '/home/gm/.config/scriptorium/panel/sessions.json',
-      auditFile: '/home/gm/.config/scriptorium/panel/audit.log',
-      tlsDir: '/home/gm/.config/scriptorium/tls',
-      generatedTlsFile: '/home/gm/.config/scriptorium/tls/generated.pem',
+      configDir: '/srv/gm/.config/scriptorium',
+      panelDir: '/srv/gm/.config/scriptorium/panel',
+      passwordFile: '/srv/gm/.config/scriptorium/panel/password.json',
+      sessionsFile: '/srv/gm/.config/scriptorium/panel/sessions.json',
+      auditFile: '/srv/gm/.config/scriptorium/panel/audit.log',
+      tlsDir: '/srv/gm/.config/scriptorium/tls',
+      generatedTlsFile: '/srv/gm/.config/scriptorium/tls/generated.pem',
     },
   );
   assert.ok(Object.isFrozen(p));
@@ -66,10 +66,10 @@ test('Mf7 pin: configDir equals resolveMachineDir().dir, the folder backups and 
 });
 
 test('Ma15 pin: the panel folder is a child of the config folder, never of its parent', () => {
-  const p = remotePaths('/home/gm/.config/scriptorium/config.toml');
+  const p = remotePaths('/srv/gm/.config/scriptorium/config.toml');
   assert.equal(path.dirname(p.panelDir), p.configDir);
-  assert.equal(path.dirname(p.configDir), '/home/gm/.config');
-  assert.notEqual(path.dirname(p.panelDir), '/home/gm/.config');
+  assert.equal(path.dirname(p.configDir), '/srv/gm/.config');
+  assert.notEqual(path.dirname(p.panelDir), '/srv/gm/.config');
 });
 
 // --- assertNotInsideAnyVault ---------------------------------------------------

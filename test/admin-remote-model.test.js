@@ -104,7 +104,7 @@ test('cliCommands: turn on or change, turn off, password, sign out every device,
 });
 
 test('configNote: names the config path, and is empty without one', () => {
-  assert.match(RA.configNote({ configPath: '/home/gm/.config/scriptorium/config.toml' }), /\/home\/gm\/\.config\/scriptorium\/config\.toml.*--config <path>/);
+  assert.match(RA.configNote({ configPath: '/srv/gm/.config/scriptorium/config.toml' }), /\/srv\/gm\/\.config\/scriptorium\/config\.toml.*--config <path>/);
   assert.equal(RA.configNote({}), '');
   assert.equal(RA.configNote(null), '');
 });
