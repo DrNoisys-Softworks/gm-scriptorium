@@ -417,6 +417,37 @@ test('CLI: if the read shim failed, the output gate refuses the build and --forc
   }
 });
 
+test('CLI: a comment that reaches only a timeline data island is refused by the output gate, and --force cannot override it (ADR 0045)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-cmt-island-'));
+  try {
+    const vault = path.join(root, 'v');
+    fs.cpSync(LEASE, vault, { recursive: true });
+    // A comment in a timeline Title cell: the helper columns are removed from the visible table, so
+    // with the read shim emptied the text can only surface inside the sc-tl-data island.
+    const tl = path.join(vault, '_Campaign', 'Timeline.md');
+    const src = fs.readFileSync(tl, 'utf8');
+    const next = src.replace('| The Signing | backstory', '| The Signing %%ZQXISLAND-LEAK private note%% | backstory');
+    assert.notEqual(next, src, 'edit did not apply');
+    fs.writeFileSync(tl, next);
+    const run = cli(root, 'v', vault);
+    const breaker = path.join(root, 'break.js');
+    fs.writeFileSync(breaker, `require(${JSON.stringify(path.join(__dirname, '..', 'src', 'generator', 'bootstrap.js'))}).READ_TRANSFORMS_FOR_BUILD.length = 0;\n`);
+    const cfg = path.join(root, 'cfg.toml');
+    const env = { ...process.env, XDG_CONFIG_HOME: path.join(root, 'xdg'), APPDATA: path.join(root, 'ad'), SCRIPTORIUM_CONFIG: cfg, NODE_OPTIONS: `--require ${breaker}` };
+    delete env.SCRIPTORIUM_PROFILE;
+    for (const extra of [[], ['--force']]) {
+      const r = spawnSync(process.execPath, [BIN, 'build', 'v', '--no-check', ...extra, '--config', cfg], { encoding: 'utf8', env });
+      assert.equal(r.status, 2, `exit 2 (refused) expected, got ${r.status}: ${r.stdout}${r.stderr}`);
+      assert.ok((r.stdout + r.stderr).includes('leak/l6-comment-in-output'), r.stdout + r.stderr);
+      assert.ok(!fs.existsSync(path.join(root, 'out-v', 'index.html')), 'nothing may be swapped into place');
+    }
+    // Without the breaker the shim removes the comment and the same vault builds.
+    assert.equal(run(['build', 'v', '--no-check']).status, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('source-side checks see the page the way the build does: a withheld name only inside a comment is not an L4 hit', () => {
   const { deriveRenderedText } = require('../src/checks/leak/textmodel');
   const page = { markdown: 'Public line.\n%% the secret is Ottoline %%\nMore.', frontmatter: { type: 'npc' }, relPath: 'x.md' };
