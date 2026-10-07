@@ -1750,12 +1750,23 @@ Issue #108 (owner decision 2026-10-07: no new exit codes). **Partly verified on 
 
 ### C150: the README config-isolation blocks for PowerShell and cmd, on Windows
 
-Issues #8 and #17 (slice 1). **Mark this OPEN: the two Windows blocks were written on Linux and never run on Windows.** Only the Linux block was run. From a clone of the repository, copy each block from the README section "Trying it beside a real campaign" exactly as written, in its own shell (PowerShell, then Command Prompt), with `gm-scriptorium` on the PATH:
+Issues #8 and #17 (slice 1). **Mark this OPEN: the two Windows blocks were written on Linux and never run on Windows.** Only the Linux block was run. From a clone of the repository, copy each block from the page `docs/trying-it-safely.md` ("Trying it beside a real campaign") exactly as written, in its own shell (PowerShell, then Command Prompt), with `gm-scriptorium` on the PATH:
 
 1. The block runs to the end with no error: the scratch folder is made, the sample vault is copied to `vault`, `config add` registers `lease`, `check` passes, and `build` writes a site to `out`.
 2. Run the same block a second time in a new window. It still works, because each run makes a new scratch folder, and the first run's folder is untouched.
 3. `%APPDATA%\Scriptorium\config.toml` is unchanged (same hash and timestamp) before and after both runs, and the cloned `examples\the-long-lease` is unchanged.
 4. In a new window, `echo %SCRIPTORIUM_CONFIG%` (or `$env:SCRIPTORIUM_CONFIG`) is empty again.
+
+### C96: generator warnings show on a successful build, in the real win-x64 exe
+
+Issue #30. This is the Windows leg of C50 step 2, which expects the generator's cache-miss line to print. **Mark this OPEN: Linux-verified from source only; not run from the exe.** Use the C50 fixture (a scratch site with `theme.fonts.source: self-host` and a non-generic heading font family, no `_meta\font-cache`), a scratch TOML via `SCRIPTORIUM_CONFIG` and `--config`, and never the real config or vault.
+
+1. `scriptorium-win-x64.exe build --no-check` exits 0. After the `built N file(s)` line, the human output prints `N generator warning(s):` and then each warning with no leading spaces, including the font line `WARNING: font "<family>" is not in the vault's font cache ... using the fallback font stack`.
+2. The same build with `--json`: `generatorWarnings` is an array holding the same lines in the same order, and no other field has changed. The font line carries no `.scriptorium-build-` staging path.
+3. Run step 2 twice: the two `generatorWarnings` arrays are identical.
+4. Search the built site (`Select-String -Recurse`) for the text `font cache`: no match. Warnings go to the console and the JSON only.
+5. A folder with typed pages but no `folderMap` entry is named once, by Scriptorium's own `warning:` line; the generator's `scanner: skipping "<folder>"` line does not also print.
+6. A site config as `init` scaffolds it prints none of the generator's `backend.statusBar` / `backend.inbox` "old name" lines or its "still holds campaign settings ... migrate.py" line, in human output or in `generatorWarnings`. Add a key `init` does not write (for example `excludeFields`) and the "still holds campaign settings" line returns.
 
 ### C97: L5 reads rendered heading forms and story headings, and L6 reads data islands, in the real win-x64 exe
 
