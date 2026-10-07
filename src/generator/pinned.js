@@ -85,6 +85,12 @@ const {
   keepOnlySections: upstreamKeepOnlySections,
   publishedFrontmatter,
   publishMode,
+  // L5 (ADR 0045) reads headings as the generator does: findHeadings is the parser reading
+  // (lib/processor.js:180-209), renderInline the build's own inline renderer (lib/processor.js:213-215),
+  // resolveWikiLinks the wikilink-to-display-text step (lib/processor.js:72-96). Re-exported, never re-implemented.
+  findHeadings,
+  renderInline,
+  resolveWikiLinks,
 } = require('gm-apprentice-publish/lib/processor');
 
 /*
@@ -263,6 +269,9 @@ module.exports = {
   stripLeadingH1,
   stripCallouts,
   filterSections,
+  findHeadings,
+  renderInline,
+  resolveWikiLinks,
   keepOnlySections,
   setStubExcludeSections,
   assertStubGuardLive,
