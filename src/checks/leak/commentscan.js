@@ -119,7 +119,38 @@ function collectJsonStrings(value, out) {
   else if (value && typeof value === 'object') Object.values(value).forEach((v) => collectJsonStrings(v, out));
 }
 
-const SCRIPT_RE = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
+// A start tag is `<name` followed by whitespace, `/` or `>`; an end tag is `</name` followed by anything
+// up to `>` (the HTML tokenizer accepts `</script \t\nfoo>`). Case-insensitive throughout.
+const SCRIPT_RE = /<script(?=[\s/>])([^>]*)>([\s\S]*?)(?:(<\/script(?=[\s/>])[^>]*>)|$)/gi;
+const BLOCK_RE_CACHE = new Map();
+
+/**
+ * Replaces each CLOSED `<tag ...>...</tag ...>` block (tags given as an alternation) with a space, to
+ * a fixpoint so text that a removal brings together cannot rebuild a tag. An unclosed block is left
+ * in place, so its text is still searched (fail closed).
+ */
+function stripBlocks(html, tags) {
+  if (!BLOCK_RE_CACHE.has(tags)) {
+    BLOCK_RE_CACHE.set(tags, new RegExp(`<(${tags})(?=[\\s/>])[^>]*>[\\s\\S]*?<\\/\\1(?=[\\s/>])[^>]*>`, 'gi'));
+  }
+  const re = BLOCK_RE_CACHE.get(tags);
+  let out = String(html);
+  for (let prev = null; prev !== out; ) {
+    prev = out;
+    out = out.replace(re, ' ');
+  }
+  return out;
+}
+
+/** Removes every tag, to a fixpoint (`<<b>i>` must not leave a tag behind). */
+function stripTags(html, replacement) {
+  let out = String(html);
+  for (let prev = null; prev !== out; ) {
+    prev = out;
+    out = out.replace(/<[^>]*>/g, replacement);
+  }
+  return out;
+}
 const JSON_TYPE_RE = /\btype\s*=\s*["']?\s*application\/json\b/i;
 
 /**
@@ -139,7 +170,11 @@ function readIslands(raw) {
   let m;
   while ((m = SCRIPT_RE.exec(raw))) {
     if (!JSON_TYPE_RE.test(m[1])) continue;
+    // An island with no end tag runs to the end of the page; it cannot be trusted, so it is
+    // reported as unparsable whatever the text holds.
+    const closed = m[3] !== undefined;
     try {
+      if (!closed) throw new Error('unterminated');
       collectJsonStrings(JSON.parse(m[2]), strings);
     } catch {
       unparsableBodies.push(m[2]);
@@ -151,8 +186,8 @@ function readIslands(raw) {
 /** The text views of one output file that a comment could surface in. */
 function haystacksFor(ext, raw) {
   if (ext === '.html' || ext === '.htm') {
-    const noScript = raw.replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ');
-    const hays = [collapse(noScript.replace(/<[^>]*>/g, ' ')), collapse(noScript.replace(/<[^>]*>/g, ''))];
+    const noScript = stripBlocks(raw, 'script|style');
+    const hays = [collapse(stripTags(noScript, ' ')), collapse(stripTags(noScript, ''))];
     const { strings, unparsableBodies } = readIslands(raw);
     if (strings.length > 0) hays.push(collapse(strings.join('\n')));
     for (const body of unparsableBodies) hays.push(collapse(body));
@@ -176,9 +211,7 @@ function haystacksFor(ext, raw) {
  * that does not parse).
  */
 function htmlHasLiteralMarks(raw) {
-  const prose = raw
-    .replace(/<(script|style|pre|code)\b[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<[^>]*>/g, ' ');
+  const prose = stripTags(stripBlocks(raw, 'script|style|pre|code'), ' ');
   if (normaliseEmitted(prose).includes('%%')) return true;
   const { strings, unparsableBodies } = readIslands(raw);
   return strings.some((x) => normaliseEmitted(x).includes('%%')) || unparsableBodies.some((x) => normaliseEmitted(x).includes('%%'));

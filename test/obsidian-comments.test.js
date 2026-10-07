@@ -266,6 +266,67 @@ test('islands (fail closed): a %% inside an unparsable island is also a marks er
   }
 });
 
+// ---- ADR 0045: odd script tag forms (CodeQL: bad HTML filtering regexp, incomplete multi-character sanitization) ----
+
+function scanOne(html, comments = [COMMENT]) {
+  const dir = outTree({ 'a.html': html });
+  try {
+    return scanCommentsInOutput({ outDir: dir, campaign: 'c', comments });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+const arms = (f) => f.map((x) => x.data.arm).sort();
+
+for (const [name, open, close] of [
+  ['uppercase tags', '<SCRIPT TYPE="Application/JSON" ID="d">', '</SCRIPT>'],
+  ['end tag with a space', '<script type="application/json" id="d">', '</script >'],
+  ['end tag with tab, newline and an attribute', '<script type="application/json" id="d">', '</script\t\nfoo>'],
+  ['unquoted type attribute', '<script id=d type=application/json>', '</script>'],
+]) {
+  test(`island forms: ${name}: a valid island is read (text arm, no unparsable finding)`, () => {
+    const f = scanOne(`<p>x</p>${open}${serializeDataIsland({ n: 'the duke is the traitor' })}${close}`);
+    assert.deepEqual(arms(f), ['text']);
+  });
+
+  test(`island forms: ${name}: a broken island fails closed`, () => {
+    const f = scanOne(`<p>x</p>${open}{"n": "the duke is the traitor", ZQXBROKEN${close}`);
+    assert.deepEqual(arms(f), ['island-unparsable', 'text']);
+    assert.ok(!JSON.stringify(f).includes('ZQXBROKEN'));
+  });
+
+  test(`island forms: ${name}: a %% in a valid island is a marks error`, () => {
+    assert.deepEqual(arms(scanOne(`${open}${serializeDataIsland({ n: 'oops %% here' })}${close}`, [])), ['marks']);
+  });
+}
+
+test('island forms: an unterminated JSON island fails closed, and its text is still searched', () => {
+  const f = scanOne('<p>x</p><script type="application/json" id="d">{"n": "the duke is the traitor"');
+  assert.deepEqual(arms(f), ['island-unparsable', 'text']);
+});
+
+test('island forms: an unterminated island whose body is valid JSON still fails closed', () => {
+  assert.deepEqual(arms(scanOne('<p>x</p><script type="application/json" id="d">{"n": "fine"}', [])), ['island-unparsable']);
+});
+
+test('island forms: an unterminated island with a %% is also a marks error', () => {
+  assert.deepEqual(arms(scanOne('<script type="application/json">{"n": "a %% b"', [])), ['island-unparsable', 'marks']);
+});
+
+test('island forms: a reconstructed <script (<scr<script></script>ipt>) cannot hide an island or its text', () => {
+  const html = `<scr<script></script>ipt type="application/json">{"n": "the duke is the traitor"}</script>`;
+  assert.ok(arms(scanOne(html)).includes('text'));
+});
+
+test('island forms: a tag reconstructed by stripping (<<b>b>) cannot hide comment text', () => {
+  assert.deepEqual(arms(scanOne('<p><<b>i>the duke is the traitor</i></p>')), ['text']);
+});
+
+test('island forms: a non-JSON script closed with an odd end tag is still left out of the search', () => {
+  assert.deepEqual(scanOne('<script>var a = "the duke is the traitor %%";</script\t\nfoo><p>fine</p>'), []);
+  assert.deepEqual(scanOne('<STYLE>a{width:100%%}</STYLE ><p>fine</p>'), []);
+});
+
 // ---- end to end: the CLI on a vault full of comments ----
 
 const BIN = path.join(__dirname, '..', 'bin', 'scriptorium.js');
