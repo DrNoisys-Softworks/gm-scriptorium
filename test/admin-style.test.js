@@ -333,19 +333,23 @@ const API_ROUTE_PATHS = [
   // V1e-8 (ADR 0039 addendum, SD-70): builds a private preview copy from the saved pack.toml
   // plus the Vocabulary screen's own unsaved edits.
   '/api/variants/vocab',
+  // V1.5a (ADR 0029): the read-only Remote access screen's data and its two sign-outs.
+  '/api/remote',
+  '/api/remote/signout',
+  '/api/remote/signout-all',
 ];
 
 function findApiLiterals(src) {
   return [...src.matchAll(/\/api\/[a-zA-Z0-9/_-]*/g)].map((m) => m[0]);
 }
 
-test('every /api/... string literal in the admin JS assets is one of the 24 route paths', () => {
+test('every /api/... string literal in the admin JS assets is one of the 27 route paths', () => {
   const found = new Set();
   for (const name of jsAssetNames()) {
     const src = fs.readFileSync(path.join(ADMIN_ASSETS_DIR, name), 'utf8');
     for (const literal of findApiLiterals(src)) {
       found.add(literal);
-      assert.ok(API_ROUTE_PATHS.includes(literal), `${name}: "${literal}" is not one of the 24 route paths`);
+      assert.ok(API_ROUTE_PATHS.includes(literal), `${name}: "${literal}" is not one of the 27 route paths`);
     }
   }
   // Positive control: the scan actually finds something (not vacuously true).

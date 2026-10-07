@@ -26,6 +26,7 @@ const EXPECTED_NAV = [
   { id: 'check', group: 'Run', label: 'Check', short: 'Check' },
   { id: 'preview', group: 'Run', label: 'Preview', short: 'Preview' },
   { id: 'vault-config', group: 'Advanced', label: 'vault-config.md', short: 'vault-config.md' },
+  { id: 'remote', group: 'Setup', label: 'Remote access', short: 'Remote' },
   { id: 'memory', group: 'Coming later', label: 'Memory', short: 'Memory' },
   { id: 'publish', group: 'Coming later', label: 'Publish', short: 'Publish' },
   { id: 'sessions', group: 'Coming later', label: 'Sessions', short: 'Sessions' },
@@ -33,7 +34,7 @@ const EXPECTED_NAV = [
   { id: 'storage', group: 'Coming later', label: 'Storage', short: 'Storage' },
 ];
 
-const EXPECTED_GROUP_ORDER = ['Site', 'Words', 'Run', 'Advanced', 'Coming later'];
+const EXPECTED_GROUP_ORDER = ['Site', 'Words', 'Run', 'Advanced', 'Setup', 'Coming later'];
 const EXPECTED_BOTTOM_BAR = ['overview', 'vocab', 'check', 'preview'];
 const EXPECTED_SOON = ['memory', 'publish', 'sessions', 'ai', 'storage'];
 // V1e-9 (SD-102, D-5): vault-config.md moves off the static readOnly flag entirely (it is now

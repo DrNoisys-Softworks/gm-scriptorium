@@ -12,7 +12,8 @@ const path = require('path');
 const ADMIN_ASSETS_DIR = path.join(__dirname, '..', '..', 'assets', 'admin');
 
 /**
- * Frozen: the 26 files served at /assets/<name> (panel v2 V1b: 20 -> 23, adding diff.js,
+ * Frozen: the 28 files served at /assets/<name> (V1.5a ADR 0029: 26 -> 28, adding signin.js, the sign-in
+ * page's script, and remote.js, the read-only Remote access screen) (panel v2 V1b: 20 -> 23, adding diff.js,
  * outcome.js and slip.js -- the pure client-side modules SD-4 introduces; V1e-3 SD-26: 23 -> 24,
  * adding sitepane.js, the Overview live-preview module; V1e-9 SD-100: 24 -> 25, adding
  * vaultcfg.js, the vault-config.md editor; V1e-7 SD-69: 25 -> 26, adding variants.js, the Theme
@@ -36,6 +37,8 @@ const ADMIN_ASSET_ROUTES = Object.freeze({
   'pack.js': 'text/javascript; charset=utf-8',
   'sitepane.js': 'text/javascript; charset=utf-8',
   'variants.js': 'text/javascript; charset=utf-8',
+  'signin.js': 'text/javascript; charset=utf-8',
+  'remote.js': 'text/javascript; charset=utf-8',
   'vaultcfg.js': 'text/javascript; charset=utf-8',
   'vocab.js': 'text/javascript; charset=utf-8',
   'images.js': 'text/javascript; charset=utf-8',

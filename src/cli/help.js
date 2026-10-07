@@ -26,6 +26,25 @@ function exits(codes) {
   return ['Exit codes:', ...codes.map((c) => EXIT_LINES[c])].join('\n');
 }
 
+/* V1.5a (ADR 0029): one help text per `remote` subcommand. `remote --help` shows them all. */
+const REMOTE_SUB_HELP = {
+  show: 'gm-scriptorium remote show [--config PATH]\n  Prints the remote-access settings for this machine: the mode, the addresses, where it listens,\n  whether a password is set and whether it is ready to start. Never prints a secret.',
+  set:
+    'gm-scriptorium remote set [--mode local|ssh|tailscale|proxy] [--admin-url URL] [--preview-url URL] [--bind ADDR]\n' +
+    '                          [--trusted-proxy ADDR,...] [--port N] [--preview-port N] [--config PATH]\n' +
+    '  Saves remote-access settings (https addresses only; every value is checked before anything is written).\n' +
+    '  Changing --mode drops the old admin and preview addresses unless you give new ones. Takes effect the\n' +
+    '  next time the admin panel starts.',
+  password:
+    'gm-scriptorium remote password [--config PATH]\n' +
+    '  Sets or changes the panel password (at least 12 characters), asking with nothing echoed, or reading\n' +
+    '  lines from standard input when there is no terminal (current password first, when one is set).\n' +
+    '  Never accepted as an argument or from the environment. Signs every remote device out.',
+  'signout-all': 'gm-scriptorium remote signout-all [--config PATH]\n  Signs every remote device out at once. A running panel notices straight away.',
+  off: 'gm-scriptorium remote off [--config PATH]\n  Returns the mode to local, signs every device out and clears the password.',
+};
+const REMOTE_SUBS = ['show', 'set', 'password', 'signout-all', 'off'];
+
 const HELP_BY_COMMAND = {
   init: [
     'gm-scriptorium init [--name <name>] [--vault <path>] [--out <path>] [--title <text>] [--theme <name>] [--yes]',
@@ -70,7 +89,7 @@ const HELP_BY_COMMAND = {
   ],
   serve: [
     'gm-scriptorium serve [campaign] [--build] [--port N] [--host ADDR]',
-    'gm-scriptorium serve [campaign] --admin [--port N]',
+    'gm-scriptorium serve [campaign] --admin [--port N] [--preview-port N]',
     '',
     'Serves the built site on http://127.0.0.1:8080 by default so you can look at it. With --admin',
     'it opens the admin panel instead and prints a one-time link; that mode only listens on this',
@@ -82,10 +101,17 @@ const HELP_BY_COMMAND = {
     '               with --admin, leave --port out and a free port is chosen for you',
     '  --host ADDR  listen on another address (this exposes the site beyond this computer)',
     '  --admin      open the admin panel',
+    '  --preview-port N  with --admin, the port for the preview (1 to 65535; remote access uses its saved ports)',
     '',
     'Example: gm-scriptorium serve lease --build --port 8081',
     '',
     exits([0, 1, 3]),
+  ],
+  remote: [
+    'gm-scriptorium remote <command>',
+    '',
+    ...REMOTE_SUBS.flatMap((s) => [...REMOTE_SUB_HELP[s].split('\n'), '']),
+    exits([0, 1]),
   ],
   status: [
     'gm-scriptorium status [campaign] [--json]',
@@ -130,8 +156,15 @@ const HELP_BY_COMMAND = {
   ],
 };
 
-/** @returns {string|null} the help text for a command, or null when the name is not a command */
-function commandHelp(command) {
+/**
+ * @param {string} command
+ * @param {string} [sub] a subcommand (only `remote` has per-subcommand help)
+ * @returns {string|null} the help text for a command, or null when the name is not a command
+ */
+function commandHelp(command, sub) {
+  if (command === 'remote' && typeof sub === 'string' && Object.prototype.hasOwnProperty.call(REMOTE_SUB_HELP, sub)) {
+    return `${REMOTE_SUB_HELP[sub]}\n\n${exits([0, 1])}\n`;
+  }
   const lines = HELP_BY_COMMAND[command];
   return lines ? lines.join('\n') + '\n' : null;
 }

@@ -43,7 +43,9 @@ const MATCH_KEYS = Object.freeze(['platform', 'hostname']);
 const CAMPAIGN_STRING_FIELDS = Object.freeze(['vault', 'site_config', 'output', 'pack']);
 const CAMPAIGN_INTEGER_FIELDS = Object.freeze(['serve_port']);
 
-const TOP_LEVEL_KEYS = Object.freeze(['config_version', 'default_campaign', 'campaigns']);
+// V1.5a (docs/decisions/0029-remote-access.md): `remote` is the opt-in remote-access table, so this
+// build does not warn about its own key (an older binary still warns, preserves it, runs local-only).
+const TOP_LEVEL_KEYS = Object.freeze(['config_version', 'default_campaign', 'campaigns', 'remote']);
 
 module.exports = {
   CONFIG_VERSION,

@@ -142,7 +142,7 @@ test('e2e: --host with --admin exits 1, one stderr line, empty stdout', { skip }
     assert.equal(result.stdout, '');
     const stderrLines = result.stderr.split('\n').filter(Boolean);
     assert.equal(stderrLines.length, 1);
-    assert.equal(stderrLines[0], 'serve --admin only ever listens on 127.0.0.1, so it does not accept --host');
+    assert.equal(stderrLines[0], 'serve --admin does not accept --host; remote access comes only from saved settings (see "gm-scriptorium remote")');
   });
 });
 
@@ -159,6 +159,6 @@ test('e2e: --help stdout contains the exact new serve line', { skip }, async (t)
   });
   assert.equal(result.code, 0);
   assert.ok(
-    result.stdout.includes('  serve    [campaign] [--build] [--port N] [--host ADDR] | [campaign] --admin [--port N]'),
+    result.stdout.includes('  serve    [campaign] [--build] [--port N] [--host ADDR] | [campaign] --admin [--port N] [--preview-port N]'),
   );
 });

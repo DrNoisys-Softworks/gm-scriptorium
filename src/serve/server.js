@@ -2,8 +2,10 @@
 
 const fs = require('fs');
 const http = require('http');
+const net = require('net');
 const path = require('path');
 const { contentTypeFor, resolveStaticPath } = require('./static');
+const { ScriptoriumError } = require('../util/errors');
 
 /*
  * `serve` binds 127.0.0.1 by default, deliberately against the standing
@@ -123,4 +125,84 @@ function startLocalListener(handler, { port }) {
   });
 }
 
-module.exports = { describeListenError, startServer, createServer, startLocalListener };
+/**
+ * V1.5a (docs/decisions/0029-remote-access.md section 5; SD-doc section 4): the remote-access
+ * listener primitive. startLocalListener above is unchanged and stays the only listener in local
+ * and ssh modes; this one is fed ONLY by src/remote/settings.js's listenPlan(), from validated
+ * saved settings, never from a flag.
+ *
+ *  - `hosts` is a non-empty list of IP literals, with no duplicates (a ScriptoriumError otherwise:
+ *    a programming error). One server per address, all on the same fixed port.
+ *  - `allowPeer`, when given, is consulted on EVERY connection, in a listener registered before
+ *    the HTTP parser's own, and a refused peer's socket is destroyed before a single byte is read
+ *    or written: no "403", no "400", nothing.
+ *  - Binding is sequential. If any address fails, every server already listening is closed first,
+ *    and startup fails. There is never a retry on a wider address.
+ *  - `tls` is reserved. In V1.5a a present value is refused.
+ *
+ * @param {(req: import('http').IncomingMessage, res: import('http').ServerResponse) => void} handler
+ * @param {{ port: number, hosts: string[], allowPeer?: (remoteAddress: string|undefined) => boolean,
+ *           tls?: { key: Buffer|string, cert: Buffer|string } }} opts
+ * @returns {Promise<{ servers: import('http').Server[], port: number, hosts: string[], close: () => Promise<void> }>}
+ */
+function startPanelListener(handler, { port, hosts, allowPeer, tls } = {}) {
+  if (!Array.isArray(hosts) || hosts.length === 0) {
+    throw new ScriptoriumError('startPanelListener needs a non-empty list of hosts');
+  }
+  for (const h of hosts) {
+    if (typeof h !== 'string' || net.isIP(h) === 0) {
+      throw new ScriptoriumError(`startPanelListener: "${h}" is not an IP address`);
+    }
+  }
+  if (new Set(hosts).size !== hosts.length) {
+    throw new ScriptoriumError('startPanelListener: hosts must not repeat');
+  }
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new ScriptoriumError('startPanelListener: port must be a whole number from 1 to 65535');
+  }
+  if (tls !== undefined && tls !== null) {
+    throw new ScriptoriumError('TLS listeners arrive with certificate support');
+  }
+
+  return new Promise((resolve, reject) => {
+    const servers = [];
+
+    function closeServer(server) {
+      return new Promise((res) => {
+        server.close(() => res());
+        server.closeAllConnections();
+      });
+    }
+
+    function closeAll() {
+      return Promise.all(servers.map(closeServer)).then(() => undefined);
+    }
+
+    function bindNext(index) {
+      if (index === hosts.length) {
+        resolve({ servers, port, hosts: [...hosts], close: closeAll });
+        return;
+      }
+      const host = hosts[index];
+      const server = http.createServer(handler);
+      if (typeof allowPeer === 'function') {
+        server.prependListener('connection', (socket) => {
+          if (!allowPeer(socket.remoteAddress)) socket.destroy();
+        });
+      }
+      server.once('error', (err) => {
+        closeAll().then(() => reject(describeListenError(err, port, host)));
+      });
+      server.listen(port, host, () => {
+        server.removeAllListeners('error');
+        server.on('error', () => {});
+        servers.push(server);
+        bindNext(index + 1);
+      });
+    }
+
+    bindNext(0);
+  });
+}
+
+module.exports = { describeListenError, startServer, createServer, startLocalListener, startPanelListener };

@@ -77,6 +77,57 @@
     return origin + ':variant/' + id + '/' + plain.slice(origin.length);
   }
 
+  /*
+   * V1.5a (docs/decisions/0029-remote-access.md section 7, amendment A1). In a remote request (and
+   * whenever the loopback listener serves TLS) the preview does not live on a port of the page's own
+   * host: every frame and tab goes through the admin-origin /open-preview hand-off, which the
+   * server turns into a one-time ticket on the configured preview origin. The URL is therefore
+   * admin-relative, and NO host or port is ever built here. In loopback local use everything below
+   * is exactly frameSrc / variantSrc, unchanged (FR-01).
+   */
+  function isRemoteAccess(access) {
+    return !!access && (access.via === 'remote' || access.loopbackScheme === 'https');
+  }
+
+  /**
+   * @param {unknown} access session.access (null or absent in the loopback local case)
+   * @param {unknown} hostname the page's own hostname (loopback case only)
+   * @param {unknown} port the local preview port (loopback case only)
+   * @param {unknown} rel same contract as frameSrc's own `rel`
+   * @param {unknown} [variantId] a variant id (VARIANT_ID_RE), or absent
+   * @returns {string|null}
+   */
+  function previewSrc(access, hostname, port, rel, variantId) {
+    if (!isRemoteAccess(access)) return variantId ? variantSrc(hostname, port, variantId, rel) : frameSrc(hostname, port, rel);
+    if (typeof rel !== 'string' || rel.length === 0) return null;
+    if (rel.charAt(0) === '/') return null;
+    for (var i = 0; i < FORBIDDEN_REL_CHARS.length; i++) {
+      if (rel.indexOf(FORBIDDEN_REL_CHARS[i]) !== -1) return null;
+    }
+    var segments = rel.split('/');
+    for (var j = 0; j < segments.length; j++) {
+      if (segments[j] === '' || segments[j] === '.' || segments[j] === '..') return null;
+    }
+    if (variantId) {
+      if (typeof variantId !== 'string' || !VARIANT_ID_RE.test(variantId)) return null;
+      return '/open-preview?to=' + encodeURIComponent(':variant/' + variantId + '/' + rel);
+    }
+    return '/open-preview?to=' + encodeURIComponent(rel);
+  }
+
+  /** The href of a "full size" or "open in a tab" link: the loopback URL, or the hand-off. */
+  function openHref(access, hostname, port, rel) {
+    if (isRemoteAccess(access)) return rel ? previewSrc(access, hostname, port, rel) || '/open-preview' : '/open-preview';
+    return 'http://' + hostname + ':' + port + '/' + (rel || '');
+  }
+
+  /** The address text shown in the mini browser bar: the configured preview host, or hostname:port. */
+  function previewAddress(access, hostname, port, rel) {
+    var tail = rel ? '/' + rel : '/';
+    if (isRemoteAccess(access) && access.previewUrl) return String(access.previewUrl).replace(/^https?:\/\//, '') + tail;
+    return hostname + ':' + port + tail;
+  }
+
   var ROLE_LABELS = {
     landing: 'Landing page',
     recap: 'Latest recap',
@@ -220,6 +271,9 @@
     RESIDUAL_FINE_PRINT: RESIDUAL_FINE_PRINT,
     frameSrc: frameSrc,
     variantSrc: variantSrc,
+    previewSrc: previewSrc,
+    openHref: openHref,
+    previewAddress: previewAddress,
     pageOptions: pageOptions,
     registrationFor: registrationFor,
     followRole: followRole,
@@ -248,6 +302,12 @@
 
   function currentState() {
     return store.get().state || null;
+  }
+
+  /** V1.5a: how this page reached the panel (session.access), or null before the session loads. */
+  function currentAccess() {
+    var session = store.get().session;
+    return (session && session.access) || null;
   }
 
   function currentPreviewInfo() {
@@ -294,12 +354,7 @@
     if (variantId) frame.setAttribute('data-variant', variantId);
     var s = currentState();
     var previewPort = s && typeof s.previewPort === 'number' ? s.previewPort : null;
-    var src =
-      previewPort === null
-        ? null
-        : variantId
-          ? PV.variantSrc(location.hostname, previewPort, variantId, rel)
-          : PV.frameSrc(location.hostname, previewPort, rel);
+    var src = previewPort === null ? null : PV.previewSrc(currentAccess(), location.hostname, previewPort, rel, variantId);
     if (src) frame.src = src;
     return frame;
   }
@@ -310,7 +365,7 @@
     var s = currentState();
     var previewPort = s && typeof s.previewPort === 'number' ? s.previewPort : null;
     if (previewPort === null) return;
-    var src = variantId ? PV.variantSrc(location.hostname, previewPort, variantId, rel) : PV.frameSrc(location.hostname, previewPort, rel);
+    var src = PV.previewSrc(currentAccess(), location.hostname, previewPort, rel, variantId);
     if (!src) return;
     frame.setAttribute('data-page-rel', rel);
     if (variantId) frame.setAttribute('data-variant', variantId);
@@ -437,7 +492,7 @@
     addrText.setAttribute('data-role', 'preview-addr');
     var s = currentState();
     var port = s ? s.previewPort : '';
-    setText(addrText, rel ? location.hostname + ':' + port + '/' + rel : location.hostname + ':' + port + '/');
+    setText(addrText, PV.previewAddress(currentAccess(), location.hostname, port, rel));
     addr.appendChild(addrText);
     var tag = el('span');
     tag.className = 'ov-addr-tag';
@@ -549,7 +604,7 @@
     openLink.target = '_blank';
     openLink.rel = 'noopener noreferrer';
     var s = currentState();
-    openLink.href = s ? 'http://' + location.hostname + ':' + s.previewPort + '/' : '#';
+    openLink.href = s ? PV.openHref(currentAccess(), location.hostname, s.previewPort, '') : '#';
     openLink.title = 'Open full size in a new tab';
     openLink.appendChild(icon('ext'));
     tools.appendChild(openLink);
@@ -607,7 +662,7 @@
         pointFrameAt(browser.frame, select.value);
         if (browser.addr) {
           var st = currentState();
-          setText(browser.addr, location.hostname + ':' + (st ? st.previewPort : '') + '/' + select.value);
+          setText(browser.addr, PV.previewAddress(currentAccess(), location.hostname, st ? st.previewPort : '', select.value));
         }
       });
       selWrap.appendChild(select);
@@ -725,7 +780,7 @@
     openBtn.target = '_blank';
     openBtn.rel = 'noopener noreferrer';
     var s = currentState();
-    openBtn.href = s ? 'http://' + location.hostname + ':' + s.previewPort + '/' : '#';
+    openBtn.href = s ? PV.openHref(currentAccess(), location.hostname, s.previewPort, '') : '#';
     openBtn.appendChild(icon('ext'));
     openBtn.appendChild(document.createTextNode('Open'));
     barTools.appendChild(openBtn);
@@ -982,7 +1037,7 @@
     openBtn.target = '_blank';
     openBtn.rel = 'noopener noreferrer';
     var s = currentState();
-    openBtn.href = s ? 'http://' + location.hostname + ':' + s.previewPort + '/' + page.rel : '#';
+    openBtn.href = s ? PV.openHref(currentAccess(), location.hostname, s.previewPort, page.rel) : '#';
     openBtn.appendChild(icon('ext'));
     openBtn.appendChild(document.createTextNode('Open in a tab'));
     head.appendChild(openBtn);

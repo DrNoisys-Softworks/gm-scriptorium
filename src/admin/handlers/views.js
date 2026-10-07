@@ -298,8 +298,12 @@ async function previewHandler(req, res, ctx) {
  * respond.previewFrameCsp fails closed to `frame-ancestors 'none'` unless both the host and
  * ctx.adminPort are the exact validated shapes it expects.
  */
-function servePreview(req, res, ctx, { isHead } = {}) {
-  const previewCsp = respond.previewFrameCsp(gate.hostnameFor(req.headers.host, ctx.previewPort), ctx.adminPort);
+function servePreview(req, res, ctx, { isHead, kind } = {}) {
+  // V1.5a (A1): a remote request's frame-ancestors names the configured admin origin.
+  const previewCsp =
+    kind === 'remote'
+      ? respond.remoteFrameAncestorsCsp(ctx.access)
+      : respond.previewFrameCsp(gate.hostnameFor(req.headers.host, ctx.previewPort), ctx.adminPort);
 
   // V1e-7 (ADR 0039, SD-63): the reserved `/:variant/<id>/` namespace, dispatched on the RAW
   // req.url (never decoded) before the "no preview has been built yet" branch below -- a colon

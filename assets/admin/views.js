@@ -369,7 +369,9 @@
     var a = el('a');
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
-    a.href = 'http://' + location.hostname + ':' + state.previewPort + '/';
+    // V1.5a (SD-doc section 10): no client-built URL. The admin-origin /open-preview decides, per
+    // request kind, where to go (loopback: the preview port, as before; remote: a one-time hand-off).
+    a.href = '/open-preview';
     setText(a, text || 'Open preview');
     return a;
   }
@@ -505,7 +507,8 @@
     if (bill.meta) meta.appendChild(document.createTextNode(bill.meta));
     if (bill.showLink) {
       if (bill.meta) meta.appendChild(document.createTextNode(' · '));
-      var link = openPreviewLink(state, location.hostname + ':' + state.previewPort);
+      var sess = ScriptoriumAdmin.store.get().session;
+      var link = openPreviewLink(state, ScriptoriumAdmin.PV.previewAddress(sess && sess.access, location.hostname, state.previewPort, ''));
       link.className = 'a1-link';
       meta.appendChild(link);
     }
