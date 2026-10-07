@@ -68,6 +68,7 @@ the way.
 - [0042. Stub pages: withheld sections win over include entries (guard on keepOnlySections)](decisions/0042-stub-section-guard.md): A stub page can no longer publish a heading nested inside a withheld section.
 - [0043. A table cell link with an escaped pipe is read the same way by check and by the build](decisions/0043-escaped-pipe-read-shim.md): `[[Target\|Label]]` in a table cell is read as a link with a label.
 - [0044. Obsidian %% comments are removed before the site is built, and the build refuses to publish one](decisions/0044-obsidian-comments-withheld.md): `%%private notes%%` never reach the site.
+- [0046. One process spawner for outside programs](decisions/0046-one-process-spawner.md): Programs the tool starts all go through one module with a fixed list, no shell and a scrubbed environment.
 
 ## Licensing
 
