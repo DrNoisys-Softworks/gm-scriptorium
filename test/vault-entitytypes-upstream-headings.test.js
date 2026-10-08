@@ -9,6 +9,7 @@ const path = require('path');
 const entitytypes = require('../src/vault/entitytypes');
 const { buildCheckContext } = require('../src/checks/context');
 const { runUnrecognisedType } = require('../src/checks/census');
+const { runMissingRequired } = require('../src/checks/relationship');
 
 // UPSTREAM-HEADING-ALIASES: tests for the gm-apprentice vault_scaffold.py
 // section names (owner, 2026-10-08). Delete with the aliases.
@@ -39,12 +40,14 @@ Nothing the parser reads.
 | Entity Type | Required Relationship |
 |-------------|----------------------|
 | \`widget\` | \`mounted_on\` |
+| \`heritage\` | — (none required) |
 
 ## Default Folder Mapping
 
 | Type Category | Vault Folder |
 |---------------|-------------|
 | gizmo | Gizmos/ |
+| heritage | Heritages/ |
 `;
 
 function withVault(content, fn) {
@@ -56,6 +59,7 @@ function withVault(content, fn) {
     fs.writeFileSync(path.join(dir, 'Stuff', 'a.md'), '---\ntype: widget\n---\nbody\n');
     fs.writeFileSync(path.join(dir, 'Stuff', 'b.md'), '---\ntype: gadget\n---\nbody\n');
     fs.writeFileSync(path.join(dir, 'Stuff', 'c.md'), '---\ntype: gizmo\n---\nbody\n');
+    fs.writeFileSync(path.join(dir, 'Stuff', 'h.md'), '---\ntype: heritage\n---\nbody\n');
     return fn(dir);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -111,5 +115,61 @@ test('existing headings still parse exactly as before', () => {
       entitytypes.parseRequiredRelationships(dir).requiredByType.get('widget'),
       ['mounted_on']
     );
+  });
+});
+
+function ctxFor(dir) {
+  return buildCheckContext({ campaign: 'fixture', vaultPath: dir, jsonConfig: { vaultPath: dir } });
+}
+
+test('upstream header rows "Entity Type" and "Type Category" are not registered as types', () => {
+  withVault(UPSTREAM, (dir) => {
+    const types = entitytypes.parseRecognisedTypes(dir);
+    assert.ok(!types.has('Type Category'));
+    assert.ok(!entitytypes.parseRequiredRelationships(dir).requiredByType.has('Entity Type'));
+    assert.ok(types.has('heritage'), 'real rows beside the header stay recognised');
+  });
+});
+
+test('upstream placeholder row "heritage | — (none required)" registers nothing', () => {
+  withVault(UPSTREAM, (dir) => {
+    const map = entitytypes.parseRequiredRelationships(dir).requiredByType;
+    assert.deepEqual([...map.keys()], ['widget']);
+  });
+});
+
+test('placeholder spellings are all "none": dash, en dash, hyphen, any case and spacing', () => {
+  for (const cell of ['—', '–', '-', '—  (none required)', '- (None Required)', '–(NONE REQUIRED)', ' — ( none required ) ']) {
+    const content = UPSTREAM.replace('— (none required)', cell);
+    withVault(content, (dir) => {
+      const map = entitytypes.parseRequiredRelationships(dir).requiredByType;
+      assert.deepEqual([...map.keys()], ['widget'], JSON.stringify(cell));
+    });
+  }
+});
+
+test('a real relationship that merely contains a dash is still registered', () => {
+  const content = UPSTREAM.replace('— (none required)', '`part-of`');
+  withVault(content, (dir) => {
+    const map = entitytypes.parseRequiredRelationships(dir).requiredByType;
+    assert.deepEqual(map.get('heritage'), ['part-of']);
+  });
+});
+
+test('check on a scaffold-shaped vault: no missing-required for heritage, no bogus findings at all', () => {
+  withVault(UPSTREAM, (dir) => {
+    const ctx = ctxFor(dir);
+    const missing = runMissingRequired(ctx).map((f) => f.path);
+    assert.ok(!missing.includes('Stuff/h.md'));
+    assert.deepEqual(missing.sort(), ['Stuff/a.md']); // widget genuinely lacks mounted_on
+    assert.ok(!runUnrecognisedType(ctx).some((f) => f.path === 'Stuff/h.md'));
+  });
+});
+
+test('legacy header "Type" and a legacy dash-bearing relationship row are unchanged', () => {
+  const legacy = '---\ntype: reference\n---\n\n## Required relationships\n\n| Type | Required |\n|---|---|\n| widget | `anchored_to` |\n';
+  withVault(legacy, (dir) => {
+    const map = entitytypes.parseRequiredRelationships(dir).requiredByType;
+    assert.deepEqual([...map.entries()], [['widget', ['anchored_to']]]);
   });
 });

@@ -11,6 +11,13 @@ const TREE_CHARS_RE = /^[\s│├└─]+/;
 const HIERARCHY_HEADING = ['Hierarchy', 'Entity Type Hierarchy'].join('|');
 const FOLDER_MAPPING_HEADING = ['Folder mapping', 'Default Folder Mapping'].join('|');
 const REQUIRED_RELATIONSHIPS_HEADING = ['Required relationships', 'Required Relationships'].join('|');
+// UPSTREAM-HEADING-ALIASES: first cells that mark a table header row. Ours is "Type"; upstream's are the other two.
+const TABLE_HEADER_CELLS = ['type', 'entity type', 'type category'];
+function isHeaderCell(cell) {
+  return TABLE_HEADER_CELLS.includes(cell.trim().toLowerCase());
+}
+// UPSTREAM-HEADING-ALIASES: upstream writes "— (none required)" in the relationship cell for a type that requires nothing.
+const NONE_REQUIRED_RE = /^[-–—]\s*(?:\(\s*none required\s*\))?$/i;
 
 /*
  * The single read chokepoint for `_meta/entity-types.md` (P1-FR01). Both
@@ -68,7 +75,7 @@ function parseRecognisedTypes(vaultPath) {
         .filter((c) => c.length > 0);
       if (cells.length === 0) continue;
       const typeCell = cells[0];
-      if (/^-+$/.test(typeCell) || /^type$/i.test(typeCell)) continue; // header/separator row
+      if (/^-+$/.test(typeCell) || isHeaderCell(typeCell)) continue; // header/separator row
       for (const part of typeCell.split(',')) {
         const name = part
           .replace(/`/g, '')
@@ -120,11 +127,12 @@ function parseRequiredRelationshipsTable(content) {
     if (cells.length === 0) continue;
 
     const firstCell = cells[0];
-    if (/^-+$/.test(firstCell) || /^type$/i.test(firstCell)) continue; // header/separator row
+    if (/^-+$/.test(firstCell) || isHeaderCell(firstCell)) continue; // header/separator row
 
     // "Rows with an empty cell are skipped" (P1-FR02), which also covers a
     // malformed row missing its second column entirely.
     if (cells.length < 2 || cells[0] === '' || cells[1] === '') continue;
+    if (NONE_REQUIRED_RE.test(cells[1])) continue; // UPSTREAM-HEADING-ALIASES: "none required" placeholder
 
     const types = cells[0]
       .split(',')
