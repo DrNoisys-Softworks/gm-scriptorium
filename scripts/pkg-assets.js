@@ -62,6 +62,7 @@ const FIRST_PARTY_SITE_ASSETS = [
   'assets/admin/admin.css',
   'assets/admin/alive.js',
   'assets/admin/app.js',
+  'assets/admin/campaigns.js',
   'assets/admin/diff.js',
   'assets/admin/favicon-32.png',
   'assets/admin/favicon.svg',

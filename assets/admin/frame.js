@@ -968,6 +968,10 @@
 
     buildScreens();
 
+    // ADR 0050: the campaign switcher takes over the brand (campaigns.js loads after this file, so
+    // it is already registered by the time build() runs).
+    if (window.ScriptoriumAdmin.campaigns) window.ScriptoriumAdmin.campaigns.mount(session);
+
     var bottomBar = buildBottomBar();
     app.appendChild(bottomBar);
     // The sheet comes after the bar in the DOM (SD-8), so Tab goes from More into the sheet.

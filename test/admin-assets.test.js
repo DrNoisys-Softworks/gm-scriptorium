@@ -16,7 +16,7 @@ const { ADMIN_ASSET_ROUTES, ADMIN_ASSETS_DIR } = require('../src/admin/assets');
 
 const ROOT = path.join(__dirname, '..');
 
-test('ADMIN_ASSET_ROUTES keys equal a literal list of 33 names (Lantern branding: 30 -> 31, favicon-32.png; ADR 0028: 31 -> 33, launch.js and alive.js; ADR 0028: 28 -> 30, setup.js and welcome.js; panel v2 V1b: 20 -> 23, diff/outcome/slip; V1e-3 SD-26: 23 -> 24, sitepane.js; V1e-9 SD-100: 24 -> 25, vaultcfg.js; V1e-7 SD-69: 25 -> 26, variants.js; V1.5a ADR 0029: 26 -> 28, signin.js and remote.js)', () => {
+test('ADMIN_ASSET_ROUTES keys equal a literal list of 34 names (ADR 0050: 33 -> 34, campaigns.js; Lantern branding: 30 -> 31, favicon-32.png; ADR 0028: 31 -> 33, launch.js and alive.js; ADR 0028: 28 -> 30, setup.js and welcome.js; panel v2 V1b: 20 -> 23, diff/outcome/slip; V1e-3 SD-26: 23 -> 24, sitepane.js; V1e-9 SD-100: 24 -> 25, vaultcfg.js; V1e-7 SD-69: 25 -> 26, variants.js; V1.5a ADR 0029: 26 -> 28, signin.js and remote.js)', () => {
   assert.deepEqual(
     Object.keys(ADMIN_ASSET_ROUTES).sort(),
     [
@@ -38,6 +38,7 @@ test('ADMIN_ASSET_ROUTES keys equal a literal list of 33 names (Lantern branding
       'remote.js',
       'setup.js',
       'welcome.js',
+      'campaigns.js',
       'launch.js',
       'alive.js',
       'vaultcfg.js',
