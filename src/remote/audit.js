@@ -35,6 +35,7 @@ const AUDIT_KEYS = Object.freeze([
   'fingerprint',
   'trust',
   'source',
+  'affected',
 ]);
 
 const MAX_STRING = 256;

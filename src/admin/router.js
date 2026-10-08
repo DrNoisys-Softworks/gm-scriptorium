@@ -15,8 +15,10 @@ const prefs = require('./handlers/prefs');
 const variantHandlers = require('./handlers/variants');
 const remoteHandlers = require('./handlers/remote');
 const setupHandlers = require('./handlers/setup');
+const campaignHandlers = require('./handlers/campaigns');
 const launchHandlers = require('./handlers/launch');
 const setupmode = require('./setupmode');
+const campaignstate = require('./campaignstate');
 const { ADMIN_COOKIE, PREVIEW_COOKIE } = require('../remote/sessions');
 
 /*
@@ -88,6 +90,11 @@ const ADMIN_ROUTES = Object.freeze([
   { method: 'GET', path: '/api/setup/check', auth: true, handler: setupHandlers.check },
   { method: 'POST', path: '/api/setup/commit', auth: true, audit: true, handler: setupHandlers.commit },
   { method: 'POST', path: '/api/welcome/dismiss', auth: true, audit: true, handler: setupHandlers.welcomeDismiss },
+  // ADR 0050: several campaigns in one panel (list, switch, set as default, remove from the list).
+  { method: 'GET', path: '/api/campaigns', auth: true, handler: campaignHandlers.list },
+  { method: 'POST', path: '/api/campaigns/switch', auth: true, audit: true, handler: campaignHandlers.switchCampaign },
+  { method: 'POST', path: '/api/campaigns/default', auth: true, audit: true, handler: campaignHandlers.setDefault },
+  { method: 'POST', path: '/api/campaigns/remove', auth: true, audit: true, handler: campaignHandlers.removeCampaign },
 ]);
 
 /**
@@ -140,6 +147,10 @@ function sendGateRefusal(res, listener, rawUrl, result, isHead, lockedFile = 'lo
   respond.send(res, result.status, headers, isHead ? undefined : `refused: ${result.reason}`, { isHead });
 }
 
+function staleBody(ctx) {
+  return JSON.stringify({ error: 'campaign-changed', campaign: ctx.campaign === undefined ? null : ctx.campaign, message: 'This tab is out of date. Reload to continue.' });
+}
+
 function send500(res) {
   if (res.headersSent) {
     res.destroy();
@@ -159,9 +170,12 @@ function send500(res) {
  * @returns {Promise<void>}
  */
 async function runAudited(route, req, res, ctx, handlerOpts) {
-  const base = { route: handlerOpts.pathname, via: handlerOpts.kind, from: handlerOpts.clientAddress, campaign: ctx.campaign };
+  // ADR 0050 section 7: the request line names the campaign the request found; the response line
+  // names the one active after the handler (a switch changes it), and may carry the affected name.
+  const base = { route: handlerOpts.pathname, via: handlerOpts.kind, from: handlerOpts.clientAddress };
+  const note = { affected: null };
   try {
-    ctx.audit.append({ event: 'request', method: req.method, ...base });
+    ctx.audit.append({ event: 'request', method: req.method, ...base, campaign: ctx.campaign });
   } catch {
     if (handlerOpts.kind === 'remote') {
       respond.send(res, 503, respond.adminHeaders({ 'Content-Type': 'application/json; charset=utf-8' }), remoteHandlers.AUDIT_REFUSAL_BODY);
@@ -169,12 +183,14 @@ async function runAudited(route, req, res, ctx, handlerOpts) {
     }
   }
   try {
-    await route.handler(req, res, ctx, handlerOpts);
+    await route.handler(req, res, ctx, { ...handlerOpts, auditNote: note });
   } catch {
     send500(res);
   }
+  const after = { ...base, campaign: ctx.campaign };
+  if (typeof note.affected === 'string') after.affected = note.affected;
   try {
-    ctx.audit.append({ event: 'response', ...base, status: res.statusCode });
+    ctx.audit.append({ event: 'response', ...after, status: res.statusCode });
   } catch {
     // swallowed: audit.health() records it.
   }
@@ -232,12 +248,25 @@ function createAdminHandler(ctx, { routes = ADMIN_ROUTES } = {}) {
           return;
         }
 
-        if (route.audit === true && req.method === 'POST' && ctx.audit) {
-          await runAudited(route, req, res, ctx, handlerOpts);
+        // ADR 0050 section 4: a change carries the campaign its page was loaded for. A page that is
+        // out of date is refused before anything runs; one that passes is counted until it finishes,
+        // so a switch cannot complete while a passing request is still waiting on its body.
+        const bound = campaignstate.isCampaignBound(route);
+        if (bound && !campaignstate.pageMatches(ctx, req.headers[campaignstate.CAMPAIGN_HEADER])) {
+          respond.send(res, 409, respond.adminHeaders({ 'Content-Type': 'application/json; charset=utf-8' }), staleBody(ctx));
           return;
         }
+        if (bound) campaignstate.enter(ctx);
+        try {
+          if (route.audit === true && req.method === 'POST' && ctx.audit) {
+            await runAudited(route, req, res, ctx, handlerOpts);
+            return;
+          }
 
-        await route.handler(req, res, ctx, handlerOpts);
+          await route.handler(req, res, ctx, handlerOpts);
+        } finally {
+          if (bound) campaignstate.leave(ctx);
+        }
       })
       .catch(() => {
         send500(res);

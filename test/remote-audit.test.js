@@ -27,7 +27,7 @@ function setup(t) {
 test('AUDIT_KEYS is exactly the stated list', () => {
   assert.deepEqual(
     [...A.AUDIT_KEYS],
-    ['t', 'event', 'method', 'result', 'via', 'from', 'browser', 'campaign', 'route', 'status', 'until', 'count', 'refused', 'by', 'changed', 'mode', 'fingerprint', 'trust', 'source'],
+    ['t', 'event', 'method', 'result', 'via', 'from', 'browser', 'campaign', 'route', 'status', 'until', 'count', 'refused', 'by', 'changed', 'mode', 'fingerprint', 'trust', 'source', 'affected'],
   );
 });
 

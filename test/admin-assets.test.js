@@ -202,9 +202,11 @@ function importersOf(graph, target) {
  * starts the editor) and src/cli/init.js, exactly as before. src/config/write.js, which used to be
  * barred outright, may now be reached through ONE chain and no other: src/admin/handlers/setup.js >
  * src/setup/register.js > src/config/write.js. test/setup-structure.test.js adds the behavioural
- * half (only the setup commit route ever calls the writer).
+ * half (only the setup commit route ever calls the writer). ADR 0050 adds a second handler module
+ * to the same chain, src/admin/handlers/campaigns.js, for the campaign set-default and remove routes;
+ * src/config/write.js is still imported by src/setup/register.js alone.
  */
-test('FR35: the graph from src/cli/serve-admin.js never reaches src/cli/config.js or src/cli/init.js, and reaches src/config/write.js only through src/setup/register.js, which only src/admin/handlers/setup.js requires (ADR 0028)', () => {
+test('FR35: the graph from src/cli/serve-admin.js never reaches src/cli/config.js or src/cli/init.js, and reaches src/config/write.js only through src/setup/register.js, which only src/admin/handlers/setup.js and src/admin/handlers/campaigns.js require (ADR 0028, ADR 0050)', () => {
   const entry = path.join(ROOT, 'src', 'cli', 'serve-admin.js');
   const graph = walkGraph(entry);
   const forbidden = [path.join(ROOT, 'src', 'cli', 'config.js'), path.join(ROOT, 'src', 'cli', 'init.js')];
@@ -215,7 +217,7 @@ test('FR35: the graph from src/cli/serve-admin.js never reaches src/cli/config.j
   const registerJs = path.join(ROOT, 'src', 'setup', 'register.js');
   assert.ok(graph.has(writeJs), 'positive control: the walk reaches src/config/write.js through the setup chain');
   assert.deepEqual(importersOf(graph, writeJs), ['src/setup/register.js']);
-  assert.deepEqual(importersOf(graph, registerJs), ['src/admin/handlers/setup.js']);
+  assert.deepEqual(importersOf(graph, registerJs), ['src/admin/handlers/campaigns.js', 'src/admin/handlers/setup.js']);
 });
 
 // --- NFR05: no admin asset name reachable from src/build or src/generator --
