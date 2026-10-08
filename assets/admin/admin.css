@@ -7909,7 +7909,9 @@ body[data-page="launch"],
 body[data-page="launch-locked"],
 body[data-page="stopped"] {
   color: var(--text);
-  background: var(--surface-ground);
+  background-color: var(--surface-ground);
+  background-image: radial-gradient(140% 80% at 72% -12%, var(--surface-glow) 0%, var(--surface-ground) 52%, var(--surface-deep) 100%);
+  font: 15px/1.55 var(--font-body);
 }
 
 .stop {
@@ -7952,4 +7954,5 @@ body[data-page="stopped"] {
 .stop .a1-busy {
   margin: 0;
   font-weight: inherit;
+  font-family: var(--font-body);
 }
