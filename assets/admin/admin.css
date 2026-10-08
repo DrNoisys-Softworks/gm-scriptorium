@@ -7965,6 +7965,10 @@ body[data-page="stopped"] {
   min-width: 0;
 }
 
+.mt-id .cs-wrap {
+  flex: 1;
+}
+
 .cs-trigger {
   display: flex;
   align-items: center;

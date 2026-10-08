@@ -115,7 +115,8 @@
         if (back && back.isConnected && typeof back.focus === 'function') back.focus();
         resolve(answer);
       });
-      document.body.appendChild(dialog);
+      // inside the app container, so it inherits the panel's type like everything else does
+      (document.querySelector('[data-role="app"]') || document.body).appendChild(dialog);
       dialog.showModal();
       cancel.focus();
     });
@@ -477,7 +478,7 @@
     banner.appendChild(reload);
     main.insertBefore(banner, main.firstChild);
     // Nothing that would change or build anything can be pressed until the tab is reloaded.
-    var buttons = main.querySelectorAll('button, a.a1-btn');
+    var buttons = main.querySelectorAll('button.a1-btn, a.a1-btn');
     for (var i = 0; i < buttons.length; i++) {
       if (buttons[i] === reload) continue;
       if (buttons[i].tagName === 'BUTTON') buttons[i].disabled = true;
