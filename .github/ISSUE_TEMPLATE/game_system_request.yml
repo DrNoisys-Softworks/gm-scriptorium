@@ -1,0 +1,47 @@
+name: Game system request
+description: Ask for support for a new tabletop game system.
+title: "[Game system]: "
+labels: ["enhancement", "game system"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not paste campaign content, real player or character names, or
+        vault paths. Use made-up examples.**
+
+        Please don't paste rules text from the books; a link is enough.
+  - type: input
+    id: system
+    attributes:
+      label: System name and edition
+      placeholder: Example Quest, 2nd edition
+    validations:
+      required: true
+  - type: input
+    id: publisher
+    attributes:
+      label: Publisher
+    validations:
+      required: false
+  - type: dropdown
+    id: licence
+    attributes:
+      label: Is there an open licence or SRD
+      options:
+        - Yes
+        - No
+        - Not sure
+    validations:
+      required: false
+  - type: input
+    id: licence-link
+    attributes:
+      label: Link to the licence or SRD
+    validations:
+      required: false
+  - type: textarea
+    id: other
+    attributes:
+      label: Anything else
+    validations:
+      required: false
