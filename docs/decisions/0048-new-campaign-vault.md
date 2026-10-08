@@ -76,7 +76,7 @@ chokepoint never imports another ([ADR 0033](0033-vaultconfig-write-exception.md
   is written only into a parent that resolves inside the new vault.
 
 **Which folders it accepts.** The target must not exist or must be empty. Empty means nothing, or
-only operating-system litter (`desktop.ini`, `Thumbs.db`, `.DS_Store`) and an `.obsidian` folder, none
+only operating-system litter (`desktop.ini`, `Thumbs.db`, `.DS_Store`) and an `.obsidian` or `.git` folder, none
 of which are ever read, changed or removed. It refuses a file, a symbolic link or junction, a
 filesystem root, anything inside an existing vault (any ancestor holding `_meta/vault-config.md`),
 anything inside GM-Scriptorium's own settings or panel folder, and anything that would hold them.
@@ -155,6 +155,26 @@ and this one, each reached only from `src/setup/register.js`.
 The starter is pinned at gm-apprentice commit `a0215b1f2e688c476e37d372fd647935360f00b8` (plugin version 1.10.37), fetched by clone and by tarball with identical shared trees. Per game system it holds 25 folders and 29 files (30 for fitd, which adds a crew template), 42 distinct stored files in 227,690 bytes with the manifest. Two sample runs per system are recorded, and a test renders both back to the scaffold's bytes. The scan for rules content over the starter has no hits.
 
 **Known gap.** On this starter `check` reports no error and builds, but gives seven `census/unrecognised-type` warnings: the scaffold's entity-types page lists `meta`, `timeline` and `pc_roster` only under its required-fields section, which the recognised-type list does not read. The starter cannot be edited, so the fix belongs in the checker. A test pins the seven warnings exactly and must change when the checker does.
+
+## The screens
+
+Browser setup offers the same path. The start screen has a pair of choices, "I already have a vault"
+(the default, so today's path stays one click) and "Start a new campaign". The pick changes the rail and
+the number of questions: six on the new path (name, new vault folder, site title, game system, output
+folder, theme), then the review. The vault question's two dead ends, a folder that is not a vault and a
+folder that is not found, each gain a button, "Start a new campaign here instead", that carries the typed
+folder across. The new vault folder question has the folder picker's Browse button (without New folder,
+because the vault is made on the last screen) and draws one state for each answer the server gives:
+a new folder, an empty one, one with only litter, a git repository with nothing else in it, a folder with
+things in it, a file, a link, a folder inside a vault (with a button to use that vault instead), folders
+above it that will be made, a OneDrive folder, and a network share. Every refusal shows the server's own
+rule line, word for word. The game system question lists none and the shipped systems, with a link to ask
+for another. The review lists everything that will be created, with a disclosure for every folder and
+file in the starter, and the ready screen says what to do next, including that setup does not run git.
+
+**An empty folder may already be a git repository.** A folder that holds only a `.git` folder, with or
+without `.obsidian` and operating-system litter, counts as empty, and `.git` is never read or changed.
+This holds for the panel, for `init --new-vault` and for the writer itself.
 
 ## Rejected alternatives
 

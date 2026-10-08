@@ -1951,7 +1951,7 @@ ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux pac
 2. Run `serve --admin --config S2\config.toml` with no config. Choose "Start a new campaign here". Enter `S2\New Vault`, which is missing: the check goes green and the system list shows. Go through review, then Build my first preview: the ready screen appears, and the preview shows the landing page and the welcome page.
 3. In an empty folder under `%OneDrive%`: the info note shows and creation succeeds. If `desktop.ini` appears, its hash is unchanged before and after. Record any OneDrive conflict copies.
 4. Use `\\localhost\C$\...\UNCVault`, which is missing. Nothing is checked until you leave the box. Then the network-share warning shows with the git note. Creation and the preview both work.
-5. Refusals, each leaving the folder unchanged (exit 3 in `init`): a non-empty folder; a junction (`mklink /J`); `C:\`; a folder inside `S\Fresh Campaign`.
+5. A folder you made with `git init` and nothing else is accepted, and the hash of `.git\HEAD` is the same before and after. Refusals, each leaving the folder unchanged (exit 3 in `init`): a non-empty folder; a junction (`mklink /J`); `C:\`; a folder inside `S\Fresh Campaign`.
 6. Deny write on an empty folder (`icacls <dir> /deny %USERNAME%:(WD)`). Creation stops with a plain message listing what was created, and nothing is removed. Remove the deny afterwards. Re-hash the real config.
 
 ### C138: the folder picker lists only folders, never stalls, and creates one folder at a time, in the real win-x64 exe

@@ -78,7 +78,7 @@ function answers(root, extra = {}) {
   return { name: 'fresh', newVault: true, vault: path.join(root, 'New Campaign'), output: path.join(root, 'fresh-site'), title: 'The Brass Lantern', system: 'dnd-5e-2024', ...extra };
 }
 
-test('the setup-mode route list is exactly the six routes it had before this feature', () => {
+test('the setup-mode route list is the six it had before this feature plus the two the folder picker added; this feature adds none', () => {
   assert.deepEqual([...SETUP_MODE_ROUTES], [
     'GET /auth',
     'GET /api/session',
@@ -86,6 +86,8 @@ test('the setup-mode route list is exactly the six routes it had before this fea
     'GET /api/setup/state',
     'GET /api/setup/check',
     'POST /api/setup/commit',
+    'GET /api/folders',
+    'POST /api/folders/create',
   ]);
 });
 
