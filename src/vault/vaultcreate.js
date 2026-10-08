@@ -28,7 +28,7 @@ const { platformFoldsCase } = require('./exclusions');
  */
 
 const LITTER_FILES = Object.freeze(['desktop.ini', 'Thumbs.db', '.DS_Store']);
-const LITTER_DIRS = Object.freeze(['.obsidian']);
+const LITTER_DIRS = Object.freeze(['.obsidian', '.git']);
 
 const RESERVED_RE = /^(con|prn|aux|nul|conin\$|conout\$|com[1-9¹²³]|lpt[1-9¹²³])$/i;
 const BAD_CHARS_RE = /[<>:"|?*\u0000-\u001f]/;
@@ -66,12 +66,15 @@ function validateStarterRel(rel) {
   return true;
 }
 
-function refusal(abs, why, campaign) {
-  return new VaultUnreachableError(`refusing to create a vault in ${abs}: ${why}`, {
+/** extra: { kind, ... } for a screen to draw from (kind names the sort of refusal); the message is unchanged. */
+function refusal(abs, why, campaign, extra) {
+  const err = new VaultUnreachableError(`refusing to create a vault in ${abs}: ${why}`, {
     path: abs,
     campaign: campaign === undefined ? null : campaign,
     reason: 'new-vault',
   });
+  if (extra) Object.assign(err, extra);
+  return err;
 }
 
 /** realpath of the deepest existing ancestor, with the not-yet-existing tail appended unchanged. */
@@ -106,19 +109,19 @@ function isMissingCode(err) {
  */
 function inspectTarget(targetAbs, { configPath, panelDir, campaign } = {}) {
   if (typeof targetAbs !== 'string' || !path.isAbsolute(targetAbs)) {
-    throw refusal(String(targetAbs), 'it is not a full path', campaign);
+    throw refusal(String(targetAbs), 'it is not a full path', campaign, { kind: 'relative' });
   }
   const abs = path.resolve(targetAbs);
-  if (path.parse(abs).root === abs) throw refusal(abs, 'it is a filesystem root', campaign);
+  if (path.parse(abs).root === abs) throw refusal(abs, 'it is a filesystem root', campaign, { kind: 'root' });
 
   let st = null;
   try {
     st = fs.lstatSync(abs);
   } catch (err) {
-    if (!isMissingCode(err)) throw refusal(abs, `it cannot be read (${err.code || err.message})`, campaign);
+    if (!isMissingCode(err)) throw refusal(abs, `it cannot be read (${err.code || err.message})`, campaign, { kind: 'unreadable' });
   }
-  if (st && st.isSymbolicLink()) throw refusal(abs, 'it is a link or junction', campaign);
-  if (st && !st.isDirectory()) throw refusal(abs, 'it is a file', campaign);
+  if (st && st.isSymbolicLink()) throw refusal(abs, 'it is a link or junction', campaign, { kind: 'link' });
+  if (st && !st.isDirectory()) throw refusal(abs, 'it is a file', campaign, { kind: 'file' });
 
   // The deepest folder that exists, and the levels missing below it (top first).
   const missingAncestors = [];
@@ -130,14 +133,14 @@ function inspectTarget(targetAbs, { configPath, panelDir, campaign } = {}) {
       try {
         s = fs.statSync(cur);
       } catch (err) {
-        if (!isMissingCode(err)) throw refusal(abs, `${cur} cannot be read (${err.code || err.message})`, campaign);
+        if (!isMissingCode(err)) throw refusal(abs, `${cur} cannot be read (${err.code || err.message})`, campaign, { kind: 'unreadable' });
         missingAncestors.push(cur);
         const up = path.dirname(cur);
-        if (up === cur) throw refusal(abs, `no part of that path exists (${cur})`, campaign);
+        if (up === cur) throw refusal(abs, `no part of that path exists (${cur})`, campaign, { kind: 'no-path' });
         cur = up;
         continue;
       }
-      if (!s.isDirectory()) throw refusal(abs, `${cur} is a file, not a folder`, campaign);
+      if (!s.isDirectory()) throw refusal(abs, `${cur} is a file, not a folder`, campaign, { kind: 'ancestor-file' });
       existing = cur;
       break;
     }
@@ -149,7 +152,7 @@ function inspectTarget(targetAbs, { configPath, panelDir, campaign } = {}) {
   // that is itself a vault is simply not empty).
   const realExisting = fs.realpathSync(existing);
   for (let dir = st === null ? realExisting : path.dirname(realExisting); ; ) {
-    if (fs.existsSync(path.join(dir, '_meta', 'vault-config.md'))) throw refusal(abs, `it is inside the vault at ${dir}`, campaign);
+    if (fs.existsSync(path.join(dir, '_meta', 'vault-config.md'))) throw refusal(abs, `it is inside the vault at ${dir}`, campaign, { kind: 'inside-vault', ancestor: dir });
     const up = path.dirname(dir);
     if (up === dir) break;
     dir = up;
@@ -164,10 +167,10 @@ function inspectTarget(targetAbs, { configPath, panelDir, campaign } = {}) {
   for (const { dir, file } of own) {
     const realDir = realpathLoose(dir);
     if (isInsideOrEqual(realDir, realTarget)) {
-      throw refusal(abs, `it is inside GM-Scriptorium's own settings folder (${dir})`, campaign);
+      throw refusal(abs, `it is inside GM-Scriptorium's own settings folder (${dir})`, campaign, { kind: 'settings' });
     }
     if (isInsideOrEqual(realTarget, realpathLoose(file))) {
-      throw refusal(abs, `it would hold GM-Scriptorium's own settings folder (${dir})`, campaign);
+      throw refusal(abs, `it would hold GM-Scriptorium's own settings folder (${dir})`, campaign, { kind: 'holds-settings' });
     }
   }
 
@@ -177,7 +180,7 @@ function inspectTarget(targetAbs, { configPath, panelDir, campaign } = {}) {
   try {
     entries = fs.readdirSync(abs, { withFileTypes: true });
   } catch (err) {
-    throw refusal(abs, `it cannot be read (${err.code || err.message})`, campaign);
+    throw refusal(abs, `it cannot be read (${err.code || err.message})`, campaign, { kind: 'unreadable' });
   }
   const litter = [];
   const others = [];
@@ -190,9 +193,10 @@ function inspectTarget(targetAbs, { configPath, panelDir, campaign } = {}) {
     else others.push(entry.name);
   }
   if (others.length > 0) {
-    const shown = others.sort().slice(0, 3).join(', ');
+    others.sort();
+    const shown = others.slice(0, 3).join(', ');
     const more = others.length > 3 ? ` and ${others.length - 3} more` : '';
-    throw refusal(abs, `it is not empty (it holds ${shown}${more})`, campaign);
+    throw refusal(abs, `it is not empty (it holds ${shown}${more})`, campaign, { kind: 'not-empty', holds: others });
   }
   return { state: 'empty', litter: litter.sort(), missingAncestors: [] };
 }

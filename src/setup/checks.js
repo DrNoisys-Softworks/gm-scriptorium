@@ -223,7 +223,7 @@ function underOneDrive(abs, env) {
 }
 
 function newVaultFacts(overrides) {
-  return { exists: false, litter: [], missingAncestors: [], unc: false, oneDrive: false, ...overrides };
+  return { exists: false, litter: [], missingAncestors: [], unc: false, oneDrive: false, refusal: null, ...overrides };
 }
 
 /**
@@ -234,7 +234,7 @@ function newVaultFacts(overrides) {
  */
 async function checkNewVault(value, { name = '', commit = false, configPath, panelDir } = {}, deps = {}) {
   const typed = typedPath(value);
-  if (typed.relative) return result('newVault', 'bad', typed.clean, RELATIVE_RULE, newVaultFacts({}));
+  if (typed.relative) return result('newVault', 'bad', typed.clean, RELATIVE_RULE, newVaultFacts({ refusal: 'relative' }));
   if (typed.unc && commit !== true) return result('newVault', 'deferred', typed.clean, null, newVaultFacts({ unc: true }));
 
   const probed = await probeLib.probePath(typed.abs, probeOpts(deps));
@@ -245,7 +245,7 @@ async function checkNewVault(value, { name = '', commit = false, configPath, pan
     info = inspectTarget(typed.abs, { configPath, panelDir, campaign: name || null });
   } catch (err) {
     if (!(err instanceof VaultUnreachableError)) throw err;
-    return result('newVault', 'bad', typed.abs, err.message, newVaultFacts({ unc: typed.unc }));
+    return result('newVault', 'bad', typed.abs, err.message, newVaultFacts({ unc: typed.unc, refusal: err.kind || null, holds: err.holds, ancestor: err.ancestor }));
   }
   const facts = newVaultFacts({
     exists: info.state === 'empty',
@@ -273,7 +273,10 @@ async function checkSystem(value, deps = {}) {
   if (loaded.problem) return result('system', 'bad', shown, loaded.problem, { systems: [] });
   const systems = template.starterSystems(loaded.tpl);
   try {
-    return result('system', 'ok', validateSystem(value, systems), null, { systems });
+    const id = validateSystem(value, systems);
+    const chosen = loaded.tpl.systems.get(id);
+    // What the starter holds for this system, so the review can list every folder and file it makes.
+    return result('system', 'ok', id, null, { systems, layout: { dirs: [...chosen.dirs], files: chosen.files.map((x) => x.rel) } });
   } catch (err) {
     if (!(err instanceof ConfigError)) throw err;
     return result('system', 'bad', shown, err.message, { systems });

@@ -401,3 +401,13 @@ test('a SIGINT at the vault prompt, after answering y to the vault question, abo
   assert.equal(fs.existsSync(configPath), false);
   prompter.close();
 });
+
+test('init --new-vault into a folder that is already a git repository works, and leaves .git alone', async (t) => {
+  const root = scratch(t);
+  const vault = path.join(root, 'New Campaign');
+  fs.mkdirSync(path.join(vault, '.git'), { recursive: true });
+  fs.writeFileSync(path.join(vault, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+  await runInitCommand(flagsFor(root), [], { output: capture().output, ...OPTS });
+  assert.equal(fs.readFileSync(path.join(vault, '.git', 'HEAD'), 'utf8'), 'ref: refs/heads/main\n');
+  assert.equal(fs.existsSync(path.join(vault, '_meta', 'vault-config.md')), true);
+});

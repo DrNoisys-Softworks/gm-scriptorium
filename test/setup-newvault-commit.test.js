@@ -375,3 +375,21 @@ test('race: the same during the last await of the existing-vault commit', async 
   assert.equal(fs.existsSync(path.join(vault, '_meta', 'scriptorium')), false);
   assert.doesNotMatch(fs.readFileSync(l.configPath, 'utf8'), /lease/);
 });
+
+test('a folder that is already a git repository (only .git inside) is accepted, and .git is left untouched', async (t) => {
+  const root = scratchRoot(t);
+  const vault = path.join(root, 'New Campaign');
+  fs.mkdirSync(path.join(vault, '.git'), { recursive: true });
+  fs.writeFileSync(path.join(vault, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+  const res = await register.commitSetup(answers(root), layout(root), deps());
+  assert.ok(res.created, JSON.stringify(res));
+  assert.equal(fs.readFileSync(path.join(vault, '.git', 'HEAD'), 'utf8'), 'ref: refs/heads/main\n');
+  assert.equal(fs.existsSync(path.join(vault, '_meta', 'vault-config.md')), true);
+});
+
+test('the result times the vault, the pack and the registration separately', async (t) => {
+  const root = scratchRoot(t);
+  const res = await register.commitSetup(answers(root), layout(root), deps());
+  assert.deepEqual(Object.keys(res.ms).sort(), ['pack', 'register', 'vault']);
+  for (const v of Object.values(res.ms)) assert.equal(typeof v, 'number');
+});

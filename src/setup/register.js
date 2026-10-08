@@ -191,7 +191,7 @@ async function commitNewVault(answers, { configPath, panelDir }, deps) {
 
   // 1. The vault. A failure here leaves nothing else written.
   let vault;
-  const packStart = process.hrtime.bigint();
+  const vaultStart = process.hrtime.bigint();
   try {
     vault = createVault(vaultAbs, starter, { configPath, panelDir, campaign: name });
   } catch (err) {
@@ -199,8 +199,11 @@ async function commitNewVault(answers, { configPath, panelDir }, deps) {
     throw err;
   }
 
+  const vaultMs = Number(process.hrtime.bigint() - vaultStart) / 1e6;
+
   // 2. The pack, inside the vault just made. A failure leaves the vault and says so.
   let created;
+  const packStart = process.hrtime.bigint();
   try {
     created = createPackEntries(vaultAbs, scaffoldEntries(vaultAbs, SCAFFOLD, { title: titleRes.value, theme: themeRes.value }), { campaign: name }).created;
   } catch (err) {
@@ -230,7 +233,7 @@ async function commitNewVault(answers, { configPath, panelDir }, deps) {
     vaultRoot: vault.root,
     vaultCreated: vault.created,
     vaultAncestors: vault.createdAncestors,
-    ms: { pack: packMs, register: registerMs },
+    ms: { vault: vaultMs, pack: packMs, register: registerMs },
   };
 }
 

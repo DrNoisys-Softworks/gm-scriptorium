@@ -136,7 +136,7 @@ test('OS litter alone counts as empty, and its bytes and modified times never ch
 
 test('the litter lists are frozen and hold exactly what the rules name', () => {
   assert.deepEqual([...LITTER_FILES], ['desktop.ini', 'Thumbs.db', '.DS_Store']);
-  assert.deepEqual([...LITTER_DIRS], ['.obsidian']);
+  assert.deepEqual([...LITTER_DIRS], ['.obsidian', '.git']);
   assert.ok(Object.isFrozen(LITTER_FILES) && Object.isFrozen(LITTER_DIRS));
 });
 
@@ -444,6 +444,7 @@ const BAD_RELS = [
   ['a console device with an extension', 'conout$.md'],
   ['a litter name', 'desktop.ini'],
   ['a litter folder', '.obsidian/app.json'],
+  ['a git folder', '.git/config'],
   ['an empty segment', 'a//b.md'],
   ['an empty path', ''],
 ];
@@ -513,4 +514,67 @@ test('a parent swapped for a link between the check and the write is a listed fa
     return true;
   });
   assert.equal(fs.readFileSync(path.join(outside, 'b.md'), 'utf8'), 'bravo \u00fc\n', 'the escaped file is left, never deleted');
+});
+
+test('a folder holding only a .git folder (and nothing else) counts as empty, and .git is never read or touched', (t) => {
+  const root = scratch(t);
+  const target = path.join(root, 'repo');
+  fs.mkdirSync(path.join(target, '.git', 'objects'), { recursive: true });
+  fs.writeFileSync(path.join(target, '.git', 'HEAD'), 'ref: refs/heads/main\n');
+  const old = new Date('2001-02-03T04:05:06Z');
+  fs.utimesSync(path.join(target, '.git', 'HEAD'), old, old);
+  assert.deepEqual(inspectTarget(target, where(root)), { state: 'empty', litter: ['.git/'], missingAncestors: [] });
+  createVault(target, starter(), where(root));
+  assert.equal(fs.readFileSync(path.join(target, '.git', 'HEAD'), 'utf8'), 'ref: refs/heads/main\n');
+  assert.equal(fs.statSync(path.join(target, '.git', 'HEAD')).mtime.getTime(), old.getTime());
+  assert.deepEqual(tree(target), [...FULL_TREE, '.git/', '.git/HEAD', '.git/objects/'].sort());
+});
+
+test('.git together with .obsidian and OS litter is still empty; a .git that is a file, or anything beside it, is not', (t) => {
+  const root = scratch(t);
+  const both = path.join(root, 'both');
+  fs.mkdirSync(path.join(both, '.git'), { recursive: true });
+  fs.mkdirSync(path.join(both, '.obsidian'));
+  fs.writeFileSync(path.join(both, 'Thumbs.db'), 'x');
+  assert.deepEqual(inspectTarget(both, where(root)).litter, ['.git/', '.obsidian/', 'Thumbs.db']);
+  const file = path.join(root, 'gitfile');
+  fs.mkdirSync(file);
+  fs.writeFileSync(path.join(file, '.git'), 'gitdir: ../elsewhere\n');
+  assertRefusal(() => inspectTarget(file, where(root)), 'it is not empty (it holds .git)', file);
+  const more = path.join(root, 'more');
+  fs.mkdirSync(path.join(more, '.git'), { recursive: true });
+  fs.writeFileSync(path.join(more, 'README.md'), 'x');
+  assertRefusal(() => inspectTarget(more, where(root)), 'it is not empty (it holds README.md)', more);
+});
+
+test('every refusal carries a kind the screen can draw from, with the facts it needs', (t) => {
+  const root = scratch(t);
+  const w = where(root);
+  const kind = (fn) => {
+    try {
+      fn();
+    } catch (err) {
+      return { kind: err.kind, holds: err.holds, ancestor: err.ancestor };
+    }
+    return null;
+  };
+  const busy = path.join(root, 'busy');
+  fs.mkdirSync(busy);
+  for (const n of ['b.md', 'a.md']) fs.writeFileSync(path.join(busy, n), 'x');
+  assert.deepEqual(kind(() => inspectTarget(busy, w)), { kind: 'not-empty', holds: ['a.md', 'b.md'], ancestor: undefined });
+  const f = path.join(root, 'f');
+  fs.writeFileSync(f, 'x');
+  assert.equal(kind(() => inspectTarget(f, w)).kind, 'file');
+  assert.equal(kind(() => inspectTarget(path.join(f, 'sub'), w)).kind, 'ancestor-file');
+  const l = path.join(root, 'l');
+  fs.symlinkSync(busy, l, 'dir');
+  assert.equal(kind(() => inspectTarget(l, w)).kind, 'link');
+  assert.equal(kind(() => inspectTarget(path.parse(root).root, w)).kind, 'root');
+  assert.equal(kind(() => inspectTarget('relative', w)).kind, 'relative');
+  const vault = path.join(root, 'vault');
+  fs.mkdirSync(path.join(vault, '_meta'), { recursive: true });
+  fs.writeFileSync(path.join(vault, '_meta', 'vault-config.md'), 'x');
+  assert.deepEqual(kind(() => inspectTarget(path.join(vault, 'n'), w)), { kind: 'inside-vault', holds: undefined, ancestor: vault });
+  assert.equal(kind(() => inspectTarget(path.join(path.dirname(w.configPath), 'v'), w)).kind, 'settings');
+  assert.equal(kind(() => inspectTarget(root, w)).kind, 'holds-settings');
 });
