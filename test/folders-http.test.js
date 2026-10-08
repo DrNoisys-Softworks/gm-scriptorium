@@ -407,9 +407,40 @@ test('after setup commits the same routes keep working in the same process (norm
   assert.deepEqual(json(inVault), { error: 'inside-vault' });
 });
 
+// --- the handler's own audit line, with a log that fails only for it ------------------------------------------
+
+test('E2/E3 the create handler writes its folder-create line before it makes anything, and a remote request that cannot be recorded is refused 503 (the router\'s own request line having succeeded)', async (t) => {
+  const { Readable } = require('stream');
+  const folders = require('../src/admin/handlers/folders');
+  const w = world(t);
+  const run = async (kind) => {
+    const entries = [];
+    const ctx = {
+      campaign: 'alpha',
+      busy: null,
+      audit: { append: (e) => { if (e.event === 'folder-create') throw new Error('disk full'); entries.push(e); } },
+      remote: { paths: { configDir: path.dirname(w.configPath), panelDir: path.join(path.dirname(w.configPath), 'panel') } },
+      ctxInfo: { config: { campaigns: {} } },
+    };
+    const req = Readable.from([Buffer.from(JSON.stringify({ parent: w.work, name: `Fresh-${kind}` }))]);
+    req.headers = {};
+    const out = { status: null, body: '' };
+    const res = { writeHead: (s) => { out.status = s; }, end: (b) => { out.body = b === undefined ? '' : String(b); } };
+    await folders.create(req, res, ctx, { kind, pathname: '/api/folders/create', clientAddress: kind === 'remote' ? '198.51.100.77' : null });
+    return out;
+  };
+  const remote = await run('remote');
+  assert.equal(remote.status, 503);
+  assert.equal(remote.body, AUDIT_503);
+  assert.equal(fs.existsSync(path.join(w.work, 'Fresh-remote')), false, 'nothing was made');
+  const loopback = await run('loopback');
+  assert.equal(loopback.status, 200, loopback.body);
+  assert.equal(fs.existsSync(path.join(w.work, 'Fresh-loopback')), true, 'a loopback create is not held up by a log that fails');
+});
+
 // --- audit, loopback ---------------------------------------------------------------------------------------------
 
-test('AC-08 loopback: a listing writes no audit line; a create writes a request and a response', async (t) => {
+test('AC-08 loopback: a listing writes no audit line; a create writes request, folder-create (with the folder path) and response', async (t) => {
   const n = await normalPanel(t);
   const before = auditLines(n.configPath).length;
   await folders(n.h, q({ path: n.work }));
@@ -420,17 +451,17 @@ test('AC-08 loopback: a listing writes no audit line; a create writes a request 
   const res = await post(n.h, { parent: n.work, name: 'Audited' });
   assert.equal(res.status, 200);
   const lines = auditLines(n.configPath).slice(before);
-  assert.deepEqual(lines.map((l) => l.event), ['request', 'response']);
-  for (const l of lines) {
-    assert.equal(l.via, 'loopback');
-    assert.equal(l.route, '/api/folders/create');
-    assert.equal(l.campaign, 'x');
-  }
-  assert.equal(lines[0].method, 'POST');
-  assert.equal(lines[1].status, 200);
+  assert.deepEqual(lines.map((l) => l.event), ['request', 'folder-create', 'response']);
+  assert.equal(lines[1].path, path.join(n.work, 'Audited'));
+  assert.equal(lines[1].via, 'loopback');
+  assert.equal(lines[1].method, 'POST');
+  assert.equal(lines[1].route, '/api/folders/create');
+  assert.equal(lines[1].campaign, 'x');
+  assert.equal(lines[2].status, 200);
+  assert.equal(JSON.stringify(lines).includes('Session'), false);
 });
 
-test('a create refused as a bad request leaves only the router pair', async (t) => {
+test('a create refused as a bad request leaves only the router pair (no folder-create line, nothing recorded about a body)', async (t) => {
   const n = await normalPanel(t);
   const before = auditLines(n.configPath).length;
   const res = await post(n.h, { parent: n.work, name: '.bad' });
@@ -566,7 +597,7 @@ function watchFs(t, folder) {
   return seen;
 }
 
-test('M6/AC-08 remote: a listing writes exactly one folders line (before the listing) with via and from; a loopback listing writes none', linuxOnly, async (t) => {
+test('M6/AC-08 remote: a listing writes exactly one folders line (before the listing) with via, from and the folder path; a loopback listing writes none', linuxOnly, async (t) => {
   const env = await startRemote(t);
   const cookie = await remoteSession(env);
   const before = auditLines(env.fx.configPath).length;
@@ -584,12 +615,14 @@ test('M6/AC-08 remote: a listing writes exactly one folders line (before the lis
     via: 'remote',
     from: '198.51.100.77',
     campaign: 'alpha',
+    path: env.fx.work,
   });
 
   const roots = await remoteGet(env, cookie, '');
   assert.equal(roots.status, 200);
   const rootLine = auditLines(env.fx.configPath).slice(before)[1];
   assert.equal(rootLine.event, 'folders');
+  assert.equal(Object.prototype.hasOwnProperty.call(rootLine, 'path'), false, 'the roots view names no folder');
 
   const count = auditLines(env.fx.configPath).length;
   assert.equal((await loopbackGet(env, q({ path: env.fx.work }))).status, 200);
@@ -617,7 +650,7 @@ test('M6/E3 remote: with the audit log unwritable a listing is refused 503 befor
   assert.equal(seen.length > 0, true, 'the watcher does see a real listing');
 });
 
-test('AC-08 remote: a create is audited as a request and a response; it works from a remote session', linuxOnly, async (t) => {
+test('AC-08 remote: a create is audited as a request, a folder-create line with the path, and a response; it works from a remote session', linuxOnly, async (t) => {
   const env = await startRemote(t);
   const cookie = await remoteSession(env);
   const before = auditLines(env.fx.configPath).length;
@@ -626,12 +659,13 @@ test('AC-08 remote: a create is audited as a request and a response; it works fr
   assert.deepEqual(JSON.parse(res.text), { created: true, path: path.join(env.fx.work, 'Remote Made') });
   assert.equal(fs.statSync(path.join(env.fx.work, 'Remote Made')).isDirectory(), true);
   const lines = auditLines(env.fx.configPath).slice(before);
-  assert.deepEqual(lines.map((l) => l.event), ['request', 'response']);
+  assert.deepEqual(lines.map((l) => l.event), ['request', 'folder-create', 'response']);
   for (const l of lines) {
     assert.equal(l.via, 'remote');
     assert.equal(l.from, '198.51.100.77');
   }
-  assert.equal(lines[1].status, 200);
+  assert.equal(lines[1].path, path.join(env.fx.work, 'Remote Made'));
+  assert.equal(lines[2].status, 200);
   const inVault = await remotePost(env, cookie, { parent: env.fx.vault, name: 'x' });
   assert.equal(inVault.status, 409);
   assert.deepEqual(JSON.parse(inVault.text), { error: 'inside-vault' });

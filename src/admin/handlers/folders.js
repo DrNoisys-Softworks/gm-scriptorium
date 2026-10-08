@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('path');
 const respond = require('../respond');
 const body = require('../body');
 const { runExclusive } = require('../context');
@@ -18,7 +19,9 @@ const { AUDIT_REFUSAL_BODY } = require('./remote');
  *                              listing writes nothing.
  *   POST /api/folders/create   one create-only, single-level folder (src/admin/foldercreate.js).
  *                              The router brackets it with request and response lines; this
- *                              A remote request with an unwritable log gets the router's 503.
+ *                              handler adds one `folder-create` line carrying the folder path,
+ *                              before it creates anything, and a remote request that cannot be
+ *                              recorded gets the same 503.
  *
  * ctx.folderDeps is the test seam: { fsp, timeoutMs, platform, homedir, now, deadlineMs }.
  * Production never sets it. ctx.folderDrives remembers the Windows drives that did not answer.
@@ -76,6 +79,15 @@ function parseQuery(query, platform) {
   return parsed;
 }
 
+/** The folder a start value stands for, for the audit line only: validated, or none. */
+function auditedStart(start, platform) {
+  try {
+    return folders.validateFolderPath(start, platform);
+  } catch {
+    return undefined;
+  }
+}
+
 /** GET /api/folders */
 async function list(req, res, ctx, { kind, query, isHead, pathname, clientAddress }) {
   const platform = platformOf(ctx);
@@ -85,6 +97,7 @@ async function list(req, res, ctx, { kind, query, isHead, pathname, clientAddres
     return;
   }
   if (kind === 'remote') {
+    const shown = parsed.path !== undefined ? parsed.path : parsed.start !== undefined ? auditedStart(parsed.start, platform) : undefined;
     const written = record(ctx, {
       event: 'folders',
       method: 'GET',
@@ -92,6 +105,7 @@ async function list(req, res, ctx, { kind, query, isHead, pathname, clientAddres
       via: kind,
       from: clientAddress,
       campaign: ctx.campaign,
+      ...(shown !== undefined ? { path: shown } : {}),
     });
     if (!written) {
       refuseUnrecorded(res);
@@ -169,8 +183,9 @@ async function create(req, res, ctx, { kind, pathname, clientAddress }) {
   const input = await readCreateBody(req, res);
   if (input === null) return;
   const platform = platformOf(ctx);
+  let resolvedParent;
   try {
-    folders.validateFolderPath(input.parent, platform);
+    resolvedParent = folders.validateFolderPath(input.parent, platform);
   } catch (err) {
     badBody(res, 'parent', err.message);
     return;
@@ -179,6 +194,19 @@ async function create(req, res, ctx, { kind, pathname, clientAddress }) {
     folders.validateFolderName(input.name);
   } catch (err) {
     badBody(res, 'name', err.message);
+    return;
+  }
+  const written = record(ctx, {
+    event: 'folder-create',
+    method: 'POST',
+    route: pathname,
+    via: kind,
+    from: clientAddress,
+    campaign: ctx.campaign,
+    path: (platform === 'win32' ? path.win32 : path.posix).join(resolvedParent, input.name),
+  });
+  if (!written && kind === 'remote') {
+    refuseUnrecorded(res);
     return;
   }
   const ran = await runExclusive(ctx, 'folder', () =>
