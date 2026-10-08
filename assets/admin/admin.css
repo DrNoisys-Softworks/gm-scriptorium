@@ -7956,3 +7956,220 @@ body[data-page="stopped"] {
   font-weight: inherit;
   font-family: var(--font-body);
 }
+
+/* -- Folder picker (ADR 0049) ------------------------------------------- */
+/* Inline under a path field, never a modal. One class prefix, pk-. */
+
+/* The Browse button sits in the field's row, after the input. */
+.su-row .pk-browse {
+  flex: 0 0 auto;
+}
+
+/* The panel: inline under the field, never a modal. */
+.pk {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  background: var(--surface-panel);
+  border: 1px solid var(--line-crease);
+  border-radius: 8px;
+  max-width: 720px;
+}
+
+.pk-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pk-title {
+  margin: 0;
+  font: 400 13px/1.2 var(--font-caps);
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.pk-live {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.pk-loc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.pk-loc .a1-in {
+  flex: 1 1 240px;
+  font-size: 14.5px;
+}
+
+.pk-lab {
+  display: block;
+  margin-bottom: 4px;
+  font: 400 12.5px/1.2 var(--font-caps);
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.pk-where {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: center;
+}
+
+.pk-where .pk-path {
+  flex: 1 1 200px;
+  min-width: 0;
+  font: 400 14px/1.35 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.pk-up .ico {
+  transform: rotate(-90deg);
+}
+
+.pk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 340px;
+  overflow: auto;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line-control);
+  border-radius: 6px;
+}
+
+.pk-opt {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-edge);
+  cursor: pointer;
+}
+
+.pk-opt:last-child {
+  border-bottom: 0;
+}
+
+.pk-opt:hover {
+  background: var(--wash-hover);
+}
+
+.pk-opt[aria-selected="true"] {
+  background: var(--wash-selected);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.pk-opt .ico {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}
+
+.pk-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pk-opt .pk-sub {
+  display: block;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.pk-opt.is-link .pk-name,
+.pk-opt.is-hidden .pk-name,
+.pk-opt.is-bad .pk-name {
+  color: var(--text-muted);
+}
+
+.pk-opt.is-link .ico,
+.pk-opt.is-bad .ico {
+  color: var(--text-muted);
+}
+
+.pk-list:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.pk-note {
+  margin: 0;
+  font-size: 14.5px;
+  color: var(--text-muted);
+}
+
+.pk-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.pk-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.pk-foot .grow {
+  flex: 1 1 auto;
+}
+
+.pk-new {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface-sunken);
+  border: 1px dashed var(--line-control);
+  border-radius: 6px;
+}
+
+.pk-new .pk-loc .a1-in.bad {
+  border-color: var(--error);
+  box-shadow: 0 0 0 2px var(--wash-pending);
+}
+
+@media (max-width: 560px) {
+  .pk {
+    padding: 12px;
+  }
+  .pk-foot .a1-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+  .pk-foot .grow {
+    display: none;
+  }
+  .pk-list {
+    max-height: 260px;
+  }
+}
+
+.pk-err {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--error);
+  font-size: 14.5px;
+}
+
+.pk-err .ico {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  align-self: center;
+}

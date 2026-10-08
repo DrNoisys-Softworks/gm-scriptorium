@@ -173,7 +173,7 @@
     bound.appendChild(icon('lock'));
     add(bound, [' Bound to ', code('127.0.0.1'), ' only']);
     foot.appendChild(bound);
-    foot.appendChild(h('span', null, 'Nothing is written until the review'));
+    foot.appendChild(h('span', null, 'Files are written at the review. New folder makes its folder at once.'));
     side.appendChild(foot);
     return side;
   }
@@ -517,6 +517,8 @@
     var input = textInput('su-vault', S.vault, true);
     var fb = fieldBlock('su-vault', 'Vault folder', input, 'su-vault-st');
     wrap.appendChild(fb.field);
+    // ADR 0049: Browse only fills the field; the field's own server check then runs as always.
+    A.picker.attach(input, { row: fb.row, host: fb.status, label: 'the vault folder', allowCreate: false, onChoose: function () { onVault(input, true); } });
     wrap.appendChild(foot('name', 'Continue', function () {
       // A network path is only probed when the GM commits the field.
       if (S.res.vault && S.res.vault.state === 'deferred') onVault(input, true);
@@ -634,6 +636,7 @@
     var input = textInput('su-out', S.output, true);
     var fb = fieldBlock('su-out', 'Output folder', input, 'su-out-st');
     wrap.appendChild(fb.field);
+    A.picker.attach(input, { row: fb.row, host: fb.status, label: 'the output folder', allowCreate: true, onChoose: function () { S.outputConfirmed = false; onOutput(input, true); } });
     var hint = h('p', 'a1-hint', 'Suggested: next to your vault, named after the campaign.');
     hint.id = 'su-out-hint';
     fb.field.insertBefore(hint, fb.status);
@@ -872,7 +875,7 @@
     var h1 = h('h1', 'a1-h2', 'Check your answers');
     h1.tabIndex = -1;
     head.appendChild(h1);
-    head.appendChild(h('p', 'a1-lede', 'This is the only screen that writes anything.'));
+    head.appendChild(h('p', 'a1-lede', 'Setup writes your campaign’s files when you press a button below. A folder you made with New folder is already on your disk.'));
     wrap.appendChild(head);
 
     var slip = h('section', 'a1-slip inline');
@@ -909,6 +912,11 @@
       : ['Create in ', code(packDir() + joinPath([''])), ': ', code('css'), ', ', code('images'), ', ', code('pack.toml'), ' and ', code('vault.config.json'), '. Nothing else in the vault changes, and no existing file is overwritten.']
     ].reduce(function (a, b) { return a.concat(b); }, []).map(function (x) { return typeof x === 'string' ? document.createTextNode(x) : x; }));
     ol.appendChild(li1);
+    if (S.res.output && S.res.output.facts && S.res.output.facts.exists === false) {
+      var liOut = h('li');
+      add(liOut, ['Created by the first build: ', code(S.res.output.value)]);
+      ol.appendChild(liOut);
+    }
     var li2 = h('li');
     add(li2, ['Register ', h('b', null, S.name.trim()), ' as your default campaign, in ', code(S.server.configPath), '.']);
     ol.appendChild(li2);

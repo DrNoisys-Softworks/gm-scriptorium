@@ -84,6 +84,7 @@ const FIRST_PARTY_SITE_ASSETS = [
   'assets/admin/nav.js',
   'assets/admin/outcome.js',
   'assets/admin/pack.js',
+  'assets/admin/picker.js',
   'assets/admin/remote.js',
   'assets/admin/setup.html',
   'assets/admin/setup.js',
