@@ -5,6 +5,13 @@ const read = require('./read');
 
 const TREE_CHARS_RE = /^[\s│├└─]+/;
 
+// UPSTREAM-HEADING-ALIASES: accept gm-apprentice vault_scaffold.py section names (owner, 2026-10-08). Remove if upstream and Scriptorium agree on one set.
+// First name in each list is ours, the rest are upstream's. Matching stays case-sensitive, as before.
+// Upstream's other scaffolded sections (Frontmatter Schemas, Type-Specific Fields) are not read here.
+const HIERARCHY_HEADING = ['Hierarchy', 'Entity Type Hierarchy'].join('|');
+const FOLDER_MAPPING_HEADING = ['Folder mapping', 'Default Folder Mapping'].join('|');
+const REQUIRED_RELATIONSHIPS_HEADING = ['Required relationships', 'Required Relationships'].join('|');
+
 /*
  * The single read chokepoint for `_meta/entity-types.md` (P1-FR01). Both
  * census.js's recognised-type union and relationship.js's "Required
@@ -36,7 +43,7 @@ function parseRecognisedTypes(vaultPath) {
   if (!result.ok) return recognised;
   const content = result.content;
 
-  const hierarchyFence = content.match(/##\s*Hierarchy[\s\S]*?```(?:text)?\n([\s\S]*?)```/);
+  const hierarchyFence = content.match(new RegExp('##\\s*(?:' + HIERARCHY_HEADING + ')[\\s\\S]*?```(?:text)?\\n([\\s\\S]*?)```'));
   if (hierarchyFence) {
     for (const line of hierarchyFence[1].split('\n')) {
       const stripped = line.replace(TREE_CHARS_RE, '').trim();
@@ -48,7 +55,9 @@ function parseRecognisedTypes(vaultPath) {
     }
   }
 
-  const folderMappingSection = content.match(/##\s*Folder mapping\s*\n([\s\S]*?)(?:\n##\s|$)/);
+  const folderMappingSection = content.match(
+    new RegExp('##\\s*(?:' + FOLDER_MAPPING_HEADING + ')\\s*\\n([\\s\\S]*?)(?:\\n##\\s|$)')
+  );
   if (folderMappingSection) {
     for (const line of folderMappingSection[1].split('\n')) {
       const row = line.trim();
@@ -97,7 +106,9 @@ function splitTableRow(row) {
  * treats the same as a missing file or an unparseable one.
  */
 function parseRequiredRelationshipsTable(content) {
-  const section = content.match(/##\s*Required relationships\s*\n([\s\S]*?)(?:\n##\s|$)/);
+  const section = content.match(
+    new RegExp('##\\s*(?:' + REQUIRED_RELATIONSHIPS_HEADING + ')\\s*\\n([\\s\\S]*?)(?:\\n##\\s|$)')
+  );
   if (!section) return null;
 
   const requiredByType = new Map();
@@ -117,7 +128,7 @@ function parseRequiredRelationshipsTable(content) {
 
     const types = cells[0]
       .split(',')
-      .map((t) => t.replace(/\(.*\)/g, '').trim())
+      .map((t) => t.replace(/`/g, '').replace(/\(.*\)/g, '').trim()) // UPSTREAM-HEADING-ALIASES: upstream backticks the type cell
       .filter((t) => t.length > 0);
     const relTypes = cells[1]
       .split(',')
