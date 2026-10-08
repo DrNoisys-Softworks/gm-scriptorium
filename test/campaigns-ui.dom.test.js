@@ -249,6 +249,8 @@ for (const browserName of ['chromium', 'firefox']) {
         assert.equal(await active.locator('[data-act="remove"]').isDisabled(), true);
         assert.match(await active.textContent(), /Switch to another campaign first\./);
         assert.equal(await active.locator('[data-act="switch"]').count(), 0);
+        assert.equal(await active.locator('[data-act="default"]').isDisabled(), true, 'the default campaign has nothing to set');
+        assert.equal((await active.locator('[data-act="default"]').textContent()).trim(), 'Default campaign');
         assert.match(await active.textContent(), /Active/);
         assert.match(await active.textContent(), /Default/);
         if (!SKIP_AXE) assert.deepEqual(await axeViolations(page), [], `Campaigns screen at ${size.width}`);
