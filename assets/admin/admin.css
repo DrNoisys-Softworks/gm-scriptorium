@@ -8174,6 +8174,307 @@ body[data-page="stopped"] {
   align-self: center;
 }
 
+/* ADR 0048: browser setup, "Start a new campaign". New rules in the same style as the su-* family above; nothing above is changed. */
+
+/* Start screen: the two ways in, as a radio pair (su-need box + su-theme's selected ring). */
+.su-paths {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.su-paths legend {
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+.su-paths .opts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.su-path {
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 16px;
+  gap: 2px 12px;
+  padding: 14px;
+  border: 1px solid var(--line-edge);
+  background: var(--surface-sunken);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.su-path input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.su-path:hover {
+  border-color: var(--accent);
+}
+
+.su-path.sel {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--wash-selected);
+}
+
+.su-path:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.su-path .ic {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--line-crease);
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  grid-row: span 2;
+}
+
+.su-path .ic .ico {
+  width: 16px;
+  height: 16px;
+}
+
+.su-path b {
+  font-weight: 500;
+  font-size: 16px;
+}
+
+.su-path.sel b {
+  color: var(--accent-strong);
+}
+
+.su-path p {
+  margin: 0;
+  grid-column: 2 / -1;
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+.su-rd {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--line-control);
+  align-self: center;
+  flex: none;
+}
+
+.sel > .su-rd {
+  border-color: var(--accent);
+  background: radial-gradient(circle, var(--accent) 0 4px, transparent 4.5px);
+}
+
+/* Game system: a radio list in su-checks' row rhythm; the picked row takes the rail's
+   "current" wash. */
+.su-sys {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.su-sys legend {
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+.su-sys .rows {
+  border-top: 1px solid var(--line-edge);
+}
+
+.su-opt {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 1px 12px;
+  align-items: baseline;
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--line-edge);
+  cursor: pointer;
+}
+
+.su-opt input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.su-opt:hover {
+  background: var(--wash-hover);
+}
+
+.su-opt.sel {
+  background: var(--wash-current);
+}
+
+.su-opt:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.su-opt .nm {
+  font-size: 16px;
+}
+
+.su-opt.sel .nm {
+  color: var(--accent-strong);
+}
+
+.su-opt .id {
+  font: 12.5px var(--font-mono);
+  color: var(--text-faint);
+}
+
+.su-opt .d {
+  grid-column: 2 / -1;
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+.su-sys + .a1-hint {
+  margin-top: -8px;
+}
+
+/* Review: what the new vault holds, as a nested list, plus an optional full list. */
+.su-do ul {
+  margin: 6px 0 2px;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.su-tree {
+  font-size: 13.5px;
+}
+
+.su-tree summary {
+  cursor: pointer;
+  color: var(--slip-link);
+  text-decoration: underline;
+  text-decoration-color: var(--slip-link);
+  text-underline-offset: 3px;
+  width: max-content;
+  max-width: 100%;
+}
+
+.su-tree .box {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--slip-rule);
+  background: var(--slip-gap-bg);
+  border-radius: var(--radius-slip);
+  display: grid;
+  gap: 8px;
+}
+
+.su-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  columns: 2 200px;
+  column-gap: 20px;
+  font: 12.5px/1.65 var(--font-mono);
+}
+
+.su-tree li {
+  break-inside: avoid;
+  overflow-wrap: anywhere;
+}
+
+.su-tree p {
+  margin: 0;
+  color: var(--slip-muted);
+}
+
+/* Ready: the "start writing" next step, in the Overview welcome's list style (.wel li). */
+.su-next {
+  display: grid;
+  gap: 2px;
+  margin-top: 8px;
+}
+
+.su-next ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.su-next li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 4px 10px;
+  font-size: 14.5px;
+  align-items: baseline;
+}
+
+.su-next li > .ico {
+  width: 17px;
+  height: 17px;
+  color: var(--accent);
+  align-self: center;
+}
+
+.su-next li span {
+  color: var(--text-muted);
+}
+
+.su-next li code {
+  overflow-wrap: anywhere;
+}
+
+.su-next .a1-actions {
+  grid-column: 2;
+}
+
+/* Six questions on the new-campaign path: the top bar's progress steps. */
+.su-pbar i.w13 { width: 13%; }
+.su-pbar i.w27 { width: 27%; }
+.su-pbar i.w40 { width: 40%; }
+.su-pbar i.w53 { width: 53%; }
+.su-pbar i.w67 { width: 67%; }
+
+/* The ready screen styles its own h1/h2 large and gilt; the next-step head stays a section rule. */
+.su-ready .su-next h2.a1-rule {
+  margin: 0 0 12px;
+  font: 400 16px/1.2 var(--font-caps);
+  letter-spacing: 0.07em;
+  color: var(--accent);
+}
+
+.su-ready .su-next .a1-actions {
+  flex-direction: row;
+  align-items: center;
+}
+
+
+/* The cards on the start screen differ in height (the output card has a long explanation): keep each one's text at the top. */
+.su-need > div {
+  align-content: start;
+}
+
+/* Pills in the review's summary sit on the parchment slip, so they take the slip's own inks to stay readable. */
+.su-sum .a1-pill.muted {
+  color: var(--slip-muted);
+}
+
+.su-sum .a1-pill.rose {
+  color: var(--slip-refused-ink);
+}
+
 /* -- ADR 0050: the campaign switcher, the Campaigns screen, the stale-tab banner and the confirms
    (ported from the approved mock; colours are tokens only) ------------------------------------- */
 

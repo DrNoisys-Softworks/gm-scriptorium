@@ -1,0 +1,258 @@
+---
+type: pc
+canon_status: DRAFT
+aliases: []
+tags: []
+source_document: ""
+campaign: ""
+first_appearance: ""
+player_name: ""
+occupation: ""
+age:
+gender: ""
+nationality: ""
+status: alive
+key_traits: []
+portrait: ""
+sheet_source: ""
+display_meta: [occupation, age, nationality]
+relationships:
+  - target: "[[]]"
+    type: located_at
+    tone: neutral
+    strength: 5
+    bidirectional: false
+    description: ""
+lastUpdated: ""
+asOfSession: ""
+createdSession: ""
+---
+
+## Stat Sheet
+
+### Core
+
+| Attribute | Value |
+|-----------|-------|
+| Level | 1 |
+| XP | 0 |
+| Proficiency Bonus | +2 |
+| Heroic Inspiration | No |
+
+### Ability Scores
+
+| Ability | Score | Modifier | Save Proficiency | Save |
+|---------|-------|----------|------------------|------|
+| STR | 10 | +0 | No | +0 |
+| DEX | 10 | +0 | No | +0 |
+| CON | 10 | +0 | No | +0 |
+| INT | 10 | +0 | No | +0 |
+| WIS | 10 | +0 | No | +0 |
+| CHA | 10 | +0 | No | +0 |
+
+### Combat
+
+| Attribute | Value |
+|-----------|-------|
+| AC | 10 |
+| Initiative | +0 |
+| Speed | 30 ft |
+| Size | Medium |
+| HP (Current) | |
+| HP (Max) | |
+| Temp HP | 0 |
+| Hit Dice (Spent/Max) | 0/1 |
+| Death Saves (S/F) | 0/0 |
+| Exhaustion | 0 |
+| Conditions | — |
+
+### Senses
+
+| Attribute | Value |
+|-----------|-------|
+| Passive Perception | 10 |
+| Passive Investigation | 10 |
+| Passive Insight | 10 |
+
+### Bonuses
+
+| Applies To | Bonus | Source |
+|------------|-------|--------|
+| | | |
+
+### Defences
+
+**Resistances:** {list}
+
+**Immunities:** {list}
+
+**Vulnerabilities:** {list}
+
+**Condition Immunities:** {list}
+
+**Advantages:** {list}
+
+**Armour Class:** {what it is made of}
+
+## Background
+
+**Species:** {Species name}
+
+**Class/Subclass:** {Class (Subclass)}
+
+**Background:** {Background name}
+
+**Backstory & Personality:** {Character history and traits}
+
+**Alignment:** {Alignment}
+
+**Appearance:** {Physical description}
+
+## Skills
+
+| Skill | Ability | Proficient | Expertise | Modifier |
+|-------|---------|-----------|-----------|----------|
+| Acrobatics | DEX | No | No | +0 |
+| Animal Handling | WIS | No | No | +0 |
+| Arcana | INT | No | No | +0 |
+| Athletics | STR | No | No | +0 |
+| Deception | CHA | No | No | +0 |
+| History | INT | No | No | +0 |
+| Insight | WIS | No | No | +0 |
+| Intimidation | CHA | No | No | +0 |
+| Investigation | INT | No | No | +0 |
+| Medicine | WIS | No | No | +0 |
+| Nature | INT | No | No | +0 |
+| Perception | WIS | No | No | +0 |
+| Performance | CHA | No | No | +0 |
+| Persuasion | CHA | No | No | +0 |
+| Religion | INT | No | No | +0 |
+| Sleight of Hand | DEX | No | No | +0 |
+| Stealth | DEX | No | No | +0 |
+| Survival | WIS | No | No | +0 |
+
+## Class Features
+
+| Name | Action | Uses | Used | Recovers | Summary |
+|------|--------|------|------|----------|---------|
+| | | | | | |
+
+## Species Traits
+
+| Name | Action | Uses | Used | Recovers | Summary |
+|------|--------|------|------|----------|---------|
+| | | | | | |
+
+## Feats
+
+| Name | Action | Uses | Used | Recovers | Summary |
+|------|--------|------|------|----------|---------|
+| | | | | | |
+
+## Spellcasting
+
+> Omit this section if the character has no spellcasting.
+
+| Attribute | Value |
+|-----------|-------|
+| Spellcasting Ability | |
+| Spell Attack Modifier | |
+| Spell Save DC | |
+
+### Spell Slots
+
+| Level | Total | Expended |
+|-------|-------|----------|
+| 1st | | |
+| 2nd | | |
+| 3rd | | |
+| 4th | | |
+| 5th | | |
+| 6th | | |
+| 7th | | |
+| 8th | | |
+| 9th | | |
+
+### Spells
+
+| Spell | Level | Time | Range | Components | Duration | Hit / DC | Tags | Source | Summary |
+|-------|-------|------|-------|------------|----------|----------|------|--------|---------|
+| | | | | | | | | | |
+
+## Proficiencies
+
+**Armor Training:** {list}
+
+**Weapons:** {list}
+
+**Weapon Mastery:** {list}
+
+**Tools:** {list}
+
+**Languages:** {list}
+
+## Equipment
+
+### Weapons & Damage Cantrips
+
+| Name | Atk Bonus / DC | Damage & Type | Notes |
+|------|----------------|---------------|-------|
+| | | | |
+
+### Gear
+
+| Item | Qty | Weight | Notes |
+|------|-----|--------|-------|
+| | | | |
+
+### Carrying
+
+| Attribute | Value |
+|-----------|-------|
+| Carried Weight | |
+| Carrying Capacity | |
+| Drag / Lift / Push | |
+| Encumbrance | |
+
+### Magic Items
+
+| Item | Attuned | Charges | Used | Recovers | Notes |
+|------|---------|---------|------|----------|-------|
+| | | | | | |
+
+### Coins
+
+| CP | SP | EP | GP | PP |
+|----|----|----|----|----|
+| 0 | 0 | 0 | 0 | 0 |
+
+## Companions
+
+> Delete this section if the character has no companion.
+
+| Companion | Kind | AC | HP | Speed | Notes |
+|-----------|------|----|----|-------|-------|
+| | | | | | |
+
+## Current Status
+
+{Optional one-line present-tense lede for the published page.}
+
+**Location:** {where the PC is now}
+**Condition:** {wounds, conditions, exhaustion}
+**Carrying:** {narratively-significant items in hand}
+**Open threads:**
+- {unresolved, forward-looking item}
+**Knows (exclusive):** {secret/exclusive knowledge, if any}
+
+{Player-facing; sits outside any gm-only fence. Maintained cumulatively
+by session-wrapup (Step 3c): carries unresolved Open threads forward,
+adds new, removes resolved. See shared/pc-body-structure.md.}
+
+## Notes
+
+{Player-facing notes. Protected — skills never modify.}
+
+## GM Notes
+
+{Keeper-only notes. Protected — skills never modify.}

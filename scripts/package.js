@@ -54,6 +54,7 @@ const { verifyInstalled } = require('./generator-pin');
 const { assertAssetsEmbedded } = require('./pkg-assets');
 const { assertNoRulesContent } = require('./content-markers');
 const { assertNoticesFresh, NOTICES_PATH } = require('./notices-freshness');
+const { verifyTemplateTree } = require('../src/setup/template');
 const { planSelfTest, execVersionProbe } = require('./package-selftest');
 
 const ROOT = path.join(__dirname, '..');
@@ -151,8 +152,8 @@ function buildInvocation({ target, out }) {
 }
 
 /**
- * Runs every one of the five gates (CLAUDE.md's gate table) for ONE target, verifying the
- * generator pin and the embedded-asset gate before trusting the output. P5a-FR01: "all 5
+ * Runs every one of the six gates (CLAUDE.md's gate table) for ONE target, verifying the
+ * generator pin and the embedded-asset gate before trusting the output. P5a-FR01: "all 6
  * gates run per target" -- pin verification and notices freshness do not vary by target, but
  * running them again per target is cheap and keeps every target's build provably gated on
  * its own run, not on an earlier target's already-stale check.
@@ -182,6 +183,21 @@ function buildTarget({ target, outPath }) {
   const { ok: noticesFresh, detail: noticesDetail } = assertNoticesFresh();
   if (!noticesFresh) {
     console.error(`package: refusing to build ${target}, ${noticesDetail}`);
+    return { ok: false };
+  }
+
+  // Gate 6 (docs/decisions/0048-new-campaign-vault.md): the new-campaign starter embedded below must
+  // match its manifest file for file, with nothing extra on disk. Fails closed: a manifest that
+  // cannot be read counts as a failure too.
+  try {
+    const { problems: starterProblems } = verifyTemplateTree(path.join(ROOT, 'assets', 'vault-template'));
+    if (starterProblems.length > 0) {
+      console.error(`package: refusing to build ${target}, the starter template in assets/vault-template does not match its manifest:`);
+      for (const p of starterProblems) console.error(`  - ${p}`);
+      return { ok: false };
+    }
+  } catch (err) {
+    console.error(`package: refusing to build ${target}, the starter template cannot be verified: ${err.message}`);
     return { ok: false };
   }
 

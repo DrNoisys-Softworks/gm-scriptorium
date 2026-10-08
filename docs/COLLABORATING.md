@@ -595,6 +595,35 @@ plus `npm pack` would produce) and is not proven safe for a package with `bundle
 13. Amend `docs/decisions/0005-generator-pin.md` with the new pin, the dependency-set deltas, and
     the packaging proof result.
 
+## Starter template pin bump procedure
+
+New vaults are made from a starter template, captured from gm-apprentice's own vault scaffold at one
+pinned upstream commit and kept in `assets/vault-template/` ([ADR 0048](decisions/0048-new-campaign-vault.md)).
+No file in that folder is ever edited by hand. To move the pin:
+
+1. Fetch the new commit twice, by two routes: `git clone`, and `gh api repos/AntTheLimey/gm-apprentice/tarball/<sha>`.
+   `diff -rq` their `skills/shared` and `.claude-plugin` trees. Any difference is a stop. A commit is
+   weaker provenance than a release tarball; say so in the record.
+2. Read `LICENSE`, `LICENSE-CODE`, `ATTRIBUTION.md` and `.claude-plugin/plugin.json`. Any third-party
+   licence named for `skills/shared/templates/`, `skills/shared/scaffold/`, `entity-schema.md`,
+   `gm-apprentice-ontology.json` or `vault-structure.md` is a stop. Check each game system against
+   [ADR 0007](decisions/0007-rules-content-redaction.md): a system whose templates carry rules content is held back.
+3. `git diff <old> <new> --` over the scaffold script, `scaffold/`, `templates/`, the three schema files,
+   `index_build.py`, `migrate_vault.py` and `vaultlib.py`. Stop if the output now uses CRLF or the platform
+   line end, depends on the target path, differs between two runs with the same inputs, or the index no longer
+   skips `meta` and `campaign_overview`.
+4. `node scripts/vault-template.js capture --checkout <fresh clone> --out <runs folder>`. It needs Python 3.10
+   or later with the standard library only; nothing is installed. Python runs from a scratch folder outside the clone.
+5. The derive inputs are kept in `scripts/vault-template-inputs/`: `meta.json` (version, licence, attribution text, the deviation), `additions/` (the three files this program writes) and `notes.json` (one by-hand note per rules-scan hit). `_meta/NOTICE.txt` in `additions/` names the commit; update it for the new commit. Then `node scripts/vault-template.js derive --runs <runs folder> --out <template folder> --meta <meta.json>
+   --additions <folder> --notes <notes.json>`. It refuses on any surprise and renders its own output back
+   against the scaffold's bytes.
+6. Read every changed file, every rules-scan hit (each needs a note you wrote after reading the line) and
+   every deviation.
+7. Update the notices (`npm run notices`), `docs/PROVENANCE.md` and `templateVersion`.
+8. Run `npm test`, `npm run verify-generator` and `npm run package`; run the packaged binary's
+   `init --yes --new-vault` for each system and `check` and `build` the result.
+9. Amend [ADR 0048](decisions/0048-new-campaign-vault.md).
+
 ## Collaboration rules
 
 These are the owner's rules for this repository:

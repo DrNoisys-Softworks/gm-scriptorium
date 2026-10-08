@@ -1,0 +1,11 @@
+About the files in this vault
+
+GM-Scriptorium created this vault from a starter template. Most of the starter is the output of the vault scaffold in gm-apprentice (https://github.com/AntTheLimey/gm-apprentice), by AntTheLimey, captured at commit a0215b1f2e688c476e37d372fd647935360f00b8 (plugin version 1.10.37). That material is licensed under the Creative Commons Attribution-ShareAlike 4.0 International License (CC BY-SA 4.0): https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+If you share this vault, or anything adapted from these files, keep this notice and share your adaptation under the same licence.
+
+Changes GM-Scriptorium made to the scaffold's output:
+- _meta/vault-config.md: "site: false" was changed to "site: true", so the vault builds as soon as it exists.
+- The campaign name and the creation date were filled in where the scaffold writes them.
+
+Files GM-Scriptorium wrote itself, not taken from gm-apprentice: this notice, _meta/publish-manifest.md and _Campaign/Welcome.md.

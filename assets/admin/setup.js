@@ -14,10 +14,16 @@
   var setText = A.setText;
   var icon = A.icon;
 
-  var ORDER = ['name', 'vault', 'output', 'title', 'theme', 'review'];
-  var LABEL = { name: 'Campaign name', vault: 'Vault folder', output: 'Output folder', title: 'Site title', theme: 'Theme', review: 'Review' };
-  var QN = { name: 1, vault: 2, output: 3, title: 4, theme: 5 };
-  var SCREENS = ['start'].concat(ORDER).concat(['build', 'ready']);
+  // Two ways in (ADR 0048): an existing vault, or a new campaign that has setup make the vault.
+  var ORDER_HAVE = ['name', 'vault', 'output', 'title', 'theme', 'review'];
+  var ORDER_NEW = ['name', 'newfolder', 'title', 'system', 'output', 'theme', 'review'];
+  var LABEL = { name: 'Campaign name', vault: 'Vault folder', newfolder: 'New vault folder', output: 'Output folder', title: 'Site title', system: 'Game system', theme: 'Theme', review: 'Review' };
+  var SCREENS = ['start', 'name', 'vault', 'newfolder', 'output', 'title', 'system', 'theme', 'review', 'build', 'ready'];
+  var SYSTEM_NAMES = { none: 'None', 'dnd-5e-2024': 'D&D 5e (2024)', pf2e: 'Pathfinder 2e', fitd: 'Forged in the Dark' };
+  var SYSTEM_ORDER = ['none', 'dnd-5e-2024', 'pf2e', 'fitd'];
+  var SYSTEM_NOTES = { none: 'No system templates. Fits any game.' };
+  var SYSTEM_REQUEST_URL = 'https://github.com/DrNoisys-Softworks/gm-scriptorium/issues/new?template=game_system_request.yml';
+  var STEPS_SIX = [0, 13, 27, 40, 53, 67, 80];
   var DEBOUNCE_MS = 300;
   var THEME_COPY = {
     plain: { scheme: 'light', text: 'No theme CSS. Your campaign’s own palette and overrides.css carry the look.' },
@@ -27,13 +33,14 @@
 
   var S = {
     server: null,
+    way: 'have', newvault: '', system: 'dnd-5e-2024',
     name: '', vault: '', output: '', outputTouched: false, outputConfirmed: false, title: '', theme: null,
     res: {}, // latest server answer per field
     committed: false, built: null, result: null, failure: null, progress: []
   };
 
   var root = document.querySelector('[data-role="setup-root"]');
-  var seq = { name: 0, vault: 0, output: 0, title: 0, theme: 0 };
+  var seq = { name: 0, vault: 0, newVault: 0, output: 0, title: 0, starterTitle: 0, system: 0, theme: 0 };
   var timers = {};
 
   function h(tag, cls, text) {
@@ -63,8 +70,44 @@
   function joinPath(parts) {
     return parts.join(S.server ? S.server.sep : '/');
   }
+  function order() {
+    return S.way === 'new' ? ORDER_NEW : ORDER_HAVE;
+  }
+  function qnOf(k) {
+    var i = order().indexOf(k);
+    return i >= 0 && k !== 'review' ? i + 1 : 0;
+  }
+  function qTotal() {
+    return S.way === 'new' ? 6 : 5;
+  }
+  function nextOf(k) {
+    var o = order();
+    return o[o.indexOf(k) + 1];
+  }
+  function prevOf(k) {
+    var o = order();
+    var i = o.indexOf(k);
+    return i > 0 ? o[i - 1] : 'start';
+  }
+  /** The vault folder as the server last answered it: the existing vault, or the new one. */
+  function vaultValue() {
+    if (S.way === 'new') return S.res.newVault ? S.res.newVault.value : S.newvault;
+    return S.res.vault ? S.res.vault.value : S.vault;
+  }
   function packDir() {
-    return joinPath([S.vault, '_meta', 'scriptorium']);
+    return joinPath([vaultValue(), '_meta', 'scriptorium']);
+  }
+  function leafOf(p) {
+    var parts = String(p).split(/[\\/]/).filter(function (x) { return x !== ''; });
+    return parts.length ? parts[parts.length - 1] : String(p);
+  }
+  function parentOf(p) {
+    var s2 = String(p).replace(/[\\/]+$/, '');
+    var i = Math.max(s2.lastIndexOf('/'), s2.lastIndexOf('\\'));
+    return i > 0 ? s2.slice(0, i) : s2;
+  }
+  function systemName(id) {
+    return SYSTEM_NAMES[id] || id;
   }
 
   // --- server calls -------------------------------------------------------------------------
@@ -75,7 +118,7 @@
     if (value !== undefined && value !== null) q.set('value', value);
     q.set('commit', commit ? '1' : '0');
     q.set('name', S.name.trim());
-    if (field === 'output' || field === 'title' || field === 'theme') q.set('vault', S.res.vault ? S.res.vault.value : S.vault);
+    if (field === 'output' || field === 'title' || field === 'theme') q.set('vault', vaultValue());
     return '/api/setup/check?' + q.toString();
   }
 
@@ -110,14 +153,16 @@
   }
 
   function stepState(k, cur) {
-    var i = ORDER.indexOf(k);
-    var c = cur === 'build' || cur === 'ready' ? ORDER.length : ORDER.indexOf(cur);
+    var i = order().indexOf(k);
+    var c = cur === 'build' || cur === 'ready' ? order().length : order().indexOf(cur);
     if (cur === 'start') c = -1;
     return i < c ? 'done' : i === c ? 'cur' : 'todo';
   }
   function railValue(k) {
     if (k === 'name') return S.name.trim();
     if (k === 'vault') return S.res.vault ? S.res.vault.value : S.vault;
+    if (k === 'newfolder') return S.res.newVault ? S.res.newVault.value : S.newvault;
+    if (k === 'system') return systemName(S.system);
     if (k === 'output') return S.res.output ? S.res.output.value : S.output;
     if (k === 'title') return titleValue();
     if (k === 'theme') return themeValue();
@@ -146,9 +191,9 @@
     group.appendChild(h('div', 'a1-ng-label', 'Setup'));
     var list = h('ol', 'su-rail');
     var busy = cur === 'build' || cur === 'ready';
-    ORDER.forEach(function (k) {
+    order().forEach(function (k) {
       var st = stepState(k, cur);
-      var warn = st === 'done' && k === 'vault' && S.res.vault && S.res.vault.state === 'warn';
+      var warn = st === 'done' && ((k === 'vault' && S.res.vault && S.res.vault.state === 'warn') || (k === 'newfolder' && S.res.newVault && S.res.newVault.state === 'warn'));
       var li = h('li');
       var b = h('button', st + (warn ? ' warn' : ''));
       b.type = 'button';
@@ -179,9 +224,9 @@
   }
 
   function topBar(cur) {
-    var qn = QN[cur];
-    var label = cur === 'start' ? 'Getting started' : qn ? 'Question ' + qn + ' of 5' : cur === 'review' ? 'Review' : cur === 'build' ? 'Setting up' : 'Done';
-    var pct = cur === 'start' ? 3 : qn ? qn * 16 : cur === 'review' ? 92 : 100;
+    var qn = qnOf(cur);
+    var label = cur === 'start' ? 'Getting started' : qn ? 'Question ' + qn + ' of ' + qTotal() : cur === 'review' ? 'Review' : cur === 'build' ? 'Setting up' : 'Done';
+    var pct = cur === 'start' ? 3 : qn ? (S.way === 'new' ? STEPS_SIX[qn] : qn * 16) : cur === 'review' ? 92 : 100;
     var mt = h('header', 'su-mt');
     var crest = h('div', 'a1-crest');
     crest.setAttribute('aria-hidden', 'true');
@@ -204,7 +249,7 @@
 
   function qHead(n, title, lede) {
     var head = h('header');
-    head.appendChild(h('div', 'a1-eyebrow', 'Question ' + n + ' of 5'));
+    head.appendChild(h('div', 'a1-eyebrow', 'Question ' + n + ' of ' + qTotal()));
     var h1 = h('h1', 'a1-h2', title);
     h1.tabIndex = -1;
     head.appendChild(h1);
@@ -319,7 +364,35 @@
 
   // --- screens ---------------------------------------------------------------------------------
 
+  function pathChoice(id, ico, title, text, disabledWhy) {
+    var sel = S.way === id;
+    var label = h('label', 'su-path' + (sel ? ' sel' : ''));
+    var input = h('input');
+    input.type = 'radio';
+    input.name = 'su-way';
+    input.value = id;
+    input.checked = sel;
+    if (disabledWhy) input.disabled = true;
+    input.addEventListener('change', function () {
+      S.way = id;
+      render();
+      var again = root.querySelector('input[name="su-way"][value="' + id + '"]');
+      if (again) again.focus();
+    });
+    label.appendChild(input);
+    var ic = h('span', 'ic');
+    ic.appendChild(icon(ico));
+    label.appendChild(ic);
+    label.appendChild(h('b', null, title));
+    var rd = h('span', 'su-rd');
+    rd.setAttribute('aria-hidden', 'true');
+    label.appendChild(rd);
+    label.appendChild(h('p', null, disabledWhy || text));
+    return label;
+  }
+
   function screenStart() {
+    var isNew = S.way === 'new';
     var wrap = h('div', 'su-page');
     var head = h('header', 'su-intro');
     head.appendChild(h('div', 'a1-eyebrow', 'Welcome to GM-Scriptorium'));
@@ -327,12 +400,27 @@
     h1.tabIndex = -1;
     head.appendChild(h1);
     var lede = h('p', 'a1-lede');
-    add(lede, ['Five questions. They are the ones ', code('gm-scriptorium init'), ' asks in a terminal. Nothing in your vault changes until the last screen, and even then setup only adds new files under ', code(joinPath(['_meta', 'scriptorium'])), '.']);
+    if (isNew) add(lede, ['Six questions. They are the ones ', code('gm-scriptorium init'), ' asks in a terminal. Nothing is created until the last screen, and then setup makes your new vault in a folder that is empty or new.']);
+    else add(lede, ['Five questions. They are the ones ', code('gm-scriptorium init'), ' asks in a terminal. Nothing in your vault changes until the last screen, and even then setup only adds new files under ', code(joinPath(['_meta', 'scriptorium'])), '.']);
     head.appendChild(lede);
     wrap.appendChild(head);
+
+    var nv = S.server && S.server.newVault;
+    var fs2 = h('fieldset', 'su-paths');
+    fs2.appendChild(h('legend', 'su-lab', 'How do you want to start?'));
+    var opts = h('div', 'opts');
+    opts.setAttribute('role', 'presentation');
+    opts.appendChild(pathChoice('have', 'folder', 'I already have a vault', 'Use the gm-apprentice vault you keep your notes in.'));
+    opts.appendChild(pathChoice('new', 'plus', 'Start a new campaign', 'I don’t have a vault yet. Setup makes one for you.', nv && !nv.available ? 'Not available in this build: ' + nv.problem + '.' : null));
+    fs2.appendChild(opts);
+    wrap.appendChild(fs2);
+
     var need = h('div', 'su-need');
-    [['folder', 'Your vault folder', ['The gm-apprentice vault that holds ', code(joinPath(['_meta', 'vault-config.md'])), '.']],
-      ['globe', 'A folder for the site', ['Outside the vault. We suggest one next to it.']],
+    var first = isNew
+      ? ['folder', 'An empty folder', ['Or a new one. Setup makes the vault there and touches nothing else.']]
+      : ['folder', 'Your vault folder', ['The gm-apprentice vault that holds ', code(joinPath(['_meta', 'vault-config.md'])), '.']];
+    [first,
+      ['globe', 'Where the player site goes.', ['A separate folder from your vault, so the site never mixes with your notes. We’ll suggest one in the same parent folder as your vault. For example, if your vault is ', code('D:\\Campaigns\\Long Lease'), ', we’ll suggest ', code('D:\\Campaigns\\long-lease-site'), '. You can pick anywhere else.']],
       ['info', 'About two minutes', ['Then a first preview that only you can see.']]].forEach(function (c) {
       var d = h('div');
       var ic = h('span', 'ic');
@@ -374,7 +462,7 @@
     } else {
       var kids = [h('p', null, ''), null];
       kids[0].appendChild(h('b', null, 'Use lowercase letters, digits and hyphens only.'));
-      kids[0].appendChild(document.createTextNode(' Spaces and capitals belong in the site title, question 4.'));
+      kids[0].appendChild(document.createTextNode(' Spaces and capitals belong in the site title, question ' + qnOf('title') + '.'));
       if (r.facts && r.facts.suggestion) {
         var acts = h('div', 'a1-actions');
         acts.classList.add('su-mt8');
@@ -411,17 +499,27 @@
 
   function screenName() {
     var wrap = h('div', 'su-q');
-    wrap.appendChild(qHead(1, 'What should we call this campaign?', 'A short name for commands and folder names. Lowercase letters, digits and hyphens. The title your players see comes later.'));
+    wrap.appendChild(qHead(qnOf('name'), 'What should we call this campaign?', 'A short name for commands and folder names. Lowercase letters, digits and hyphens. The title your players see comes later.'));
     var input = textInput('su-name', S.name, true);
     var fb = fieldBlock('su-name', 'Campaign name', input, 'su-name-st');
     wrap.appendChild(fb.field);
-    wrap.appendChild(foot('start', 'Continue', function () { go('vault'); }));
+    wrap.appendChild(foot('start', 'Continue', function () { go(nextOf('name')); }));
     input.addEventListener('input', function () { onName(input); });
     nameStatusDraw(fb.status, input, S.res.name && S.name.trim() !== '' ? S.res.name : null);
     setTimeout(function () {
       setNext(Boolean(S.res.name && S.res.name.state === 'ok' && S.name.trim() !== ''));
     }, 0);
     return wrap;
+  }
+
+  /** The way across to a new campaign, from the two dead ends of the vault question. */
+  function acrossBtn(input) {
+    return button('small ghost', 'Start a new campaign here instead', null, function () {
+      S.way = 'new';
+      S.newvault = input.value;
+      S.res.newVault = null;
+      go('newfolder');
+    });
   }
 
   function vaultDraw(status, input, r, extraBtn) {
@@ -459,16 +557,17 @@
       var kids = [h('p'), null];
       kids[0].appendChild(h('b', null, f.candidate ? 'This folder isn’t a vault, but one folder down is.' : 'This folder isn’t a vault.'));
       if (f.candidate) add(kids[0], [' ', code(f.candidate.split(/[\\/]/).pop()), ' has a ', code(joinPath(['_meta', 'vault-config.md'])), '.']);
+      var a2 = h('div', 'a1-actions');
+      a2.classList.add('su-mt8');
       if (f.candidate) {
-        var a2 = h('div', 'a1-actions');
-        a2.classList.add('su-mt8');
         a2.appendChild(button('small', 'Use ' + f.candidate, null, function () {
           input.value = f.candidate;
           input.focus();
           onVault(input, false);
         }));
-        kids[1] = a2;
       }
+      a2.appendChild(acrossBtn(input));
+      kids[1] = a2;
       kids.push(ruleLine(r.rule));
       extra.push(note('err', 'warn', kids));
     } else {
@@ -476,6 +575,7 @@
       var a3 = h('div', 'a1-actions');
       a3.classList.add('su-mt8');
       a3.appendChild(extraBtn());
+      a3.appendChild(acrossBtn(input));
       var p3 = h('p');
       p3.appendChild(h('b', null, 'Can’t find that folder.'));
       extra.push(note('err', 'warn', [p3, a3, ruleLine(r.rule)]));
@@ -513,7 +613,7 @@
 
   function screenVault() {
     var wrap = h('div', 'su-q');
-    wrap.appendChild(qHead(2, 'Where is your campaign vault?', ['The folder that holds ', code(joinPath(['_meta', 'vault-config.md'])), '. It stays where it is. GM-Scriptorium reads it, and at the end of setup adds one small folder inside ', code('_meta'), '.']));
+    wrap.appendChild(qHead(qnOf('vault'), 'Where is your campaign vault?', ['The folder that holds ', code(joinPath(['_meta', 'vault-config.md'])), '. It stays where it is. GM-Scriptorium reads it, and at the end of setup adds one small folder inside ', code('_meta'), '.']));
     var input = textInput('su-vault', S.vault, true);
     var fb = fieldBlock('su-vault', 'Vault folder', input, 'su-vault-st');
     wrap.appendChild(fb.field);
@@ -522,7 +622,7 @@
     wrap.appendChild(foot('name', 'Continue', function () {
       // A network path is only probed when the GM commits the field.
       if (S.res.vault && S.res.vault.state === 'deferred') onVault(input, true);
-      else go('output');
+      else go(nextOf('vault'));
     }));
     input.addEventListener('input', function () { onVault(input, false); });
     // Leaving the box commits the field: a network path is probed now (never per keystroke).
@@ -531,10 +631,171 @@
     });
     var recheck = function () { return button('small', 'Check again', 'refresh', function () { onVault(input, true); }); };
     if (S.res.vault && S.vault.trim() !== '') vaultDraw(fb.status, input, S.res.vault, recheck);
+    else if (S.vault.trim() !== '') setTimeout(function () { onVault(input, true); }, 0); // arrived with a folder already chosen
     setTimeout(function () {
       var r = S.res.vault;
       setNext(Boolean(r && (r.state === 'ok' || r.state === 'warn')), r && r.state === 'warn' ? 'Continue works; the warning stays on the review.' : '');
       if (r && r.state === 'deferred') setNext(true);
+    }, 0);
+    return wrap;
+  }
+
+  // --- the new vault folder (ADR 0048) --------------------------------------------------------
+
+  function chipList(paths) {
+    var sp = h('span');
+    paths.forEach(function (x, i) {
+      if (i) sp.appendChild(document.createTextNode(', '));
+      sp.appendChild(code(x));
+    });
+    return sp;
+  }
+
+  function newFolderDraw(status, input, r) {
+    status.textContent = '';
+    markInput(input, r ? r.state : null);
+    if (!r) return;
+    var f = r.facts || {};
+    if (r.state === 'deferred') {
+      status.appendChild(h('p', 'a1-hint', 'This looks like a network path. It is checked when you leave the box, so nothing is probed while you type.'));
+      return;
+    }
+    if (r.state === 'unreachable') {
+      status.appendChild(note('err', 'warn', [h('p', null, r.rule)]));
+      return;
+    }
+    var notInside = ['ok', 'Not inside a vault', 'No ' + joinPath(['_meta', 'vault-config.md']) + ' in any folder above it'];
+    var rows;
+    var extra = [];
+    var acts;
+    if (r.state === 'ok' || r.state === 'warn') {
+      var made = function () {
+        var d = h('span');
+        add(d, [code(leafOf(r.value)), ' inside ', code(parentOf(r.value))]);
+        return ['ok', 'A new folder will be created', d];
+      };
+      if (!f.exists) {
+        rows = [made()];
+        if (f.missingAncestors && f.missingAncestors.length) rows.push(['info', 'Folders above it will be created first', chipList(f.missingAncestors)]);
+        rows.push(notInside);
+        if (!(f.missingAncestors && f.missingAncestors.length) && !f.unc && !f.oneDrive) rows.push(['info', 'Nothing is created yet', 'Setup makes the folder on the last screen']);
+      } else {
+        var lit = f.litter || [];
+        var why;
+        if (lit.length) {
+          why = h('span');
+          add(why, ['Apart from ', chipList(lit), ', which setup never reads or changes']);
+        } else why = 'The new vault goes straight into it';
+        rows = [['ok', 'Folder found', code(r.value)], ['ok', 'Folder is empty', why], notInside];
+      }
+      if (f.unc) rows.push(['warn', 'On a network share', code(r.value)]);
+      if (f.oneDrive) rows.push(['info', 'In OneDrive', 'OneDrive will sync the new vault']);
+      if (f.unc) {
+        extra.push(note('warn', 'warn', [
+          (function () { var pp = h('p'); pp.appendChild(h('b', null, 'This folder is on a network share. Setup never runs git for you.')); return pp; })(),
+          h('p', null, 'Writing over a share is the least-tested path. Once setup has made the vault, start git in it and commit, so any bad write later is one git checkout away. Run these in the new vault:'),
+          commandRows(['git init', 'git add -A', 'git commit -m "New campaign vault"'])
+        ]));
+      }
+      if (f.oneDrive) {
+        extra.push(note('', 'info', [
+          (function () { var pp = h('p'); pp.appendChild(h('b', null, 'This folder syncs with OneDrive. That works.')); pp.appendChild(document.createTextNode(' OneDrive uploads the files as setup writes them. If it adds a ')); pp.appendChild(code('desktop.ini')); pp.appendChild(document.createTextNode(', setup leaves it alone.')); return pp; })(),
+          h('p', null, 'Let OneDrive finish syncing before you open the vault on another computer.')
+        ]));
+      }
+    } else {
+      var kind = f.refusal;
+      var pb = h('p');
+      if (kind === 'not-empty') {
+        rows = [['ok', 'Folder found', code(r.value)], ['bad', 'Not empty', 'Has ' + (f.holds ? f.holds.length : 'some') + ' item' + (f.holds && f.holds.length === 1 ? '' : 's') + ' already'], ['na', 'Not inside a vault', 'Checked once the folder can be used']];
+        pb.appendChild(h('b', null, 'That folder isn’t empty.'));
+        pb.appendChild(document.createTextNode(' A new vault needs an empty folder, or a new one, so nothing of yours can ever be overwritten. Pick another folder, or add a new folder name to the end of this one.'));
+        extra.push(note('err', 'warn', [pb, ruleLine(r.rule)]));
+      } else if (kind === 'file') {
+        rows = [['bad', 'Not a folder', (function () { var d = h('span'); add(d, [code(r.value), ' is a file']); return d; })()]];
+        pb.appendChild(h('b', null, 'That’s a file, not a folder.'));
+        pb.appendChild(document.createTextNode(' Pick a folder that is empty, or one that doesn’t exist yet.'));
+        extra.push(note('err', 'warn', [pb, ruleLine(r.rule)]));
+      } else if (kind === 'link') {
+        rows = [['ok', 'Folder found', code(r.value)], ['bad', 'A link to another folder', 'Shortcuts, symlinks and junctions can’t be used']];
+        pb.appendChild(h('b', null, 'That folder is a link.'));
+        pb.appendChild(document.createTextNode(' Setup only makes a vault in a real folder, so it always knows where the files land. Pick the folder the link points to, or another one.'));
+        extra.push(note('err', 'warn', [pb, ruleLine(r.rule)]));
+      } else if (kind === 'inside-vault') {
+        rows = [['bad', 'Inside an existing vault', (function () { var d = h('span'); add(d, [code(f.ancestor || ''), ' has a ', code(joinPath(['_meta', 'vault-config.md']))]); return d; })()]];
+        pb.appendChild(h('b', null, 'That folder is inside a vault.'));
+        add(pb, [' A vault can’t hold another vault. Pick a folder outside it. If ', code(leafOf(f.ancestor || '')), ' is the campaign you meant, use it as your vault instead.']);
+        acts = h('div', 'a1-actions');
+        acts.classList.add('su-mt8');
+        acts.appendChild(button('small', 'Use ' + (f.ancestor || '') + ' as my vault', null, function () {
+          S.way = 'have';
+          S.vault = f.ancestor || '';
+          S.res.vault = null;
+          go('vault');
+        }));
+        extra.push(note('err', 'warn', [pb, acts, ruleLine(r.rule)]));
+      } else {
+        rows = [['bad', 'Not allowed', 'That folder can’t be used']];
+        pb.appendChild(h('b', null, 'That folder can’t be used.'));
+        extra.push(note('err', 'warn', [pb, ruleLine(r.rule)]));
+      }
+    }
+    status.appendChild(checksList(rows));
+    extra.forEach(function (n) { status.appendChild(n); });
+  }
+
+  function newFolderReady(r) {
+    return Boolean(r && (r.state === 'ok' || r.state === 'warn'));
+  }
+
+  function onNewFolder(input, commit) {
+    S.newvault = input.value;
+    var status = document.getElementById('su-newvault-st');
+    var run = function () {
+      ask('newVault', input.value, commit).then(function (r) {
+        if (!r) return;
+        S.res.output = null;
+        newFolderDraw(status, input, r);
+        setNext(newFolderReady(r) || r.state === 'deferred', r.state === 'warn' ? 'Continue works; the warning stays on the review.' : '');
+      });
+    };
+    if (input.value.trim() === '') {
+      seq.newVault++;
+      status.textContent = '';
+      markInput(input, null);
+      setNext(false);
+      return;
+    }
+    if (commit) {
+      clearTimeout(timers.newVault);
+      run();
+    } else later('newVault', run);
+  }
+
+  function screenNewFolder() {
+    var wrap = h('div', 'su-q');
+    wrap.appendChild(qHead(qnOf('newfolder'), 'Where should the new vault go?', 'An empty folder, or one that doesn’t exist yet. Setup makes the vault there on the last screen, and never changes anything else on your computer.'));
+    var input = textInput('su-newvault', S.newvault, true);
+    var fb = fieldBlock('su-newvault', 'New vault folder', input, 'su-newvault-st');
+    var hint = h('p', 'a1-hint');
+    add(hint, ['Folders above it that don’t exist yet are made on the last screen, one at a time, and listed on the review. A folder that holds only ', code('.git'), ', ', code('.obsidian'), ' or operating-system files such as ', code('desktop.ini'), ' counts as empty.']);
+    fb.field.insertBefore(hint, fb.status);
+    wrap.appendChild(fb.field);
+    // ADR 0049: Browse only fills the field; the field's own server check then runs as always.
+    A.picker.attach(input, { row: fb.row, host: fb.status, label: 'the new vault folder', allowCreate: false, onChoose: function () { onNewFolder(input, true); } });
+    wrap.appendChild(foot('name', 'Continue', function () {
+      if (S.res.newVault && S.res.newVault.state === 'deferred') onNewFolder(input, true);
+      else go(nextOf('newfolder'));
+    }));
+    input.addEventListener('input', function () { onNewFolder(input, false); });
+    input.addEventListener('blur', function () {
+      if (input.value.trim() !== '' && document.body.contains(input)) onNewFolder(input, true);
+    });
+    if (S.res.newVault && S.newvault.trim() !== '') newFolderDraw(fb.status, input, S.res.newVault);
+    else if (S.newvault.trim() !== '') setTimeout(function () { onNewFolder(input, true); }, 0); // arrived with a folder already chosen
+    setTimeout(function () {
+      var r = S.res.newVault;
+      setNext(newFolderReady(r) || Boolean(r && r.state === 'deferred'), r && r.state === 'warn' ? 'Continue works; the warning stays on the review.' : '');
     }, 0);
     return wrap;
   }
@@ -632,7 +893,7 @@
 
   function screenOutput() {
     var wrap = h('div', 'su-q');
-    wrap.appendChild(qHead(3, 'Where should the built site go?', 'Each build writes the player website here. It has to be outside your vault, so the site never ends up in your notes.'));
+    wrap.appendChild(qHead(qnOf('output'), 'Where should the built site go?', 'Each build writes the player website here. It has to be outside your vault, so the site never ends up in your notes.'));
     var input = textInput('su-out', S.output, true);
     var fb = fieldBlock('su-out', 'Output folder', input, 'su-out-st');
     wrap.appendChild(fb.field);
@@ -640,16 +901,16 @@
     var hint = h('p', 'a1-hint', 'Suggested: next to your vault, named after the campaign.');
     hint.id = 'su-out-hint';
     fb.field.insertBefore(hint, fb.status);
-    wrap.appendChild(foot('vault', 'Continue', function () {
+    wrap.appendChild(foot(prevOf('output'), 'Continue', function () {
       if (S.res.output && S.res.output.state === 'deferred') onOutput(input, true);
-      else go('title');
+      else go(nextOf('output'));
     }));
     input.addEventListener('input', function () { S.outputConfirmed = false; onOutput(input, false); });
     input.addEventListener('blur', function () {
       if (input.value.trim() !== '' && document.body.contains(input)) onOutput(input, true);
     });
     // The default comes from the server: ask once with an empty value, then fill the box.
-    var seed = S.output === '' && !S.outputTouched;
+    var seed = !S.outputTouched; // an untouched suggestion follows the vault; a folder the GM chose never moves
     ask('output', seed ? '' : S.output, false).then(function (r0) {
       if (!r0) return;
       if (seed && r0.facts && r0.facts.default) {
@@ -669,6 +930,9 @@
   }
 
   function titleValue() {
+    if (S.way === 'new') {
+      return S.title.trim().replace(/\s+/g, ' '); // as the server will normalise it
+    }
     var r = S.res.title;
     if (r && r.facts && r.facts.readOnly) return r.value;
     return S.title.trim();
@@ -692,7 +956,62 @@
     }
   }
 
+  function titleNewDraw(status, input, r) {
+    status.textContent = '';
+    markInput(input, r ? r.state : null);
+    if (!r) return;
+    if (r.state === 'ok') {
+      var p = h('p', 'su-ok');
+      p.appendChild(icon('tick'));
+      var sp = h('span');
+      add(sp, ['Players will see ', h('b', null, r.value), ' at the top of every page.']);
+      p.appendChild(sp);
+      status.appendChild(p);
+    } else {
+      var q = h('p');
+      q.appendChild(h('b', null, 'That title can’t be used.'));
+      status.appendChild(note('err', 'warn', [q, ruleLine(r.rule)]));
+    }
+  }
+
+  /** The site title on the new-campaign path: the same words also name the campaign inside the new vault. */
+  function screenTitleNew() {
+    var wrap = h('div', 'su-q');
+    wrap.appendChild(qHead(qnOf('title'), 'What’s the site called?', 'Players see this at the top of every page. Anything on one line.'));
+    var input = textInput('su-title', S.title, false);
+    var fb = fieldBlock('su-title', 'Site title', input, 'su-title-st');
+    fb.field.insertBefore(h('p', 'a1-hint', 'Also used as the campaign name inside the new vault.'), fb.status);
+    wrap.appendChild(fb.field);
+    wrap.appendChild(foot(prevOf('title'), 'Continue', function () { go(nextOf('title')); }));
+    var check = function (immediate) {
+      S.title = input.value;
+      var run = function () {
+        ask('starterTitle', input.value, false).then(function (r) {
+          if (!r) return;
+          titleNewDraw(fb.status, input, r);
+          setNext(r.state === 'ok');
+        });
+      };
+      if (immediate) run();
+      else later('starterTitle', run);
+    };
+    input.addEventListener('input', function () { check(false); });
+    if (S.title === '') {
+      // The default comes from the server: ask once with no value, then fill the box.
+      ask('starterTitle', undefined, false).then(function (r0) {
+        if (!r0) return;
+        if (S.title === '' && r0.value) {
+          input.value = r0.value;
+          S.title = r0.value;
+        }
+        check(true);
+      });
+    } else check(true);
+    return wrap;
+  }
+
   function screenTitle() {
+    if (S.way === 'new') return screenTitleNew();
     var wrap = h('div', 'su-q');
     wrap.appendChild(h('div'));
     var body = h('div', 'su-q');
@@ -702,7 +1021,7 @@
       var f = r0.facts || {};
       wrap.removeChild(wrap.firstChild);
       if (f.readOnly) {
-        wrap.insertBefore(qHead(4, 'What’s the site called?', 'Players see this at the top of every page.'), body);
+        wrap.insertBefore(qHead(qnOf('title'), 'What’s the site called?', 'Players see this at the top of every page.'), body);
         var ro = h('div', 'su-ro');
         ro.appendChild(h('span', 'su-lab', 'Already set in your campaign pack'));
         ro.appendChild(h('span', 'v', r0.value === null ? '(not set)' : r0.value));
@@ -710,11 +1029,11 @@
         add(hint, ['From ', code(joinPath(['_meta', 'scriptorium', 'vault.config.json'])), '. Setup never edits a pack file that already exists. Change the title later under Title & tagline.']);
         ro.appendChild(hint);
         body.appendChild(ro);
-        body.appendChild(foot('output', 'Continue', function () { go('theme'); }));
+        body.appendChild(foot(prevOf('title'), 'Continue', function () { go(nextOf('title')); }));
         setNext(true);
         return;
       }
-      wrap.insertBefore(qHead(4, 'What’s the site called?', 'Players see this at the top of every page. Anything on one line.'), body);
+      wrap.insertBefore(qHead(qnOf('title'), 'What’s the site called?', 'Players see this at the top of every page. Anything on one line.'), body);
       if (S.title === '' && f.default) S.title = f.default;
       var input = textInput('su-title', S.title, false);
       var fb = fieldBlock('su-title', 'Site title', input, 'su-title-st');
@@ -722,7 +1041,7 @@
       add(hint2, ['Filled in from ', code('campaign:'), ' in ', code(joinPath(['_meta', 'vault-config.md'])), ' when it has one.']);
       fb.field.insertBefore(hint2, fb.status);
       body.appendChild(fb.field);
-      body.appendChild(foot('output', 'Continue', function () { go('theme'); }));
+      body.appendChild(foot(prevOf('title'), 'Continue', function () { go(nextOf('title')); }));
       var check = function (immediate) {
         S.title = input.value;
         var run = function () {
@@ -792,7 +1111,7 @@
       var f = r0.facts || {};
       body.textContent = '';
       body.className = 'su-q wide';
-      body.appendChild(qHead(5, 'Pick a look for the player site', 'Sketches of your landing page in each theme, using your title. You can switch any time under Theme.'));
+      body.appendChild(qHead(qnOf('theme'), 'Pick a look for the player site', 'Sketches of your landing page in each theme, using your title. You can switch any time under Theme.'));
       var noteHost = h('div', 'su-themes-note');
       noteHost.setAttribute('aria-live', 'polite');
       var drawNote = function (r) {
@@ -847,13 +1166,66 @@
       }
       drawNote(r0);
       body.appendChild(noteHost);
-      body.appendChild(foot('title', 'Continue', function () { go('review'); }));
+      body.appendChild(foot(prevOf('theme'), 'Continue', function () { go(nextOf('theme')); }));
       setNext(r0.state === 'ok');
     });
     return wrap;
   }
 
+  // --- the game system (ADR 0048) -----------------------------------------------------------
+
+  function systemIds() {
+    var offered = (S.server && S.server.newVault && S.server.newVault.systems) || [];
+    var ids = ['none'].concat(offered.filter(function (x) { return x !== 'none'; }));
+    var rank = function (x) { var i = SYSTEM_ORDER.indexOf(x); return i < 0 ? 99 : i; };
+    return ids.sort(function (a, b) { return rank(a) - rank(b) || (a < b ? -1 : 1); });
+  }
+
+  function screenSystem() {
+    if (systemIds().indexOf(S.system) < 0) S.system = 'none'; // a build without that system falls back
+    var wrap = h('div', 'su-q');
+    wrap.appendChild(qHead(qnOf('system'), 'Which game system?', 'Setup adds note templates for this system to the new vault. They are ordinary notes you can change.'));
+    var box = h('fieldset', 'su-sys');
+    box.appendChild(h('legend', 'su-lab', 'Game system'));
+    var rows = h('div', 'rows');
+    systemIds().forEach(function (id) {
+      var label = h('label', 'su-opt' + (S.system === id ? ' sel' : ''));
+      var input = h('input');
+      input.type = 'radio';
+      input.name = 'su-sys';
+      input.value = id;
+      input.checked = S.system === id;
+      label.appendChild(input);
+      var rd = h('span', 'su-rd');
+      rd.setAttribute('aria-hidden', 'true');
+      label.appendChild(rd);
+      label.appendChild(h('span', 'nm', systemName(id)));
+      label.appendChild(h('span', 'id', id));
+      if (SYSTEM_NOTES[id]) label.appendChild(h('span', 'd', SYSTEM_NOTES[id]));
+      input.addEventListener('change', function () {
+        S.system = id;
+        Array.prototype.forEach.call(rows.children, function (c) { c.classList.remove('sel'); });
+        label.classList.add('sel');
+        ask('system', id, false).then(function (r) { if (r) setNext(r.state === 'ok'); });
+      });
+      rows.appendChild(label);
+    });
+    box.appendChild(rows);
+    wrap.appendChild(box);
+    var hint = h('p', 'a1-hint');
+    var more = h('a', null, 'Ask for yours');
+    more.href = SYSTEM_REQUEST_URL;
+    more.target = '_blank';
+    more.rel = 'noopener noreferrer';
+    add(hint, ['More systems are on the way. ', more]);
+    wrap.appendChild(hint);
+    wrap.appendChild(foot(prevOf('system'), 'Continue', function () { go(nextOf('system')); }));
+    ask('system', S.system, false).then(function (r) { if (r) setNext(r.state === 'ok'); });
+    return wrap;
+  }
+
   function reviewRows() {
+    if (S.way === 'new') return reviewRowsNew();
     var unc = S.res.vault && S.res.vault.facts && S.res.vault.facts.unc;
     var vaultCell = [code(S.res.vault ? S.res.vault.value : S.vault)];
     if (unc) vaultCell.push(document.createTextNode(' '), h('span', 'a1-pill rose', 'network share'));
@@ -868,6 +1240,63 @@
     ];
   }
 
+  function reviewRowsNew() {
+    var r = S.res.newVault || { value: S.newvault, facts: {} };
+    var unc = r.facts && r.facts.unc;
+    var vaultCell = [code(r.value), document.createTextNode(' '), unc ? h('span', 'a1-pill rose', 'network share') : h('span', 'a1-pill muted', r.facts && r.facts.exists ? 'empty folder' : 'new folder')];
+    var themeFromPack = false;
+    return [
+      ['Campaign name', [code(S.name.trim())], 'name'],
+      ['New vault', vaultCell, 'newfolder'],
+      ['Site title', [document.createTextNode(titleValue())], 'title'],
+      ['Game system', [document.createTextNode(systemName(S.system))], 'system'],
+      ['Output folder', [code(S.res.output ? S.res.output.value : S.output)], 'output'],
+      ['Theme', [document.createTextNode(themeValue()), themeFromPack ? null : null], 'theme']
+    ];
+  }
+
+  /** The "Create the new vault" step of the review, with what the starter holds for the chosen system. */
+  function newVaultSteps(ol) {
+    var r = S.res.newVault || { value: S.newvault, facts: {} };
+    var f = r.facts || {};
+    var sys = S.res.system && S.res.system.facts ? S.res.system.facts.layout : null;
+    if (f.missingAncestors && f.missingAncestors.length) {
+      var la = h('li');
+      add(la, ['Create the folders above it, one at a time: ', chipList(f.missingAncestors), '.']);
+      ol.appendChild(la);
+    }
+    var li = h('li');
+    add(li, ['Create the new vault, ', code(r.value), ':']);
+    var ul = h('ul');
+    var starter = h('li');
+    if (S.system === 'none') add(starter, ['The gm-apprentice starter: its folders, its general templates (no system ones), and its ', code('_meta'), ' files, such as ', code('vault-config.md'), ' and ', code('publish-manifest.md'), '.']);
+    else add(starter, ['The gm-apprentice starter: its folders, note templates for ', systemName(S.system), ', and its ', code('_meta'), ' files, such as ', code('vault-config.md'), ' and ', code('publish-manifest.md'), '.']);
+    ul.appendChild(starter);
+    var wl = h('li');
+    add(wl, ['A welcome page, ', code(joinPath(['_Campaign', 'Welcome.md'])), '. It is the only page on the site at first.']);
+    ul.appendChild(wl);
+    var nl = h('li');
+    add(nl, [code(joinPath(['_meta', 'NOTICE.txt'])), ', crediting gm-apprentice (CC BY-SA 4.0).']);
+    ul.appendChild(nl);
+    li.appendChild(ul);
+    ol.appendChild(li);
+    return sys;
+  }
+
+  function treeBox(layout) {
+    var det = h('details', 'su-tree');
+    det.appendChild(h('summary', null, 'See every folder and file it makes'));
+    var box = h('div', 'box');
+    var ul = h('ul');
+    var sep = S.server ? S.server.sep : '/';
+    layout.dirs.forEach(function (d) { ul.appendChild(h('li', null, d.split('/').join(sep) + sep)); });
+    layout.files.forEach(function (x) { ul.appendChild(h('li', null, x.split('/').join(sep))); });
+    box.appendChild(ul);
+    box.appendChild(h('p', null, 'This is the exact list from the starter built into GM-Scriptorium.'));
+    det.appendChild(box);
+    return det;
+  }
+
   function screenReview() {
     var wrap = h('div', 'su-page');
     var head = h('header');
@@ -875,7 +1304,7 @@
     var h1 = h('h1', 'a1-h2', 'Check your answers');
     h1.tabIndex = -1;
     head.appendChild(h1);
-    head.appendChild(h('p', 'a1-lede', 'Setup writes your campaign’s files when you press a button below. A folder you made with New folder is already on your disk.'));
+    head.appendChild(h('p', 'a1-lede', S.way === 'new' ? 'This is the only screen that writes anything: setup creates your new vault when you press a button below. A folder you made with New folder is already on your disk.' : 'Setup writes your campaign’s files when you press a button below. A folder you made with New folder is already on your disk.'));
     wrap.appendChild(head);
 
     var slip = h('section', 'a1-slip inline');
@@ -904,8 +1333,9 @@
     slip.appendChild(sum);
 
     var footer = h('div', 'cf-foot');
-    var packExists = S.res.vault && S.res.vault.facts && S.res.vault.facts.packExists;
+    var packExists = S.way !== 'new' && S.res.vault && S.res.vault.facts && S.res.vault.facts.packExists;
     var ol = h('ol', 'su-do');
+    var layout = S.way === 'new' ? newVaultSteps(ol) : null;
     var li1 = h('li');
     add(li1, [packExists
       ? ['Add whatever is missing in ', code(packDir() + joinPath(['']) ), ': ', code('css'), ', ', code('images'), ', ', code('pack.toml'), ' and ', code('vault.config.json'), '. Every file that already exists is left alone, and listed afterwards.']
@@ -922,7 +1352,14 @@
     ol.appendChild(li2);
     ol.appendChild(h('li', null, 'Run a first check, then build a preview that only you can see.'));
     footer.appendChild(ol);
-    if (S.res.vault && S.res.vault.facts && S.res.vault.facts.unc) {
+    if (layout) footer.appendChild(treeBox(layout));
+    if (S.way === 'new') footer.appendChild(h('p', 'cf-note', 'Setup never deletes anything. If it stops partway, it lists exactly what it made, and writes nothing else.'));
+    if (S.way === 'new' && S.res.newVault && S.res.newVault.facts && S.res.newVault.facts.unc) {
+      var cn2 = h('p', 'cf-note');
+      cn2.appendChild(h('b', null, 'Network share:'));
+      cn2.appendChild(document.createTextNode(' once the vault is made, start git in it and commit. The panel never runs git for you.'));
+      footer.appendChild(cn2);
+    } else if (S.way !== 'new' && S.res.vault && S.res.vault.facts && S.res.vault.facts.unc) {
       var cn = h('p', 'cf-note');
       cn.appendChild(h('b', null, 'Network share:'));
       cn.appendChild(document.createTextNode(' commit your vault first if you haven’t. The panel never commits for you.'));
@@ -951,16 +1388,25 @@
   function answersBody() {
     var body = {
       name: S.name.trim(),
-      vault: S.res.vault ? S.res.vault.value : S.vault,
+      vault: vaultValue(),
       output: S.res.output ? S.res.output.value : S.output,
       outputConfirmed: S.outputConfirmed === true
     };
+    if (S.way === 'new') {
+      body.newVault = true;
+      body.system = S.system;
+      if (S.title.trim() !== '') body.title = S.title;
+      if (S.theme) body.theme = S.theme;
+      return body;
+    }
     var tr = S.res.title;
     if (!(tr && tr.facts && tr.facts.readOnly) && S.title.trim() !== '') body.title = S.title;
     var hr = S.res.theme;
     if (!(hr && hr.facts && hr.facts.readOnly) && S.theme) body.theme = S.theme;
     return body;
   }
+
+  var FIELD_SCREEN = { newVault: 'newfolder', starterTitle: 'title', config: 'review' };
 
   function commit(withBuild, status, buttons) {
     buttons.forEach(function (b) { b.disabled = true; });
@@ -988,10 +1434,11 @@
       if (r.status === 409 && body.error === 'taken') {
         status.appendChild(note('err', 'warn', [h('p', null, 'A campaign was registered while you were answering (another window or a terminal). Nothing was written. Restart GM-Scriptorium to open it.')]));
       } else if (r.status === 400 && body.error === 'invalid' && body.field) {
-        var back = body.field === 'config' ? 'review' : body.field;
+        var back = FIELD_SCREEN[body.field] || body.field;
         S.failure = body.rule;
-        status.appendChild(note('err', 'warn', [h('p', null, 'Setup stopped before writing anything. Go back and fix the ' + body.field + ' answer.'), ruleLine(body.rule)]));
-        if (SCREENS.indexOf(back) >= 0 && back !== 'review') {
+        var wrote = body.field === 'newVault' && /^stopped creating the vault|was created and is left as it is/.test(body.rule);
+        status.appendChild(note('err', 'warn', [h('p', null, wrote ? 'Setup stopped partway. Nothing was removed. This is what it says it made:' : 'Setup stopped before writing anything. Go back and fix the ' + (FIELD_SCREEN[body.field] && body.field !== 'config' ? LABEL[back].toLowerCase() : body.field) + ' answer.'), ruleLine(body.rule)]));
+        if (SCREENS.indexOf(back) >= 0 && back !== 'review' && !wrote) {
           var a = h('div', 'a1-actions');
           a.appendChild(button('small', 'Go to ' + LABEL[back].toLowerCase(), 'arrow', function () { go(back); }));
           status.appendChild(a);
@@ -1040,6 +1487,11 @@
   function progressList(lines, running) {
     var ul = h('ul', 'su-prog');
     var res = S.result || { created: [] };
+    if (S.way === 'new' && res.vaultRoot) {
+      var vd = h('span');
+      add(vd, ['The gm-apprentice starter, a welcome page and ', code('NOTICE.txt'), ', in ', code(res.vaultRoot), res.vaultAncestors && res.vaultAncestors.length ? ' (and the folders above it)' : '']);
+      ul.appendChild(progLine('ok', 'Created the new vault', vd, res.ms && res.ms.vault));
+    }
     ul.appendChild(progLine('ok', res.created.length === 0 ? 'Nothing new to create' : 'Created ' + res.created.length + ' item' + (res.created.length === 1 ? '' : 's'), res.created.length ? code(res.created.join(', ') + ' in ' + joinPath(['_meta', 'scriptorium'])) : 'Every pack file already existed', res.ms && res.ms.pack));
     ul.appendChild(progLine('ok', 'Registered ' + S.name.trim(), res.isDefault ? 'Your default campaign' : 'In your config', res.ms && res.ms.register));
     lines.forEach(function (l) { ul.appendChild(l); });
@@ -1092,6 +1544,38 @@
     return wrap;
   }
 
+  /** "Start writing in your vault": three plain steps, because the panel cannot open an editor. */
+  function readyNext() {
+    var root2 = (S.result && S.result.vaultRoot) || vaultValue();
+    var sec = h('section', 'su-next');
+    sec.setAttribute('aria-labelledby', 'su-next-h');
+    var h2 = h('h2', 'a1-rule', 'Start writing in your vault');
+    h2.id = 'su-next-h';
+    sec.appendChild(h2);
+    var ol = h('ol');
+    var item = function (ico, kids) {
+      var li = h('li');
+      li.appendChild(icon(ico));
+      var d = h('div');
+      add(d, kids);
+      li.appendChild(d);
+      ol.appendChild(li);
+      return d;
+    };
+    var d1 = item('folder', ['Open ', code(root2), ' in Obsidian, or any editor. ', h('span', null, 'The panel can’t open it for you.')]);
+    var a = h('div', 'a1-actions');
+    a.classList.add('su-mt8');
+    var copy = button('small', 'Copy folder path', null, function () {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(root2).then(function () { setText(copy, 'Copied'); }, function () {});
+    });
+    a.appendChild(copy);
+    d1.appendChild(a);
+    item('pencil', ['Edit ', code(joinPath(['_Campaign', 'Welcome.md'])), '. ', (function () { var sp = h('span'); add(sp, ['Your next steps are in it, under ', code('## GM Notes'), ', which players never see.']); return sp; })()]);
+    item('publish', ['Add sessions, characters and places. ', (function () { var sp = h('span'); add(sp, ['When a page is ready for players, tick it in ', code(joinPath(['_meta', 'publish-manifest.md'])), ' and build again.']); return sp; })()]);
+    sec.appendChild(ol);
+    return sec;
+  }
+
   function screenReady() {
     var wrap = h('div', 'su-ready');
     var name = S.name.trim();
@@ -1121,7 +1605,15 @@
       var panel = button(ok ? 'big' : 'primary big', 'Go to my panel', 'arrow', function () { location.assign('/'); });
       acts.appendChild(panel);
     }
+    if (S.way === 'new' && !S.failure && ok) wrap.appendChild(note('', 'info', [(function () { var pp = h('p'); pp.appendChild(h('b', null, 'Your new campaign has just a welcome page so far.')); pp.appendChild(document.createTextNode(' The preview shows the landing page with your title, and that one page.')); return pp; })()]));
     wrap.appendChild(acts);
+    if (S.way === 'new' && !S.failure) {
+      wrap.appendChild(readyNext());
+      var gitLine = h('p', 'a1-fine');
+      add(gitLine, ['Setup doesn’t run git for you. Run ', code('git init'), ' in the new vault afterwards, or point setup at an empty folder you’ve already made a git repo.']);
+      wrap.appendChild(gitLine);
+      return wrap;
+    }
     var fine = h('p', 'a1-fine');
     var made = S.result && S.result.created ? S.result.created.length : 0;
     var words = ['nothing new', 'one new item', 'two new items', 'three new items', 'four new items'];
@@ -1132,15 +1624,24 @@
 
   // --- render ----------------------------------------------------------------------------------
 
-  var BUILDERS = { start: screenStart, name: screenName, vault: screenVault, output: screenOutput, title: screenTitle, theme: screenTheme, review: screenReview, build: screenBuild, ready: screenReady };
+  var BUILDERS = { start: screenStart, name: screenName, vault: screenVault, newfolder: screenNewFolder, output: screenOutput, title: screenTitle, system: screenSystem, theme: screenTheme, review: screenReview, build: screenBuild, ready: screenReady };
 
   function guard(cur) {
     // A deep link to a later screen without the earlier answers goes back to the first gap.
     if (cur === 'start') return cur;
     if (cur === 'build' || cur === 'ready') return S.committed ? cur : 'start';
-    var needs = { name: [], vault: ['name'], output: ['name', 'vault'], title: ['name', 'vault', 'output'], theme: ['name', 'vault', 'output'], review: ['name', 'vault', 'output'] };
-    var ok = { name: S.res.name && S.res.name.state === 'ok', vault: S.res.vault && (S.res.vault.state === 'ok' || S.res.vault.state === 'warn'), output: S.res.output && (S.res.output.state === 'ok' || (S.res.output.state === 'warn' && S.outputConfirmed)) };
-    var gaps = needs[cur].filter(function (k) { return !ok[k]; });
+    // Each earlier screen that must hold a good answer before this one opens; the first gap wins.
+    var ok = {
+      name: S.res.name && S.res.name.state === 'ok',
+      vault: S.res.vault && (S.res.vault.state === 'ok' || S.res.vault.state === 'warn'),
+      newfolder: S.res.newVault && (S.res.newVault.state === 'ok' || S.res.newVault.state === 'warn'),
+      output: S.res.output && (S.res.output.state === 'ok' || (S.res.output.state === 'warn' && S.outputConfirmed))
+    };
+    var o = order();
+    var upto = o.indexOf(cur);
+    if (upto < 0) return o.indexOf('name') >= 0 && !ok.name ? 'name' : 'start';
+    var gaps = o.slice(0, upto).filter(function (k) { return ok[k] !== undefined && !ok[k]; });
+    // title and the theme only need the screens that come before them to be good.
     return gaps.length ? gaps[0] : cur;
   }
 

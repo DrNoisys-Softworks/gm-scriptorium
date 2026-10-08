@@ -18,7 +18,8 @@ const checks = require('../src/setup/checks');
 const NOT_A_VAULT_TAIL =
   ' exists but has no _meta/vault-config.md; it is not a gm-apprentice vault. ' +
   'A vault needs a _meta/vault-config.md settings page. To see a complete one, look at examples/the-long-lease ' +
-  'in the GM-Scriptorium download; to create your own, see the gm-apprentice project: ' +
+  'in the GM-Scriptorium download. To start a new campaign, run "gm-scriptorium init --new-vault <folder>", ' +
+  'or choose "Start a new campaign here" in browser setup. To learn more, see the gm-apprentice project: ' +
   'https://github.com/AntTheLimey/gm-apprentice';
 const RELATIVE_RULE = 'Use the full folder path, starting with a drive letter or /';
 

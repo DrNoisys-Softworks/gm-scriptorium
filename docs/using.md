@@ -7,8 +7,11 @@ folder needs before the tool will build it, and what each command does.
 
 A **vault** is the folder of markdown pages you keep for one campaign, laid out the way the
 [gm-apprentice](https://github.com/AntTheLimey/gm-apprentice) project lays them out. It opens in
-Obsidian like any other folder of notes. GM-Scriptorium does not create vaults. It reads one and
-builds a player-safe site from it. To make your own, see the gm-apprentice project.
+Obsidian like any other folder of notes. GM-Scriptorium reads a vault and builds a player-safe site
+from it. You can follow the gm-apprentice project to make one by hand, or let GM-Scriptorium create
+one for you: browser setup offers "Start a new campaign here", and `gm-scriptorium init --new-vault`
+does the same from a terminal (see below). A vault made that way follows the gm-apprentice layout and
+builds as soon as it exists.
 
 The least a folder needs:
 
@@ -43,6 +46,15 @@ leaves a small launcher file in a private folder next to your config for under a
 removed as soon as it has been used. On Linux, a browser installed as a snap cannot always read that
 hidden folder, and the command does not notice; use `gm-scriptorium serve --admin` and its link there.
 Running a command without a terminal (from a script, say) still prints the help.
+
+```
+gm-scriptorium init --new-vault ~/campaigns/lease --system none --name lease
+```
+Start a new campaign from nothing. It creates a vault in that folder, which must not exist yet or must
+be empty (any parent folders that are missing are created too, and listed first), then sets up the
+campaign pack and registers it. Pick your game system with `--system`, or `--system none`; it is never
+guessed. It never overwrites or removes anything, and if it stops part-way it lists exactly what it
+made. At a terminal, without `--vault` or `--new-vault`, `init` asks whether you already have a vault, and the questions follow from your answer. With piped input it does not ask, so scripts say `--new-vault`.
 
 ```
 gm-scriptorium init

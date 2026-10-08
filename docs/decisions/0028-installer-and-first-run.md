@@ -145,6 +145,16 @@ Will not catch, deliberately:
 
 [ADR 0049](0049-folder-picker.md) adds two routes to the list of routes that answer while setup is active: `GET /api/folders` and `POST /api/folders/create`. Section 1's list is therefore those five setup routes plus these two, and both keep working after the handover. It also changes one sentence of section 1: setup no longer writes only at its review screen. A folder made with New folder on the output question is made at once, before the review, and nothing removes it if setup is abandoned. The review screen's wording says so.
 
+## Addendum: starting a new campaign
+
+[ADR 0048](0048-new-campaign-vault.md) lets a GM with no vault create one from browser setup. No route was added. The setup-mode route list in section 1 and the admin route table are unchanged, and so are the Origin, session and loopback rules on them. The new behaviour rides on the three routes that already exist:
+
+- `GET /api/setup/check` accepts three more fields, `newVault` (the folder to create), `system` and `starterTitle`. They answer in the same shape as the others, with the writer's or the validator's own message in `rule`. A network-share folder is deferred until the GM leaves the box, exactly as for the vault question.
+- `POST /api/setup/commit` accepts two more answers, `newVault` (true or false) and `system`. With `newVault` true, `vault` is the folder to create, and `commitSetup` creates the vault first, then the pack, then writes the config once. A refusal comes back as `{ error: 'invalid', field, rule }` as before, with the field `newVault` for a folder problem, and nothing else has been written. The success payload also carries `vaultRoot`, `vaultCreated` and `vaultAncestors`.
+- `GET /api/setup/state` reports `newVault: { available, systems, problem }`, so the page knows whether this build carries a starter.
+
+The setup page draws the new path (see [ADR 0048](0048-new-campaign-vault.md), "The screens"). `init` asks the same questions in the same order, and `init --yes --new-vault` and the browser commit produce byte-identical vault and pack trees and the same config entry. Section 2's fence is unchanged: the config writer is still reached only through `src/setup/register.js`, and the structure test now names two vault writers, the pack writer and the new vault writer, each reached only from that file.
+
 ## Addendum: several campaigns in one panel
 
 [ADR 0050](0050-several-campaigns.md) adds one more handler module that reaches `src/setup/register.js`, `src/admin/handlers/campaigns.js`, for the campaign set-default and remove routes. The chain in section 2 is otherwise unchanged: `register.js` is still the only panel-side importer of `src/config/write.js`, the setup-mode route list in section 1 is unchanged, and the setup commit is untouched.

@@ -62,6 +62,47 @@ function validateTagline(raw) {
   return trimmed;
 }
 
+/**
+ * ADR 0048: the game system for a new vault. The valid values are the systems the starter template
+ * ships plus "none"; there is no free text. The caller passes the shipped ids (starterSystems).
+ *
+ * @param {unknown} raw
+ * @param {string[]} systems the shipped game system ids, without "none"
+ * @returns {string} the id, or "none"
+ * @throws {ConfigError} I-SYSTEM
+ */
+function validateSystem(raw, systems) {
+  const valid = [...systems, 'none'];
+  if (typeof raw !== 'string' || !valid.includes(raw)) {
+    throw new ConfigError(`unknown game system "${typeof raw === 'string' ? raw : String(raw)}"; valid systems: ${[...systems].sort().join(', ')}, none`);
+  }
+  return raw;
+}
+
+/*
+ * ADR 0048: the site title of a NEW vault is also written into the vault's own pages, so it
+ * follows the rules of the upstream scaffold that writes them. That scaffold collapses every run
+ * of whitespace to one space (Python's str.split) and expands any {WORD} in the text. Python and
+ * JavaScript disagree about U+0085, U+FEFF and the C1 controls, so those are refused rather than
+ * guessed at. The check runs on the title as typed, before any trimming.
+ */
+const C1_OR_BOM_RE = /[\u0080-\u009f\ufeff]/;
+const BRACED_WORD_RE = /\{[A-Z_]+\}/;
+
+/**
+ * @param {unknown} raw
+ * @returns {string} the normalised title
+ * @throws {ConfigError} I-TITLE (as validateTitle), or a title the new vault cannot take
+ */
+function validateStarterTitle(raw) {
+  if (typeof raw === 'string' && C1_OR_BOM_RE.test(raw)) {
+    throw new ConfigError('site title must not hold control or invisible characters');
+  }
+  const title = validateTitle(raw);
+  if (BRACED_WORD_RE.test(title)) throw new ConfigError('site title must not hold a word in braces such as {NAME}');
+  return title.replace(/\s+/g, ' ');
+}
+
 function composePackToml(theme) {
   return `theme = "${theme}"\n`;
 }
@@ -152,6 +193,8 @@ module.exports = {
   validateName,
   validateTheme,
   validateTitle,
+  validateSystem,
+  validateStarterTitle,
   validateTagline,
   composePackToml,
   validatePort,

@@ -37,6 +37,8 @@ a throwaway Linux target to prove the pipeline, and proves nothing about the Win
 
 ## Never touch
 
+**`assets/vault-template/`, by hand.** It is the output of gm-apprentice's vault scaffold, captured and derived by `scripts/vault-template.js`. Change it only by following the starter pin bump procedure in [COLLABORATING.md](COLLABORATING.md); a hand edit breaks byte parity with the scaffold and fails the manifest check.
+
 **`node_modules/gm-apprentice-publish/`, directly.** It is a vendored, integrity-pinned copy of the
 upstream generator's own release tarball. The current pin is `publish-v1.12.3` (commit
 `3517ffd`). It is verified against the release's `SHA256SUMS` and, file by file, by sha256 against
@@ -55,20 +57,21 @@ comes in through a pin bump (see "Pin bump procedure" in
 | `npm run verify-generator` | The installed generator tree still matches `PIN.json`. |
 | `npm run package` | Builds both the win-x64 and linux-x64 targets into `dist/v<version>/`, with one combined `SHA256SUMS` covering both binaries and the notices file (see ADR 0001). |
 
-`npm run package` runs five gates for each target before it writes anything:
+`npm run package` runs six gates for each target before it writes anything:
 
 1. Generator-pin verification. It re-verifies the pin itself, not just through the script above.
 2. Notices freshness.
 3. Asset embedding: every expected asset is confirmed inside the executable.
 4. Rules-content markers.
 5. A startup self-test of the packaged build.
+6. Starter template verification: every file under `assets/vault-template/` must match its manifest's sha256 and token counts, with no unlisted file on disk. It fails closed, before the build starts.
 
 If any target's gate fails, the run removes every binary it already produced and exits 1, so
 `dist/v<version>/` never holds a binary that `SHA256SUMS` doesn't cover. `--target` and `--out`
 still override to a single target.
 
 A change that touches packaging, notices or embedded assets is not shown to work by `npm test`
-alone. Run `npm run package`: four of its five gates exist nowhere else.
+alone. Run `npm run package`: five of its six gates exist nowhere else.
 
 ## Constraints that are tests, not preferences
 
@@ -89,7 +92,8 @@ than deciding alone.
   `test/helpers/proc-fakebin.js`, so no test can start a real program. See
   [ADR 0046](decisions/0046-one-process-spawner.md).
 - `test/net-structure.test.js`: only `src/net/egress.js` (and the listener in `src/serve/server.js`) may load a network module, nothing under `src/net` names a fetch-style network token, and every test that uses egress goes through `test/helpers/net-stubs.js`, so no test can reach anything but this computer. See ADR 0024.
-- `test/setup-structure.test.js`: the admin panel reaches the config writer only through `src/setup/register.js`, from the setup commit route and the campaign set-default and remove routes, and setup code writes to the vault only through `src/vault/packwrite.js`. See [ADR 0028](decisions/0028-installer-and-first-run.md) and [ADR 0050](decisions/0050-several-campaigns.md).
+- `test/setup-structure.test.js`: the admin panel reaches the config writer only through `src/setup/register.js`, from the setup commit route and the campaign set-default and remove routes, and setup code writes to the vault only through `src/vault/packwrite.js` and, when it creates a new vault, `src/vault/vaultcreate.js`. See [ADR 0028](decisions/0028-installer-and-first-run.md) and [ADR 0050](decisions/0050-several-campaigns.md).
+- `test/vault-create-structure.test.js`: `src/vault/vaultcreate.js` never deletes, renames, appends, truncates or uses a recursive `mkdirSync`, every `writeFileSync` in it is `flag: 'wx'`, it requires only `fs`, `path`, the error classes and the exclusions module, and `createVault` is named only in that file, `src/setup/register.js` and `src/cli/init.js`. See [ADR 0048](decisions/0048-new-campaign-vault.md).
 - `test/admin-campaign-fields.test.js`: every field the panel context carries is classified as belonging to the process or to one campaign, so a switch can never carry one campaign's state into another. See [ADR 0050](decisions/0050-several-campaigns.md).
 - `test/launch-structure.test.js`: the browser opener is named only in `src/proc/run.js` and `src/cli/launch.js`, launch code requires no other spawner, and every test that loads the launcher injects its opener, so no test opens a real browser. See [ADR 0028](decisions/0028-installer-and-first-run.md).
 - `test/folders-structure.test.js`: the folder picker's listing lives in `src/setup` (so it is write-free), its one folder write is a single non-recursive create in `src/admin/foldercreate.js`, reached only from its own route, and every filesystem call goes through the shared bounded probe. See [ADR 0049](decisions/0049-folder-picker.md).
@@ -134,6 +138,10 @@ prerequisite) for a user mistake. The table-driven test is `test/exit-codes-user
 | privileged port without rights (EACCES) | 1 | 1 | `failed to start server: port 80 needs administrator rights ...` |
 | `--host` with `--admin` | 1 | 1 | `serve --admin only ever listens on 127.0.0.1, so it does not accept --host` |
 | `init --theme nonesuch` | 1 | 1 | `unknown theme "nonesuch"; valid themes: ...` |
+| `init --new-vault` together with `--vault`, `--system` without `--new-vault`, or `--yes --new-vault` without `--name` or `--system` | 1 | 1 | `init takes --vault or --new-vault, not both` / `--system only applies with --new-vault` / `init --yes --new-vault needs --system <id> or --system none` |
+| `init --system nonesuch`, or a site title the new pages cannot hold exactly as typed | 1 | 1 | `unknown game system "nonesuch"; valid systems: ..., none` / `site title can't be written into the new vault's pages exactly as typed; leave out double quotes and backslashes` |
+| the starter in this build is missing, or fails its check against its manifest | 1 | 1 | `this build has no new-campaign starter` / `the new-campaign starter in this executable failed its integrity check: <file>; nothing was written` |
+| `init --new-vault` into a folder that is not empty, is a file or a link, is a filesystem root, is inside a vault or inside the settings folder; or the creation stops part-way | 1 | 3 | `refusing to create a vault in <path>: it is not empty (it holds ...)` and its siblings / `stopped creating the vault in <path>: ...; created before stopping: ...` |
 | `init` aborted by closed stdin | 1 | 1 | `init aborted; nothing written` |
 
 Not remapped, still 1: a folderMap output collision, and any genuinely unexpected
