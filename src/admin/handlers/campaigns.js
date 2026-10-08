@@ -75,12 +75,17 @@ async function readExact(req, res, keys) {
   return parsed;
 }
 
-function readOnlyOf(config, name) {
+/** What config.toml says about one campaign, with no disk access: read-only flag and the two folders. */
+function describe(config, name) {
   try {
     const resolved = resolveCampaign(config, name);
-    return [resolved.site_config, resolved.pack].some((v) => typeof v === 'string' && v.length > 0);
+    return {
+      readOnly: [resolved.site_config, resolved.pack].some((v) => typeof v === 'string' && v.length > 0),
+      vault: typeof resolved.vault === 'string' ? resolved.vault : null,
+      output: typeof resolved.output === 'string' ? resolved.output : null,
+    };
   } catch {
-    return null;
+    return { readOnly: null, vault: null, output: null };
   }
 }
 
@@ -102,11 +107,19 @@ function list(req, res, ctx) {
     name,
     active: name === ctx.campaign,
     isDefault: snap.config.default_campaign === name,
-    readOnly: readOnlyOf(snap.config, name),
+    ...describe(snap.config, name),
     missing: false,
   }));
   if (typeof ctx.campaign === 'string' && !names.includes(ctx.campaign)) {
-    campaigns.push({ name: ctx.campaign, active: true, isDefault: false, readOnly: Boolean(ctx.readOnlyReason), missing: true });
+    campaigns.push({
+      name: ctx.campaign,
+      active: true,
+      isDefault: false,
+      readOnly: Boolean(ctx.readOnlyReason),
+      vault: typeof ctx.vaultPath === 'string' ? ctx.vaultPath : null,
+      output: ctx.ctxInfo && typeof ctx.ctxInfo.output === 'string' ? ctx.ctxInfo.output : null,
+      missing: true,
+    });
   }
   const lockedReason = (ctx.campaigns && ctx.campaigns.lockedReason) || null;
   sendJson(res, 200, { campaigns, configSha256: snap.sha256, switchable: lockedReason === null, lockedReason });

@@ -76,10 +76,10 @@ test('GET /api/campaigns: config order, active, default, read-only and missing f
   assert.equal(res.status, 200, res.text);
   assert.deepEqual(res.json, {
     campaigns: [
-      { name: 'alpha', active: true, isDefault: false, readOnly: false, missing: false },
-      { name: 'beta', active: false, isDefault: true, readOnly: false, missing: false },
-      { name: 'gone', active: false, isDefault: false, readOnly: false, missing: false },
-      { name: 'ro', active: false, isDefault: false, readOnly: true, missing: false },
+      { name: 'alpha', active: true, isDefault: false, readOnly: false, vault: fx.vaults.alpha, output: path.join(fx.root, 'out-alpha'), missing: false },
+      { name: 'beta', active: false, isDefault: true, readOnly: false, vault: fx.vaults.beta, output: path.join(fx.root, 'out-beta'), missing: false },
+      { name: 'gone', active: false, isDefault: false, readOnly: false, vault: '/no/such/vault', output: null, missing: false },
+      { name: 'ro', active: false, isDefault: false, readOnly: true, vault: '/no/such/other', output: null, missing: false },
     ],
     configSha256: sha256(fs.readFileSync(fx.configPath)),
     switchable: true,
