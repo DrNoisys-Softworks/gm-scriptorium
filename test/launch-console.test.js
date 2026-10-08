@@ -14,7 +14,7 @@ const http = require('http');
 const path = require('path');
 const { EventEmitter } = require('events');
 const { PassThrough } = require('stream');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const { scratchRoot, copySample, configPathIn } = require('./helpers/setup-fixtures');
 
 const { shouldLaunch, runLaunch } = require('../src/cli/launch');
@@ -39,6 +39,15 @@ async function until(fn, what, ms = 8000) {
     if (Date.now() - started > ms) throw new Error(`timed out waiting for ${what}`);
     await new Promise((r) => setTimeout(r, 10));
   }
+}
+
+/** Fails instead of hanging when a stop path that should run never does (a mutated or broken build). */
+function within(promise, what, ms = 8000) {
+  let timer;
+  const limit = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} did not finish within ${ms} ms`)), ms);
+  });
+  return Promise.race([promise, limit]).finally(() => clearTimeout(timer));
 }
 
 // --- shouldLaunch -------------------------------------------------------------------------------------
@@ -299,7 +308,7 @@ test('byte 0x03 in raw mode stops cleanly: exit 0, no pause, raw mode off, no li
   assert.ok(fs.existsSync(file));
   assert.equal(h.input.raw, true);
   h.input.write('\u0003');
-  assert.equal(await h.run, 0);
+  assert.equal(await within(h.run, 'the Ctrl+C stop'), 0);
   assert.ok(!h.state.text.includes(PRESS_ENTER), 'a deliberate stop does not pause');
   assert.equal(h.input.raw, false);
   assert.equal(h.input.listenerCount('data'), 0);
@@ -311,7 +320,7 @@ test('the stop path runs in order: launcher file, then the listeners and preview
   const h = await launch(t);
   await until(() => h.opened.length === 1, 'startup');
   h.input.write('\u0003');
-  await h.run;
+  await within(h.run, 'the Ctrl+C stop');
   assert.deepEqual(h.order, ['panel.stop(file gone)', 'killAll', 'raw off']);
 });
 
@@ -320,7 +329,7 @@ for (const [signal, platform] of [['SIGINT', 'linux'], ['SIGTERM', 'linux'], ['S
     const h = await launch(t, { platform });
     await until(() => h.opened.length === 1, 'startup');
     h.signals.emit(signal);
-    assert.equal(await h.run, 0);
+    assert.equal(await within(h.run, `the ${signal} stop`), 0);
     assert.ok(!h.state.text.includes(PRESS_ENTER));
     assert.equal(h.input.raw, false);
     assert.deepEqual(h.order, ['panel.stop(file gone)', 'killAll', 'raw off']);
@@ -331,28 +340,26 @@ for (const [signal, platform] of [['SIGINT', 'linux'], ['SIGTERM', 'linux'], ['S
 
 test('SIGHUP listeners: linux launch 1, win32 launch 1; linux serve --admin 0 (a nohup keeps its ignore); all removed after the stop', async (t) => {
   const linux = await launch(t, { platform: 'linux' });
-  await until(() => linux.opened.length === 1, 'linux startup');
-  assert.equal(linux.signals.listenerCount('SIGHUP'), 1);
-  assert.equal(linux.signals.listenerCount('SIGBREAK'), 0);
   const win = await launch(t, { platform: 'win32' });
-  await until(() => win.opened.length === 1, 'win32 startup');
-  assert.equal(win.signals.listenerCount('SIGHUP'), 1);
-  assert.equal(win.signals.listenerCount('SIGBREAK'), 1);
-
   const root = scratchRoot(t);
-  const signals = new EventEmitter();
+  const serveSignals = new EventEmitter();
   const emitted = [];
-  const serving = runServeCommand({ admin: true, config: configPathIn(root) }, undefined, { emit: (l) => emitted.push(l), signals });
-  await until(() => emitted.some((l) => l.startsWith('setup:')), 'serve --admin startup');
-  if (process.platform === 'win32') assert.equal(signals.listenerCount('SIGHUP'), 1);
-  else assert.equal(signals.listenerCount('SIGHUP'), 0, 'serve --admin on POSIX does not listen for SIGHUP');
-  assert.equal(signals.listenerCount('SIGINT'), 1);
-  signals.emit('SIGINT');
-  await serving;
-
-  linux.signals.emit('SIGINT');
-  win.signals.emit('SIGINT');
-  await Promise.all([linux.run, win.run]);
+  const serving = runServeCommand({ admin: true, config: configPathIn(root) }, undefined, { emit: (l) => emitted.push(l), signals: serveSignals });
+  try {
+    await until(() => linux.opened.length === 1 && win.opened.length === 1 && emitted.some((l) => l.startsWith('setup:')), 'startup of all three');
+    assert.equal(linux.signals.listenerCount('SIGHUP'), 1);
+    assert.equal(linux.signals.listenerCount('SIGBREAK'), 0);
+    assert.equal(win.signals.listenerCount('SIGHUP'), 1);
+    assert.equal(win.signals.listenerCount('SIGBREAK'), 1);
+    if (process.platform === 'win32') assert.equal(serveSignals.listenerCount('SIGHUP'), 1);
+    else assert.equal(serveSignals.listenerCount('SIGHUP'), 0, 'serve --admin on POSIX does not listen for SIGHUP');
+    assert.equal(serveSignals.listenerCount('SIGINT'), 1);
+  } finally {
+    serveSignals.emit('SIGINT');
+    linux.signals.emit('SIGINT');
+    win.signals.emit('SIGINT');
+    await within(Promise.all([serving, linux.run, win.run]), 'stopping all three');
+  }
   assert.deepEqual(listenerTotals(linux.signals), { SIGINT: 0, SIGTERM: 0, SIGBREAK: 0, SIGHUP: 0 });
   assert.deepEqual(listenerTotals(win.signals), { SIGINT: 0, SIGTERM: 0, SIGBREAK: 0, SIGHUP: 0 });
 });
@@ -363,7 +370,7 @@ async function pausedRun(t, h, wantCode) {
   await until(() => h.state.text.includes(PRESS_ENTER), 'the pause prompt');
   assert.equal(h.finished, false, 'the window waits for Enter');
   h.input.write('\n');
-  assert.equal(await h.run, wantCode);
+  assert.equal(await within(h.run, 'the exit after Enter'), wantCode);
 }
 
 test('a malformed config: the one-line message, the pause, and the exit code the mapper gives (3 for a config problem)', async (t) => {
@@ -440,7 +447,7 @@ test('an opener that rejects, or exits non-zero, prints the fallback with the to
       assert.ok(!h.state.text.includes('The browser couldn'));
     }
     h.input.write('\u0003');
-    await h.run;
+    await within(h.run, 'the stop');
   }
 });
 
@@ -559,6 +566,32 @@ test('tailscale mode: the warning first, the remote addresses without a token, t
   const ok = await post({ Origin: 'null' }, `code=${code}`);
   assert.equal(ok.status, 200);
   assert.match([].concat(ok.headers['set-cookie'])[0], /^scriptorium_admin_9463=/);
+
+  // The open tab's liveness poll is a public asset. A signed-in remote session is neither read nor
+  // extended by it: the sessions file is byte-for-byte the same after several polls.
+  const send = (method, pathname, headers, body) =>
+    new Promise((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port: 9463, method, path: pathname, headers, agent: false }, (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, text: Buffer.concat(chunks).toString('utf8') }));
+      });
+      req.on('error', reject);
+      req.end(body);
+    });
+  const remoteHost = 'panel-host.example-tailnet.ts.net';
+  const login = JSON.stringify({ password: 'correct horse battery staple' });
+  const signedIn = await send('POST', '/auth/password', { Host: remoteHost, Origin: `https://${remoteHost}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(login), ...fwd }, login);
+  assert.equal(signedIn.status, 200, signedIn.text);
+  const sessionCookie = [].concat(signedIn.headers['set-cookie']).find((c) => c.startsWith('__Host-scriptorium_session=')).split(';')[0];
+  const sessionsFile = path.join(root, 'cfg', 'panel', 'sessions.json');
+  const before = fs.readFileSync(sessionsFile, 'utf8');
+  for (let i = 0; i < 4; i++) {
+    const poll = await send('HEAD', '/assets/favicon.svg', { Host: remoteHost, Cookie: sessionCookie, ...fwd });
+    assert.equal(poll.status, 200);
+  }
+  assert.equal(fs.readFileSync(sessionsFile, 'utf8'), before, 'polling did not touch the session');
+  assert.equal((await send('GET', '/api/session', { Host: remoteHost, Cookie: sessionCookie, ...fwd })).status, 200, 'and the session still works');
 });
 
 // --- flags and the real bin under a terminal ------------------------------------------------------------------------------------
@@ -635,4 +668,48 @@ test('the real bin under a terminal: two campaigns and no default pauses and exi
   assert.match(r.out(), /bravo/);
   r.child.stdin.write('\n');
   assert.equal(await r.exit, 3);
+});
+
+test('the real bin without a terminal prints help (with the line about running with no command) and exits 0', (t) => {
+  const root = scratchRoot(t);
+  const r = spawnSync(process.execPath, [path.join(REPO, 'bin', 'scriptorium.js')], {
+    env: { PATH: path.join(root, 'none'), HOME: root, SCRIPTORIUM_CONFIG: path.join(root, 'unused.toml'), XDG_CONFIG_HOME: path.join(root, 'xdg'), APPDATA: path.join(root, 'ad') },
+    encoding: 'utf8',
+    input: '',
+    timeout: 30000,
+  });
+  assert.equal(r.status, 0);
+  assert.ok(r.stdout.startsWith('gm-scriptorium <command> [campaign] [flags]'));
+  assert.ok(r.stdout.includes('Run "gm-scriptorium" with no command in a terminal to open the panel in your browser.\n'));
+  assert.ok(!r.stdout.includes('GM-Scriptorium is running'));
+});
+
+for (const [flag, expected] of [['--help', /Commands:/], ['--version', /^\d+\.\d+\.\d+/], ['--notices', /\S/]]) {
+  test(`the real bin under a terminal: ${flag} is unchanged (prints and exits 0, never launches)`, { skip: process.platform === 'win32' ? 'util-linux script is POSIX only' : false }, async (t) => {
+    const root = scratchRoot(t);
+    const r = runBinUnderPty(root, [flag]);
+    t.after(() => r.child.kill('SIGKILL'));
+    assert.equal(await within(r.exit, `${flag} to finish`, 30000), 0);
+    assert.match(r.out().replace(/\r/g, ''), expected);
+    assert.ok(!r.out().includes('GM-Scriptorium is running'), 'a flag never starts launch mode');
+    assert.ok(!r.out().includes(PRESS_ENTER));
+  });
+}
+
+test('the real bin under a terminal, with no display: the fallback link is printed, O retries, and Ctrl+C stops with exit 0 and no pause', { skip: process.platform === 'win32' ? 'util-linux script is POSIX only' : false }, async (t) => {
+  const root = scratchRoot(t);
+  const configPath = path.join(root, 'cfg', 'config.toml');
+  const r = runBinUnderPty(root, ['--config', configPath]);
+  t.after(() => r.child.kill('SIGKILL'));
+  await until(() => /admin panel: http:\/\/127\.0\.0\.1:\d+\/auth\?token=[A-Za-z0-9_-]{43}/.test(r.out()), 'the fallback link');
+  const text = r.out().replace(/\r/g, '');
+  assert.ok(text.includes('GM-Scriptorium is running. Your panel is open in your browser.'));
+  assert.ok(text.includes('  Setup    no campaign yet, so the panel starts with setup'));
+  assert.ok(text.includes(`Browser didn${APOS}t open? Press O to open it again.`));
+  assert.ok(text.includes("The browser couldn't be opened. Open this link instead:"));
+  r.child.stdin.write('o');
+  await until(() => r.out().split("The browser couldn't be opened").length - 1 >= 2, 'the second fallback after O');
+  r.child.stdin.write('\u0003');
+  assert.equal(await within(r.exit, 'Ctrl+C to stop the process', 20000), 0);
+  assert.ok(!r.out().includes(PRESS_ENTER), 'a deliberate stop does not pause');
 });

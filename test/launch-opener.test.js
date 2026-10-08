@@ -299,7 +299,7 @@ setTimeout(() => process.exit(0), 20000);`,
   output.on('data', (c) => printed.push(String(c)));
   await until(() => fb.attempts.length >= 2, 'the launch to open the launcher');
   signals.emit('SIGINT');
-  assert.equal(await started, 0);
+  assert.equal(await Promise.race([started, new Promise((_, rej) => setTimeout(() => rej(new Error('the launch stop path did not finish')), 8000).unref())]), 0);
   assert.ok(pidAlive(pid), 'the grandchild survived the launch stop path');
   assert.equal(liveRunCount(), 0);
 });
