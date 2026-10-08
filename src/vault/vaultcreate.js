@@ -30,7 +30,7 @@ const { platformFoldsCase } = require('./exclusions');
 const LITTER_FILES = Object.freeze(['desktop.ini', 'Thumbs.db', '.DS_Store']);
 const LITTER_DIRS = Object.freeze(['.obsidian']);
 
-const RESERVED_RE = /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])$/i;
+const RESERVED_RE = /^(con|prn|aux|nul|conin\$|conout\$|com[1-9¹²³]|lpt[1-9¹²³])$/i;
 const BAD_CHARS_RE = /[<>:"|?*\u0000-\u001f]/;
 const LITTER_FOLDED = new Set([...LITTER_FILES, ...LITTER_DIRS].map((n) => n.toLowerCase()));
 
@@ -312,6 +312,9 @@ function createVault(targetAbs, starter, opts = {}) {
       }
       made.push(target);
       created.push(file.rel);
+      // A parent swapped for a link after the check above would let the file land elsewhere: say so.
+      const landed = fs.realpathSync(target);
+      if (!isInsideOrEqual(realRoot, landed)) throw new Error(`${target} landed outside the new vault (${landed}); it was not removed`);
     }
   } catch (err) {
     throw stop(err && err.message ? err.message : String(err));

@@ -440,6 +440,8 @@ const BAD_RELS = [
   ['an angle bracket', 'a<b.md'],
   ['a pipe', 'a|b.md'],
   ['a control character', 'a\u0001b.md'],
+  ['a console device', 'CONIN$'],
+  ['a console device with an extension', 'conout$.md'],
   ['a litter name', 'desktop.ini'],
   ['a litter folder', '.obsidian/app.json'],
   ['an empty segment', 'a//b.md'],
@@ -489,4 +491,26 @@ test('good starter paths are accepted: ampersands, spaces, non-ASCII and dotted 
   for (const rel of ['Factions & Organizations', 'Items & Artifacts/x.md', 'a b/c d.md', 'üï/é.md', 'v1.2/notes.txt', 'conx.md', '_meta/NOTICE.txt']) {
     assert.equal(validateStarterRel(rel), true, rel);
   }
+});
+
+test('a parent swapped for a link between the check and the write is a listed failure, and nothing is removed', (t) => {
+  const root = scratch(t);
+  const target = path.join(root, 'swapped');
+  const outside = path.join(root, 'outside');
+  fs.mkdirSync(outside);
+  patched(t, 'writeFileSync', (n, original, args) => {
+    if (String(args[0]).endsWith(path.join('Deep', 'b.md'))) {
+      const deep = path.join(target, 'Notes', 'Deep');
+      fs.rmdirSync(deep);
+      fs.symlinkSync(outside, deep, 'dir');
+    }
+    return original(...args);
+  });
+  assert.throws(() => createVault(target, starter(), where(root)), (err) => {
+    assert.ok(err instanceof VaultUnreachableError);
+    assert.match(err.message, /^stopped creating the vault in .*: .*b\.md landed outside the new vault \(.*outside.*b\.md\); it was not removed; created before stopping: /);
+    assert.ok(err.message.includes(path.join(target, 'Notes', 'Deep', 'b.md')), 'the file is in the list');
+    return true;
+  });
+  assert.equal(fs.readFileSync(path.join(outside, 'b.md'), 'utf8'), 'bravo \u00fc\n', 'the escaped file is left, never deleted');
 });

@@ -337,3 +337,41 @@ test('parity: a browser commit and `init --yes --new-vault` with the same answer
   assert.deepEqual(treeA, treeB);
   assert.equal(fs.readFileSync(la.configPath, 'utf8').split(a).join('<ROOT>'), fs.readFileSync(lb.configPath, 'utf8').split(b).join('<ROOT>'));
 });
+
+// --- a campaign registered during the last await ---------------------------------------------------
+
+/** An fsp whose stat of `trigger` first registers a campaign, as another instance would between the early check and the re-check. */
+function registeringFsp(trigger, configPath, other) {
+  const real = require('fs').promises;
+  return {
+    stat: async (p) => {
+      if (p === trigger) configWrite.writeConfigFile(configPath, { config_version: 1, default_campaign: 'first', campaigns: { first: { vault: other, output: path.join(path.dirname(other), 'first-site') } } });
+      return real.stat(p);
+    },
+    readdir: real.readdir,
+  };
+}
+
+test('race: a campaign registered during the last await is refused as taken, nothing created (new vault)', async (t) => {
+  const root = scratchRoot(t);
+  const l = layout(root);
+  const other = copySample(root, 'other-vault');
+  const a = answers(root);
+  const res = await register.commitSetup(a, l, deps({ fsp: registeringFsp(a.output, l.configPath, other) }));
+  assert.deepEqual(res, { refused: 'taken' });
+  assert.equal(fs.existsSync(path.join(root, 'New Campaign')), false);
+  assert.match(fs.readFileSync(l.configPath, 'utf8'), /campaigns\.first/);
+  assert.doesNotMatch(fs.readFileSync(l.configPath, 'utf8'), /fresh/);
+});
+
+test('race: the same during the last await of the existing-vault commit', async (t) => {
+  const root = scratchRoot(t);
+  const l = layout(root);
+  const vault = copySample(root);
+  const other = copySample(root, 'other-vault');
+  const a = { name: 'lease', vault, output: path.join(root, 'lease-site') };
+  const res = await register.commitSetup(a, l, { fsp: registeringFsp(a.output, l.configPath, other) });
+  assert.deepEqual(res, { refused: 'taken' });
+  assert.equal(fs.existsSync(path.join(vault, '_meta', 'scriptorium')), false);
+  assert.doesNotMatch(fs.readFileSync(l.configPath, 'utf8'), /lease/);
+});

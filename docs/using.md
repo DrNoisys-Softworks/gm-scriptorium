@@ -54,7 +54,7 @@ Start a new campaign from nothing. It creates a vault in that folder, which must
 be empty (any parent folders that are missing are created too, and listed first), then sets up the
 campaign pack and registers it. Pick your game system with `--system`, or `--system none`; it is never
 guessed. It never overwrites or removes anything, and if it stops part-way it lists exactly what it
-made. Without a flag, `init` asks whether you already have a vault, and the questions follow from your answer.
+made. At a terminal, without `--vault` or `--new-vault`, `init` asks whether you already have a vault, and the questions follow from your answer. With piped input it does not ask, so scripts say `--new-vault`.
 
 ```
 gm-scriptorium init

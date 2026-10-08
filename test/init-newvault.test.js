@@ -383,3 +383,21 @@ test('with input that is not a terminal the question is not asked, so scripted a
   input.end();
   await assert.rejects(promise, /init aborted; nothing written/);
 });
+
+test('a SIGINT at the vault prompt, after answering y to the vault question, aborts with nothing written', { timeout: 15000 }, async (t) => {
+  const { createPrompter } = require('../src/cli/prompt');
+  const root = scratch(t);
+  const { input, output, getWritten } = streams();
+  output.isTTY = true;
+  const prompter = createPrompter({ input, output });
+  const configPath = path.join(root, 'cfg', 'config.toml');
+  const promise = runInitCommand({ config: configPath }, [], { input, output, prompter, ...OPTS });
+  input.write('alpha\n');
+  await waitForOutput(getWritten, 'Do you already have a vault? [Y/n]: ');
+  input.write('y\n');
+  await waitForOutput(getWritten, 'Vault folder (the one holding _meta/vault-config.md): ');
+  prompter.rl.emit('SIGINT');
+  await assert.rejects(promise, (err) => err instanceof ConfigError && err.message === 'init aborted; nothing written');
+  assert.equal(fs.existsSync(configPath), false);
+  prompter.close();
+});

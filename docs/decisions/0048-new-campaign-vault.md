@@ -175,7 +175,8 @@ Will catch:
 - a starter file that was changed, removed or added, a placeholder count that disagrees with its
   file, and a deviation that does not apply exactly once;
 - a title that cannot be written into the pages exactly as typed;
-- a file or folder that appears between the check and the write, because every write is exclusive.
+- a file or folder that appears between the check and the write, because every write is exclusive;
+- a parent folder swapped for a link between the check and a write: the file's real location is checked after the write, and the failure is listed. The file is left where it landed, never removed.
 
 Will not catch, deliberately:
 
