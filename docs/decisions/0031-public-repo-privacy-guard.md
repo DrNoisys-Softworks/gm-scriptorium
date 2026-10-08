@@ -114,3 +114,36 @@ a release never use that shortcut: those always check everything, every time.
 - `scripts/hooks/pre-push`
 - `scripts/public-hygiene-patterns.txt`
 - `test/public-guard.test.js`
+- `test/public-guard-path-allow.test.js`
+
+## Amendment: excusing exact files from private-word hits
+
+**What changed.** The maintainers' private allowlist could only excuse a word everywhere. It can
+now also excuse one exact committed file, with a line of the form `path <repo-relative file> --
+<reason>`. The lower-level scanner already understood this line; the guard's own check of the
+allowlist used to refuse it, and now accepts it under the rules below.
+
+**Why.** A few files are copied unchanged from the upstream starter vault and legitimately
+contain words the private lists flag. Excusing those files one at a time leaves every word fully
+guarded everywhere else, which weakening a word would not. The owner approved this in his own
+words ("For (A) that's fine").
+
+**The limits.**
+
+- The target must be an exact repo-relative file path. Globs, directories, `..` or `.` segments,
+  absolute paths, drive letters, backslashes, empty segments and an empty target are refused,
+  and the guard stops with `bad-allow` and the line number of the offending entry.
+- A reason is always required. A line without one is refused as a malformed list.
+- An entry excuses every hit inside that one file, and no other file. Matching is exact, so the
+  same name in another folder, or a longer name that starts or ends the same way, is still
+  checked.
+- An entry that matched nothing in what was scanned (the file is absent, the path is a
+  directory, or it lies outside the revision or pathspec scanned) is reported as `UNUSED` with
+  its line number, never silently ignored.
+- Commit messages and every other non-file target are never excused by a path entry.
+- Where it applies: `scan tree`, `scan commits`, `pre-push` and `release` see repo-relative
+  paths, so entries apply there (in the commit modes they cover that file in each commit of the
+  range). `scan files` only knows a bare file name, which cannot prove which repository file it
+  is, so path entries never apply there and show as `UNUSED`. `ci` has no private lists and is
+  unchanged.
+- Word entries behave exactly as before, and nothing here weakens any word.
