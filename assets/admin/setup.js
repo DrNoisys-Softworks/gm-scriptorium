@@ -7,18 +7,24 @@
  * line under it. DOM is built with el()/setText() (textContent) only, never markup. The admin CSP
  * has form-action 'none', so every submit is preventDefault()ed. Screens are reached by hash
  * (#name, #vault, ...); the focus lands on each screen's h1; status regions are aria-live.
+ *
+ * ADR 0052: the same page, served at /campaigns/add, adds another campaign to a running panel
+ * ("add mode"). Add mode asks the add routes instead of the setup routes (the same checks and the
+ * same answer rules, server side), commits to /api/campaigns/add with the config sha the page
+ * was given, and offers to switch to the new campaign. First run is unchanged in every respect.
  */
 (function () {
   var A = window.ScriptoriumAdmin;
   var el = A.el;
   var setText = A.setText;
   var icon = A.icon;
+  var ADD = location.pathname === '/campaigns/add';
 
   // Two ways in (ADR 0048): an existing vault, or a new campaign that has setup make the vault.
   var ORDER_HAVE = ['name', 'vault', 'output', 'title', 'theme', 'review'];
   var ORDER_NEW = ['name', 'newfolder', 'title', 'system', 'output', 'theme', 'review'];
   var LABEL = { name: 'Campaign name', vault: 'Vault folder', newfolder: 'New vault folder', output: 'Output folder', title: 'Site title', system: 'Game system', theme: 'Theme', review: 'Review' };
-  var SCREENS = ['start', 'name', 'vault', 'newfolder', 'output', 'title', 'system', 'theme', 'review', 'build', 'ready'];
+  var SCREENS = ['start', 'name', 'vault', 'newfolder', 'output', 'title', 'system', 'theme', 'review', 'added', 'build', 'ready'];
   var SYSTEM_NAMES = { none: 'None', 'dnd-5e-2024': 'D&D 5e (2024)', pf2e: 'Pathfinder 2e', fitd: 'Forged in the Dark' };
   var SYSTEM_ORDER = ['none', 'dnd-5e-2024', 'pf2e', 'fitd'];
   var SYSTEM_NOTES = { none: 'No system templates. Fits any game.' };
@@ -36,7 +42,7 @@
     way: 'have', newvault: '', system: 'dnd-5e-2024',
     name: '', vault: '', output: '', outputTouched: false, outputConfirmed: false, title: '', theme: null,
     res: {}, // latest server answer per field
-    committed: false, built: null, result: null, failure: null, progress: []
+    committed: false, built: null, result: null, failure: null, progress: [], switched: false
   };
 
   var root = document.querySelector('[data-role="setup-root"]');
@@ -119,13 +125,22 @@
     q.set('commit', commit ? '1' : '0');
     q.set('name', S.name.trim());
     if (field === 'output' || field === 'title' || field === 'theme') q.set('vault', vaultValue());
-    return '/api/setup/check?' + q.toString();
+    return (ADD ? '/api/campaigns/add/check?' : '/api/setup/check?') + q.toString();
   }
 
-  /** Asks the server; only the newest answer for a field is kept. @returns {Promise<object|null>} */
+  var inflight = {};
+
+  /**
+   * Asks the server; only the newest answer for a field is kept. In add mode a committed check of a
+   * path that is already on its way is shared rather than sent again (leaving the box and pressing
+   * Continue are one act, and over remote access each committed check is a line in the audit log).
+   * @returns {Promise<object|null>}
+   */
   function ask(field, value, commit) {
+    var key = ADD && commit ? field + '\u0000' + value : null;
+    if (key && inflight[key]) return inflight[key];
     var mine = ++seq[field];
-    return A.api(checkUrl(field, value, commit)).then(function (r) {
+    var p = A.api(checkUrl(field, value, commit)).then(function (r) {
       if (mine !== seq[field]) return null;
       if (!r.ok || !r.body) {
         S.res[field] = { field: field, state: 'unreachable', value: value, rule: 'The panel did not answer. Is GM-Scriptorium still running?', facts: { reason: 'panel' } };
@@ -134,6 +149,12 @@
       }
       return S.res[field];
     });
+    if (key) {
+      inflight[key] = p;
+      var done = function () { delete inflight[key]; };
+      p.then(done, done);
+    }
+    return p;
   }
 
   function later(field, fn) {
@@ -156,6 +177,7 @@
     var i = order().indexOf(k);
     var c = cur === 'build' || cur === 'ready' ? order().length : order().indexOf(cur);
     if (cur === 'start') c = -1;
+    if (cur === 'added') c = order().length;
     return i < c ? 'done' : i === c ? 'cur' : 'todo';
   }
   function railValue(k) {
@@ -186,11 +208,11 @@
     var side = h('nav', 'a1-side');
     side.setAttribute('data-role', 'side');
     side.setAttribute('aria-label', 'Setup steps');
-    side.appendChild(brand());
+    side.appendChild(brand(ADD ? 'Adding to ' + (S.server.campaign || 'this panel') : undefined));
     var group = h('div', 'a1-ng');
-    group.appendChild(h('div', 'a1-ng-label', 'Setup'));
+    group.appendChild(h('div', 'a1-ng-label', ADD ? 'Add a campaign' : 'Setup'));
     var list = h('ol', 'su-rail');
-    var busy = cur === 'build' || cur === 'ready';
+    var busy = cur === 'build' || cur === 'ready' || cur === 'added';
     order().forEach(function (k) {
       var st = stepState(k, cur);
       var warn = st === 'done' && ((k === 'vault' && S.res.vault && S.res.vault.state === 'warn') || (k === 'newfolder' && S.res.newVault && S.res.newVault.state === 'warn'));
@@ -214,18 +236,27 @@
     group.appendChild(list);
     side.appendChild(group);
     var foot = h('footer', 'a1-sidefoot');
-    var bound = h('span');
-    bound.appendChild(icon('lock'));
-    add(bound, [' Bound to ', code('127.0.0.1'), ' only']);
-    foot.appendChild(bound);
-    foot.appendChild(h('span', null, 'Files are written at the review. New folder makes its folder at once.'));
+    if (ADD && S.server.via === 'remote') {
+      // A remote session is not on the machine: no claim about 127.0.0.1 (ADR 0052, section 6).
+      var remote = h('span');
+      remote.appendChild(icon('globe'));
+      add(remote, [' Remote session']);
+      foot.appendChild(remote);
+      foot.appendChild(h('span', null, 'Folders you type are checked when you leave the box. Checks and the add are recorded in the audit log.'));
+    } else {
+      var bound = h('span');
+      bound.appendChild(icon('lock'));
+      add(bound, [' Bound to ', code('127.0.0.1'), ' only']);
+      foot.appendChild(bound);
+      foot.appendChild(h('span', null, 'Files are written at the review. New folder makes its folder at once.'));
+    }
     side.appendChild(foot);
     return side;
   }
 
   function topBar(cur) {
     var qn = qnOf(cur);
-    var label = cur === 'start' ? 'Getting started' : qn ? 'Question ' + qn + ' of ' + qTotal() : cur === 'review' ? 'Review' : cur === 'build' ? 'Setting up' : 'Done';
+    var label = cur === 'start' ? (ADD ? 'Add a campaign' : 'Getting started') : qn ? 'Question ' + qn + ' of ' + qTotal() : cur === 'review' ? 'Review' : cur === 'build' ? 'Setting up' : 'Done';
     var pct = cur === 'start' ? 3 : qn ? (S.way === 'new' ? STEPS_SIX[qn] : qn * 16) : cur === 'review' ? 92 : 100;
     var mt = h('header', 'su-mt');
     var crest = h('div', 'a1-crest');
@@ -233,7 +264,7 @@
     crest.appendChild(h('span', null, 'GM'));
     mt.appendChild(crest);
     var grow = h('div', 'grow');
-    var camp = h('div', 'a1-camp', 'GM-Scriptorium setup');
+    var camp = h('div', 'a1-camp', ADD ? 'GM-Scriptorium · add a campaign' : 'GM-Scriptorium setup');
     camp.className += ' su-camp-sm';
     grow.appendChild(camp);
     grow.appendChild(h('div', 'l', label));
@@ -245,6 +276,17 @@
     grow.appendChild(bar);
     mt.appendChild(grow);
     return mt;
+  }
+
+  /** Add mode: the way back to the Campaigns screen, above every screen until the add is made. */
+  function backLink() {
+    var p = h('p', 'am-back-row');
+    var a = h('a', 'a1-link am-back');
+    a.href = '/#/campaigns';
+    a.appendChild(icon('arrow'));
+    a.appendChild(document.createTextNode('Back to campaigns'));
+    p.appendChild(a);
+    return p;
   }
 
   function qHead(n, title, lede) {
@@ -395,15 +437,20 @@
     var isNew = S.way === 'new';
     var wrap = h('div', 'su-page');
     var head = h('header', 'su-intro');
-    head.appendChild(h('div', 'a1-eyebrow', 'Welcome to GM-Scriptorium'));
-    var h1 = h('h1', 'a1-h2', 'Let’s set up your first campaign');
+    head.appendChild(h('div', 'a1-eyebrow', ADD ? 'Add a campaign' : 'Welcome to GM-Scriptorium'));
+    var h1 = h('h1', 'a1-h2', ADD ? 'Add another campaign' : 'Let’s set up your first campaign');
     h1.tabIndex = -1;
     head.appendChild(h1);
     var lede = h('p', 'a1-lede');
-    if (isNew) add(lede, ['Six questions. They are the ones ', code('gm-scriptorium init'), ' asks in a terminal. Nothing is created until the last screen, and then setup makes your new vault in a folder that is empty or new.']);
+    if (ADD && isNew) add(lede, ['Six questions, the same ones as when you first set up, with the same checks. Nothing is created until the last screen, and then setup makes your new vault in a folder that is empty or new.']);
+    else if (ADD) add(lede, ['Five questions, the same ones as when you first set up, with the same checks. Nothing in your vault changes until the last screen, and even then setup only adds new files under ', code(joinPath(['_meta', 'scriptorium'])), '.']);
+    else if (isNew) add(lede, ['Six questions. They are the ones ', code('gm-scriptorium init'), ' asks in a terminal. Nothing is created until the last screen, and then setup makes your new vault in a folder that is empty or new.']);
     else add(lede, ['Five questions. They are the ones ', code('gm-scriptorium init'), ' asks in a terminal. Nothing in your vault changes until the last screen, and even then setup only adds new files under ', code(joinPath(['_meta', 'scriptorium'])), '.']);
     head.appendChild(lede);
     wrap.appendChild(head);
+    if (ADD) {
+      wrap.appendChild(note('', 'info', [(function () { var pp = h('p'); pp.appendChild(h('b', null, 'The panel is on ' + (S.server.campaign || 'its campaign') + ', and it stays there.')); pp.appendChild(document.createTextNode(' Adding a campaign does not change it. You choose whether to switch at the end.')); return pp; })()]));
+    }
 
     var nv = S.server && S.server.newVault;
     var fs2 = h('fieldset', 'su-paths');
@@ -420,8 +467,8 @@
       ? ['folder', 'An empty folder', ['Or a new one. Setup makes the vault there and touches nothing else.']]
       : ['folder', 'Your vault folder', ['The gm-apprentice vault that holds ', code(joinPath(['_meta', 'vault-config.md'])), '.']];
     [first,
-      ['globe', 'Where the player site goes.', ['A separate folder from your vault, so the site never mixes with your notes. We’ll suggest one in the same parent folder as your vault. For example, if your vault is ', code('D:\\Campaigns\\Long Lease'), ', we’ll suggest ', code('D:\\Campaigns\\long-lease-site'), '. You can pick anywhere else.']],
-      ['info', 'About two minutes', ['Then a first preview that only you can see.']]].forEach(function (c) {
+      ADD ? ['globe', 'A folder for the site', ['Outside every vault. We suggest one next to it.']] : ['globe', 'Where the player site goes.', ['A separate folder from your vault, so the site never mixes with your notes. We’ll suggest one in the same parent folder as your vault. For example, if your vault is ', code('D:\\Campaigns\\Long Lease'), ', we’ll suggest ', code('D:\\Campaigns\\long-lease-site'), '. You can pick anywhere else.']],
+      ADD ? ['info', 'About two minutes', ['Then you choose whether to switch to it.']] : ['info', 'About two minutes', ['Then a first preview that only you can see.']]].forEach(function (c) {
       var d = h('div');
       var ic = h('span', 'ic');
       ic.appendChild(icon(c[0]));
@@ -435,7 +482,8 @@
     wrap.appendChild(need);
     var f = h('div', 'su-foot');
     var g = h('span', 'grow');
-    add(g, ['Prefer a terminal? Close this and run ', code('gm-scriptorium init'), '.']);
+    if (ADD) add(g, ['Prefer a terminal? Run ', code('gm-scriptorium init'), ' there.']);
+    else add(g, ['Prefer a terminal? Close this and run ', code('gm-scriptorium init'), '.']);
     f.appendChild(g);
     var start = button('primary big', 'Start', 'arrow', function () { go('name'); });
     f.appendChild(start);
@@ -459,6 +507,11 @@
       add(sp, ['works. Commands use it, like ', code('gm-scriptorium build ' + r.value), '.']);
       p.appendChild(sp);
       status.appendChild(p);
+    } else if (r.facts && r.facts.clash) {
+      var cp = h('p');
+      cp.appendChild(h('b', null, 'That name is already used.'));
+      cp.appendChild(document.createTextNode(' Each campaign needs its own name. Add a word, or pick another.'));
+      status.appendChild(note('err', 'warn', [cp, ruleLine(r.rule)]));
     } else {
       var kids = [h('p', null, ''), null];
       kids[0].appendChild(h('b', null, 'Use lowercase letters, digits and hyphens only.'));
@@ -502,6 +555,7 @@
     wrap.appendChild(qHead(qnOf('name'), 'What should we call this campaign?', 'A short name for commands and folder names. Lowercase letters, digits and hyphens. The title your players see comes later.'));
     var input = textInput('su-name', S.name, true);
     var fb = fieldBlock('su-name', 'Campaign name', input, 'su-name-st');
+    if (ADD && S.server.campaigns && S.server.campaigns.length) fb.field.insertBefore(h('p', 'a1-hint', 'Already registered: ' + S.server.campaigns.join(', ') + '.'), fb.status);
     wrap.appendChild(fb.field);
     wrap.appendChild(foot('start', 'Continue', function () { go(nextOf('name')); }));
     input.addEventListener('input', function () { onName(input); });
@@ -522,13 +576,78 @@
     });
   }
 
+  /** Add mode, remote session: every typed path waits until the GM leaves the box (ADR 0052, section 6). */
+  function remoteDeferHint(recheck) {
+    var p = h('p', 'a1-hint');
+    p.appendChild(document.createTextNode('This path is checked when you leave the box, so nothing is probed while you type. Press Continue, or '));
+    var b = h('button', 'a1-link', 'check it now');
+    b.type = 'button';
+    b.addEventListener('click', recheck);
+    p.appendChild(b);
+    p.appendChild(document.createTextNode('.'));
+    return p;
+  }
+
+  function isRemoteAdd() {
+    return ADD && S.server.via === 'remote';
+  }
+
+  /** Add mode: a path that clashes with a registered campaign (the server's rule line, word for word). */
+  function clashNotes(r, kind) {
+    var c = r.facts.clash;
+    var other = c.campaign;
+    var p = h('p');
+    var acts = null;
+    if (kind === 'vault-equal') {
+      p.appendChild(h('b', null, 'That vault is already a campaign.'));
+      p.appendChild(document.createTextNode(' Each campaign needs its own vault. Pick another folder, or go to the campaigns list to switch to ' + other + '.'));
+      acts = h('div', 'a1-actions');
+      acts.classList.add('su-mt8');
+      acts.appendChild(button('small ghost', 'Go to Campaigns', null, function () { location.assign('/#/campaigns'); }));
+    } else if (kind === 'vault-in-output') {
+      p.appendChild(h('b', null, 'That vault sits inside another campaign’s site folder.'));
+      p.appendChild(document.createTextNode(' Every build of ' + other + ' replaces that whole folder, so your notes would go with it. Pick a folder outside it.'));
+    } else if (kind === 'output-in-vault') {
+      p.appendChild(h('b', null, 'That folder is inside another campaign’s vault.'));
+      p.appendChild(document.createTextNode(' Every build would write the website into ' + other + '’s notes. Pick a folder outside every vault; the suggested one sits next to yours.'));
+    } else {
+      p.appendChild(h('b', null, 'That is another campaign’s site folder.'));
+      p.appendChild(document.createTextNode(' Each campaign needs its own, because a build replaces everything in it. Pick another folder.'));
+    }
+    return { p: p, acts: acts };
+  }
+
+  var CLASH_ROW = {
+    'vault-equal': ['Already a campaign', function (o) { return ['Registered as ', code(o)]; }],
+    'vault-in-output': ['Inside another campaign’s site folder', function (o) { return ['It overlaps the output folder of ', code(o)]; }],
+    'output-in-vault': ['Inside another campaign’s vault', function (o) { return ['It overlaps the vault of ', code(o)]; }],
+    'output-overlap-output': ['Another campaign’s site folder', function (o) { return ['It overlaps the output folder of ', code(o)]; }]
+  };
+
+  function clashRow(r) {
+    var spec = CLASH_ROW[r.facts.clash.kind];
+    var d = h('span');
+    add(d, spec[1](r.facts.clash.campaign));
+    return ['bad', spec[0], d];
+  }
+
   function vaultDraw(status, input, r, extraBtn) {
     status.textContent = '';
     markInput(input, r ? r.state : null);
     if (!r) return;
     var f = r.facts || {};
     if (r.state === 'deferred') {
-      status.appendChild(h('p', 'a1-hint', 'This looks like a network path. It is checked when you leave the box, so nothing is probed while you type.'));
+      if (isRemoteAdd()) status.appendChild(remoteDeferHint(function () { onVault(input, true); }));
+      else status.appendChild(h('p', 'a1-hint', 'This looks like a network path. It is checked when you leave the box, so nothing is probed while you type.'));
+      return;
+    }
+    if (f.clash) {
+      var cn = clashNotes(r, f.clash.kind);
+      var clashKids = [cn.p];
+      if (cn.acts) clashKids.push(cn.acts);
+      clashKids.push(ruleLine(r.rule));
+      status.appendChild(checksList([['ok', 'Folder found', code(r.value)], ['ok', 'A gm-apprentice vault', (function () { var sp = h('span'); add(sp, [code(joinPath(['_meta', 'vault-config.md'])), f.campaignTitle ? ' says “' + f.campaignTitle + '”' : ' is there']); return sp; })()], clashRow(r)]));
+      status.appendChild(note('err', 'warn', clashKids));
       return;
     }
     if (r.state === 'unreachable') {
@@ -620,7 +739,7 @@
     // ADR 0049: Browse only fills the field; the field's own server check then runs as always.
     A.picker.attach(input, { row: fb.row, host: fb.status, label: 'the vault folder', allowCreate: false, onChoose: function () { onVault(input, true); } });
     wrap.appendChild(foot('name', 'Continue', function () {
-      // A network path is only probed when the GM commits the field.
+      // A network path (and every path over remote access) is only probed when the GM commits the field.
       if (S.res.vault && S.res.vault.state === 'deferred') onVault(input, true);
       else go(nextOf('vault'));
     }));
@@ -657,7 +776,17 @@
     if (!r) return;
     var f = r.facts || {};
     if (r.state === 'deferred') {
-      status.appendChild(h('p', 'a1-hint', 'This looks like a network path. It is checked when you leave the box, so nothing is probed while you type.'));
+      if (isRemoteAdd()) status.appendChild(remoteDeferHint(function () { onNewFolder(input, true); }));
+      else status.appendChild(h('p', 'a1-hint', 'This looks like a network path. It is checked when you leave the box, so nothing is probed while you type.'));
+      return;
+    }
+    if (f.clash) {
+      var nvc = clashNotes(r, f.clash.kind);
+      var nvKids = [nvc.p];
+      if (nvc.acts) nvKids.push(nvc.acts);
+      nvKids.push(ruleLine(r.rule));
+      status.appendChild(checksList([clashRow(r)]));
+      status.appendChild(note('err', 'warn', nvKids));
       return;
     }
     if (r.state === 'unreachable') {
@@ -808,7 +937,8 @@
     if (!r) return;
     var f = r.facts || {};
     if (r.state === 'deferred') {
-      status.appendChild(h('p', 'a1-hint', 'This looks like a network path. It is checked when you leave the box.'));
+      if (isRemoteAdd()) status.appendChild(remoteDeferHint(function () { onOutput(input, true); }));
+      else status.appendChild(h('p', 'a1-hint', 'This looks like a network path. It is checked when you leave the box.'));
       return;
     }
     if (r.state === 'unreachable') {
@@ -823,6 +953,17 @@
       S.outputConfirmed = false;
       onOutput(input, false);
     };
+    if (f.clash) {
+      var oc = clashNotes(r, f.clash.kind);
+      var ocKids = [oc.p];
+      var oa = h('div', 'a1-actions');
+      oa.classList.add('su-mt8');
+      if (f.default) oa.appendChild(button('small', 'Use ' + f.default, null, useDefault));
+      ocKids.push(oa, ruleLine(r.rule));
+      status.appendChild(checksList([clashRow(r), ['ok', 'Outside your vault', '']]));
+      status.appendChild(note('err', 'warn', ocKids));
+      return;
+    }
     if (r.state === 'ok') {
       rows = [['ok', 'Outside the vault', ''], [ 'ok', f.exists ? 'Folder is free to use' : 'New folder', f.exists ? 'Empty, or an earlier GM-Scriptorium build' : 'Created by the first build'], ['info', 'Next to your vault', 'Suggested, so it’s easy to find']];
     } else if (r.state === 'warn') {
@@ -871,6 +1012,8 @@
   function outputReady(r) {
     if (!r) return false;
     if (r.state === 'ok') return true;
+    // Add mode over remote access: a deferred path can be continued; Continue then checks it (as the vault question does).
+    if (r.state === 'deferred' && isRemoteAdd()) return true;
     return r.state === 'warn' && S.outputConfirmed;
   }
 
@@ -893,7 +1036,7 @@
 
   function screenOutput() {
     var wrap = h('div', 'su-q');
-    wrap.appendChild(qHead(qnOf('output'), 'Where should the built site go?', 'Each build writes the player website here. It has to be outside your vault, so the site never ends up in your notes.'));
+    wrap.appendChild(qHead(qnOf('output'), 'Where should the built site go?', ADD ? 'Each build writes the player website here. It has to be outside your vault, and outside every other campaign’s vault and site folder.' : 'Each build writes the player website here. It has to be outside your vault, so the site never ends up in your notes.'));
     var input = textInput('su-out', S.output, true);
     var fb = fieldBlock('su-out', 'Output folder', input, 'su-out-st');
     wrap.appendChild(fb.field);
@@ -1304,7 +1447,7 @@
     var h1 = h('h1', 'a1-h2', 'Check your answers');
     h1.tabIndex = -1;
     head.appendChild(h1);
-    head.appendChild(h('p', 'a1-lede', S.way === 'new' ? 'This is the only screen that writes anything: setup creates your new vault when you press a button below. A folder you made with New folder is already on your disk.' : 'Setup writes your campaign’s files when you press a button below. A folder you made with New folder is already on your disk.'));
+    head.appendChild(h('p', 'a1-lede', ADD ? 'This is the only screen that writes anything. A folder you made with New folder is already on your disk.' : S.way === 'new' ? 'This is the only screen that writes anything: setup creates your new vault when you press a button below. A folder you made with New folder is already on your disk.' : 'Setup writes your campaign’s files when you press a button below. A folder you made with New folder is already on your disk.'));
     wrap.appendChild(head);
 
     var slip = h('section', 'a1-slip inline');
@@ -1312,8 +1455,8 @@
     var seal = h('div', 'a1-seal', 'S');
     seal.setAttribute('aria-hidden', 'true');
     slip.appendChild(seal);
-    slip.appendChild(h('div', 'cf-eyebrow', 'Review before setting up'));
-    var title = h('h2', 'cf-title', 'Set up ' + S.name.trim());
+    slip.appendChild(h('div', 'cf-eyebrow', ADD ? 'Review before adding' : 'Review before setting up'));
+    var title = h('h2', 'cf-title', (ADD ? 'Add ' : 'Set up ') + S.name.trim());
     title.id = 'su-rv';
     slip.appendChild(title);
     var sum = h('div', 'su-sum');
@@ -1333,6 +1476,7 @@
     slip.appendChild(sum);
 
     var footer = h('div', 'cf-foot');
+    if (ADD) footer.appendChild(h('p', 'cf-eyebrow', 'Created now'));
     var packExists = S.way !== 'new' && S.res.vault && S.res.vault.facts && S.res.vault.facts.packExists;
     var ol = h('ol', 'su-do');
     var layout = S.way === 'new' ? newVaultSteps(ol) : null;
@@ -1348,12 +1492,25 @@
       ol.appendChild(liOut);
     }
     var li2 = h('li');
-    add(li2, ['Register ', h('b', null, S.name.trim()), ' as your default campaign, in ', code(S.server.configPath), '.']);
-    ol.appendChild(li2);
-    ol.appendChild(h('li', null, 'Run a first check, then build a preview that only you can see.'));
+    if (ADD) {
+      add(li2, ['Add ', h('b', null, S.name.trim()), ' to your campaigns, in ', code(S.server.configPath), '.']);
+      ol.appendChild(li2);
+      var dflt = S.server.defaultCampaign;
+      var li3 = h('li');
+      if (dflt) add(li3, ['Your default stays ', h('b', null, dflt), '. GM-Scriptorium opens it when you don’t name a campaign.']);
+      else add(li3, [h('b', null, S.name.trim()), ' becomes your default campaign, because none is set.']);
+      ol.appendChild(li3);
+      ol.appendChild(h('li', null, 'Show a short welcome the first time you open it in a browser on the PC.'));
+      if (isRemoteAdd()) ol.appendChild(h('li', null, 'Record this add, with the vault path, in the audit log.'));
+    } else {
+      add(li2, ['Register ', h('b', null, S.name.trim()), ' as your default campaign, in ', code(S.server.configPath), '.']);
+      ol.appendChild(li2);
+      ol.appendChild(h('li', null, 'Run a first check, then build a preview that only you can see.'));
+    }
     footer.appendChild(ol);
     if (layout) footer.appendChild(treeBox(layout));
     if (S.way === 'new') footer.appendChild(h('p', 'cf-note', 'Setup never deletes anything. If it stops partway, it lists exactly what it made, and writes nothing else.'));
+    if (ADD) footer.appendChild(h('p', 'cf-note', 'Nothing is switched yet. You choose that on the next screen.'));
     if (S.way === 'new' && S.res.newVault && S.res.newVault.facts && S.res.newVault.facts.unc) {
       var cn2 = h('p', 'cf-note');
       cn2.appendChild(h('b', null, 'Network share:'));
@@ -1370,10 +1527,15 @@
     status.setAttribute('aria-live', 'polite');
     footer.appendChild(status);
     var btns = h('div', 'cf-btns');
-    var nobuild = button('', 'Set up without building', null, function () { commit(false, status, [nobuild, buildBtn]); });
-    var buildBtn = button('primary', 'Build my first preview', 'play', function () { commit(true, status, [nobuild, buildBtn]); });
-    btns.appendChild(nobuild);
-    btns.appendChild(buildBtn);
+    if (ADD) {
+      var addBtn = button('primary', 'Add ' + S.name.trim(), 'plus', function () { commitAdd(status, [addBtn]); });
+      btns.appendChild(addBtn);
+    } else {
+      var nobuild = button('', 'Set up without building', null, function () { commit(false, status, [nobuild, buildBtn]); });
+      var buildBtn = button('primary', 'Build my first preview', 'play', function () { commit(true, status, [nobuild, buildBtn]); });
+      btns.appendChild(nobuild);
+      btns.appendChild(buildBtn);
+    }
     footer.appendChild(btns);
     slip.appendChild(footer);
     wrap.appendChild(slip);
@@ -1449,6 +1611,154 @@
     });
   }
 
+  // --- add mode: the commit, the switch and the refusals -----------------------------------------
+
+  function reloadButton() {
+    return button('small primary', 'Reload', 'refresh', function () { location.reload(); });
+  }
+
+  /** One refusal, for the add commit and the switch. @returns {boolean} true when it was a refusal this handled */
+  function refusalNote(status, r) {
+    var body = r.body || {};
+    if (r.status === 409 && body.error === 'campaign-changed') {
+      var a = h('div', 'a1-actions');
+      a.classList.add('su-mt8');
+      a.appendChild(reloadButton());
+      status.appendChild(note('err', 'warn', [(function () { var p = h('p'); p.appendChild(h('b', null, 'This tab is out of date. Reload to continue.')); return p; })(), h('p', null, 'The panel is now on ' + (body.campaign || 'another campaign') + '. Nothing was added.'), a]));
+      return true;
+    }
+    if (r.status === 409 && body.error === 'config-changed') {
+      var a2 = h('div', 'a1-actions');
+      a2.classList.add('su-mt8');
+      a2.appendChild(reloadButton());
+      status.appendChild(note('err', 'warn', [(function () { var p = h('p'); p.appendChild(h('b', null, body.message || 'Your settings changed outside the panel. Reload and try again.')); return p; })(), h('p', null, 'Another window or a terminal changed your campaigns while you were here. Nothing was added.'), a2]));
+      return true;
+    }
+    if (r.status === 409 && body.error === 'config-invalid') {
+      status.appendChild(note('err', 'warn', [h('p', null, 'Your settings file can’t be read, so nothing was added.'), ruleLine(body.message || '')]));
+      return true;
+    }
+    if (r.status === 409 && body.error === 'busy') {
+      status.appendChild(note('err', 'warn', [h('p', null, 'The panel is busy with another task. Try again in a moment.')]));
+      return true;
+    }
+    return false;
+  }
+
+  var CLASH_RULE = /is already registered|overlaps the (vault|output folder) of campaign/;
+
+  function commitAdd(status, buttons) {
+    buttons.forEach(function (b) { b.disabled = true; });
+    status.textContent = '';
+    var body = answersBody();
+    body.configSha256 = S.server.configSha256;
+    A.api('/api/campaigns/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) {
+      if (r.ok && r.body) {
+        S.result = r.body;
+        S.committed = true;
+        S.failure = null;
+        S.progress = [];
+        go('added');
+        return;
+      }
+      buttons.forEach(function (b) { b.disabled = false; });
+      var res = r.body || {};
+      if (refusalNote(status, r)) return;
+      if (r.status === 400 && res.error === 'invalid' && res.field) {
+        var back = FIELD_SCREEN[res.field] || res.field;
+        S.failure = res.rule;
+        var wrote = res.field === 'newVault' && /^stopped creating the vault|was created and is left as it is/.test(res.rule);
+        if (wrote) {
+          var vaultPath = S.res.newVault ? S.res.newVault.value : S.newvault;
+          status.appendChild(note('err', 'warn', [h('p', null, 'Setup stopped partway. It did not add ' + S.name.trim() + ' to your campaigns, and nothing was removed. This is what it says it made:'), ruleLine(res.rule), (function () { var p = h('p'); add(p, ['To finish, start again with “I already have a vault” and pick ', code(vaultPath), '.']); return p; })()]));
+        } else if (CLASH_RULE.test(res.rule || '')) {
+          var ca = h('div', 'a1-actions');
+          ca.classList.add('su-mt8');
+          if (SCREENS.indexOf(back) >= 0 && back !== 'review') ca.appendChild(button('small', 'Go to ' + LABEL[back].toLowerCase(), 'arrow', function () { go(back); }));
+          status.appendChild(note('err', 'warn', [(function () { var p = h('p'); p.appendChild(h('b', null, 'Someone registered a campaign that clashes with this one.')); p.appendChild(document.createTextNode(' It was free when you checked, but isn’t now. Nothing was added.')); return p; })(), ca, ruleLine(res.rule)]));
+        } else {
+          status.appendChild(note('err', 'warn', [h('p', null, 'Nothing was added. Go back and fix the ' + (FIELD_SCREEN[res.field] && res.field !== 'config' ? LABEL[back].toLowerCase() : res.field) + ' answer.'), ruleLine(res.rule)]));
+          if (SCREENS.indexOf(back) >= 0 && back !== 'review') {
+            var a = h('div', 'a1-actions');
+            a.appendChild(button('small', 'Go to ' + LABEL[back].toLowerCase(), 'arrow', function () { go(back); }));
+            status.appendChild(a);
+          }
+        }
+      } else {
+        status.appendChild(note('err', 'warn', [h('p', null, 'Adding could not finish. ' + (res.message || 'The panel answered with an unexpected error.'))]));
+      }
+    });
+  }
+
+  /** Switches the panel to the new campaign. withBuild keeps this page open and builds the first preview under it. */
+  function switchTo(withBuild, status, buttons) {
+    var name = S.name.trim();
+    buttons.forEach(function (b) { b.disabled = true; });
+    status.textContent = '';
+    A.api('/api/campaigns/switch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name }) }).then(function (r) {
+      if (r.ok && r.body && r.body.switched === true) {
+        S.switched = true;
+        if (withBuild) {
+          // This page's own switch: point it at the campaign it is now on (app.js refuses a stale page).
+          A.adopt(name);
+          S.built = null;
+          go('build');
+        } else {
+          location.assign('/#/overview');
+        }
+        return;
+      }
+      buttons.forEach(function (b) { b.disabled = false; });
+      var body = r.body || {};
+      if (refusalNote(status, r)) return;
+      var retry = h('div', 'a1-actions');
+      retry.classList.add('su-mt8');
+      retry.appendChild(button('small', 'Try again', 'refresh', function () { switchTo(withBuild, status, buttons); }));
+      status.appendChild(note('err', 'warn', [(function () { var p = h('p'); p.appendChild(h('b', null, 'Couldn’t switch.')); p.appendChild(document.createTextNode(' The panel stayed on ' + (S.server.campaign || 'its campaign') + '. ' + name + ' is still added.')); return p; })(), retry, ruleLine(body.message || 'The panel could not switch campaigns.')]));
+    });
+  }
+
+  /** The screen after a successful add: switch to it, switch and build its first preview, or stay. */
+  function screenAdded() {
+    var name = S.name.trim();
+    var current = S.server.campaign || 'the current campaign';
+    var res = S.result || {};
+    var wrap = h('div', 'su-ready');
+    wrap.appendChild(h('div', 'a1-eyebrow', 'Added'));
+    var h1 = h('h1', null, name + ' is added');
+    h1.tabIndex = -1;
+    wrap.appendChild(h1);
+    var lede = h('p', 'a1-lede');
+    var dflt = S.server.defaultCampaign;
+    add(lede, [h('b', null, name), ' is in your campaigns now. The panel is still on ', h('b', null, current), res.isDefault ? '. ' + name + ' is now your default campaign, because none was set.' : dflt ? '. Your default is still ' + dflt + '.' : '.']);
+    wrap.appendChild(lede);
+    var locked = res.switchable === false;
+    if (locked) {
+      var reason = res.lockedReason || S.server.lockedReason || '';
+      wrap.appendChild(note('', 'lock', [(function () { var p = h('p'); p.appendChild(h('b', null, 'Switching is off in this panel.')); p.appendChild(document.createTextNode(' ' + reason + ' ' + name + ' is in your list for next time.')); return p; })()]));
+    }
+    var status = h('div');
+    status.id = 'su-switch-st';
+    status.setAttribute('aria-live', 'polite');
+    var acts = h('div', 'a1-actions am-acts');
+    var buildBtn = button('primary big', 'Switch and build its first preview', 'play', function () { switchTo(true, status, [buildBtn, plainBtn]); });
+    var plainBtn = button('big', 'Switch to ' + name, 'swap', function () { switchTo(false, status, [buildBtn, plainBtn]); });
+    var stayBtn = button('ghost big', 'Stay on ' + current, null, function () { location.assign('/#/campaigns'); });
+    if (locked) {
+      buildBtn.disabled = true;
+      plainBtn.disabled = true;
+      buildBtn.setAttribute('aria-disabled', 'true');
+      plainBtn.setAttribute('aria-disabled', 'true');
+    }
+    acts.appendChild(buildBtn);
+    acts.appendChild(plainBtn);
+    acts.appendChild(stayBtn);
+    wrap.appendChild(status);
+    wrap.appendChild(acts);
+    wrap.appendChild(h('p', 'a1-fine', 'Switching changes what this tab shows. It doesn’t change your default.'));
+    return wrap;
+  }
+
   function secs(ms) {
     return (Math.round(ms / 100) / 10).toFixed(1) + ' s';
   }
@@ -1493,7 +1803,12 @@
       ul.appendChild(progLine('ok', 'Created the new vault', vd, res.ms && res.ms.vault));
     }
     ul.appendChild(progLine('ok', res.created.length === 0 ? 'Nothing new to create' : 'Created ' + res.created.length + ' item' + (res.created.length === 1 ? '' : 's'), res.created.length ? code(res.created.join(', ') + ' in ' + joinPath(['_meta', 'scriptorium'])) : 'Every pack file already existed', res.ms && res.ms.pack));
-    ul.appendChild(progLine('ok', 'Registered ' + S.name.trim(), res.isDefault ? 'Your default campaign' : 'In your config', res.ms && res.ms.register));
+    if (ADD) {
+      ul.appendChild(progLine('ok', 'Added ' + S.name.trim(), res.isDefault ? 'Your default campaign' : S.server.defaultCampaign ? 'Your default stays ' + S.server.defaultCampaign : 'In your config', res.ms && res.ms.register));
+      if (S.switched) ul.appendChild(progLine('ok', 'Switched the panel to ' + S.name.trim(), 'This tab now works on ' + S.name.trim()));
+    } else {
+      ul.appendChild(progLine('ok', 'Registered ' + S.name.trim(), res.isDefault ? 'Your default campaign' : 'In your config', res.ms && res.ms.register));
+    }
     lines.forEach(function (l) { ul.appendChild(l); });
     if (running) ul.appendChild(progLine('run', running[0], running[1]));
     return ul;
@@ -1502,8 +1817,8 @@
   function screenBuild() {
     var wrap = h('div', 'su-page');
     var head = h('header');
-    head.appendChild(h('div', 'a1-eyebrow', 'Setting up ' + S.name.trim()));
-    var h1 = h('h1', 'a1-h2', 'Building your first preview');
+    head.appendChild(h('div', 'a1-eyebrow', (ADD ? 'Adding ' : 'Setting up ') + S.name.trim()));
+    var h1 = h('h1', 'a1-h2', ADD ? 'Building its first preview' : 'Building your first preview');
     h1.tabIndex = -1;
     head.appendChild(h1);
     head.appendChild(h('p', 'a1-lede', 'Under a minute. You can leave this page open.'));
@@ -1580,12 +1895,14 @@
     var wrap = h('div', 'su-ready');
     var name = S.name.trim();
     var ok = S.built === 'ok';
-    wrap.appendChild(h('div', 'a1-eyebrow', 'Setup complete'));
-    var h2 = h('h1', null, S.failure ? 'Registered, with a problem' : ok ? 'Your first preview is ready' : S.built === 'skipped' ? 'Your campaign is set up' : 'Your campaign is set up, but the preview didn’t build');
+    wrap.appendChild(h('div', 'a1-eyebrow', ADD ? 'Added' : 'Setup complete'));
+    var h2 = h('h1', null, ADD ? (ok ? 'Its first preview is ready' : 'Added, but the preview didn’t build') : S.failure ? 'Registered, with a problem' : ok ? 'Your first preview is ready' : S.built === 'skipped' ? 'Your campaign is set up' : 'Your campaign is set up, but the preview didn’t build');
     h2.tabIndex = -1;
     wrap.appendChild(h2);
     var lede = h('p', 'a1-lede');
     if (S.failure) setText(lede, S.failure);
+    else if (ADD && ok) add(lede, [h('b', null, name), ' is added and checked, and a preview of the player site is built. Only you can see it' + (isRemoteAdd() ? '.' : ', on this computer.')]);
+    else if (ADD) add(lede, [h('b', null, name), ' is added, but the check or the preview reported problems. The panel shows them in full.']);
     else if (ok) add(lede, [h('b', null, name), ' is registered and checked, and a preview of the player site is built. Only you can see it, on this computer.']);
     else if (S.built === 'skipped') add(lede, [h('b', null, name), ' is registered. Run a check and a preview from the panel whenever you like.']);
     else add(lede, [h('b', null, name), ' is registered, but the check or the preview reported problems. The panel shows them in full.']);
@@ -1602,11 +1919,16 @@
       acts.appendChild(open);
     }
     if (!S.failure) {
-      var panel = button(ok ? 'big' : 'primary big', 'Go to my panel', 'arrow', function () { location.assign('/'); });
+      var panel = button(ok ? 'big' : 'primary big', 'Go to my panel', 'arrow', function () { location.assign(ADD ? '/#/overview' : '/'); });
       acts.appendChild(panel);
     }
     if (S.way === 'new' && !S.failure && ok) wrap.appendChild(note('', 'info', [(function () { var pp = h('p'); pp.appendChild(h('b', null, 'Your new campaign has just a welcome page so far.')); pp.appendChild(document.createTextNode(' The preview shows the landing page with your title, and that one page.')); return pp; })()]));
     wrap.appendChild(acts);
+    if (ADD && ok) {
+      // ADR 0052, section 6: the welcome reads loopback-only state, so a remote browser is not promised it.
+      if (isRemoteAdd()) wrap.appendChild(note('', 'info', [(function () { var pw = h('p'); pw.appendChild(h('b', null, 'The welcome shows in a browser on the PC.')); pw.appendChild(document.createTextNode(' Open the panel there the first time and it appears on ' + name + '’s Overview.')); return pw; })()]));
+      else wrap.appendChild(h('p', 'a1-fine', 'Go to my panel opens ' + name + '’s Overview, with a short welcome the first time.'));
+    }
     if (S.way === 'new' && !S.failure) {
       wrap.appendChild(readyNext());
       var gitLine = h('p', 'a1-fine');
@@ -1624,12 +1946,15 @@
 
   // --- render ----------------------------------------------------------------------------------
 
-  var BUILDERS = { start: screenStart, name: screenName, vault: screenVault, newfolder: screenNewFolder, output: screenOutput, title: screenTitle, system: screenSystem, theme: screenTheme, review: screenReview, build: screenBuild, ready: screenReady };
+  var BUILDERS = { start: screenStart, name: screenName, vault: screenVault, newfolder: screenNewFolder, output: screenOutput, title: screenTitle, system: screenSystem, theme: screenTheme, review: screenReview, added: screenAdded, build: screenBuild, ready: screenReady };
 
   function guard(cur) {
     // A deep link to a later screen without the earlier answers goes back to the first gap.
-    if (cur === 'start') return cur;
-    if (cur === 'build' || cur === 'ready') return S.committed ? cur : 'start';
+    if (cur === 'added' && !ADD) return 'start';
+    if (cur === 'start' && !(ADD && S.committed)) return cur;
+    // Add mode: once the campaign is added, the form is over; Back from the next screens lands here.
+    if (ADD && S.committed && cur !== 'build' && cur !== 'ready') return 'added';
+    if (cur === 'added' || cur === 'build' || cur === 'ready') return S.committed ? cur : 'start';
     // Each earlier screen that must hold a good answer before this one opens; the first gap wins.
     var ok = {
       name: S.res.name && S.res.name.state === 'ok',
@@ -1647,7 +1972,7 @@
 
   function render() {
     if (!S.server) return;
-    if (!S.server.active && !S.committed) {
+    if (!ADD && !S.server.active && !S.committed) {
       location.replace('/');
       return;
     }
@@ -1666,6 +1991,7 @@
     var body = h('div', 'a1-body');
     var main = h('main');
     main.setAttribute('data-role', 'main');
+    if (ADD && !S.committed) main.appendChild(backLink());
     main.appendChild(BUILDERS[cur]());
     body.appendChild(main);
     layout.appendChild(body);
@@ -1688,8 +2014,49 @@
     }
   }
 
+  /** A tab the panel has moved on from (another tab switched): say so, and stop everything but Reload. */
+  function showStale() {
+    var s = A.stale();
+    var main = root && root.querySelector('[data-role="main"]');
+    if (!s || !main || main.querySelector('.cs-stale')) return;
+    var banner = h('div', 'cs-stale');
+    banner.setAttribute('role', 'alert');
+    banner.appendChild(icon('warn'));
+    var p = h('p');
+    p.appendChild(h('b', null, 'This tab is out of date. Reload to continue.'));
+    p.appendChild(document.createTextNode(' The panel is now on ' + (s.now || 'another campaign') + '.'));
+    banner.appendChild(p);
+    var reload = button('primary small', 'Reload', 'refresh', function () { location.reload(); });
+    banner.appendChild(reload);
+    main.insertBefore(banner, main.firstChild);
+    Array.prototype.forEach.call(main.querySelectorAll('button.a1-btn'), function (b) {
+      if (b !== reload) b.disabled = true;
+    });
+  }
+
   function boot() {
     if (!root) return;
+    if (ADD) {
+      // The campaign this page was loaded for is learned first (/api/session), so that every change
+      // request after it, the folder picker's create included, names it (ADR 0050, section 4).
+      A.api('/api/session').then(function () {
+        return A.api('/api/campaigns/add/state');
+      }).then(function (r) {
+        if (!r.ok || !r.body) {
+          root.textContent = '';
+          var msg = r.body && r.body.message ? r.body.message : 'The panel did not answer. Is GM-Scriptorium still running?';
+          var box = h('div', 'su');
+          box.appendChild(note('err', 'warn', [h('p', null, 'Adding a campaign is not possible right now.'), ruleLine(msg)]));
+          root.appendChild(box);
+          return;
+        }
+        S.server = r.body;
+        document.addEventListener('scriptorium:stale', showStale);
+        window.addEventListener('hashchange', render);
+        render();
+      });
+      return;
+    }
     A.api('/api/setup/state').then(function (r) {
       if (!r.ok || !r.body) {
         root.textContent = 'The panel did not answer. Is GM-Scriptorium still running?';

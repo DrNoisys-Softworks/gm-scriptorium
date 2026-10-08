@@ -31,6 +31,22 @@
     document.dispatchEvent(new CustomEvent('scriptorium:stale', { detail: stale }));
   }
 
+  /**
+   * ADR 0052: the add page switches the panel itself (POST /api/campaigns/switch) and stays open to
+   * build the new campaign's first preview. After that page's OWN successful switch it points itself
+   * at the campaign it is now on, so the change requests that follow carry the right header and the
+   * next read does not mark the page stale. A page that is already stale is never re-pointed: it
+   * cannot be made current without a reload.
+   *
+   * @param {string} name
+   * @returns {boolean} whether the page was re-pointed
+   */
+  function adopt(name) {
+    if (stale || typeof name !== 'string') return false;
+    pageCampaign = name;
+    return true;
+  }
+
   function isChange(method) {
     var m = String(method || 'GET').toUpperCase();
     return m !== 'GET' && m !== 'HEAD';
@@ -144,6 +160,7 @@
     el: el,
     setText: setText,
     register: register,
+    adopt: adopt,
     /** The stale state ({ was, now }), or null while this page still matches the panel. */
     stale: function () {
       return stale;

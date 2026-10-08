@@ -9014,3 +9014,68 @@ dialog.cs-dialog::backdrop {
     min-height: var(--tap-min);
   }
 }
+
+/* ============================================================================================
+   ADR 0052: adding a campaign from the panel. The few rules the add mode of the setup page and the
+   two Add a campaign controls need on top of the built ones. Tokens only.
+   ============================================================================================ */
+
+.am-back-row {
+  margin: 0 0 14px;
+}
+
+.am-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+}
+
+.am-back .ico {
+  width: 16px;
+  height: 16px;
+  transform: scaleX(-1);
+}
+
+.cs-foot.has-add {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cs-foot.has-add a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cs-foot.has-add .ico {
+  width: 15px;
+  height: 15px;
+}
+
+.cs-add {
+  align-self: flex-end;
+}
+
+.am-acts {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  max-width: 460px;
+  margin-top: 18px;
+}
+
+.am-acts .a1-btn {
+  justify-content: center;
+  margin: 0;
+  width: 100%;
+}
+
+.su-path:has(input:disabled) {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
