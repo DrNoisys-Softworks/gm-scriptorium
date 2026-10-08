@@ -1943,6 +1943,18 @@ ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux pac
 7. Ctrl-C: `stopped.`, exit 0, and no `scriptorium-preview-*` folder left in `%TEMP%`. Run the same command again: the campaign panel opens, not setup. `/setup` redirects to the Overview. The welcome shows until dismissed; dismiss it, restart, and it's gone.
 8. Re-hash the real config.
 
+### C139: switching campaigns, set default and remove work in one panel, and config.toml is written safely, in the real win-x64 exe
+
+`docs/decisions/0050-several-campaigns.md`. **Mark this OPEN: Linux-verified from source and a Linux packaged build only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 7; the two must match.
+
+1. Register `a` (local, `S\a`) and `z` (on a scratch mapped `Z:`), then run `serve --admin`. Switch to `z`, build a preview, and switch back. `a`'s last preview shows, and neither preview ever shows the other's pages.
+2. Run `net use Z: /delete`, then switch to `z`. A plain message appears within a few seconds, the panel stays on `a` and keeps answering, and the preview is still `a`'s.
+3. Reconnect, then remove `z`. Hash every file under `z`'s vault, output and backups (`Get-ChildItem -Recurse -File | Get-FileHash`) before and after: identical. `config.toml` matches a copy put through `config remove z`.
+4. Open Campaigns, run `config add c ...` in a terminal, then Set as default. It is refused with "Your settings changed outside the panel. Reload and try again." and `c` is still in the file.
+5. Hold `config.toml` open without delete sharing (PowerShell `[IO.File]::Open(path,'Open','Read','Read')`), then Set as default. It is refused within about 4 seconds, the file is intact, and no `.config.toml.scriptorium-tmp-*` is left. Close the handle and retry: it works.
+6. If remote access is configured, switch from the remote browser: `audit.log` shows request `a`, response `z`. Otherwise leave this step OPEN.
+7. Ctrl-C: no `scriptorium-preview-*` is left in `%TEMP%`. Re-hash the real config.
+
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 
 None of these are product concerns; every one is a harness limit on the automated tester's side,

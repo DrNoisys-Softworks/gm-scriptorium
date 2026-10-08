@@ -1783,3 +1783,10 @@ name; the one new write route is `POST /api/vault-config/fields`.
   campaign. That is the panel's only write to `config.toml`, and ADR 0028 section 2 names the tests
   that fence it.
 - **Section 3 (the token is printed in the console).** `serve --admin` still prints the one-time link. In launch mode (running with no command) the console does not print it: the browser is signed in with a one-time launch code carried in an owner-only launcher file, and the link is printed only as the fallback when the browser could not be opened. ADR 0028 sections 7 and 8 describe the code, the one narrow Origin exception it needs on `/auth/launch`, and the fallback.
+
+## 15. Amended by ADR 0050
+
+[ADR 0050](0050-several-campaigns.md) changes two things in this record.
+
+- **Section 5 (the context is resolved once).** The campaign context is now resolved at launch, at the setup handover, or at a switch. A switch re-resolves the one shared context under the exclusive lock, after a bounded check that the target's folders answer. The ports, the token, the cookies, the remote settings, the sessions and the audit log do not change.
+- **The write exception.** The panel's module graph still never reaches `src/cli/config.js` or `src/cli/init.js`, and `src/setup/register.js` is still the only panel-side module that requires `src/config/write.js`. A second handler module, `src/admin/handlers/campaigns.js`, may now require `register.js`, for the campaign set-default and remove routes. Those are the only other writes the panel makes to `config.toml`, and ADR 0050 section 5 names the tests that fence them.
