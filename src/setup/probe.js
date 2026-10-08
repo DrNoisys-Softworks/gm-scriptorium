@@ -113,4 +113,4 @@ async function findVaultChild(dir, { timeoutMs = DEFAULT_TIMEOUT_MS, fsp = fs.pr
   return null;
 }
 
-module.exports = { probePath, isUncPath, findVaultChild, inFlightCount, DEFAULT_TIMEOUT_MS, MAX_IN_FLIGHT };
+module.exports = { probePath, isUncPath, findVaultChild, bounded, inFlightCount, DEFAULT_TIMEOUT_MS, MAX_IN_FLIGHT };

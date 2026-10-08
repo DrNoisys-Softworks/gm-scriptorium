@@ -486,6 +486,9 @@ test('route sweep: the table equals a literal list of 37 METHOD path entries plu
     'GET /api/setup/check',
     'POST /api/setup/commit',
     'POST /api/welcome/dismiss',
+    // ADR 0049: the folder picker's listing and its one create-only folder write.
+    'GET /api/folders',
+    'POST /api/folders/create',
   ]);
   const assetRoutes = ADMIN_ROUTES.filter((r) => r.prefix !== undefined);
   assert.deepEqual(assetRoutes.map((r) => `${r.method} ${r.prefix}`), ['GET /assets/']);

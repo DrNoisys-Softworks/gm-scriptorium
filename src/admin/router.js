@@ -16,6 +16,7 @@ const variantHandlers = require('./handlers/variants');
 const remoteHandlers = require('./handlers/remote');
 const setupHandlers = require('./handlers/setup');
 const launchHandlers = require('./handlers/launch');
+const folderHandlers = require('./handlers/folders');
 const setupmode = require('./setupmode');
 const { ADMIN_COOKIE, PREVIEW_COOKIE } = require('../remote/sessions');
 
@@ -88,6 +89,11 @@ const ADMIN_ROUTES = Object.freeze([
   { method: 'GET', path: '/api/setup/check', auth: true, handler: setupHandlers.check },
   { method: 'POST', path: '/api/setup/commit', auth: true, audit: true, handler: setupHandlers.commit },
   { method: 'POST', path: '/api/welcome/dismiss', auth: true, audit: true, handler: setupHandlers.welcomeDismiss },
+  // ADR 0049: the folder picker. The listing names folders only and is audited by its handler for a
+  // remote session; the create makes one folder, create-only, and is audited here. Both are admitted
+  // while setup is active (src/admin/setupmode.js).
+  { method: 'GET', path: '/api/folders', auth: true, handler: folderHandlers.list },
+  { method: 'POST', path: '/api/folders/create', auth: true, audit: true, handler: folderHandlers.create },
 ]);
 
 /**
