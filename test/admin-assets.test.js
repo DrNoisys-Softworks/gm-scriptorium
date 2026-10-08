@@ -16,7 +16,7 @@ const { ADMIN_ASSET_ROUTES, ADMIN_ASSETS_DIR } = require('../src/admin/assets');
 
 const ROOT = path.join(__dirname, '..');
 
-test('ADMIN_ASSET_ROUTES keys equal a literal list of 30 names (ADR 0028: 28 -> 30, setup.js and welcome.js; panel v2 V1b: 20 -> 23, diff/outcome/slip; V1e-3 SD-26: 23 -> 24, sitepane.js; V1e-9 SD-100: 24 -> 25, vaultcfg.js; V1e-7 SD-69: 25 -> 26, variants.js; V1.5a ADR 0029: 26 -> 28, signin.js and remote.js)', () => {
+test('ADMIN_ASSET_ROUTES keys equal a literal list of 31 names (Lantern branding: 30 -> 31, favicon-32.png; ADR 0028: 28 -> 30, setup.js and welcome.js; panel v2 V1b: 20 -> 23, diff/outcome/slip; V1e-3 SD-26: 23 -> 24, sitepane.js; V1e-9 SD-100: 24 -> 25, vaultcfg.js; V1e-7 SD-69: 25 -> 26, variants.js; V1.5a ADR 0029: 26 -> 28, signin.js and remote.js)', () => {
   assert.deepEqual(
     Object.keys(ADMIN_ASSET_ROUTES).sort(),
     [
@@ -42,6 +42,7 @@ test('ADMIN_ASSET_ROUTES keys equal a literal list of 30 names (ADR 0028: 28 -> 
       'vocab.js',
       'images.js',
       'favicon.svg',
+      'favicon-32.png',
       'fonts/IMFeENrm28P.ttf',
       'fonts/IMFeENsc28P.ttf',
       'fonts/AlegreyaSans-Regular.ttf',
@@ -52,6 +53,38 @@ test('ADMIN_ASSET_ROUTES keys equal a literal list of 30 names (ADR 0028: 28 -> 
       'fonts/IBMPlexMono-SemiBold.woff2',
     ].sort(),
   );
+});
+
+// --- Lantern branding: the panel favicon ---------------------------------------------------
+
+const PANEL_PAGES = ['index.html', 'locked.html', 'setup.html', 'signin.html'];
+
+test('every panel page links the SVG favicon and a 32 px PNG fallback, both under /assets/ and both routes', () => {
+  for (const file of PANEL_PAGES) {
+    const html = fs.readFileSync(path.join(ADMIN_ASSETS_DIR, file), 'utf8');
+    assert.match(html, /<link rel="icon" type="image\/svg\+xml" href="\/assets\/favicon\.svg">/, `${file}: SVG icon link`);
+    assert.match(html, /<link rel="icon" type="image\/png" sizes="32x32" href="\/assets\/favicon-32\.png">/, `${file}: PNG icon link`);
+  }
+  assert.equal(ADMIN_ASSET_ROUTES['favicon.svg'], 'image/svg+xml');
+  assert.equal(ADMIN_ASSET_ROUTES['favicon-32.png'], 'image/png');
+});
+
+test('favicon.svg is the Lantern glyph: 32-unit viewBox, lamp colour, flame cut out, nothing the CSP or a viewer could trip on', () => {
+  const svg = fs.readFileSync(path.join(ADMIN_ASSETS_DIR, 'favicon.svg'), 'utf8');
+  assert.match(svg, /viewBox="0 0 32 32"/);
+  assert.ok(svg.includes('#E6A858'), 'lamp colour');
+  assert.ok(svg.includes('#14161D'), 'night colour (the flame cut-out)');
+  assert.doesNotMatch(svg, /<(script|style|text|image|foreignObject)\b/i);
+  assert.doesNotMatch(svg, /\bon[a-z]+\s*=|href\s*=|url\(\s*['"]?https?:/i);
+});
+
+test('favicon-32.png is a real PNG, 32 by 32 pixels, and small', () => {
+  const png = fs.readFileSync(path.join(ADMIN_ASSETS_DIR, 'favicon-32.png'));
+  assert.deepEqual([...png.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  assert.equal(png.subarray(12, 16).toString('latin1'), 'IHDR');
+  assert.equal(png.readUInt32BE(16), 32);
+  assert.equal(png.readUInt32BE(20), 32);
+  assert.ok(png.length < 4096, `favicon-32.png is ${png.length} bytes`);
 });
 
 function htmlAssetRefs(html) {

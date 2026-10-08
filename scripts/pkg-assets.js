@@ -62,6 +62,7 @@ const FIRST_PARTY_SITE_ASSETS = [
   'assets/admin/admin.css',
   'assets/admin/app.js',
   'assets/admin/diff.js',
+  'assets/admin/favicon-32.png',
   'assets/admin/favicon.svg',
   'assets/admin/fonts/AlegreyaSans-Bold.ttf',
   'assets/admin/fonts/AlegreyaSans-Italic.ttf',
@@ -96,19 +97,20 @@ const FIRST_PARTY_SITE_ASSETS = [
 ];
 
 /**
- * The 75 files @yao-pkg/pkg's config-asset walker (walker.js:410-451)
+ * The 81 files @yao-pkg/pkg's config-asset walker (walker.js:410-451)
  * should embed for this project's package.json `pkg.assets` globs (61 at
  * this file's own prior baseline, +8 for the gloam theme's full set
  * including C3's theme.json/theme.css/NOTICE.txt, +1 for V1e-3's
  * sitepane.js, +1 for V1e-9's vaultcfg.js, +1 for V1e-7's variants.js --
- * re-measured at the V1e-7 rebase onto main).
+ * re-measured at the V1e-7 rebase onto main; then ADR 0028 and V1.5a took it to 80, and Lantern
+ * branding's assets/admin/favicon-32.png makes 81).
  *
  * Two different derivations feed this list, deliberately: the pin's 30
  * files (6 css + 12 js + 12 templates-scaffold, each prefixed
  * node_modules/gm-apprentice-publish/) are EXPANDED OVER DISK from
  * vendor/gm-apprentice-publish/PIN.json's file list, because the pin has a
  * manifest to expand against; FIRST_PARTY_SITE_ASSETS above is not (see its
- * own comment for why) -- it now carries 33 entries (9 site/theme -- 2
+ * own comment for why) -- it now carries 34 entries (9 site/theme -- 2
  * site, 5 gloam fonts, 3 haze (css + json; issue #84 follow-up: haze shares gloam's fonts and NOTICE via theme.json fontsFrom) -- and 24 admin, panel v2 V1a). Plus the
  * separately globbed bundled
  * node_modules/gm-apprentice-publish/node_modules/lunr/lunr.js (v1.11.40
