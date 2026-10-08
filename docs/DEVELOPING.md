@@ -180,13 +180,20 @@ someone.
 6. Rebuild both executables after the release commit, from a cleared `dist/`, and check the build
    timestamp is later than the commit. A stale binary from an earlier commit has nearly shipped
    here.
-7. Create the release as a prerelease, with both binaries, `THIRD-PARTY-NOTICES.txt` and the one
+7. Sign the Windows executable. Maintainers sign `gm-scriptorium-win-x64.exe` with the project's
+   code-signing certificate, timestamped, on a Windows machine, because the signing key needs a
+   person present. `SHA256SUMS` is regenerated after signing, so it covers the signed bytes.
+   Check the signature on Windows before anything is published, using criterion C141 part A in the
+   Windows verification runbook. Prereleases can ship unsigned by choice, and their release notes then
+   say so. Stable releases are always signed. See
+   [ADR 0051](decisions/0051-code-signing.md).
+8. Create the release as a prerelease, with both binaries, `THIRD-PARTY-NOTICES.txt` and the one
    combined `SHA256SUMS`.
-8. Download the assets back off the release page and re-hash every one of them before announcing
+9. Download the assets back off the release page and re-hash every one of them before announcing
    anything.
-9. Have the Windows checks run on the release, using the Windows verification runbook at
-   `.agents/windows-verification.md`. Promote the release to latest only when they pass.
-10. Run the release-time `update` check, which is still **open**. Build a lower-version
+10. Have the Windows checks run on the release, using the Windows verification runbook at
+    `.agents/windows-verification.md`. Promote the release to latest only when they pass.
+11. Run the release-time `update` check, which is still **open**. Build a lower-version
     `scriptorium-linux-x64` in a scratch folder as a stand-in for an old install. Point it at the
     new release's tag and run `update --pre`. It should download, verify against `SHA256SUMS`, and
     end up replaced with mode 0755, with the old copy kept beside it as `.old-<version>`, and the

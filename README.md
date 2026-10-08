@@ -18,9 +18,10 @@ leaves them out. Your GM notes stay on your computer and are never put on the si
 ## Get it
 
 Download the single program for your system (no Node or npm needed) from the
-[Releases page](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases). The latest one is a
-prerelease and is not code-signed yet, so Windows may warn you the first time you run it. Installing a
-release, verifying it and building a binary are in [Install](docs/install.md).
+[Releases page](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases). Releases are signed
+on Windows, but the certificate is new, so Windows SmartScreen may still warn you the first time you
+run one. Installing a release, checking its signature and hash, and building a binary are in
+[Install](docs/install.md).
 
 Or build it from source (needs Node.js 22 or later):
 
