@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const TOML = require('smol-toml');
 const { ConfigError, VaultUnreachableError } = require('../util/errors');
 const { CAMPAIGN_STRING_FIELDS, CAMPAIGN_INTEGER_FIELDS } = require('./schema');
@@ -133,16 +134,86 @@ function assertConfigPathNotInVault(configPath, config) {
   }
 }
 
+// The same three codes src/vault/packreplace.js and src/remote/privatefile.js treat as worth a
+// bounded wait: on Windows a rename over a file that something holds open fails with one of them.
+// Copied, not imported, so this module gains no dependency on the build or remote code.
+const RETRYABLE_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
+const RENAME_RETRY_DELAYS_MS = Object.freeze([100, 200, 400, 800, 1600]);
+
+function sleepSync(ms) {
+  const sab = new SharedArrayBuffer(4);
+  Atomics.wait(new Int32Array(sab), 0, 0, ms);
+}
+
+function removeTempBestEffort(tmp) {
+  try {
+    fs.unlinkSync(tmp);
+  } catch {
+    // swallowed deliberately: the caller's own error already explains what went wrong.
+  }
+}
+
 /**
  * Writes the config file: refuses a path inside a registered vault, creates the folder, and writes
  * the canonical emitter's output. Moved here from src/cli/config.js (ADR 0028 section 2), which
  * re-exports this same function, so the admin panel's one config write can reach it without ever
  * reaching the module that starts the editor.
+ *
+ * ADR 0050, section 6: the bytes go to a temp file in the target's own folder, are flushed, and are
+ * renamed over the target, so a crash or a full disk leaves the old file whole. A symlinked config
+ * stays a link (the target is the link's real path) and an existing file's mode is kept. The rename
+ * is retried a bounded number of times on a sharing violation. Every fs call goes through the module
+ * object so a test can patch exactly one of them.
  */
 function writeConfigFile(configPath, config) {
   assertConfigPathNotInVault(configPath, config);
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(configPath, serializeConfig(config));
+
+  let target = configPath;
+  let mode = 0o666;
+  try {
+    target = fs.realpathSync(configPath);
+    mode = fs.statSync(target).mode & 0o777;
+  } catch {
+    // no file yet: write beside the path as given, with the default mode
+  }
+
+  const bytes = Buffer.from(serializeConfig(config), 'utf8');
+  const tmp = path.join(path.dirname(target), `.${path.basename(target)}.scriptorium-tmp-${process.pid}-${crypto.randomBytes(6).toString('hex')}`);
+  let fd;
+  try {
+    fd = fs.openSync(tmp, 'wx', mode);
+    fs.writeSync(fd, bytes, 0, bytes.length, null);
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = undefined;
+  } catch (err) {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        // best-effort: the original error below is what gets reported.
+      }
+    }
+    removeTempBestEffort(tmp);
+    throw err;
+  }
+
+  const maxAttempts = RENAME_RETRY_DELAYS_MS.length + 1;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      fs.renameSync(tmp, target);
+      return;
+    } catch (err) {
+      const last = attempt === maxAttempts - 1;
+      if (!last && RETRYABLE_CODES.has(err.code)) {
+        sleepSync(RENAME_RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
+      removeTempBestEffort(tmp);
+      throw err;
+    }
+  }
 }
 
 module.exports = {
