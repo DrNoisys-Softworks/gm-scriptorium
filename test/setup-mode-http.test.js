@@ -320,7 +320,7 @@ test('A03: GET / serves the setup page and GET /setup too; a request without the
 test('A03: every route outside the setup list answers 409 with the fixed JSON body, never a 500 (the table is swept)', async (t) => {
   const { configPath } = cfgRoot(t);
   const h = await startPanel(t, { config: configPath });
-  const allowed = new Set(['GET /auth', 'GET /', 'GET /api/session', 'GET /setup', 'GET /api/setup/state', 'GET /api/setup/check', 'POST /api/setup/commit']);
+  const allowed = new Set(['GET /auth', 'GET /', 'GET /api/session', 'GET /setup', 'GET /api/setup/state', 'GET /api/setup/check', 'POST /api/setup/commit', 'GET /api/folders', 'POST /api/folders/create']);
   const seen = [];
   for (const r of ADMIN_ROUTES.filter((x) => x.path !== undefined)) {
     const key = `${r.method} ${r.path}`;

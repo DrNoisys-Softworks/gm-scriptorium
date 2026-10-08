@@ -107,12 +107,14 @@ you turn on remote access (next command).
 If no campaign is registered yet, `gm-scriptorium serve --admin` starts browser setup instead of
 stopping with an error. It asks the same five questions as `init` (name, vault, output folder, site
 title and theme), checks each answer with the same rules, and shows the rule's own message when it
-refuses one. Nothing is written until its review screen, which creates the same pack files and
+refuses one. Nothing is written until its review screen, apart from any folder you make with New folder, which creates the same pack files and
 registers the same campaign as `gm-scriptorium init --yes`. It then builds a first preview into the
 panel's own preview folder and opens the panel on your campaign without restarting. Setup listens on
 this computer only, whatever your remote access settings say. A vault on a network share is allowed,
 with a warning to commit to git first. On Linux, a browser installed as a snap cannot always read the
 hidden config folder, so use the link the command prints.
+
+The vault and output questions have a Browse button. It opens a list of folders under the field, starting at the deepest folder that already exists above what you typed. The list shows folders only, never files. A link or shortcut is marked and can't be opened there, so type its path instead. Choose this folder fills the field and runs the usual check. On the output question, New folder makes a folder inside the open one straight away, and it stays even if you cancel. This works from another device too, and the panel's audit log records it.
 
 ```
 gm-scriptorium remote show

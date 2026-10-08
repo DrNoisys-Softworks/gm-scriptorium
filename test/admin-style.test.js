@@ -342,25 +342,29 @@ const API_ROUTE_PATHS = [
   '/api/setup/check',
   '/api/setup/commit',
   '/api/welcome/dismiss',
+  // ADR 0049: the folder picker.
+  '/api/folders',
+  '/api/folders/create',
 ];
 
 function findApiLiterals(src) {
   return [...src.matchAll(/\/api\/[a-zA-Z0-9/_-]*/g)].map((m) => m[0]);
 }
 
-test('every /api/... string literal in the admin JS assets is one of the 31 route paths', () => {
+test('every /api/... string literal in the admin JS assets is one of the 33 route paths', () => {
   const found = new Set();
   for (const name of jsAssetNames()) {
     const src = fs.readFileSync(path.join(ADMIN_ASSETS_DIR, name), 'utf8');
     for (const literal of findApiLiterals(src)) {
       found.add(literal);
-      assert.ok(API_ROUTE_PATHS.includes(literal), `${name}: "${literal}" is not one of the 31 route paths`);
+      assert.ok(API_ROUTE_PATHS.includes(literal), `${name}: "${literal}" is not one of the 33 route paths`);
     }
   }
   // Positive control: the scan actually finds something (not vacuously true).
   assert.ok(found.has('/api/session'), 'expected to find /api/session literally somewhere');
   assert.ok(found.has('/api/state'), 'expected to find /api/state literally somewhere');
   assert.ok(found.has('/api/pack/theme'), 'expected to find /api/pack/theme literally somewhere');
+  assert.ok(found.has('/api/folders'), 'expected to find /api/folders literally somewhere');
 });
 
 // -- 6. index.html contains data-section="views" (frozen by test/gm-link.test.js:469) -----------

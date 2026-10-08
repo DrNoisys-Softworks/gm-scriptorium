@@ -84,6 +84,7 @@ const FIRST_PARTY_SITE_ASSETS = [
   'assets/admin/nav.js',
   'assets/admin/outcome.js',
   'assets/admin/pack.js',
+  'assets/admin/picker.js',
   'assets/admin/remote.js',
   'assets/admin/setup.html',
   'assets/admin/setup.js',
@@ -124,7 +125,7 @@ const FIRST_PARTY_SITE_ASSETS = [
  * `--notices`).
  *
  * The starter template for new vaults (docs/decisions/0048-new-campaign-vault.md) adds its
- * manifest and every stored file, 43 in all, which makes 128. Like the pin's files they are
+ * manifest and every stored file, 43 in all, which makes 129 with the picker. Like the pin's files they are
  * EXPANDED from a manifest (assets/vault-template/manifest.json) rather than listed by hand, so
  * the embedding gate covers every template file without a second list to keep.
  *

@@ -1783,3 +1783,10 @@ name; the one new write route is `POST /api/vault-config/fields`.
   campaign. That is the panel's only write to `config.toml`, and ADR 0028 section 2 names the tests
   that fence it.
 - **Section 3 (the token is printed in the console).** `serve --admin` still prints the one-time link. In launch mode (running with no command) the console does not print it: the browser is signed in with a one-time launch code carried in an owner-only launcher file, and the link is printed only as the fallback when the browser could not be opened. ADR 0028 sections 7 and 8 describe the code, the one narrow Origin exception it needs on `/auth/launch`, and the fallback.
+
+## 15. Amended by ADR 0049
+
+[ADR 0049](0049-folder-picker.md) changes two things in this record.
+
+- **Section 4 (reads: the fixed readable set).** Two routes now take a folder path from a request: `GET /api/folders` (names of child folders only, never a file) and `POST /api/folders/create`. A path is validated as an absolute path of at most 2048 characters, and nothing is listed or made by location except as section 6 below says.
+- **Section 6 (the write exception).** The panel gains one create-only, single-level, non-recursive folder write. It is not a vault write: it is refused inside the config folder, the panel folder and every registered vault, it never overwrites, deletes or renames, and ADR 0049 section 3 names the test that fences it.

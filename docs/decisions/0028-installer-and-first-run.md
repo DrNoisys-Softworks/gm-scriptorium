@@ -141,6 +141,10 @@ Will not catch, deliberately:
 
 `.agents/windows-verification.md` criterion C135 covers browser setup through the real win-x64 executable, and C130, C131, C132, C133, C134 and C136 cover launch mode: the console and the browser landing, the code never reaching a command line or the history, closing the window, O and Ctrl+C, the pause on errors, and a second start. All of them are **OPEN**: the behaviour is verified on Linux, from source and through a Linux packaged build under a pseudo terminal with a fake opener, and nothing on Windows has run it.
 
+## Addendum: the folder picker
+
+[ADR 0049](0049-folder-picker.md) adds two routes to the list of routes that answer while setup is active: `GET /api/folders` and `POST /api/folders/create`. Section 1's list is therefore those five setup routes plus these two, and both keep working after the handover. It also changes one sentence of section 1: setup no longer writes only at its review screen. A folder made with New folder on the output question is made at once, before the review, and nothing removes it if setup is abandoned. The review screen's wording says so.
+
 ## Addendum: starting a new campaign
 
 [ADR 0048](0048-new-campaign-vault.md) lets a GM with no vault create one from browser setup. No route was added. The setup-mode route list in section 1 and the admin route table are unchanged, and so are the Origin, session and loopback rules on them. The new behaviour rides on the three routes that already exist:

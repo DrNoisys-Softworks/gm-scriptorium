@@ -66,7 +66,7 @@ function starterTemplateAssets() {
   return ['manifest.json', ...stored].map((rel) => `assets/vault-template/${rel}`);
 }
 
-test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templates-scaffold/, plus lunr.js, THIRD-PARTY-NOTICES.txt and FIRST_PARTY_SITE_ASSETS (85 total, ADR 0028 adding assets/admin/alive.js, launch-locked.html, launch.html and launch.js to the 81, Lantern branding adding assets/admin/favicon-32.png to the 80, and before that setup.html, setup.js and welcome.js to the 77; V1.5a adding assets/admin/remote.js, signin.html and signin.js to the 74 on main; publish-v1.14.0 added js/dnd-live.js and js/dnd-party.js; issue #84 added 6 haze font/NOTICE files and its follow-up removed them again, haze now shares gloam\'s via fontsFrom: the base theme slice adds the gloam theme\'s 5 vendored font files (C2) plus its theme.json/theme.css/NOTICE.txt (C3) to the 61 panel v2 V1b total, then V1e-3 adds assets/admin/sitepane.js, then V1e-9 adds assets/admin/vaultcfg.js, then V1e-7 adds assets/admin/variants.js)', () => {
+test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templates-scaffold/, plus lunr.js, THIRD-PARTY-NOTICES.txt and FIRST_PARTY_SITE_ASSETS (129 total including the starter, 86 before it, ADR 0049 adding assets/admin/picker.js to the 85, ADR 0028 adding assets/admin/alive.js, launch-locked.html, launch.html and launch.js to the 81, Lantern branding adding assets/admin/favicon-32.png to the 80, and before that setup.html, setup.js and welcome.js to the 77; V1.5a adding assets/admin/remote.js, signin.html and signin.js to the 74 on main; publish-v1.14.0 added js/dnd-live.js and js/dnd-party.js; issue #84 added 6 haze font/NOTICE files and its follow-up removed them again, haze now shares gloam\'s via fontsFrom: the base theme slice adds the gloam theme\'s 5 vendored font files (C2) plus its theme.json/theme.css/NOTICE.txt (C3) to the 61 panel v2 V1b total, then V1e-3 adds assets/admin/sitepane.js, then V1e-9 adds assets/admin/vaultcfg.js, then V1e-7 adds assets/admin/variants.js)', () => {
   const pin = JSON.parse(fs.readFileSync(path.join(ROOT, 'vendor', 'gm-apprentice-publish', 'PIN.json'), 'utf8'));
   const pinPaths = Object.keys(pin.files);
   const cssRel = pinPaths.filter((rel) => rel.startsWith('css/'));
@@ -82,8 +82,8 @@ test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templat
   ].sort();
 
   assert.deepEqual(expectedAssets(ROOT), expected);
-  // 85 before the new-campaign starter, plus its manifest and 42 stored files (ADR 0048).
-  assert.equal(expectedAssets(ROOT).length, 128);
+  // 86 before the new-campaign starter (ADR 0049 added the picker), plus its manifest and 42 stored files (ADR 0048).
+  assert.equal(expectedAssets(ROOT).length, 129);
 
   assert.equal(cssRel.length, 6);
   assert.equal(jsRel.length, 14);
@@ -106,6 +106,7 @@ test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templat
   // assets/admin/remote.js, signin.html and signin.js in sorted position (74 -> 77), same literal. ADR 0028 adds assets/admin/setup.html,
   // setup.js and welcome.js in sorted position (77 -> 80), same literal. ADR 0028 (launch mode) adds assets/admin/alive.js,
   // launch-locked.html, launch.html and launch.js in sorted position (81 -> 85), same literal.
+  // ADR 0049 adds assets/admin/picker.js in sorted position (85 -> 86), same literal.
   assert.deepEqual(FIRST_PARTY_SITE_ASSETS, [
     'assets/site/scriptorium.css',
     'assets/site/scriptorium.js',
@@ -144,6 +145,7 @@ test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templat
     'assets/admin/nav.js',
     'assets/admin/outcome.js',
     'assets/admin/pack.js',
+    'assets/admin/picker.js',
     'assets/admin/remote.js',
     'assets/admin/setup.html',
     'assets/admin/setup.js',
