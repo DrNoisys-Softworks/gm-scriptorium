@@ -1987,6 +1987,19 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
 7. On the Title screen type a new title without saving, then pick another campaign in the switcher. A confirm says "You have unsaved changes on this page. Switch anyway?". Stay keeps the title and the campaign. Switch moves the panel and lands on the Overview. On the Campaigns screen the long vault and output paths wrap and the page does not scroll sideways at a narrow window.
 8. Ctrl-C: no `scriptorium-preview-*` is left in `%TEMP%`. Re-hash the real config.
 
+### C140: adding a campaign from the panel, on this PC and over remote access, in the real win-x64 exe
+
+`docs/decisions/0052-add-a-campaign.md`. **Mark this OPEN: Linux-verified from source and a Linux packaged build only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 8; the two must match.
+
+1. With `a` registered, run `serve --admin` and open Campaigns, then Add a campaign. Typing `#/campaigns/add` in the address bar also opens it, and Back does not loop.
+2. Add `z` with its vault chosen by Browse on a scratch mapped `Z:`. The review says the default stays `a`. Then press Switch and build its first preview: it reaches ready, and Go to my panel shows `z`'s Overview with the welcome.
+3. Parity: on a twin config run `init --yes` for the same campaign. `certutil` hashes of `pack.toml` and `vault.config.json` are equal, and the config entries differ only in their paths.
+4. Refusals, each leaving the config's `certutil` hash unchanged: the name `a`, `a`'s vault, `a`'s output, and an output inside `a`'s vault.
+5. Start a new campaign into a missing `S\New Vault`. It is created, registered and listed.
+6. Run `config add c ...` in a terminal during the review, then press Add. It is refused with "Your settings changed outside the panel. Reload and try again." and `c` is kept.
+7. If remote access is configured, add from the remote browser: a typed path is checked only on leaving the box, and `audit.log` shows `campaign-check`, `campaign-add` with paths, and the response with `affected`. Otherwise leave this step OPEN.
+8. Ctrl-C: no `scriptorium-preview-*` is left in `%TEMP%`. Re-hash the real config.
+
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 
 None of these are product concerns; every one is a harness limit on the automated tester's side,

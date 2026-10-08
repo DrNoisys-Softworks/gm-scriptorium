@@ -101,6 +101,11 @@ const ADMIN_ROUTES = Object.freeze([
   { method: 'POST', path: '/api/campaigns/switch', auth: true, audit: true, handler: campaignHandlers.switchCampaign },
   { method: 'POST', path: '/api/campaigns/default', auth: true, audit: true, handler: campaignHandlers.setDefault },
   { method: 'POST', path: '/api/campaigns/remove', auth: true, audit: true, handler: campaignHandlers.removeCampaign },
+  // ADR 0052: adding a campaign (the add screens, their state and live checks, and the commit).
+  { method: 'GET', path: '/campaigns/add', auth: true, handler: campaignHandlers.addPage },
+  { method: 'GET', path: '/api/campaigns/add/state', auth: true, handler: campaignHandlers.addState },
+  { method: 'GET', path: '/api/campaigns/add/check', auth: true, handler: campaignHandlers.addCheck },
+  { method: 'POST', path: '/api/campaigns/add', auth: true, audit: true, handler: campaignHandlers.addOne },
 ]);
 
 /**

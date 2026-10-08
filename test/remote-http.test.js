@@ -709,7 +709,7 @@ const AUDITED_POSTS = ADMIN_ROUTES.filter((r) => r.method === 'POST' && r.audit 
 test('A2: the POST routes WITHOUT the audit flag are exactly /api/noop and the four that write their own events (pinned structurally)', () => {
   const unflagged = ADMIN_ROUTES.filter((r) => r.method === 'POST' && r.audit !== true).map((r) => r.path).sort();
   assert.deepEqual(unflagged, ['/api/noop', '/api/remote/signout', '/api/remote/signout-all', '/auth/launch', '/auth/password']);
-  assert.equal(AUDITED_POSTS.length, 21);
+  assert.equal(AUDITED_POSTS.length, 22);
   for (const r of ADMIN_ROUTES.filter((x) => x.method !== 'POST')) assert.notEqual(r.audit, true, `${r.path}: audit is for POSTs`);
 });
 

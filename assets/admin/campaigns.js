@@ -12,12 +12,18 @@
  * a change that carries a stale config sha is refused there. This file only asks. The unsaved
  * changes check reads the same pending-edits count the nav's dots and the leave-the-page guard
  * already read (store.pending), so any form that reports its edits there is covered.
+ *
+ * ADR 0052: an "Add a campaign" control on the Campaigns screen and in the switcher, both to
+ * #/campaigns/add, which this file turns into a replace of the page by /campaigns/add (the setup
+ * page in add mode). A replace, never an assign, so Back from the add page never loops.
  */
 (function () {
   var A = window.ScriptoriumAdmin;
   var el = A.el;
   var setText = A.setText;
 
+  var ADD_HREF = '#/campaigns/add';
+  var ADD_PATH = '/campaigns/add';
   var data = null; // { campaigns, configSha256, switchable, lockedReason } once the server has answered
   var loadError = null;
   var failed = null; // { name, message } from the last refused switch
@@ -192,7 +198,14 @@
       messageBlock(pop, 'is-info', 'info', 'Looking for the vault of "' + busyName + '". The panel stays on "' + currentCampaign() + '" until it answers.');
     }
     if (failed) messageBlock(pop, '', 'warn', failed.message, 'cs-fail');
-    var foot = add(pop, 'div', 'cs-foot');
+    var foot = add(pop, 'div', 'cs-foot has-add');
+    var addLink = add(foot, 'a');
+    addLink.appendChild(A.icon('plus'));
+    addLink.appendChild(document.createTextNode(' Add a campaign'));
+    addLink.href = ADD_HREF;
+    addLink.addEventListener('click', function () {
+      closeAll(false);
+    });
     var manage = add(foot, 'a', '', 'Manage campaigns');
     manage.href = A.NV.hrefFor('campaigns');
     manage.addEventListener('click', function () {
@@ -334,12 +347,32 @@
     return b;
   }
 
+  /** The Add a campaign button sits in the screen's header row, beside the title. */
+  function addControl(mountNode) {
+    var head = mountNode.parentNode && mountNode.parentNode.querySelector('.r3-head');
+    if (!head) return;
+    var old = head.querySelector('.cs-add');
+    if (old) old.parentNode.removeChild(old);
+    var a = el('a');
+    a.className = 'a1-btn primary cs-add';
+    a.href = ADD_HREF;
+    a.appendChild(A.icon('plus'));
+    a.appendChild(document.createTextNode('Add a campaign'));
+    head.appendChild(a);
+  }
+
+  /** A route of #/campaigns/add replaces this page with the add page. */
+  function redirectToAdd(route) {
+    if (route && route.screen === 'campaigns' && route.sub === 'add') location.replace(ADD_PATH);
+  }
+
   function renderScreen() {
     var mount = A.mount && A.mount('campaigns');
     if (!mount) return;
     clear(mount);
     var root = add(mount, 'section');
     root.setAttribute('data-part', 'campaigns');
+    addControl(mount);
     var reason = lockedReason();
     if (reason) messageBlock(root, 'is-lock', 'lock', reason).classList.add('cs-top');
     if (screenMessage) messageBlock(root, '', 'warn', screenMessage).classList.add('cs-top');
@@ -522,7 +555,9 @@
         if (!sw.pop.hidden && path.indexOf(sw.wrap) === -1) closeAll(false);
       });
     });
+    redirectToAdd(store().get().route);
     store().subscribe(function (next, prev) {
+      if (next.route !== prev.route) redirectToAdd(next.route);
       if (next.route !== prev.route && next.route && next.route.screen === 'campaigns') {
         flash = null;
         screenMessage = null;

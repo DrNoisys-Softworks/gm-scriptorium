@@ -158,3 +158,7 @@ The setup page draws the new path (see [ADR 0048](0048-new-campaign-vault.md), "
 ## Addendum: several campaigns in one panel
 
 [ADR 0050](0050-several-campaigns.md) adds one more handler module that reaches `src/setup/register.js`, `src/admin/handlers/campaigns.js`, for the campaign set-default and remove routes. The chain in section 2 is otherwise unchanged: `register.js` is still the only panel-side importer of `src/config/write.js`, the setup-mode route list in section 1 is unchanged, and the setup commit is untouched.
+
+## Addendum: adding a campaign from the panel
+
+[ADR 0052](0052-add-a-campaign.md) serves the setup screens at a second address, `/campaigns/add`, so a GM can add another campaign to a running panel. The setup routes are unchanged: they are still loopback only, still answer 409 once setup is over, and section 1's list of routes that answer while setup is active is the same. The add page asks its own routes, in the campaigns handler. The check dispatcher, the answer rules and the commit pipeline are shared with setup, so the same input gets the same answer in both, and the commit differs only in its gate: setup refuses when any campaign exists, an add refuses when the settings file is not the one the page saw or when the new campaign clashes with a registered one.

@@ -1797,3 +1797,10 @@ name; the one new write route is `POST /api/vault-config/fields`.
 
 - **Section 5 (the context is resolved once).** The campaign context is now resolved at launch, at the setup handover, or at a switch. A switch re-resolves the one shared context under the exclusive lock, after a bounded check that the target's folders answer. The ports, the token, the cookies, the remote settings, the sessions and the audit log do not change.
 - **The write exception.** The panel's module graph still never reaches `src/cli/config.js` or `src/cli/init.js`, and `src/setup/register.js` is still the only panel-side module that requires `src/config/write.js`. A second handler module, `src/admin/handlers/campaigns.js`, may now require `register.js`, for the campaign set-default and remove routes. Those are the only other writes the panel makes to `config.toml`, and ADR 0050 section 5 names the tests that fence them.
+
+## 17. Amended by ADR 0052
+
+[ADR 0052](0052-add-a-campaign.md) changes two things in this record.
+
+- **Section 4 (reads: the fixed readable set).** The add checks take a folder path from a request and probe it, bounded, outside setup mode and for a remote session. Over remote access a typed path is only probed when the GM commits it, and each such probe is audited with its path before it runs. ADR 0052 section 6 says plainly what a signed-in session can learn from them.
+- **The write exception.** The route that adds a campaign is a third panel write to `config.toml`, on the same chain as the other two: `src/admin/handlers/campaigns.js` > `src/setup/register.js` > `src/config/write.js`. `register.js` is still the only panel-side importer of the writer, and ADR 0052 section 3 names the tests that fence it.

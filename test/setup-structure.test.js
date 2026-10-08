@@ -13,7 +13,7 @@ const { scratchRoot, copySample, configPathIn } = require('./helpers/setup-fixtu
  * ADR 0028 section 2: the panel's one write to config.toml is fenced. Structurally: the config
  * writer is reachable from the admin panel through ONE chain (handlers/setup.js > setup/register.js >
  * config/write.js; ADR 0050 adds handlers/campaigns.js as a second handler on the same chain, for
- * the campaign set-default and remove routes), setup code is write-free except through
+ * the campaign set-default and remove routes, and ADR 0052 adds the add-a-campaign route to that same module), setup code is write-free except through
  * src/vault/packwrite.js, and no module
  * under src/admin or src/setup names the writer except register.js. Behaviourally: with the writer
  * spied, every route of the table is hit in normal mode and in setup mode, and the writer is called
@@ -326,6 +326,34 @@ test('behavioural sweep, normal mode with two campaigns: one valid set-default a
 
   await sweep(h);
   assert.deepEqual(calls, [configPath, configPath], 'a {} sweep adds no write');
+});
+
+test('behavioural sweep, normal mode: one valid add calls the writer exactly once, and a {} sweep adds none (ADR 0052)', async (t) => {
+  const root = scratchRoot(t);
+  const vaultX = copySample(root, 'vault-x', { withPack: true });
+  const vaultY = copySample(root, 'vault-y');
+  const configPath = configPathIn(root);
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  writeConfigFile(configPath, { config_version: 1, default_campaign: 'x', campaigns: { x: { vault: vaultX, output: path.join(root, 'ox') } } });
+  const calls = installSpy(t);
+  const h = await startPanel(t, { config: configPath });
+  await sweep(h);
+  assert.deepEqual(calls, []);
+
+  const state = await request(h.port, { pathname: '/api/campaigns/add/state', headers: { Cookie: h.cookie } });
+  assert.equal(state.status, 200, state.body.toString());
+  const configSha256 = JSON.parse(state.body.toString()).configSha256;
+  const added = await request(h.port, {
+    method: 'POST',
+    pathname: '/api/campaigns/add',
+    headers: { Cookie: h.cookie, Origin: h.origin, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'y', vault: vaultY, output: path.join(root, 'oy'), configSha256 }),
+  });
+  assert.equal(added.status, 200, added.body.toString());
+  assert.deepEqual(calls, [configPath]);
+
+  await sweep(h);
+  assert.deepEqual(calls, [configPath], 'a {} sweep adds no write');
 });
 
 test('behavioural sweep, setup mode: every route is hit with {} (all fenced or refused), then ONE valid commit calls the writer exactly once', async (t) => {
