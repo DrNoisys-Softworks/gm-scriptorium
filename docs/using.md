@@ -104,6 +104,15 @@ hidden config folder, so use the link the command prints.
 
 The vault and output questions have a Browse button. It opens a list of folders under the field, starting at the deepest folder that already exists above what you typed. The list shows folders only, never files. A link or shortcut is marked and can't be opened there, so type its path instead. Choose this folder fills the field and runs the usual check. On the output question, New folder makes a folder inside the open one straight away, and it stays even if you cancel. This works from another device too, and the panel's audit log records it.
 
+With more than one campaign registered, the campaign name at the top of the panel opens a list, and
+choosing another campaign switches the whole panel to it, from this computer or from a remote
+browser. If you have unsaved changes on the page, it asks before it switches. The Campaigns screen
+(under Setup) lists each campaign with its vault and output folders, sets the one that opens by
+default, and removes one from the list. Removing only takes it off GM-Scriptorium's list: the vault,
+pack, output and backups stay where they are, and the campaign you are on cannot be removed. A
+browser tab left open on the old campaign shows a banner and asks you to reload before it can change
+anything. A panel started with `--vault` cannot switch.
+
 ```
 gm-scriptorium remote show
 ```
