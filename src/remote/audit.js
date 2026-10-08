@@ -36,6 +36,7 @@ const AUDIT_KEYS = Object.freeze([
   'trust',
   'source',
   'path',
+  'affected',
 ]);
 
 const MAX_STRING = 256;

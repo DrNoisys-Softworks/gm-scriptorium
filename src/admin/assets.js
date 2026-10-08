@@ -12,7 +12,7 @@ const path = require('path');
 const ADMIN_ASSETS_DIR = path.join(__dirname, '..', '..', 'assets', 'admin');
 
 /**
- * Frozen: the 34 files served at /assets/<name> (ADR 0049: 33 -> 34, adding picker.js, the folder picker) (Lantern branding: 30 -> 31, adding favicon-32.png) (ADR 0028: 31 -> 33, adding launch.js, the sign-in
+ * Frozen: the 35 files served at /assets/<name> (ADR 0050: 34 -> 35, adding campaigns.js, the campaign switcher and the Campaigns screen) (ADR 0049: 33 -> 34, adding picker.js, the folder picker) (Lantern branding: 30 -> 31, adding favicon-32.png) (ADR 0028: 31 -> 33, adding launch.js, the sign-in
  * interstitial's navigation, and alive.js, the "stopped" tab) (ADR 0028: 28 -> 30, adding setup.js, browser setup's
  * script, and welcome.js, the Overview welcome) (V1.5a ADR 0029: 26 -> 28, adding signin.js, the sign-in
  * page's script, and remote.js, the read-only Remote access screen) (panel v2 V1b: 20 -> 23, adding diff.js,
@@ -44,6 +44,7 @@ const ADMIN_ASSET_ROUTES = Object.freeze({
   'remote.js': 'text/javascript; charset=utf-8',
   'setup.js': 'text/javascript; charset=utf-8',
   'welcome.js': 'text/javascript; charset=utf-8',
+  'campaigns.js': 'text/javascript; charset=utf-8',
   'launch.js': 'text/javascript; charset=utf-8',
   'alive.js': 'text/javascript; charset=utf-8',
   'vaultcfg.js': 'text/javascript; charset=utf-8',

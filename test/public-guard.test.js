@@ -347,7 +347,7 @@ test('T-S11: a sentinel string embedded in the lists-directory name never leaks 
 
   // bad-allow
   const badAllow = sentinelDir('badallow');
-  writeListsInto(badAllow, { allow: 'path some/file.md -- not permitted\n' });
+  writeListsInto(badAllow, { allow: 'path some/*.md -- not permitted\n' });
   configureLists(dir, badAllow);
   runs.push(runGuard(['scan', 'tree', head], { cwd: dir }));
 
@@ -447,11 +447,12 @@ test('T-S14: one case per SD-S3 code', (t) => {
     assert.match(r.stderr, /^ERROR identity-patterns-missing$/m);
   }
   {
-    configureLists(dir, writeLists(t, { allow: 'path some/file.md -- nope\n' }));
+    configureLists(dir, writeLists(t, { allow: 'path some/*.md -- nope\n' }));
     const r = runGuard(['scan', 'tree', head], { cwd: dir });
     assert.equal(r.code, 2);
     assert.match(r.stderr, /^ERROR bad-allow$/m);
-    assert.match(r.stderr, /^path-entry=1 not-in-list=0$/m);
+    assert.match(r.stderr, /^bad-path=1 not-in-list=0$/m);
+    assert.match(r.stderr, /^LINE 1 bad-path$/m);
   }
   {
     configureLists(dir, writeLists(t));
@@ -1456,9 +1457,9 @@ test('T-G7: pre-push requireLists is unaffected by the full Run A build (T-S12 r
   assert.match(result.stderr, /^ERROR no-lists$/m);
 });
 
-test('T-G8: validateStandingAllow still refuses a path entry (G8 re-confirmed; T-S14 already covers this at the scan-mode call site)', () => {
-  const errors = validateStandingAllow('path some/file.md -- nope\n', ['Zorblax']);
-  assert.deepEqual(errors, [{ line: 1, code: 'path-entry' }]);
+test('T-G8: validateStandingAllow refuses a path entry that is not an exact file path (path entries are otherwise covered by public-guard-path-allow.test.js)', () => {
+  const errors = validateStandingAllow('path some/*.md -- nope\n', ['Zorblax']);
+  assert.deepEqual(errors, [{ line: 1, code: 'bad-path' }]);
 });
 
 test('T-G9: validateStandingAllow rejects a term that is only a PREFIX of a real list entry -- not-in-list is an exact match, never a prefix match', () => {
