@@ -910,7 +910,7 @@
       if (input.value.trim() !== '' && document.body.contains(input)) onOutput(input, true);
     });
     // The default comes from the server: ask once with an empty value, then fill the box.
-    var seed = S.output === '' && !S.outputTouched;
+    var seed = !S.outputTouched; // an untouched suggestion follows the vault; a folder the GM chose never moves
     ask('output', seed ? '' : S.output, false).then(function (r0) {
       if (!r0) return;
       if (seed && r0.facts && r0.facts.default) {

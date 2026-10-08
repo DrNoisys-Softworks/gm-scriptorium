@@ -331,6 +331,48 @@ for (const browserName of ['chromium', 'firefox']) {
       await page.context().close();
     });
 
+    await t.test('the suggested output folder follows the vault folder when you go back and change it, and a folder you typed yourself does not', async () => {
+      const page = await open(1280);
+      await toNewFolder(page);
+      const goOutput = async () => {
+        await page.click('[data-part="next"]');
+        await page.waitForSelector('#su-title');
+        await page.waitForFunction(() => !!document.getElementById('su-title') && document.getElementById('su-title').value !== '');
+        await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+        await page.click('[data-part="next"]');
+        await page.waitForSelector('input[name="su-sys"]');
+        await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+        await page.click('[data-part="next"]');
+        await page.waitForSelector('#su-out');
+        await page.waitForFunction(() => document.getElementById('su-out').value !== '');
+      };
+      const backToVault = async () => {
+        for (let i = 0; i < 3; i++) await page.click('.su-foot .a1-btn:not(.primary)');
+        await page.waitForSelector('#su-newvault');
+      };
+      const setVault = async (dir) => {
+        await typeInto(page, '#su-newvault', dir);
+        await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+      };
+      const first = path.join(fx.C, 'Ember Road');
+      const second = path.join(fx.H, 'OneDrive', 'Campaigns', 'Second Road');
+      await setVault(first);
+      await goOutput();
+      assert.equal(await page.inputValue('#su-out'), path.join(fx.C, 'ember-road-site'));
+      await backToVault();
+      await setVault(second);
+      await goOutput();
+      assert.equal(await page.inputValue('#su-out'), path.join(fx.H, 'OneDrive', 'Campaigns', 'ember-road-site'), 'an untouched suggestion follows the vault');
+      const mine = path.join(fx.H, 'my-own-site');
+      await typeInto(page, '#su-out', mine);
+      await waitStatus(page, 'su-out-st', 'Outside the vault');
+      await backToVault();
+      await setVault(first);
+      await goOutput();
+      assert.equal(await page.inputValue('#su-out'), mine, 'a folder you typed is never replaced');
+      await page.context().close();
+    });
+
     await t.test('every new screen and state has no axe violations at 1280 and 390', { skip: SKIP_AXE }, async () => {
       for (const width of [1280, 390]) {
         const page = await open(width);
