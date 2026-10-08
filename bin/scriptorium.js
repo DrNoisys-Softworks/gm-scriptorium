@@ -31,10 +31,11 @@ Global flags: --campaign <name>, --config <path>, --json, --quiet, --no-color, -
   reads the site config). To change a path for good, use "config add" or "config edit".)
 
 Run "gm-scriptorium <command> --help" for what one command does and the exit codes it can return.
+Run "gm-scriptorium" with no command in a terminal to open the panel in your browser.
 `;
 
 /** The existing catch body, moved unchanged (ADR 0021, Structural decision 10): the main catch
- * and the no-argument offer path both call this, so there is exactly one exit mapping. */
+ * and launch mode (ADR 0028) both call this, so there is exactly one exit mapping. */
 function reportError(err) {
   if (err instanceof VaultUnreachableError) {
     console.error(err.message);
@@ -67,9 +68,11 @@ async function main() {
     console.log(getNoticesText());
     return EXIT_CODES.OK;
   }
-  const { shouldOfferInit, runInitOffer } = require('../src/cli/init');
-  if (shouldOfferInit({ positional, flags, stdinIsTTY: Boolean(process.stdin.isTTY), stdoutIsTTY: Boolean(process.stdout.isTTY) })) {
-    return runInitOffer(flags, { help: HELP, reportError });
+  // ADR 0028: with no command in a terminal (a typed command or a double-click, which look the same),
+  // the panel opens in the browser. This replaces ADR 0021's no-argument offer.
+  const { shouldLaunch, runLaunch } = require('../src/cli/launch');
+  if (shouldLaunch({ positional, flags, stdinIsTTY: Boolean(process.stdin.isTTY), stdoutIsTTY: Boolean(process.stdout.isTTY) })) {
+    return runLaunch(flags, { reportError, version: pkg.version });
   }
   if (flags.help && positional.length > 0) {
     const text = require('../src/cli/help').commandHelp(positional[0], positional[1]);

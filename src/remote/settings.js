@@ -239,6 +239,30 @@ function warningSentence(settings, plan) {
 }
 
 /**
+ * The lines that say where a remote mode can be reached, never with a token: for ssh the tunnel
+ * command; for tailscale, proxy and direct the two external addresses and the listening line. Local
+ * mode has none. startupText builds its remote lines from this, and launch mode's console prints it
+ * too, so the two cannot drift.
+ *
+ * @param {ReturnType<typeof parseRemoteTable>} settings
+ * @param {ReturnType<typeof listenPlan>} plan
+ * @param {{ adminPort: number, previewPort: number, user?: string, host?: string }} info
+ * @returns {string[]}
+ */
+function remoteAddressLines(settings, plan, { adminPort, previewPort, user = 'USER', host = 'HOST' }) {
+  const m = settings.mode;
+  if (m === 'local') return [];
+  if (m === 'ssh') {
+    return [`tunnel from your desktop: ssh -L ${adminPort}:127.0.0.1:${adminPort} -L ${previewPort}:127.0.0.1:${previewPort} ${user}@${host}`];
+  }
+  return [
+    `remote admin panel: ${settings.admin_url}/ (sign in with the panel password)`,
+    `remote preview: ${settings.preview_url}/`,
+    `listening on ${plan.admin.hosts.join(' and ')} port ${adminPort} (panel) and ${previewPort} (preview)`,
+  ];
+}
+
+/**
  * The console lines for a mode: `pre` BEFORE any listener opens (ADR 0002's ordering), `post`
  * after both are listening. Local mode's `post` is exactly the three lines that have always been
  * printed.
@@ -263,7 +287,7 @@ function startupText(settings, plan, { adminPort, previewPort, token, loopbackSc
       post: [
         `admin panel: ${tokenUrl('http')}`,
         `preview: http://127.0.0.1:${previewPort}/`,
-        `tunnel from your desktop: ssh -L ${adminPort}:127.0.0.1:${adminPort} -L ${previewPort}:127.0.0.1:${previewPort} ${user}@${host}`,
+        ...remoteAddressLines(settings, plan, { adminPort, previewPort, user, host }),
         'open the admin panel link in your browser. Press Ctrl-C to stop.',
       ],
     };
@@ -271,9 +295,7 @@ function startupText(settings, plan, { adminPort, previewPort, token, loopbackSc
   return {
     pre: [`WARNING: remote access is on (mode ${m}). ${warningSentence(settings, { admin: { port: adminPort }, preview: { port: previewPort } })}`],
     post: [
-      `remote admin panel: ${settings.admin_url}/ (sign in with the panel password)`,
-      `remote preview: ${settings.preview_url}/`,
-      `listening on ${plan.admin.hosts.join(' and ')} port ${adminPort} (panel) and ${previewPort} (preview)`,
+      ...remoteAddressLines(settings, plan, { adminPort, previewPort }),
       `on this machine: ${tokenUrl(loopbackScheme)}`,
       'Press Ctrl-C to stop.',
     ],
@@ -338,5 +360,6 @@ module.exports = {
   gateProfile,
   reachLine,
   startupText,
+  remoteAddressLines,
   applyRemoteChange,
 };
