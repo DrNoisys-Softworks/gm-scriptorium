@@ -37,6 +37,8 @@ a throwaway Linux target to prove the pipeline, and proves nothing about the Win
 
 ## Never touch
 
+**`assets/vault-template/`, by hand.** It is the output of gm-apprentice's vault scaffold, captured and derived by `scripts/vault-template.js`. Change it only by following the starter pin bump procedure in [COLLABORATING.md](COLLABORATING.md); a hand edit breaks byte parity with the scaffold and fails the manifest check.
+
 **`node_modules/gm-apprentice-publish/`, directly.** It is a vendored, integrity-pinned copy of the
 upstream generator's own release tarball. The current pin is `publish-v1.12.3` (commit
 `3517ffd`). It is verified against the release's `SHA256SUMS` and, file by file, by sha256 against
@@ -55,20 +57,21 @@ comes in through a pin bump (see "Pin bump procedure" in
 | `npm run verify-generator` | The installed generator tree still matches `PIN.json`. |
 | `npm run package` | Builds both the win-x64 and linux-x64 targets into `dist/v<version>/`, with one combined `SHA256SUMS` covering both binaries and the notices file (see ADR 0001). |
 
-`npm run package` runs five gates for each target before it writes anything:
+`npm run package` runs six gates for each target before it writes anything:
 
 1. Generator-pin verification. It re-verifies the pin itself, not just through the script above.
 2. Notices freshness.
 3. Asset embedding: every expected asset is confirmed inside the executable.
 4. Rules-content markers.
 5. A startup self-test of the packaged build.
+6. Starter template verification: every file under `assets/vault-template/` must match its manifest's sha256 and token counts, with no unlisted file on disk. It fails closed, before the build starts.
 
 If any target's gate fails, the run removes every binary it already produced and exits 1, so
 `dist/v<version>/` never holds a binary that `SHA256SUMS` doesn't cover. `--target` and `--out`
 still override to a single target.
 
 A change that touches packaging, notices or embedded assets is not shown to work by `npm test`
-alone. Run `npm run package`: four of its five gates exist nowhere else.
+alone. Run `npm run package`: five of its six gates exist nowhere else.
 
 ## Constraints that are tests, not preferences
 

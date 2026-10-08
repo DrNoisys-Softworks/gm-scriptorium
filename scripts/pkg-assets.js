@@ -123,9 +123,22 @@ const FIRST_PARTY_SITE_ASSETS = [
  * (src/util/notices.js reads this embedded copy for `--version` and
  * `--notices`).
  *
+ * The starter template for new vaults (docs/decisions/0048-new-campaign-vault.md) adds its
+ * manifest and every stored file, 43 in all, which makes 128. Like the pin's files they are
+ * EXPANDED from a manifest (assets/vault-template/manifest.json) rather than listed by hand, so
+ * the embedding gate covers every template file without a second list to keep.
+ *
  * @param {string} [root] repo root (defaults to this script's own repo)
  * @returns {string[]} sorted, root-relative, forward-slashed paths
  */
+/** manifest.json plus every stored file of the new-campaign starter, once each. */
+function starterTemplateAssets(root) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'assets', 'vault-template', 'manifest.json'), 'utf8'));
+  const stored = new Set();
+  for (const system of Object.values(manifest.systems)) for (const entry of Object.values(system.files)) stored.add(entry.store);
+  return ['manifest.json', ...stored].map((rel) => `assets/vault-template/${rel}`);
+}
+
 function expectedAssets(root = DEFAULT_ROOT) {
   const pinPath = path.join(root, 'vendor', 'gm-apprentice-publish', 'PIN.json');
   const pin = JSON.parse(fs.readFileSync(pinPath, 'utf8'));
@@ -137,6 +150,7 @@ function expectedAssets(root = DEFAULT_ROOT) {
     'node_modules/gm-apprentice-publish/node_modules/lunr/lunr.js',
     'THIRD-PARTY-NOTICES.txt',
     ...FIRST_PARTY_SITE_ASSETS,
+    ...starterTemplateAssets(root),
   ].sort();
 }
 

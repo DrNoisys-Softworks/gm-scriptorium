@@ -150,6 +150,12 @@ setup-mode route list and the admin route table are unchanged, so every sweep th
 covers this too. The structure test that fences vault writes now names two writers, the pack writer
 and this one, each reached only from `src/setup/register.js`.
 
+## The pin
+
+The starter is pinned at gm-apprentice commit `a0215b1f2e688c476e37d372fd647935360f00b8` (plugin version 1.10.37), fetched by clone and by tarball with identical shared trees. Per game system it holds 25 folders and 29 files (30 for fitd, which adds a crew template), 42 distinct stored files in 227,690 bytes with the manifest. Two sample runs per system are recorded, and a test renders both back to the scaffold's bytes. The scan for rules content over the starter has no hits.
+
+**Known gap.** On this starter `check` reports no error and builds, but gives seven `census/unrecognised-type` warnings: the scaffold's entity-types page lists `meta`, `timeline` and `pc_roster` only under its required-fields section, which the recognised-type list does not read. The starter cannot be edited, so the fix belongs in the checker. A test pins the seven warnings exactly and must change when the checker does.
+
 ## Rejected alternatives
 
 - **Inventing our own layout.** It would drift from gm-apprentice, and every other tool that reads a

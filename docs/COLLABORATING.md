@@ -614,7 +614,7 @@ No file in that folder is ever edited by hand. To move the pin:
    skips `meta` and `campaign_overview`.
 4. `node scripts/vault-template.js capture --checkout <fresh clone> --out <runs folder>`. It needs Python 3.10
    or later with the standard library only; nothing is installed. Python runs from a scratch folder outside the clone.
-5. `node scripts/vault-template.js derive --runs <runs folder> --out <template folder> --meta <meta.json>
+5. The derive inputs are kept in `scripts/vault-template-inputs/`: `meta.json` (version, licence, attribution text, the deviation), `additions/` (the three files this program writes) and `notes.json` (one by-hand note per rules-scan hit). `_meta/NOTICE.txt` in `additions/` names the commit; update it for the new commit. Then `node scripts/vault-template.js derive --runs <runs folder> --out <template folder> --meta <meta.json>
    --additions <folder> --notes <notes.json>`. It refuses on any surprise and renders its own output back
    against the scaffold's bytes.
 6. Read every changed file, every rules-scan hit (each needs a note you wrote after reading the line) and

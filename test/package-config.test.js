@@ -58,6 +58,14 @@ test('defaultOutPathFor() falls back to a generic gm-scriptorium-<target> name f
 
 // -- 2. expectedAssets() equals the PIN.json-derived set --
 
+/** The new-campaign starter's embedded paths, from its manifest: manifest.json plus every stored file once. */
+function starterTemplateAssets() {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'vault-template', 'manifest.json'), 'utf8'));
+  const stored = new Set();
+  for (const system of Object.values(manifest.systems)) for (const entry of Object.values(system.files)) stored.add(entry.store);
+  return ['manifest.json', ...stored].map((rel) => `assets/vault-template/${rel}`);
+}
+
 test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templates-scaffold/, plus lunr.js, THIRD-PARTY-NOTICES.txt and FIRST_PARTY_SITE_ASSETS (85 total, ADR 0028 adding assets/admin/alive.js, launch-locked.html, launch.html and launch.js to the 81, Lantern branding adding assets/admin/favicon-32.png to the 80, and before that setup.html, setup.js and welcome.js to the 77; V1.5a adding assets/admin/remote.js, signin.html and signin.js to the 74 on main; publish-v1.14.0 added js/dnd-live.js and js/dnd-party.js; issue #84 added 6 haze font/NOTICE files and its follow-up removed them again, haze now shares gloam\'s via fontsFrom: the base theme slice adds the gloam theme\'s 5 vendored font files (C2) plus its theme.json/theme.css/NOTICE.txt (C3) to the 61 panel v2 V1b total, then V1e-3 adds assets/admin/sitepane.js, then V1e-9 adds assets/admin/vaultcfg.js, then V1e-7 adds assets/admin/variants.js)', () => {
   const pin = JSON.parse(fs.readFileSync(path.join(ROOT, 'vendor', 'gm-apprentice-publish', 'PIN.json'), 'utf8'));
   const pinPaths = Object.keys(pin.files);
@@ -70,10 +78,12 @@ test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templat
     'node_modules/gm-apprentice-publish/node_modules/lunr/lunr.js',
     'THIRD-PARTY-NOTICES.txt',
     ...FIRST_PARTY_SITE_ASSETS,
+    ...starterTemplateAssets(),
   ].sort();
 
   assert.deepEqual(expectedAssets(ROOT), expected);
-  assert.equal(expectedAssets(ROOT).length, 85);
+  // 85 before the new-campaign starter, plus its manifest and 42 stored files (ADR 0048).
+  assert.equal(expectedAssets(ROOT).length, 128);
 
   assert.equal(cssRel.length, 6);
   assert.equal(jsRel.length, 14);
@@ -235,4 +245,30 @@ test('every __dirname-relative build-path read in the pin sits under a pkg.asset
       `${site.label} reads "${firstSegment}/...", which is not under any of pkg.assets' covered prefixes [${covered.join(', ')}]`,
     );
   }
+});
+
+test('the starter template folder on disk is exactly its manifest\'s stored files plus manifest.json (change detector)', () => {
+  const onDisk = [];
+  (function walk(dir, rel) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(path.join(dir, entry.name), entryRel);
+      else onDisk.push(`assets/vault-template/${entryRel}`);
+    }
+  })(path.join(ROOT, 'assets', 'vault-template'), '');
+  assert.deepEqual(onDisk.sort(), starterTemplateAssets().sort());
+  assert.equal(onDisk.length, 43);
+});
+
+test('package.json embeds the starter template through one glob', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.equal(pkg.pkg.assets.includes('assets/vault-template/**/*'), true);
+});
+
+test('package.js verifies the starter template tree before it builds any target (gate 6)', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'scripts', 'package.js'), 'utf8');
+  const gate = source.indexOf('verifyTemplateTree(path.join(ROOT');
+  const build = source.indexOf('debugText = execFileSync(');
+  assert.ok(gate > 0 && build > gate, 'the template check comes before the pkg build');
+  assert.match(source.slice(gate, build), /return \{ ok: false \}/);
 });

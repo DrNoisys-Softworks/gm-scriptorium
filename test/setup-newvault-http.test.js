@@ -189,3 +189,9 @@ test('commit: two panels started before either committed: the second is told tak
   assert.deepEqual(json(res), { error: 'taken' });
   assert.equal(fs.existsSync(path.join(root, 'Other')), false);
 });
+
+test('state: with no injected starter the build\'s own starter is available, with its three game systems', async (t) => {
+  const { configPath } = cfgRoot(t);
+  const h = await startPanel(t, { config: configPath }, {});
+  assert.deepEqual(json(await get(h, '/api/setup/state')).newVault, { available: true, systems: ['dnd-5e-2024', 'fitd', 'pf2e'], problem: null });
+});
