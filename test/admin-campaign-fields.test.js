@@ -166,3 +166,22 @@ test('a panel with a vaultArt read after a switch does not crash (the field is d
   const art = await get(h, '/api/vault-art');
   assert.equal(art.status, 200, art.text);
 });
+
+test('applySwitch alone never restores a stash made for another vault (the slot is discarded, the kept fields are fresh)', () => {
+  const ctx = {
+    campaign: 'a',
+    vaultPath: '/vault/a',
+    campaigns: campaignstate.createCampaignsState({}),
+    previewRoot: '/tmp/root-a',
+    previewDir: '/tmp/root-a/site',
+  };
+  // B was stashed earlier for /vault/b-old, and its config now points at /vault/b-new.
+  ctx.campaigns.slots.set('b', { vaultPath: '/vault/b-old', previewRoot: '/tmp/root-b-old', previewDir: '/tmp/root-b-old/site', panelSaves: 4 });
+  const fresh = { campaign: 'b', ctxInfo: {}, vaultPath: '/vault/b-new', siteSource: 'convention', siteConfigPath: 's', packDir: 'p', writable: true, readOnlyReason: null };
+  campaignstate.applySwitch(ctx, fresh);
+  assert.equal(ctx.campaign, 'b');
+  assert.equal(ctx.previewDir, null);
+  for (const f of ['previewRoot', 'panelSaves', 'previewStamp', 'previewPages', 'variants']) assert.equal(f in ctx, false, f);
+  assert.deepEqual([...ctx.campaigns.slots.keys()], ['a']);
+  assert.equal(ctx.campaigns.slots.get('a').previewRoot, '/tmp/root-a');
+});
