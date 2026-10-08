@@ -176,19 +176,47 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
 }
 
 test('#27: stop-signal registration: every platform name fires the handler exactly once, then detaches', () => {
+  // ADR 0028, section 9: Windows reports a closed console window as SIGHUP in every serve mode;
+  // POSIX registers SIGHUP only when the caller asks (launch mode), because a listener replaces
+  // the ignore that nohup sets up.
   assert.deepEqual(stopSignalNames('linux'), ['SIGINT', 'SIGTERM']);
-  assert.deepEqual(stopSignalNames('win32'), ['SIGINT', 'SIGTERM', 'SIGBREAK']);
-  for (const [platform, names] of [['linux', ['SIGINT', 'SIGTERM']], ['win32', ['SIGINT', 'SIGTERM', 'SIGBREAK']]]) {
+  assert.deepEqual(stopSignalNames('darwin'), ['SIGINT', 'SIGTERM']);
+  assert.deepEqual(stopSignalNames('win32'), ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP']);
+  assert.deepEqual(stopSignalNames('linux', { hup: true }), ['SIGINT', 'SIGTERM', 'SIGHUP']);
+  assert.deepEqual(stopSignalNames('linux', { hup: false }), ['SIGINT', 'SIGTERM']);
+  assert.deepEqual(stopSignalNames('win32', { hup: false }), ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP']);
+  const cases = [
+    ['linux', undefined, ['SIGINT', 'SIGTERM']],
+    ['linux', { hup: true }, ['SIGINT', 'SIGTERM', 'SIGHUP']],
+    ['win32', undefined, ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP']],
+  ];
+  for (const [platform, opts, names] of cases) {
     for (const name of names) {
       const em = new EventEmitter();
       const seen = [];
-      onStopSignal(em, (n) => seen.push(n), platform);
+      onStopSignal(em, (n) => seen.push(n), platform, opts);
+      for (const n of names) assert.equal(em.listenerCount(n), 1, `${platform} registers ${n}`);
+      assert.equal(em.listenerCount('SIGHUP'), names.includes('SIGHUP') ? 1 : 0);
       em.emit(name);
       em.emit(name);
       em.emit('SIGINT');
       assert.deepEqual(seen, [name]);
       for (const n of names) assert.equal(em.listenerCount(n), 0);
     }
+  }
+});
+
+test('onStopSignal returns a dispose function that removes every listener without firing the handler', () => {
+  for (const [platform, opts] of [['linux', undefined], ['linux', { hup: true }], ['win32', undefined]]) {
+    const em = new EventEmitter();
+    const seen = [];
+    const dispose = onStopSignal(em, (n) => seen.push(n), platform, opts);
+    assert.equal(typeof dispose, 'function');
+    dispose();
+    dispose();
+    for (const n of ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP']) assert.equal(em.listenerCount(n), 0, n);
+    em.emit('SIGINT');
+    assert.deepEqual(seen, []);
   }
 });
 
