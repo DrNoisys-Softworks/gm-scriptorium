@@ -361,7 +361,7 @@ function derive({ runsDir, outDir, meta, additionsDir, notes = {} }) {
       fs.writeFileSync(full, text, { flag: 'wx' });
     }
     fs.writeFileSync(path.join(partial, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, { flag: 'wx' });
-    selfCheck(partial, perSystem);
+    selfCheck(partial);
     if (fs.existsSync(out)) fs.rmdirSync(out);
     fs.renameSync(partial, out);
   } catch (err) {
@@ -372,7 +372,7 @@ function derive({ runsDir, outDir, meta, additionsDir, notes = {} }) {
 }
 
 /** The output must verify as a tree, and every parity run must render back to the scaffold's bytes. */
-function selfCheck(dir, perSystem) {
+function selfCheck(dir) {
   const { problems } = template.verifyTemplateTree(dir);
   if (problems.length > 0) throw fail(`the derived template fails its own check: ${problems.join(', ')}`);
   const tpl = template.loadTemplate({ dir });
@@ -394,7 +394,6 @@ function selfCheck(dir, perSystem) {
     const extra = [...byRel.keys()].filter((rel) => tpl.manifest.systems[vector.system].files[rel].origin === 'upstream' && !(rel in vector.files));
     if (extra.length > 0) throw fail(`parity run ${vector.system} "${vector.name}": the starter has files the scaffold did not write: ${extra.join(', ')}`);
   }
-  void perSystem;
 }
 
 // --- command line ------------------------------------------------------------------------------------
