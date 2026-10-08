@@ -177,8 +177,8 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
 
 test('#27: stop-signal registration: every platform name fires the handler exactly once, then detaches', () => {
   // ADR 0028, section 9: Windows reports a closed console window as SIGHUP in every serve mode;
-  // POSIX registers SIGHUP only when the caller asks (launch mode), because a listener replaces
-  // the ignore that nohup sets up.
+  // POSIX registers SIGHUP only when the caller asks (launch mode), so serve --admin behaves there
+  // exactly as it did before launch mode existed.
   assert.deepEqual(stopSignalNames('linux'), ['SIGINT', 'SIGTERM']);
   assert.deepEqual(stopSignalNames('darwin'), ['SIGINT', 'SIGTERM']);
   assert.deepEqual(stopSignalNames('win32'), ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP']);

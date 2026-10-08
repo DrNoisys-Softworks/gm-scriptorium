@@ -345,9 +345,9 @@ for (const [signal, platform] of [['SIGINT', 'linux'], ['SIGTERM', 'linux'], ['S
   });
 }
 
-// --- SIGHUP listener counts (nohup safety) -----------------------------------------------------------------------------------
+// --- SIGHUP listener counts: POSIX serve --admin is unchanged ---
 
-test('SIGHUP listeners: linux launch 1, win32 launch 1; linux serve --admin 0 (a nohup keeps its ignore); all removed after the stop', async (t) => {
+test('SIGHUP listeners: linux launch 1, win32 launch 1; linux serve --admin 0 (unchanged from before launch mode); all removed after the stop', async (t) => {
   const linux = await launch(t, { platform: 'linux' });
   const win = await launch(t, { platform: 'win32' });
   const root = scratchRoot(t);

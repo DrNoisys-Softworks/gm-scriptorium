@@ -10,9 +10,10 @@
  * SIGTERM listener there is harmless (it just never fires), SIGBREAK gets Ctrl-Break the same
  * clean stop, and SIGHUP gets a closed console window one too (ADR 0028, section 9).
  *
- * POSIX registers SIGHUP only when the caller passes { hup: true }, which only launch mode does.
- * A JavaScript SIGHUP listener replaces the ignore that nohup sets up, so registering it in every
- * mode would make a nohup'd `serve --admin` stop when its terminal closes.
+ * POSIX registers SIGHUP only when the caller passes { hup: true }, which only launch mode does, so
+ * `serve --admin` behaves on POSIX exactly as it did before. Node resets signal dispositions when it
+ * starts, so the ignore that nohup sets never reaches a Node program: a hangup ends a plain
+ * `serve --admin` at once, with or without nohup. Only launch mode turns it into a clean stop.
  */
 function stopSignalNames(platform = process.platform, { hup = false } = {}) {
   if (platform === 'win32') return ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP'];
