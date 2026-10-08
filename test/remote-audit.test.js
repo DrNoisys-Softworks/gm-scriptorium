@@ -27,8 +27,21 @@ function setup(t) {
 test('AUDIT_KEYS is exactly the stated list', () => {
   assert.deepEqual(
     [...A.AUDIT_KEYS],
-    ['t', 'event', 'method', 'result', 'via', 'from', 'browser', 'campaign', 'route', 'status', 'until', 'count', 'refused', 'by', 'changed', 'mode', 'fingerprint', 'trust', 'source', 'affected'],
+    ['t', 'event', 'method', 'result', 'via', 'from', 'browser', 'campaign', 'route', 'status', 'until', 'count', 'refused', 'by', 'changed', 'mode', 'fingerprint', 'trust', 'source', 'path', 'affected'],
   );
+});
+
+test('ADR 0049: path is a whitelisted key; it is kept as a string, stripped of control characters and capped like every string, and a non-string path is dropped', (t) => {
+  const { log, file } = setup(t);
+  log.append({ event: 'folders', via: 'remote', path: '/srv/gm/Campaigns\u0000\n/x' });
+  log.append({ event: 'folders', path: `/${'a'.repeat(400)}` });
+  log.append({ event: 'folders', path: { nested: '/etc' } });
+  log.append({ event: 'folders', path: ['/etc'] });
+  const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  assert.equal(lines[0].path, '/srv/gm/Campaigns/x');
+  assert.equal(lines[1].path.length, 256);
+  assert.equal(Object.prototype.hasOwnProperty.call(lines[2], 'path'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(lines[3], 'path'), false);
 });
 
 test('append stamps t from the clock and writes one JSON line', (t) => {

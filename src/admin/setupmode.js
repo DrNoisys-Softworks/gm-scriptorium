@@ -22,6 +22,9 @@ const SETUP_MODE_ROUTES = Object.freeze([
   'GET /api/setup/state',
   'GET /api/setup/check',
   'POST /api/setup/commit',
+  // ADR 0049: the folder picker's listing and its one create-only folder write.
+  'GET /api/folders',
+  'POST /api/folders/create',
 ]);
 
 const FENCE_BODY = JSON.stringify({ error: 'setup', message: 'There is no campaign yet. Finish setup first.' });

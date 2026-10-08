@@ -23,9 +23,12 @@ const KEPT = ['previewRoot', 'previewDir', 'previewStamp', 'previewPages', 'vari
 const RESET = ['vaultArt', 'vaultConfigReview'];
 const PROCESS = [
   'token', 'adminPort', 'previewPort', 'busy', 'access', 'remote', 'sessions', 'audit', 'lockout', 'tickets', 'clock', 'signinBusy',
-  'lastHashMs', 'setup', 'launchCodes', 'campaigns',
+  'lastHashMs', 'setup', 'launchCodes', 'campaigns', 'folderDrives',
 ];
 const UNION = [...RESOLVED, ...KEPT, ...RESET, ...PROCESS].sort();
+// Names only a test ever sets on the context (test/folders-structure.test.js allows the name in one
+// source file alone, so it cannot be listed in src/admin/campaignstate.js). Production never sets it.
+const TEST_SEAMS = ['folderDeps'];
 
 const ROOT = path.join(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
@@ -46,8 +49,12 @@ function listJs(dir) {
   return out.sort();
 }
 
+// src/admin/foldercreate.js names its options argument `ctx` (configDir, panelDir, vaults, deps); that is
+// not the panel context, which reaches the folder code only through handlers/folders.js (folderDeps, folderDrives).
+const NOT_THE_CONTEXT = [path.join(SRC, 'admin', 'foldercreate.js')];
+
 function scannedFiles() {
-  return [...listJs(path.join(SRC, 'admin')), path.join(SRC, 'cli', 'serve-admin.js'), path.join(SRC, 'cli', 'launch.js')];
+  return [...listJs(path.join(SRC, 'admin')), path.join(SRC, 'cli', 'serve-admin.js'), path.join(SRC, 'cli', 'launch.js')].filter((f) => !NOT_THE_CONTEXT.includes(f));
 }
 
 function ctxNames(files) {
@@ -73,7 +80,7 @@ test('the module lists equal the hand-written literals, and the four lists are d
 test('every ctx.<name> in src/admin, serve-admin.js and launch.js is classified, and every classified name is used', () => {
   const files = scannedFiles();
   assert.ok(files.length >= 30, `scanned ${files.length} files`);
-  assert.deepEqual(ctxNames(files), UNION);
+  assert.deepEqual(ctxNames(files), [...UNION, ...TEST_SEAMS].sort());
 });
 
 test('positive control: a new ctx field in a scanned file is detected as unclassified', (t) => {
@@ -82,8 +89,8 @@ test('positive control: a new ctx field in a scanned file is detected as unclass
   const planted = path.join(dir, 'planted.js');
   fs.writeFileSync(planted, "module.exports = (ctx) => { ctx.newThing = 1; };\n// ctx.onlyInAComment = 2\n");
   const names = ctxNames([...scannedFiles(), planted]);
-  assert.notDeepEqual(names, UNION);
-  assert.deepEqual(names.filter((n) => !UNION.includes(n)), ['newThing']);
+  assert.notDeepEqual(names, [...UNION, ...TEST_SEAMS].sort());
+  assert.deepEqual(names.filter((n) => !UNION.includes(n) && !TEST_SEAMS.includes(n)), ['newThing']);
 });
 
 test('the keys of a fresh createAdminContext are a subset of the classified fields', () => {

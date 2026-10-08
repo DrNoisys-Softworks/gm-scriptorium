@@ -54,4 +54,4 @@ function validateUploadName(name) {
   return name;
 }
 
-module.exports = { validateUploadName };
+module.exports = { validateUploadName, ILLEGAL_CHARS_RE, RESERVED_DEVICE_NAME_RE };

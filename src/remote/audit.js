@@ -35,6 +35,7 @@ const AUDIT_KEYS = Object.freeze([
   'fingerprint',
   'trust',
   'source',
+  'path',
   'affected',
 ]);
 

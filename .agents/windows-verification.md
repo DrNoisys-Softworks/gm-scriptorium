@@ -1943,6 +1943,26 @@ ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux pac
 7. Ctrl-C: `stopped.`, exit 0, and no `scriptorium-preview-*` folder left in `%TEMP%`. Run the same command again: the campaign panel opens, not setup. `/setup` redirects to the Overview. The welcome shows until dismissed; dismiss it, restart, and it's gone.
 8. Re-hash the real config.
 
+### C138: the folder picker lists only folders, never stalls, and creates one folder at a time, in the real win-x64 exe
+
+ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OPEN: Linux-verified from source and a Linux packaged build only; Windows paths, drives, junctions and reparse points are only proven by running the exe.** Isolate config as in C35: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile` of `%APPDATA%\Scriptorium\config.toml` before step 1 and after the last step; the two must match. Work in a local scratch folder S.
+
+1. Start browser setup. Browse on the vault field: `C:` and a scratch mapped drive both list. No "insert a disk" dialog appears for an empty card reader or optical drive.
+2. Disconnect the mapped drive and press Refresh. It shows "not responding" within a few seconds while the others list, and the panel keeps answering (switch screens).
+3. Type `\\localhost\C$\` plus a scratch path in the location box. Nothing is requested until Enter or Go, then it lists.
+4. A `mklink /J` junction in S is marked as a link and can't be entered or chosen.
+5. A OneDrive folder lists and opens as an ordinary folder.
+6. At `C:\`, `$Recycle.Bin` and `System Volume Information` are hidden until Show hidden folders is ticked.
+7. A folder denied with `icacls <dir> /deny %USERNAME%:(RD)` shows the permission message and the picker stays put. Remove the deny afterwards.
+8. Folder names with `&`, spaces and non-ASCII letters list and can be chosen.
+9. `C:\Windows\WinSxS` shows the truncated note without a stall.
+10. A path longer than 260 characters lists.
+11. New folder on the output field:
+    - `Session Art` is created at once and selected;
+    - `CON`, `x.` and `a\b` are refused with the name message;
+    - an existing name is refused, and its contents are unchanged;
+    - a folder inside the scratch config folder is refused.
+12. With remote access in proxy or tailscale mode on a disposable machine, list a folder from the second machine. The panel's `audit.log` gains one `folders` line. A listing from the same PC adds none. A New folder from either adds a request and response pair.
 ### C139: switching campaigns, set default and remove work in one panel, and config.toml is written safely, in the real win-x64 exe
 
 `docs/decisions/0050-several-campaigns.md`. **Mark this OPEN: Linux-verified from source and a Linux packaged build only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 8; the two must match.
