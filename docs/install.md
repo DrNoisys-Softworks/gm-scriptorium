@@ -6,8 +6,8 @@ themselves.
 ## Install
 
 1. Download the latest release from the
-   [Releases page](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases). There is no
-   public release yet. Until the first one is out, build from source (see below).
+   [Releases page](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases). The first
+   public release is an unsigned prerelease. You can also build from source (see below).
 2. Grab the binary for your platform (`gm-scriptorium-win-x64.exe` or `gm-scriptorium-linux-x64`)
    plus `SHA256SUMS` from the same release.
 3. Verify the download before running it.

@@ -59,12 +59,12 @@
  * table constant (NAMED_FONT_RESIDUAL) and a single classifier function (classifyFontBinary),
  * so switching to option (a) later is a two-piece removal, not a rewrite.
  *
- * s5-architect-2026-10-01.md A.3: a second, independent pinned-residual class, `image-binary`,
- * for S5's painted art (OF-6, option (ii)). It reuses classifyFontBinary's exact shape (one
+ * A second, independent pinned-residual class, `image-binary`, for the repository's own
+ * pictures (README and social images, sample art). It reuses classifyFontBinary's exact shape (one
  * table, one classifier: NAMED_IMAGE_RESIDUAL / classifyImageBinary), plus a root-segment gate
  * (IMAGE_RESIDUAL_ROOTS, compared by path segment, never a string prefix) and a PNG/JPEG
  * signature check, since a pinned path+sha alone doesn't prove the blob is actually a picture.
- * The table is exported and LANDS EMPTY here; S5 fills it with real rows in its own commit.
+ * The table is exported and holds one row per committed picture.
  *
  * Amendment V, V.1 (slice S4-1, docs/agent-runs/s4-engineering-brief-2026-09-30.md), SD-V1:
  * `classifyFontBinary` and `classifyImageBinary` were two copies of the same exact-path/
@@ -125,12 +125,11 @@ const NAMED_FONT_RESIDUAL = Object.freeze([
 ]);
 
 /*
- * A.3 of docs/agent-runs/s5-architect-2026-10-01.md: a second pinned-residual class,
- * `image-binary`, for S5's painted art (OF-6, option (ii)). Owned here, never by S5, because it
- * reuses `classifyFontBinary`'s exact machinery (one table, one classifier). Unlike
- * NAMED_FONT_RESIDUAL this table is exported and landed empty. It now holds the two README and
- * social preview images under docs/images (the Lantern branding art); the sample campaign's
- * painted pictures will add their own rows when they exist.
+ * A second pinned-residual class, `image-binary`, for the repository's own pictures. It reuses
+ * `classifyFontBinary`'s exact machinery (one table, one classifier). Unlike NAMED_FONT_RESIDUAL
+ * this table is exported. It holds the two README and social preview images under docs/images
+ * (the Lantern branding art); the sample campaign's painted pictures will add their own rows
+ * when they exist.
  */
 const NAMED_IMAGE_RESIDUAL = Object.freeze([
   Object.freeze({ path: 'docs/images/banner.png', sha256: '35a1e1acf30bdc0565cce1722bbcb10c1868d2528bdeeaf5b06e09ae75045275' }),
@@ -551,8 +550,7 @@ function hasImageSignature(buf) {
 
 /**
  * A.3's load-time validation. Returns the 0-based index of the first invalid entry, or -1 if
- * `table` is entirely valid (an empty table is trivially valid -- NAMED_IMAGE_RESIDUAL lands
- * empty). Never returns or logs the entry itself (SD-S3's "never a path" rule, extended to this
+ * `table` is entirely valid (an empty table is trivially valid). Never returns or logs the entry itself (SD-S3's "never a path" rule, extended to this
  * table): callers report only the index.
  */
 function firstInvalidImageResidualIndex(table) {

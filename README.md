@@ -2,26 +2,22 @@
 
 GM-Scriptorium turns your Obsidian-style campaign vault into a website your players can read.
 Before it publishes anything, it checks every page for GM notes, secrets and unrevealed names, and
-leaves them out. Your notes never leave your computer. Built for tabletop GMs. Free and open source.
+leaves them out. Your GM notes stay on your computer and are never put on the site. Built for tabletop GMs. Free and open source.
 
 [Download](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases) for Windows or Linux, or
-[try the sample campaign](examples/README.md).
+[try the sample campaign](examples/README.md) (`examples/the-long-lease`).
 
 ## How it works
 
-1. **Point it at your vault.** With no campaign yet, `gm-scriptorium serve --admin` opens setup in your browser and asks
-   five questions: a name, your vault folder, where the site goes, a title and a theme.
-2. **Check.** Pages are scanned for anything marked for the GM, and problems are listed by page
-   before anything is built.
+1. **Point it at your vault.** With no campaign yet, `gm-scriptorium serve --admin` starts setup and prints a link to open in your
+   browser. It asks five questions: a name, your vault folder, where the site goes, a title and a theme.
+2. **Check.** Pages are scanned for anything marked for the GM. Problems are listed before any build.
 3. **Build and share.** You get a plain folder of web pages. Preview it in the admin panel, then
    host it anywhere.
 
-It is one portable program with no Node or npm needed, with built-in themes and a local admin panel
-that stays on your computer.
-
 ## Get it
 
-Download the program for your system from the
+Download the single program for your system (no Node or npm needed) from the
 [Releases page](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases). The latest one is a
 prerelease and is not code-signed yet, so Windows may warn you the first time you run it. Installing a
 release, verifying it and building a binary are in [Install](docs/install.md).
@@ -37,8 +33,6 @@ node bin/scriptorium.js --help
 Replace `gm-scriptorium` with `node bin/scriptorium.js` in the commands below.
 
 ## Use it
-
-Try it first on the sample campaign in [`examples/the-long-lease`](examples/README.md).
 
 ```
 gm-scriptorium init
