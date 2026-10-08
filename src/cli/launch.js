@@ -104,7 +104,8 @@ async function runLaunch(flags, deps = {}) {
     timer.unref();
     held = { key, file, timer };
     try {
-      const result = await openFile({ target: file, env });
+      // A copy: process.env is not a plain object, and openFile (like run) only takes a plain one.
+      const result = await openFile({ target: file, env: { ...env } });
       if (result.outcome === 'exited' && result.exitCode !== 0) printFallback();
     } catch {
       printFallback();

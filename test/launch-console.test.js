@@ -299,6 +299,15 @@ test('O mints a fresh code and opens again; the opener is given the file and the
   assert.equal(h.state.text.split('Press O').length - 1, 1, 'nothing extra is printed for a successful O');
 });
 
+test('the opener is given a plain-object copy of the environment even when the environment is the real process.env (the real opener refuses anything else)', async (t) => {
+  const h = await launch(t, { deps: { env: process.env } });
+  await until(() => h.opened.length === 1, 'startup');
+  const given = h.opened[0].opts.env;
+  assert.equal(Object.getPrototypeOf(given), Object.prototype, 'a plain object, as openFile requires');
+  assert.notEqual(given, process.env, 'a copy, not the live environment');
+  assert.equal(given.PATH, process.env.PATH);
+});
+
 // --- Ctrl+C --------------------------------------------------------------------------------------------------------------
 
 test('byte 0x03 in raw mode stops cleanly: exit 0, no pause, raw mode off, no listener left, launcher gone', async (t) => {

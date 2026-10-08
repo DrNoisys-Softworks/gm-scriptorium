@@ -324,6 +324,7 @@ test('options are closed and checked: unknown keys, a bad target, a bad env and 
     [{ ...base, target: '/tmp/x/a\u007fb.html' }, 'target'],
     [{ ...base, env: undefined }, 'env'],
     [{ ...base, env: 'PATH=/bin' }, 'env'],
+    [{ ...base, env: process.env }, 'env'], // the live environment is not a plain object: callers pass a copy
     [{ ...base, settleMs: 0 }, 'settleMs'],
     [{ ...base, settleMs: -5 }, 'settleMs'],
     [{ ...base, settleMs: 1.5 }, 'settleMs'],
