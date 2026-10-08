@@ -3,6 +3,7 @@
 const { resolveCampaignContext } = require('../cli/args');
 const { resolveVaultSite } = require('../cli/check');
 const { createAdminContext } = require('./context');
+const { CAMPAIGN_FIELDS } = require('./campaignstate');
 
 /*
  * Browser setup mode (docs/decisions/0028-installer-and-first-run.md, sections 1 and 4). When
@@ -47,7 +48,23 @@ function fence(ctx, method, pathname) {
   return SETUP_MODE_ROUTES.includes(`${method} ${pathname}`) ? 'allow' : 'refuse';
 }
 
-const HANDOVER_FIELDS = ['campaign', 'ctxInfo', 'vaultPath', 'siteSource', 'siteConfigPath', 'packDir', 'writable', 'readOnlyReason'];
+// The eight fields the handover copies are the campaign's resolved fields (src/admin/campaignstate.js).
+const HANDOVER_FIELDS = CAMPAIGN_FIELDS.resolved;
+
+/**
+ * Resolves a campaign from the config into a fresh context, reading the disk (the vault, its
+ * vault-config.md, the pack and the site config) synchronously. Shared by the setup handover and by
+ * a campaign switch (ADR 0050 section 1); throws the resolver's own error and changes nothing.
+ *
+ * @param {string} configPath
+ * @param {string} name
+ * @param {string} token
+ */
+function resolveFresh(configPath, name, token) {
+  const ctxInfo = resolveCampaignContext({ config: configPath }, name);
+  const { vaultPath, site } = resolveVaultSite(ctxInfo);
+  return createAdminContext({ ctxInfo, vaultPath, site, token });
+}
 
 /**
  * Turns the setup context into the normal campaign context, in place. Runs once.
@@ -59,12 +76,10 @@ const HANDOVER_FIELDS = ['campaign', 'ctxInfo', 'vaultPath', 'siteSource', 'site
  */
 function applyHandover(ctx, { name }) {
   if (!isSetupActive(ctx)) throw new Error('setup is already finished');
-  const ctxInfo = resolveCampaignContext({ config: ctx.setup.configPath }, name);
-  const { vaultPath, site } = resolveVaultSite(ctxInfo);
-  const fresh = createAdminContext({ ctxInfo, vaultPath, site, token: ctx.token });
+  const fresh = resolveFresh(ctx.setup.configPath, name, ctx.token);
   for (const field of HANDOVER_FIELDS) ctx[field] = fresh[field];
   ctx.setup.active = false;
   ctx.setup.remoteDeferred = null;
 }
 
-module.exports = { SETUP_MODE_ROUTES, FENCE_BODY, isSetupActive, fence, applyHandover };
+module.exports = { SETUP_MODE_ROUTES, FENCE_BODY, isSetupActive, fence, resolveFresh, applyHandover };

@@ -109,4 +109,46 @@ function removePreviewRoot(ctx) {
   ctx.previewDir = null;
 }
 
-module.exports = { ensurePreviewRoot, runPreviewBuild, buildPreviewWithGmLink, removePreviewRoot };
+/**
+ * ADR 0050 section 3: stop removes the current campaign's root and every stashed campaign's root.
+ * Best-effort and swallowed, like removePreviewRoot; tolerates a context with no campaigns state.
+ *
+ * @param {object} ctx
+ */
+function removeAllPreviewRoots(ctx) {
+  removePreviewRoot(ctx);
+  if (!ctx.campaigns) return;
+  for (const slot of ctx.campaigns.slots.values()) {
+    if (!slot.previewRoot) continue;
+    try {
+      fs.rmSync(slot.previewRoot, { recursive: true, force: true });
+    } catch {
+      // best-effort only, as above
+    }
+  }
+  ctx.campaigns.slots.clear();
+}
+
+/**
+ * Drops one stashed campaign's preview: its root is removed (best-effort) and its slot forgotten.
+ * Used when a campaign is removed from the list, and when a switch finds that a stashed campaign
+ * now points at another vault.
+ *
+ * @param {object} ctx
+ * @param {string} name
+ */
+function dropCampaignPreview(ctx, name) {
+  if (!ctx.campaigns) return;
+  const slot = ctx.campaigns.slots.get(name);
+  if (!slot) return;
+  if (slot.previewRoot) {
+    try {
+      fs.rmSync(slot.previewRoot, { recursive: true, force: true });
+    } catch {
+      // best-effort only, as above
+    }
+  }
+  ctx.campaigns.slots.delete(name);
+}
+
+module.exports = { ensurePreviewRoot, runPreviewBuild, buildPreviewWithGmLink, removePreviewRoot, removeAllPreviewRoots, dropCampaignPreview };

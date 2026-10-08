@@ -379,14 +379,15 @@ function canonFold(value) {
 
 function buildAllowIndex(allows) {
   const termIndex = new Map(); // canonFold(target) -> allow entry[]
-  const pathIndex = new Map(); // canonicalNfc(target) -> allow entry[]
+  const pathIndex = new Map(); // exact target string -> allow entry[]
   for (const a of allows) {
     if (a.kind === 'term') {
       const key = canonFold(a.target);
       if (!termIndex.has(key)) termIndex.set(key, []);
       termIndex.get(key).push(a);
     } else {
-      const key = canonicalNfc(a.target);
+      // Exact string, no normalisation: git sees an NFC and an NFD spelling as two files.
+      const key = a.target;
       if (!pathIndex.has(key)) pathIndex.set(key, []);
       pathIndex.get(key).push(a);
     }
@@ -661,7 +662,7 @@ const HELP_TEXT = [
 ].join('\n');
 
 function parseArgv(argv) {
-  const options = { terms: [], patterns: [], allow: [], match: 'word', lines: false, help: false };
+  const options = { terms: [], patterns: [], allow: [], match: 'word', lines: false, noPathAllow: false, help: false };
   let i = 0;
   while (i < argv.length) {
     const a = argv[i];
@@ -684,6 +685,11 @@ function parseArgv(argv) {
     }
     if (a === '--lines') {
       options.lines = true;
+      i++;
+      continue;
+    }
+    if (a === '--no-path-allow') {
+      options.noPathAllow = true;
       i++;
       continue;
     }
@@ -788,7 +794,10 @@ function run(argv, { cwd, env, stdout, stderr }) {
     if (allEntries.length === 0) throw new ScanError('no-entries');
 
     matcher = buildMatcher(allEntries, { match: options.match });
-    const { termIndex, pathIndex } = buildAllowIndex(allows);
+    const { termIndex, pathIndex: builtPathIndex } = buildAllowIndex(allows);
+    // `--no-path-allow` (the guard's `files` mode): path entries stay loaded, and so are
+    // reported UNUSED, but suppress nothing.
+    const pathIndex = options.noPathAllow ? new Map() : builtPathIndex;
 
     let modeLine;
     let targets;
@@ -838,9 +847,9 @@ function run(argv, { cwd, env, stdout, stderr }) {
       if (target.missing) missing++;
       if (target.symlink) symlinks++;
 
-      const pathAllowed = target.pathText !== null && pathIndex.has(canonicalNfc(target.pathText));
-      if (pathAllowed) {
-        for (const e of pathIndex.get(canonicalNfc(target.pathText))) e.used = true;
+      const pathAllowed = target.pathText !== null && pathIndex.has(target.pathText);
+      if (pathAllowed && !target.missing) {
+        for (const e of pathIndex.get(target.pathText)) e.used = true;
       }
 
       let effective = { total: 0, byCategory: {} };

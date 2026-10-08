@@ -112,6 +112,17 @@
       lede: 'Where the panel can be used from. The panel can change your campaign files, so remote access always needs HTTPS and a password. This screen only shows the state; the commands that change it are listed below.',
     },
     {
+      id: 'campaigns',
+      group: 'Setup',
+      label: 'Campaigns',
+      short: 'Campaigns',
+      icon: 'folder',
+      soon: false,
+      readOnly: false,
+      eyebrow: 'Setup · campaigns',
+      lede: 'Every campaign GM-Scriptorium knows about. Switch the panel to another one, choose which one opens by default, or take one off the list. Taking one off the list never deletes anything.',
+    },
+    {
       id: 'memory',
       group: 'Coming later',
       label: 'Memory',

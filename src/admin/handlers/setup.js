@@ -17,9 +17,10 @@ const { THEMES, INIT_DEFAULT_THEME } = require('../../build/themes');
  * Browser setup's routes (docs/decisions/0028-installer-and-first-run.md). Every handler runs only
  * after the router's gate has authenticated the request, and every one refuses a remote-kind
  * request with 403 (setup is loopback only; the gate never lets a remote request reach these in
- * setup mode, and this is the defence in depth). This file is the only admin module that requires
- * src/setup/register.js, which is the only panel-side importer of the config writer, and the
- * commit route is the only caller of it (test/setup-structure.test.js proves both).
+ * setup mode, and this is the defence in depth). This file and src/admin/handlers/campaigns.js
+ * (ADR 0050) are the only admin modules that require src/setup/register.js, which is the only
+ * panel-side importer of the config writer, and the commit route is the only caller of the
+ * setup commit (test/setup-structure.test.js proves both).
  */
 
 const FIELDS = ['name', 'vault', 'output', 'title', 'theme', 'newVault', 'system', 'starterTitle'];

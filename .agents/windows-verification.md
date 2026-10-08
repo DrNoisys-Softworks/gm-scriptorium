@@ -1974,6 +1974,18 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
     - an existing name is refused, and its contents are unchanged;
     - a folder inside the scratch config folder is refused.
 12. With remote access in proxy or tailscale mode on a disposable machine, list a folder from the second machine. The panel's `audit.log` gains one `folders` line. A listing from the same PC adds none. A New folder from either adds a request and response pair.
+### C139: switching campaigns, set default and remove work in one panel, and config.toml is written safely, in the real win-x64 exe
+
+`docs/decisions/0050-several-campaigns.md`. **Mark this OPEN: Linux-verified from source and a Linux packaged build only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 8; the two must match.
+
+1. Register `a` (local, `S\a`) and `z` (on a scratch mapped `Z:`), then run `serve --admin`. Switch to `z`, build a preview, and switch back. `a`'s last preview shows, and neither preview ever shows the other's pages.
+2. Run `net use Z: /delete`, then switch to `z`. A plain message appears within a few seconds, the panel stays on `a` and keeps answering, and the preview is still `a`'s.
+3. Reconnect, then remove `z`. Hash every file under `z`'s vault, output and backups (`Get-ChildItem -Recurse -File | Get-FileHash`) before and after: identical. `config.toml` matches a copy put through `config remove z`.
+4. Open Campaigns, run `config add c ...` in a terminal, then Set as default. It is refused with "Your settings changed outside the panel. Reload and try again." and `c` is still in the file.
+5. Hold `config.toml` open without delete sharing (PowerShell `[IO.File]::Open(path,'Open','Read','Read')`), then Set as default. It is refused within about 4 seconds, the file is intact, and no `.config.toml.scriptorium-tmp-*` is left. Close the handle and retry: it works.
+6. If remote access is configured, switch from the remote browser: `audit.log` shows request `a`, response `z`. Otherwise leave this step OPEN.
+7. On the Title screen type a new title without saving, then pick another campaign in the switcher. A confirm says "You have unsaved changes on this page. Switch anyway?". Stay keeps the title and the campaign. Switch moves the panel and lands on the Overview. On the Campaigns screen the long vault and output paths wrap and the page does not scroll sideways at a narrow window.
+8. Ctrl-C: no `scriptorium-preview-*` is left in `%TEMP%`. Re-hash the real config.
 
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 

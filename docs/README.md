@@ -76,6 +76,7 @@ the way.
 - [0046. One process spawner for outside programs](decisions/0046-one-process-spawner.md): Programs the tool starts all go through one module with a fixed list, no shell and a scrubbed environment.
 - [0048. Starting a new campaign: creating a vault from the gm-apprentice scaffold](decisions/0048-new-campaign-vault.md): A GM with no vault can create one in a new or empty folder, from gm-apprentice's own scaffold output, by a writer that never overwrites and never deletes.
 - [0049. The folder picker](decisions/0049-folder-picker.md): Path fields can browse folders in the panel and make a new one, without listing any file.
+- [0050. Several campaigns in one panel](decisions/0050-several-campaigns.md): One running panel can switch between registered campaigns, set the default and remove one from the list, and config.toml is now written crash-safely.
 
 ## Licensing
 

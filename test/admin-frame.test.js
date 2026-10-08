@@ -27,6 +27,7 @@ const EXPECTED_NAV = [
   { id: 'preview', group: 'Run', label: 'Preview', short: 'Preview' },
   { id: 'vault-config', group: 'Advanced', label: 'vault-config.md', short: 'vault-config.md' },
   { id: 'remote', group: 'Setup', label: 'Remote access', short: 'Remote' },
+  { id: 'campaigns', group: 'Setup', label: 'Campaigns', short: 'Campaigns' },
   { id: 'memory', group: 'Coming later', label: 'Memory', short: 'Memory' },
   { id: 'publish', group: 'Coming later', label: 'Publish', short: 'Publish' },
   { id: 'sessions', group: 'Coming later', label: 'Sessions', short: 'Sessions' },

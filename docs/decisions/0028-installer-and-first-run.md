@@ -154,3 +154,7 @@ Will not catch, deliberately:
 - `GET /api/setup/state` reports `newVault: { available, systems, problem }`, so the page knows whether this build carries a starter.
 
 The setup page draws the new path (see [ADR 0048](0048-new-campaign-vault.md), "The screens"). `init` asks the same questions in the same order, and `init --yes --new-vault` and the browser commit produce byte-identical vault and pack trees and the same config entry. Section 2's fence is unchanged: the config writer is still reached only through `src/setup/register.js`, and the structure test now names two vault writers, the pack writer and the new vault writer, each reached only from that file.
+
+## Addendum: several campaigns in one panel
+
+[ADR 0050](0050-several-campaigns.md) adds one more handler module that reaches `src/setup/register.js`, `src/admin/handlers/campaigns.js`, for the campaign set-default and remove routes. The chain in section 2 is otherwise unchanged: `register.js` is still the only panel-side importer of `src/config/write.js`, the setup-mode route list in section 1 is unchanged, and the setup commit is untouched.

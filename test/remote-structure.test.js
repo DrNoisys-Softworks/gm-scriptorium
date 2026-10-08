@@ -201,9 +201,23 @@ test('src/remote/** requires no network builtin, child_process or the panel hand
   assert.deepEqual(offenders, []);
 });
 
-test('the audit hook is the only place that calls audit.append with a request body: no handler passes req or a body into an audit entry', () => {
+test('the audit hook is the only place that calls audit.append with a request body: no handler passes req or a body into an audit entry, and the one handler-supplied value is the affected campaign name (ADR 0050)', () => {
   const routerSrc = stripComments(fs.readFileSync(at('admin', 'router.js'), 'utf8'));
   const appendCalls = routerSrc.match(/audit\.append\([^)]*\)/g) || [];
   assert.equal(appendCalls.length, 2, 'the request line and the response line');
   for (const call of appendCalls) assert.ok(!/body|req\b/.test(call.replace(/req\.method/, '')), call);
+  assert.deepEqual([...new Set(routerSrc.match(/\bnote\.[A-Za-z_]+/g) || [])], ['note.affected']);
+
+  const assigners = listJs(at('admin'))
+    .filter((f) => /\bauditNote\.[A-Za-z_]+\s*=(?!=)/.test(stripComments(fs.readFileSync(f, 'utf8'))))
+    .map((f) => path.relative(SRC, f).split(path.sep).join('/'));
+  assert.deepEqual(assigners, ['admin/handlers/campaigns.js']);
+  const assigned = stripComments(fs.readFileSync(at('admin', 'handlers', 'campaigns.js'), 'utf8')).match(/\bauditNote\.[A-Za-z_]+(?=\s*=(?!=))/g) || [];
+  assert.deepEqual([...new Set(assigned)], ['auditNote.affected']);
+});
+
+test('positive control: the auditNote assignment scan finds a planted second field and ignores a comment', () => {
+  const re = /\bauditNote\.[A-Za-z_]+\s*=(?!=)/;
+  assert.ok(re.test(stripComments('auditNote.other = 1;')));
+  assert.ok(!re.test(stripComments('// auditNote.other = 1\nconst a = auditNote.affected === 1;')));
 });

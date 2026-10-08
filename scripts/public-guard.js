@@ -161,6 +161,7 @@ class GuardError extends Error {
     this.code = code;
     this.kind = extra.kind;
     this.counts = extra.counts;
+    this.lines = extra.lines;
     this.index = extra.index;
   }
 }
@@ -272,21 +273,38 @@ function computeFingerprint(filePaths) {
 }
 
 /**
+ * True only for an exact repo-relative FILE path: no empty target, no absolute path or drive
+ * letter, no backslash, no glob character, no control character, no empty/`.`/`..` segment, and
+ * no trailing slash (a directory). Whether the file exists in what is being scanned is not
+ * knowable here; the scanner reports a path entry that matched nothing as UNUSED.
+ */
+function isExactRepoFilePath(target) {
+  if (typeof target !== 'string' || target === '') return false;
+  if (target.startsWith('/') || /^[A-Za-z]:/.test(target)) return false;
+  if (target.includes('\\') || /[*?[\]{}]/.test(target)) return false;
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(target)) return false;
+  return target.split('/').every((seg) => seg !== '' && seg !== '.' && seg !== '..');
+}
+
+/**
  * SD-S7's own standing-allowlist validation (SD-7 of the original S4 brief, pulled forward here
  * because SD-S3's `bad-allow` code depends on it existing even in this early-landing commit):
- * `term` entries only (a `path` entry is `path-entry`), and each literal must equal a literal
- * already present in the terms list or a `literal`-kind entry of the patterns list, compared
- * after NFC + lowercasing (`not-in-list` otherwise). Re-parses `allowText` itself (syntax errors
- * are the caller's `bad-list` concern, checked separately, before this function is ever
- * reached) so this stays a pure, independently callable function per the S.3 interface.
+ * a `term` entry's literal must equal a literal already present in the terms list or a
+ * `literal`-kind entry of the patterns list, compared after NFC + lowercasing (`not-in-list`
+ * otherwise). A `path` entry (ADR 0031, closing amendment) must be an exact repo-relative file
+ * path (`bad-path` otherwise); the reason is already required by the parser. Re-parses
+ * `allowText` itself (syntax errors are the caller's `bad-list` concern, checked separately,
+ * before this function is ever reached) so this stays a pure, independently callable function
+ * per the S.3 interface.
  */
 function validateStandingAllow(allowText, termTexts) {
   const { allows } = parseAllowList(allowText);
   const termSet = new Set(termTexts.map((t) => canonFold(t)));
   const errors = [];
   for (const a of allows) {
-    if (a.kind !== 'term') {
-      errors.push({ line: a.line, code: 'path-entry' });
+    if (a.kind === 'path') {
+      if (!isExactRepoFilePath(a.target)) errors.push({ line: a.line, code: 'bad-path' });
       continue;
     }
     if (!termSet.has(canonFold(a.target))) {
@@ -355,9 +373,9 @@ function loadPrivacyLists({ cwd, env }) {
     .concat(patternsParsed.entries.filter((e) => e.kind === 'literal').map((e) => e.value));
   const allowErrors = validateStandingAllow(allowText, termTexts);
   if (allowErrors.length) {
-    const pathEntry = allowErrors.filter((e) => e.code === 'path-entry').length;
+    const badPath = allowErrors.filter((e) => e.code === 'bad-path').length;
     const notInList = allowErrors.filter((e) => e.code === 'not-in-list').length;
-    throw new GuardError('bad-allow', { counts: { pathEntry, notInList } });
+    throw new GuardError('bad-allow', { counts: { badPath, notInList }, lines: allowErrors });
   }
 
   const fingerprint = computeFingerprint([filePaths.terms, filePaths.patterns, filePaths.allow]);
@@ -684,7 +702,9 @@ function emitError(err, stderr) {
     if (err.index !== undefined) line += ` index=${err.index}`;
     stderr.write(line + '\n');
     if (err.code === 'bad-allow' && err.counts) {
-      stderr.write(`path-entry=${err.counts.pathEntry} not-in-list=${err.counts.notInList}\n`);
+      stderr.write(`bad-path=${err.counts.badPath} not-in-list=${err.counts.notInList}\n`);
+      // Line numbers and codes only, never the entry's text.
+      for (const e of err.lines || []) stderr.write(`LINE ${e.line} ${e.code}\n`);
     }
     return 2;
   }
@@ -981,6 +1001,10 @@ function runOneScan({ cwd, env, strippedEnv, mode, rest, match, lines, lists, li
   if (paths.allow) scanArgv.push('--allow', paths.allow);
   scanArgv.push('--match', match);
   if (lines) scanArgv.push('--lines');
+  // `files` targets carry only a basename (or the named directory's basename plus a relative
+  // path), never a repo-relative path, so a `path` entry cannot be tied to one repo file there.
+  // Path entries stay loaded (and show up UNUSED) but never apply.
+  if (mode === 'files') scanArgv.push('--no-path-allow');
   scanArgv.push(mode, ...rest);
 
   const scannerStdout = makeSink();

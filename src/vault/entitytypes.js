@@ -16,6 +16,9 @@ const TABLE_HEADER_CELLS = ['type', 'entity type', 'type category'];
 function isHeaderCell(cell) {
   return TABLE_HEADER_CELLS.includes(cell.trim().toLowerCase());
 }
+// UPSTREAM-HEADING-ALIASES: upstream lists types in "### Required Fields (by Entity Type)", a yaml fence of `name: [field, ...]` lines.
+const REQUIRED_FIELDS_HEADING_RE = /^###[ \t]+Required Fields \(by Entity Type\)[ \t]*\r?$/;
+const REQUIRED_FIELDS_LINE_RE = /^([A-Za-z0-9_-]+):[ \t]*\[[^\]]*\][ \t]*$/;
 // UPSTREAM-HEADING-ALIASES: upstream writes "— (none required)" in the relationship cell for a type that requires nothing.
 const NONE_REQUIRED_RE = /^[-–—]\s*(?:\(\s*none required\s*\))?$/i;
 
@@ -49,6 +52,33 @@ function parseRecognisedTypes(vaultPath) {
   const result = read.readFrontmatter(entityTypesPath);
   if (!result.ok) return recognised;
   const content = result.content;
+
+  // UPSTREAM-HEADING-ALIASES: types named in upstream's Required Fields yaml fence
+  // The section ends at the next heading outside a fence (a "#" comment inside the yaml is not a heading).
+  const lines = content.split(/\r?\n/);
+  const start = lines.findIndex((l) => REQUIRED_FIELDS_HEADING_RE.test(l));
+  if (start >= 0) {
+    // `meta` is vault infrastructure (_meta pages), never a campaign entity, so a vault with upstream's section always knows it.
+    // Only in that case: a legacy vault's recognised set (and its warnings for `meta` pages) must stay as it was.
+    recognised.add('meta');
+    let inFence = false;
+    for (let i = start + 1; i < lines.length; i++) {
+      const l = lines[i];
+      const fence = l.match(/^```(.*)$/);
+      if (fence) {
+        if (inFence) break; // the first fence closes: only one block is read
+        inFence = true;
+        if (!/^ya?ml\s*$/.test(fence[1])) break;
+        continue;
+      }
+      if (!inFence) {
+        if (/^#{1,6}[ \t]/.test(l)) break;
+        continue;
+      }
+      const m = l.match(REQUIRED_FIELDS_LINE_RE);
+      if (m) recognised.add(m[1]);
+    }
+  }
 
   const hierarchyFence = content.match(new RegExp('##\\s*(?:' + HIERARCHY_HEADING + ')[\\s\\S]*?```(?:text)?\\n([\\s\\S]*?)```'));
   if (hierarchyFence) {

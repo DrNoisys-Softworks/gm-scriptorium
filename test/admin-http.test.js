@@ -435,7 +435,7 @@ test('real-pipeline auth: two same-named cookies that are BOTH wrong is the nega
 
 // --- Route sweep --------------------------------------------------------
 
-test('route sweep: the table equals a literal list of 39 METHOD path entries plus the asset prefix (V1.5a: 26 -> 31; ADR 0028 setup: 31 -> 36, launch code exchange: 36 -> 37; ADR 0049 folder picker: 37 -> 39)', () => {
+test('route sweep: the table equals a literal list of 43 METHOD path entries plus the asset prefix (V1.5a: 26 -> 31; ADR 0028 setup: 31 -> 36, launch code exchange: 36 -> 37; ADR 0049 folder picker: 37 -> 39; ADR 0050: 39 -> 43)', () => {
   const nonAsset = ADMIN_ROUTES.filter((r) => r.path !== undefined).map((r) => `${r.method} ${r.path}`);
   assert.deepEqual(nonAsset, [
     'GET /auth',
@@ -489,6 +489,11 @@ test('route sweep: the table equals a literal list of 39 METHOD path entries plu
     // ADR 0049: the folder picker's listing and its one create-only folder write.
     'GET /api/folders',
     'POST /api/folders/create',
+    // ADR 0050: several campaigns in one panel (list, switch, set as default, remove from the list).
+    'GET /api/campaigns',
+    'POST /api/campaigns/switch',
+    'POST /api/campaigns/default',
+    'POST /api/campaigns/remove',
   ]);
   const assetRoutes = ADMIN_ROUTES.filter((r) => r.prefix !== undefined);
   assert.deepEqual(assetRoutes.map((r) => `${r.method} ${r.prefix}`), ['GET /assets/']);

@@ -1790,3 +1790,10 @@ name; the one new write route is `POST /api/vault-config/fields`.
 
 - **Section 4 (reads: the fixed readable set).** Two routes now take a folder path from a request: `GET /api/folders` (names of child folders only, never a file) and `POST /api/folders/create`. A path is validated as an absolute path of at most 2048 characters, and nothing is listed or made by location except as section 6 below says.
 - **Section 6 (the write exception).** The panel gains one create-only, single-level, non-recursive folder write. It is not a vault write: it is refused inside the config folder, the panel folder and every registered vault, it never overwrites, deletes or renames, and ADR 0049 section 3 names the test that fences it.
+
+## 16. Amended by ADR 0050
+
+[ADR 0050](0050-several-campaigns.md) changes two things in this record.
+
+- **Section 5 (the context is resolved once).** The campaign context is now resolved at launch, at the setup handover, or at a switch. A switch re-resolves the one shared context under the exclusive lock, after a bounded check that the target's folders answer. The ports, the token, the cookies, the remote settings, the sessions and the audit log do not change.
+- **The write exception.** The panel's module graph still never reaches `src/cli/config.js` or `src/cli/init.js`, and `src/setup/register.js` is still the only panel-side module that requires `src/config/write.js`. A second handler module, `src/admin/handlers/campaigns.js`, may now require `register.js`, for the campaign set-default and remove routes. Those are the only other writes the panel makes to `config.toml`, and ADR 0050 section 5 names the tests that fence them.
