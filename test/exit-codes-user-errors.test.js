@@ -79,6 +79,13 @@ const CASES = [
   ['--host with --admin', (r) => (goodCfg(r), ['serve', '--admin', '--host', '0.0.0.0']), 1, /does not accept --host/],
   ['--admin --port abc', (r) => (goodCfg(r), ['serve', '--admin', '--port', 'abc']), 1, /--port must be a whole number/],
   ['init --theme nonesuch', (r) => ['init', '--yes', '--name', 'x', '--vault', path.join(r, 'v'), '--theme', 'nonesuch'], 1, /unknown theme "nonesuch"/],
+  ['init --new-vault together with --vault', (r) => ['init', '--yes', '--name', 'x', '--vault', SAMPLE, '--new-vault', path.join(r, 'v')], 1, /init takes --vault or --new-vault, not both/],
+  ['init --system without --new-vault', (r) => ['init', '--yes', '--name', 'x', '--vault', SAMPLE, '--system', 'none'], 1, /--system only applies with --new-vault/],
+  ['init --yes --new-vault without --system', (r) => ['init', '--yes', '--name', 'x', '--new-vault', path.join(r, 'v')], 1, /init --yes --new-vault needs --system <id> or --system none/],
+  ['init --new-vault with no value', (r) => ['init', '--yes', '--name', 'x', '--new-vault'], 1, /--new-vault needs a value/],
+  ['init --new-vault into a folder that is not empty', (r) => (fs.mkdirSync(path.join(`${r}-nv`, 'full'), { recursive: true }), fs.writeFileSync(path.join(`${r}-nv`, 'full', 'a.md'), 'x'), ['init', '--yes', '--name', 'x', '--new-vault', path.join(`${r}-nv`, 'full'), '--system', 'none']), 3, /refusing to create a vault in .*: it is not empty \(it holds a\.md\)/],
+  ['init --new-vault into a file', (r) => (fs.writeFileSync(path.join(r, 'afile'), 'x'), ['init', '--yes', '--name', 'x', '--new-vault', path.join(r, 'afile'), '--system', 'none']), 3, /refusing to create a vault in .*afile: it is a file/],
+  ['init --new-vault inside an existing vault', (r) => ['init', '--yes', '--name', 'x', '--new-vault', path.join(SAMPLE, 'zz-new'), '--system', 'none'], 3, /it is inside the vault at /],
   ['init aborted by closed stdin', (r) => ({ args: ['init', '--name', 'x', '--vault', SAMPLE], input: '' }), 1, /init aborted; nothing written/],
   ['config add with no name', () => ['config', 'add'], 1, /usage: gm-scriptorium config add/],
   ['unknown config subcommand', () => ['config', 'frob'], 1, /unknown config subcommand: frob/],
@@ -87,14 +94,19 @@ const CASES = [
 for (const [label, setup, expected, pattern] of CASES) {
   test(`#108: ${label} exits ${expected}`, () => {
     withScratch((root) => {
-      const spec = setup(root);
-      const { args, input, env } = Array.isArray(spec) ? { args: spec } : spec;
-      const res = run(root, args, { input, env });
-      assert.equal(res.code, expected, res.all);
-      assert.match(res.all, pattern);
-      assert.doesNotMatch(res.all, /\n\s+at .*\(|TypeError|ERR_[A-Z_]+|options\.port/, 'a raw Node message or stack leaked');
-      // Never use 2 (check failed) or 4 (update prerequisite) for a user mistake.
-      assert.ok(![2, 4].includes(res.code));
+      // Some rows (the new-vault refusals) need a folder outside the scratch config folder: `${root}-nv`.
+      try {
+        const spec = setup(root);
+        const { args, input, env } = Array.isArray(spec) ? { args: spec } : spec;
+        const res = run(root, args, { input, env });
+        assert.equal(res.code, expected, res.all);
+        assert.match(res.all, pattern);
+        assert.doesNotMatch(res.all, /\n\s+at .*\(|TypeError|ERR_[A-Z_]+|options\.port/, 'a raw Node message or stack leaked');
+        // Never use 2 (check failed) or 4 (update prerequisite) for a user mistake.
+        assert.ok(![2, 4].includes(res.code));
+      } finally {
+        fs.rmSync(`${root}-nv`, { recursive: true, force: true });
+      }
     });
   });
 }

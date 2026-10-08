@@ -1,0 +1,330 @@
+---
+type: meta
+purpose: entity-types
+---
+
+# Entity Types
+
+## Entity Type Hierarchy
+
+```text
+person (abstract)
+├── player
+├── game_master
+└── character (abstract)
+    ├── pc
+    └── npc
+
+agent (abstract) — can act, decide, exert influence
+├── character (see above)
+├── creature
+│   ├── beast
+│   ├── undead
+│   ├── construct
+│   ├── spirit
+│   ├── deity
+│   └── aberration
+├── faction
+└── organization
+    ├── government
+    ├── corporation
+    ├── cult
+    ├── guild
+    ├── military
+    └── criminal
+
+place (abstract)
+└── location  (nests via part_of)
+
+artifact (abstract)
+├── item
+│   ├── weapon
+│   ├── armor
+│   ├── vehicle
+│   ├── treasure
+│   ├── relic
+│   ├── tool
+│   └── consumable
+└── document
+    ├── spell
+    ├── map
+    ├── letter
+    ├── prophecy
+    ├── contract
+    └── journal
+
+narrative (abstract)
+├── event
+│   ├── battle
+│   ├── ritual
+│   ├── disaster
+│   ├── discovery
+│   ├── betrayal_event
+│   └── celebration
+├── clue
+├── plan
+├── adventure-brief
+└── campaign_overview
+
+world (abstract)
+├── heritage
+├── world_domain
+└── world_flags
+```
+
+Abstract types are never assigned to entities; they exist for
+constraint inheritance in the relationship ontology.
+
+## Frontmatter Schemas
+
+### Required Fields (by Entity Type)
+
+Most entity types require `type` and `canon_status`; the exact
+per-type set is below. This is exactly what `vault_check.py
+frontmatter` enforces via
+`schema_rules.REQUIRED_FIELDS` — that mapping is authoritative, and
+`tests/test_entity_schema_required_fields.py` checks this block
+against it so the two cannot drift silently.
+
+```yaml
+npc: [type, canon_status]
+pc: [type, canon_status]
+location: [type, canon_status]
+faction: [type, canon_status]
+organization: [type, canon_status]
+item: [type, canon_status]
+creature: [type, canon_status]
+clue: [type, canon_status]
+event: [type, canon_status]
+document: [type, canon_status]
+adventure-brief: [type, canon_status, scope]
+session: [type, session_number, status, documents]
+session-plan: [type, canon_status, session]
+session-play-notes: [type, canon_status, session]
+session-wrap-up: [type, canon_status, session]
+session-wrapup: [type, canon_status, session]
+session_wrap: [type, canon_status, session]
+scene: [type, canon_status, scene_type, status]
+chapter: [type]
+meta: [type]
+timeline: [type]
+pc_roster: [type]
+player-characters: [type]
+character-story: [type, canon_status]
+campaign_overview: [type, canon_status]
+heritage: [type, canon_status]
+plan: [type, canon_status, plan_type, chapter]
+world_domain: [type, canon_status, domain, status]
+world_flags: [type]
+```
+
+The roster page is `pc_roster`. `player-characters` is an older name
+for it, still accepted; write `pc_roster`.
+
+A `type:` outside this list is a custom type: `vault_check.py
+frontmatter` surfaces it as INFO ("no schema rules applied") rather
+than enforcing anything against it.
+
+Recommended on every type, though not enforced: `aliases`, `tags`,
+`source_document`, `campaign`, `first_appearance`. Write them
+anyway — `vault_check.py names` reads `aliases`, and campaign-qa's
+audits lean on the rest.
+
+`gm_aliases` (optional list) holds names only the GM should know, such
+as a disguised NPC's true name. They resolve `[[links]]` like `aliases`,
+but publish-site and mobrpg never show them: both rewrite a GM alias to
+the owning page's title before publishing or pushing. Obsidian only
+resolves links through `aliases`, so to make such a link work in
+Obsidian, list the name under both fields. It still stays off the site.
+
+```yaml
+---
+type: npc              # From the type hierarchy
+canon_status: DRAFT    # DRAFT | AUTHORITATIVE | SUPERSEDED | STUB
+aliases: []             # recommended, not enforced
+gm_aliases: []          # optional — secret names; resolve links, never published
+tags: []                # recommended, not enforced
+source_document: ""     # recommended, not enforced
+campaign: ""            # recommended, not enforced
+first_appearance: ""    # recommended, not enforced — link to scene or session
+---
+```
+
+### Relationships Block
+
+```yaml
+relationships:
+  - target: "[[Target Entity Name]]"
+    type: member_of       # From _meta/relationship-types.md
+    tone: respectful      # friendly | romantic | respectful
+                          # professional | hostile | fearful
+                          # distrustful | contemptuous | neutral
+                          # unknown | complicated
+    strength: 7           # 1-10 (1-2 weak, 9-10 defining)
+    bidirectional: false
+    description: "Serves as lieutenant"
+    gm_only: false        # optional; true hides the edge from a published
+                          # site (page, relationship graph, search index)
+```
+
+Every relationship on a non-PC entity also appears in the body,
+readable (a PC's body follows `shared/pc-body-structure.md`): under
+`## Related` (grouped People, Places, Groups, Things, one line per
+tie), or under `### Hidden Ties` in GM Notes when `gm_only: true`.
+Write, change or remove both together.
+
+Extraction defaults: `tone: neutral` and `strength: 5` when the
+source is ambiguous; `bidirectional: false` unless inherently
+symmetric; a `description` traceable to source text; `gm_only`
+omitted unless the edge's *existence* is the secret.
+
+### Publish control fields
+
+Optional, on any entity — how a frontmatter secret or a whole
+GM-facing file stays off a player site (`<!-- gm-only -->` has no
+meaning in frontmatter).
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `publish` | `false` \| `stub` | `false` — no page in any mode; links to it render as plain text. `stub` — page emitted for navigation, keeping only `publish_include_sections`. |
+| `publish_exclude_fields` | array | Fields hidden on **this file only**, merged over the vault's `exclude_fields`. Not re-admitted by a config-level `overrides.fields.*.include`. |
+| `publish_include_sections` | array | With `publish: stub` only. Headings to keep; default none. |
+
+Absent, or an unrecognized `publish:` value, means normal
+publication.
+
+**PC `live_key`** (optional string, a slug; machine-written). The key the
+site stores a PC's live stats under (current HP/SAN, loadouts, party board).
+Absent means the slug of the filename, as always. `relink.py` writes it when
+it renames a PC, so the stats stay with the character; nothing else sets it
+and templates do not carry it.
+
+## Type-Specific Fields
+
+Mirrored into each vault's `_meta/entity-types.md`; migrations diff
+the mirror against these entries.
+
+**NPC:** `occupation`, `age`, `gender`, `nationality`, `status`
+(alive/dead/missing/unknown), `location` (wiki-link: where they're
+usually found), `portrait` (optional)
+
+**PC:** `player_name`, `occupation`, `age`, `gender`, `nationality`,
+`status` (alive/dead/missing/unknown), `key_traits`, `portrait` (optional),
+`display_meta` (optional array: ordered field names for published site meta row;
+defaults to `[occupation, age, nationality]` when omitted), `sheet_source`
+(optional string: where the character sheet is kept when it is not in this
+file, e.g. `"D&D Beyond"` or `"paper, with the player"`; not shown on the site by default; see
+`shared/pc-body-structure.md`)
+
+### PC Body Structure
+
+The PC body-heading hierarchy, the `## Current Status` block spec,
+and the Story Companion Convention now live in
+`shared/pc-body-structure.md`.
+
+**Character Story:** `character` (wiki-link to the PC), plus
+universal fields — no other type-specific attributes. Body is
+append-only session sections; see the Story Companion Convention in
+`shared/pc-body-structure.md`.
+
+**Location:** `location_type`, `parent_location` (wiki-link),
+`atmosphere`, `portrait` (optional). `parent_location` groups the
+published Locations listing (fallback: `location_type`).
+
+**Faction/Organization:** `faction_type` (cult, guild, military,
+etc.), `goals`, `leadership` (wiki-link), `territory` (wiki-link),
+`status` (active/weakened/destroyed/allied/dormant),
+`part_of` (wiki-link to the parent body, optional), `portrait`
+(optional). `faction_type` groups the published Factions listing.
+
+**Item:** `item_type` (weapon, armor, relic, etc.),
+`current_holder` (wiki-link), `origin`, `portrait` (optional)
+
+**Event:** `event_type` (battle, ritual, etc.), `in_game_date` (in-game),
+`location` (wiki-link), `participants` (wiki-links), `outcome`
+
+**Clue:** `clue_type` (physical, testimonial, documentary),
+`found_at` (wiki-link), `found_by`, `leads_to`, `reliability`,
+`discoveryState` (per PC)
+
+**Document:** `doc_type` (letter, journal, map, etc.), `author`,
+`date` (when written), `condition`, `current_holder` (wiki-link).
+The text itself goes in the body under `## The Text`; an older
+`content` field moves there
+
+**Plan:** `plan_type` (arc/scene/investigation/timeline),
+`chapter` (wiki-link), `participants` (wiki-links),
+`locations` (wiki-links), `leads_to` (wiki-links)
+
+**Adventure Brief:** `scope` (campaign/one-shot/few-shot),
+`sessions_estimated`, `continuation_type` (new/new-chapter/new-arc/time-jump/prequel/parallel/new-pcs),
+`adventure_shape` (linear/branching/hub-and-spoke/open-node/sandbox),
+`system`
+
+**Campaign Overview:** `campaign`, `game_system`, `setting_year`,
+`current_game_date`, `genre_tags`, `scope`, `status`, `sessions_played`,
+`last_session`, `last_play_date`, `current_arc`, `arcs_planned`,
+`current_chapter`, `chapters_planned`, `portrait` (optional)
+
+**Creature:** `creature_type` (beast, undead, aberration, etc.),
+`threat_level` (as the PCs judge it), `location` (wiki-link),
+`portrait` (optional). `abilities` and `weaknesses` are optional and
+publish; keep them in the body's GM Notes to hide them
+
+**Heritage:** `lifespan_range` (min/max age array), `maturity_age`,
+`average_height`, `notable_traits`, `portrait` (optional)
+
+**World Domain:** `domain`, `status` (active/stub/inactive),
+`summary`, `rules` (array of machine-checkable world rules)
+
+**World Flags:** `last_reviewed`
+
+### The `mobrpg:` node (machine-managed — do not hand-edit)
+
+Entities synced to a mobRPG world carry a `mobrpg:` node written by
+the `mobrpg` CLI — a regenerable sync ledger, not authored content;
+top-line frontmatter stays the source of truth. Never edit it or
+copy it into another entity. mobRPG is canon: `accepted`/`edited`
+entities (`review_state`) are refreshed from mobRPG on pull-down;
+`pending`/`dismissed` ones keep their vault content. Scalar values
+are JSON-encoded (`key: "text"`, `key: null`).
+
+| Key | Meaning |
+|-----|---------|
+| `world_id` / `external_ref` / `element_id` / `element_kind` | identity anchors (element_id is null until mobRPG accepts) |
+| `review_state` | `pending` / `accepted` / `dismissed` / `edited` / `deleted` |
+| `content_hash` / `last_synced` / `review_note` | sync bookkeeping |
+| `determined` | classifiers derived and sent (mobRPG canon overwrites on edit) |
+| `relationships[]` | reified-Event ids keyed by `(predicate, target)` |
+| `languages[]` | reserved (populated by the mobRPG skill) |
+
+## Required Relationships
+
+| Entity Type | Required Relationship |
+|-------------|----------------------|
+| `npc` | `located_at` |
+| `pc` | `located_at` |
+| `creature` | `located_at` |
+| `faction` | `headquartered_at` |
+| `organization` | `headquartered_at` |
+| `heritage` | — (none required) |
+
+## Default Folder Mapping
+
+| Type Category | Vault Folder |
+|---------------|-------------|
+| pc | Characters/PCs/ |
+| npc | Characters/NPCs/ |
+| location | Locations/ |
+| faction, organization | Factions & Organizations/ |
+| item (all subtypes) | Items & Artifacts/ |
+| creature (all subtypes) | Creatures/ |
+| event (all subtypes) | Events/ |
+| document (all subtypes) | Documents/ |
+| clue | Clues/ |
+| plan | `Chapters/{chapter}/Planning/` |
+| adventure-brief | Adventures/{adventure-name}/ |
+| campaign_overview | _Campaign/ |
+| heritage | Heritages/ |
+| world_domain | _World/ |
+| world_flags | _World/ |

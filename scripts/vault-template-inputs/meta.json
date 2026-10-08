@@ -1,0 +1,13 @@
+{
+  "templateVersion": "1",
+  "license": "CC-BY-SA-4.0",
+  "attribution": "Based on the vault scaffold in gm-apprentice (https://github.com/AntTheLimey/gm-apprentice) by AntTheLimey, licensed under CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/legalcode). Changes: one setting (publish site: false to true), the campaign name and date filled in, and three files added by GM-Scriptorium.",
+  "deviations": [
+    {
+      "file": "_meta/vault-config.md",
+      "from": "  site: false",
+      "to": "  site: true",
+      "why": "a new vault has to build as soon as it is created; upstream turns the site on in a later publish step that this tool does not run"
+    }
+  ]
+}

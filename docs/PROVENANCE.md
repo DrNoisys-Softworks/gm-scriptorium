@@ -164,6 +164,8 @@ a namespace identifier and not a fetched resource.
 **Answer: CC-BY-SA-4.0 does not attach to anything GM-Scriptorium bundles. The share-alike obligation
 is confined to `skills/`, and `skills/` is not in the npm package. There is no contamination.**
 
+*Later change:* the executable now carries a starter for new vaults that IS the output of upstream's scaffold, so share-alike does attach to those files. See "Starter for new vaults" at the end of this document.
+
 The upstream repo is genuinely dual-licensed, and the strongest statement of that is not the README
 but `.claude-plugin/plugin.json`, which declares:
 
@@ -1140,3 +1142,30 @@ artwork. Both are offered under this repository's MIT licence (`LICENSE`).
 
 The admin panel favicon (`assets/admin/favicon.svg` and `favicon-32.png`) is the same lantern in a
 smaller drawing, with the PNG rendered from the SVG.
+
+## Starter for new vaults, 2026-10-08
+
+Starting a new campaign creates a vault from a starter template in `assets/vault-template/`
+([ADR 0048](decisions/0048-new-campaign-vault.md)). It is the output of gm-apprentice's own vault
+scaffold (`skills/shared/scripts/vault_scaffold.py`), run once per game system.
+
+| Fact | Value |
+|---|---|
+| Upstream | https://github.com/AntTheLimey/gm-apprentice, by AntTheLimey |
+| Commit | `a0215b1f2e688c476e37d372fd647935360f00b8`, plugin version 1.10.37 |
+| Fetched | twice, by `git clone` and by the GitHub tarball for that commit; `skills/shared` and `.claude-plugin` are identical in both |
+| Weaker than a release | a commit is weaker provenance than a release tarball, and this pin is a commit |
+| Licence | CC-BY-SA-4.0 for the starter's content, from upstream's `LICENSE` (copied, byte for byte, to `scripts/vendor/gm-apprentice-LICENSE-CC-BY-SA-4.0.txt`, sha256 `28a9529c7d0bb4dc51f4bf5c116a3d16ef247a052f7591466768ddf563fd1cf5`) |
+| Systems | none, dnd-5e-2024, pf2e and fitd. Call of Cthulhu and GURPS are held back (rules content and the SJG "not for resale" term; see [ADR 0007](decisions/0007-rules-content-redaction.md)) |
+| Third-party licences | upstream's `ATTRIBUTION.md` at that commit names third-party licences (SRD 5.2, Blades in the Dark, ORC, SJG) for the material under `skills/ttrpg-expert/systems/` and for upstream's own test fixtures and scripts. It names none for `skills/shared/templates/`, `skills/shared/scaffold/`, `entity-schema.md`, `gm-apprentice-ontology.json` or `vault-structure.md`, which is where the starter comes from. None of the `ttrpg-expert` files is captured |
+| Rules content | none of the `scripts/content-markers.js` strings is in the starter, the rules-content scan over the starter has zero hits, and `npm run package` still checks the executable |
+
+What was changed from the scaffold's output, and nothing else: in `_meta/vault-config.md` the line
+`  site: false` becomes `  site: true`, and the campaign name and date are filled in where the
+scaffold writes them. Three files are written by this program and not taken from upstream:
+`_meta/publish-manifest.md`, `_Campaign/Welcome.md` and `_meta/NOTICE.txt`. The manifest records the
+scaffold's own sha256 for two sample runs per system, and a test renders both back to those bytes.
+
+Attribution travels three ways: every new vault holds `_meta/NOTICE.txt`, Section 8 of
+`THIRD-PARTY-NOTICES.txt` carries the licence text and the file list, and the manifest names the
+source. The starter holds no binary file, so the public-guard residual classes are unchanged.

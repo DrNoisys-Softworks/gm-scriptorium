@@ -15,6 +15,7 @@ const HELP = `gm-scriptorium <command> [campaign] [flags]
 
 Commands:
   init     [--name <name>] [--vault <path>] [--out <path>] [--title <text>] [--theme <name>] [--yes]
+           init --new-vault <path> --system <id|none> [--name <name>] [--title <text>] [--out <path>] [--theme <name>] [--yes]
   check    [campaign] [--graph] [--json] [--quiet] [--no-color]
   build    [campaign] [--no-check] [--force] [--out <path>] [--json]
   serve    [campaign] [--build] [--port N] [--host ADDR] | [campaign] --admin [--port N] [--preview-port N]

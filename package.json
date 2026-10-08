@@ -33,7 +33,8 @@
       "THIRD-PARTY-NOTICES.txt",
       "assets/site/**/*",
       "assets/themes/**/*",
-      "assets/admin/**/*"
+      "assets/admin/**/*",
+      "assets/vault-template/**/*"
     ],
     "patches": {
       "node_modules/gm-apprentice-publish/lib/templates/gurps/blocks/reference.js": [

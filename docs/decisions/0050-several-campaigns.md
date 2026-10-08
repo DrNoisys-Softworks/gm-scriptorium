@@ -118,3 +118,7 @@ Will not catch, deliberately:
 ## Windows verification
 
 The Windows half (switching between a local campaign and one on a mapped drive, a disconnected share failing within the bound, a remove leaving every file where it was, a refused write when a terminal changed the config, the rename retry when another program holds the file, and no preview folders left behind) is verified only from the real exe. It is OPEN: `.agents/windows-verification.md` C139. The Linux tests prove the sequence of the calls and the shape of the retry, not how Windows treats a held file or a dropped share.
+
+## Addendum: adding a campaign
+
+[ADR 0052](0052-add-a-campaign.md) uses the address that section 10 reserved. The Campaigns screen and the switcher now have an Add a campaign control, and `#/campaigns/add` replaces the page by the setup page in add mode. The add route is campaign-bound like every audited change in section 4, so the add page learns its campaign from `/api/session` first. After its own switch, the page calls `ScriptoriumAdmin.adopt` to point itself at the new campaign, which keeps it from being marked stale; `adopt` does nothing for a page that is already stale.

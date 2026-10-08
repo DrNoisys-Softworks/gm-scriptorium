@@ -13,7 +13,7 @@ const { scratchRoot, copySample, configPathIn } = require('./helpers/setup-fixtu
  * ADR 0028 section 2: the panel's one write to config.toml is fenced. Structurally: the config
  * writer is reachable from the admin panel through ONE chain (handlers/setup.js > setup/register.js >
  * config/write.js; ADR 0050 adds handlers/campaigns.js as a second handler on the same chain, for
- * the campaign set-default and remove routes), setup code is write-free except through
+ * the campaign set-default and remove routes, and ADR 0052 adds the add-a-campaign route to that same module), setup code is write-free except through
  * src/vault/packwrite.js, and no module
  * under src/admin or src/setup names the writer except register.js. Behaviourally: with the writer
  * spied, every route of the table is hit in normal mode and in setup mode, and the writer is called
@@ -148,7 +148,7 @@ function writeTokensIn(file) {
 
 const SETUP_CODE = [...listJs(at('setup')), SETUP_HANDLER];
 
-test('PW15 tokens are absent from every file in src/setup and from src/admin/handlers/setup.js (vault writes only via src/vault/packwrite.js)', () => {
+test('PW15 tokens are absent from every file in src/setup and from src/admin/handlers/setup.js (vault writes only via src/vault/packwrite.js and src/vault/vaultcreate.js)', () => {
   assert.ok(SETUP_CODE.length >= 7, "the scan covers src/setup and the handler");
   for (const f of SETUP_CODE) assert.deepEqual(writeTokensIn(f), [], path.relative(ROOT, f));
 });
@@ -164,10 +164,21 @@ test('positive control: the token scan finds a planted write and ignores a comme
   assert.deepEqual(writeTokensIn(fine), []);
 });
 
-test('the only vault write helper setup code names is createPackEntries from src/vault/packwrite.js', () => {
-  const users = listJs(at('setup')).filter((f) => /createPackEntries/.test(stripComments(fs.readFileSync(f, 'utf8'))));
-  assert.deepEqual(users.map((f) => path.relative(ROOT, f)), [path.join('src', 'setup', 'register.js')]);
-  assert.match(stripComments(fs.readFileSync(REGISTER_JS, 'utf8')), /require\('\.\.\/vault\/packwrite'\)/);
+test('the only vault write helpers setup code names are createPackEntries (src/vault/packwrite.js) and createVault (src/vault/vaultcreate.js), each only in src/setup/register.js', () => {
+  for (const [helper, mod] of [['createPackEntries', 'packwrite'], ['createVault', 'vaultcreate']]) {
+    const users = listJs(at('setup')).filter((f) => new RegExp(`\\b${helper}\\b`).test(stripComments(fs.readFileSync(f, 'utf8'))));
+    assert.deepEqual(users.map((f) => path.relative(ROOT, f)), [path.join('src', 'setup', 'register.js')], helper);
+    assert.match(stripComments(fs.readFileSync(REGISTER_JS, 'utf8')), new RegExp(`require\\('\\.\\./vault/${mod}'\\)`));
+  }
+});
+
+test('positive control: a scratch file naming createVault is found by the same filter, and a comment-only mention is not', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-cv-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, 'named.js'), "const { createVault } = require('x'); createVault();\n");
+  fs.writeFileSync(path.join(dir, 'comment.js'), '// createVault is not used here\n/* createVault */\nmodule.exports = 1;\n');
+  const users = listJs(dir).filter((f) => new RegExp('\\bcreateVault\\b').test(stripComments(fs.readFileSync(f, 'utf8'))));
+  assert.deepEqual(users.map((f) => path.basename(f)), ['named.js']);
 });
 
 // --- no computed requires ------------------------------------------------------------------------------
@@ -315,6 +326,34 @@ test('behavioural sweep, normal mode with two campaigns: one valid set-default a
 
   await sweep(h);
   assert.deepEqual(calls, [configPath, configPath], 'a {} sweep adds no write');
+});
+
+test('behavioural sweep, normal mode: one valid add calls the writer exactly once, and a {} sweep adds none (ADR 0052)', async (t) => {
+  const root = scratchRoot(t);
+  const vaultX = copySample(root, 'vault-x', { withPack: true });
+  const vaultY = copySample(root, 'vault-y');
+  const configPath = configPathIn(root);
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  writeConfigFile(configPath, { config_version: 1, default_campaign: 'x', campaigns: { x: { vault: vaultX, output: path.join(root, 'ox') } } });
+  const calls = installSpy(t);
+  const h = await startPanel(t, { config: configPath });
+  await sweep(h);
+  assert.deepEqual(calls, []);
+
+  const state = await request(h.port, { pathname: '/api/campaigns/add/state', headers: { Cookie: h.cookie } });
+  assert.equal(state.status, 200, state.body.toString());
+  const configSha256 = JSON.parse(state.body.toString()).configSha256;
+  const added = await request(h.port, {
+    method: 'POST',
+    pathname: '/api/campaigns/add',
+    headers: { Cookie: h.cookie, Origin: h.origin, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'y', vault: vaultY, output: path.join(root, 'oy'), configSha256 }),
+  });
+  assert.equal(added.status, 200, added.body.toString());
+  assert.deepEqual(calls, [configPath]);
+
+  await sweep(h);
+  assert.deepEqual(calls, [configPath], 'a {} sweep adds no write');
 });
 
 test('behavioural sweep, setup mode: every route is hit with {} (all fenced or refused), then ONE valid commit calls the writer exactly once', async (t) => {

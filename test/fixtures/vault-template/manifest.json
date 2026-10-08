@@ -1,0 +1,258 @@
+{
+  "schema": 1,
+  "templateVersion": "fixture-1",
+  "upstream": {
+    "repository": "https://example.invalid/gm-apprentice-fixture",
+    "commit": "0123456789abcdef0123456789abcdef01234567",
+    "script": "skills/shared/scripts/vault_scaffold.py",
+    "pluginVersion": "9.9.9",
+    "command": "fixture: hand-written, not captured",
+    "clock": "fixture: hand-written, not captured"
+  },
+  "gm_apprentice_version": "9.9.9",
+  "license": "MIT",
+  "attribution": "Test fixture written for this repository. It is not upstream content.",
+  "placeholders": [
+    {
+      "token": "{{SCRIPTORIUM_CAMPAIGN}}",
+      "value": "campaign",
+      "rule": "the site title with every run of whitespace collapsed to one space"
+    },
+    {
+      "token": "{{SCRIPTORIUM_CREATED}}",
+      "value": "created",
+      "rule": "the local date of creation as YYYY-MM-DD"
+    }
+  ],
+  "systems": {
+    "dnd-5e-2024": {
+      "dirs": [
+        "Characters",
+        "Characters/NPCs",
+        "Characters/PCs",
+        "Factions & Organizations",
+        "Items & Artifacts",
+        "Locations",
+        "_Campaign",
+        "_Templates",
+        "_attachments",
+        "_attachments/characters",
+        "_meta"
+      ],
+      "files": {
+        "_Campaign/Player Characters.md": {
+          "store": "common/_Campaign/Player Characters.md",
+          "sha256": "96dbc138d27aa905250886f82ada7c03101affad6519b0ec6903fb43e40647b6",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 2
+          }
+        },
+        "_Campaign/Timeline.md": {
+          "store": "common/_Campaign/Timeline.md",
+          "sha256": "e03bde5bdb063bde575db1fb659964274d94b0d1fff0ef3b48d4c61a4d7069bd",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 2
+          }
+        },
+        "_Campaign/Welcome.md": {
+          "store": "common/_Campaign/Welcome.md",
+          "sha256": "604353e0c2cac7517ca362c04b14fade087b380f204d74117b88b6b588803826",
+          "origin": "scriptorium",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 3
+          }
+        },
+        "_Templates/npc.md": {
+          "store": "common/_Templates/npc.md",
+          "sha256": "3b525c2f0d46163139f123333918734f72a586de2e69597aa5bfadccb5a03b5f",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/pc.md": {
+          "store": "systems/dnd-5e-2024/_Templates/pc.md",
+          "sha256": "b04c26c4169a3826a9707358e214e85ff043a8269ab8c4444cb1d1b80a32c0be",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/NOTICE.txt": {
+          "store": "common/_meta/NOTICE.txt",
+          "sha256": "e7140173849310ba87779ecb5565b6e5ce91dd6162b847ce6f6a3ab7bb32a6cc",
+          "origin": "scriptorium",
+          "tokens": {}
+        },
+        "_meta/entity-types.md": {
+          "store": "common/_meta/entity-types.md",
+          "sha256": "4cb74fc7725b1d7ea0db45ca2ddfa1e18ce0a17377347d9ecb6901337c26bfbb",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/index.md": {
+          "store": "common/_meta/index.md",
+          "sha256": "916bcdb9f91fb935c39e5f833efebb3732ff098a2cd2f455d3b228ccf304d499",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CREATED}}": 2
+          }
+        },
+        "_meta/publish-manifest.md": {
+          "store": "common/_meta/publish-manifest.md",
+          "sha256": "b7e5b9095c1ba9c73f89422fd03f35d74f414f02292cd480f25e39b17ca4cb27",
+          "origin": "scriptorium",
+          "tokens": {}
+        },
+        "_meta/relationship-types.md": {
+          "store": "common/_meta/relationship-types.md",
+          "sha256": "ca9a94565a8cf1801416df9fda587b9fce330fbed6cb3516fd69cc3505d55507",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/vault-config.md": {
+          "store": "systems/dnd-5e-2024/_meta/vault-config.md",
+          "sha256": "56e74b2f614e561b61558502f79d74b155a560ca2b45936fa70367d584f77c6a",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 1
+          }
+        }
+      }
+    },
+    "none": {
+      "dirs": [
+        "Characters",
+        "Characters/NPCs",
+        "Characters/PCs",
+        "Factions & Organizations",
+        "Items & Artifacts",
+        "Locations",
+        "_Campaign",
+        "_Templates",
+        "_attachments",
+        "_attachments/characters",
+        "_meta"
+      ],
+      "files": {
+        "_Campaign/Player Characters.md": {
+          "store": "common/_Campaign/Player Characters.md",
+          "sha256": "96dbc138d27aa905250886f82ada7c03101affad6519b0ec6903fb43e40647b6",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 2
+          }
+        },
+        "_Campaign/Timeline.md": {
+          "store": "common/_Campaign/Timeline.md",
+          "sha256": "e03bde5bdb063bde575db1fb659964274d94b0d1fff0ef3b48d4c61a4d7069bd",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 2
+          }
+        },
+        "_Campaign/Welcome.md": {
+          "store": "common/_Campaign/Welcome.md",
+          "sha256": "604353e0c2cac7517ca362c04b14fade087b380f204d74117b88b6b588803826",
+          "origin": "scriptorium",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 3
+          }
+        },
+        "_Templates/npc.md": {
+          "store": "common/_Templates/npc.md",
+          "sha256": "3b525c2f0d46163139f123333918734f72a586de2e69597aa5bfadccb5a03b5f",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/pc.md": {
+          "store": "systems/none/_Templates/pc.md",
+          "sha256": "3a7684d7099f6c397027b7f1934dc495c4cc948ed3abcca50d4e92a01f4c0011",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/NOTICE.txt": {
+          "store": "common/_meta/NOTICE.txt",
+          "sha256": "e7140173849310ba87779ecb5565b6e5ce91dd6162b847ce6f6a3ab7bb32a6cc",
+          "origin": "scriptorium",
+          "tokens": {}
+        },
+        "_meta/entity-types.md": {
+          "store": "common/_meta/entity-types.md",
+          "sha256": "4cb74fc7725b1d7ea0db45ca2ddfa1e18ce0a17377347d9ecb6901337c26bfbb",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/index.md": {
+          "store": "common/_meta/index.md",
+          "sha256": "916bcdb9f91fb935c39e5f833efebb3732ff098a2cd2f455d3b228ccf304d499",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CREATED}}": 2
+          }
+        },
+        "_meta/publish-manifest.md": {
+          "store": "common/_meta/publish-manifest.md",
+          "sha256": "b7e5b9095c1ba9c73f89422fd03f35d74f414f02292cd480f25e39b17ca4cb27",
+          "origin": "scriptorium",
+          "tokens": {}
+        },
+        "_meta/relationship-types.md": {
+          "store": "common/_meta/relationship-types.md",
+          "sha256": "ca9a94565a8cf1801416df9fda587b9fce330fbed6cb3516fd69cc3505d55507",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/vault-config.md": {
+          "store": "systems/none/_meta/vault-config.md",
+          "sha256": "2d03ebb08d394527feed5948d6d2b8ea352f5fc134d2da17eb54c061e7b6dff1",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 1
+          }
+        }
+      }
+    }
+  },
+  "deviations": [
+    {
+      "file": "_meta/vault-config.md",
+      "from": "  site: false",
+      "to": "  site: true",
+      "why": "a new vault has to build as soon as it is created, so the site switch is turned on"
+    }
+  ],
+  "parity": [
+    {
+      "system": "dnd-5e-2024",
+      "name": "Qzx  Echo Ünï:  #1 ---",
+      "campaign": "Qzx Echo Ünï: #1 ---",
+      "created": "2034-11-29",
+      "files": {
+        "_Campaign/Player Characters.md": "b96ae92a95dade7374861834df5a663738b4ab3e041411dbb71e019c1d9484a2",
+        "_Campaign/Timeline.md": "d9cfd21a17941e28309ac24e5e7137d9630b9b1132ad09dbb5d3ead997aa1bf2",
+        "_Templates/npc.md": "3b525c2f0d46163139f123333918734f72a586de2e69597aa5bfadccb5a03b5f",
+        "_Templates/pc.md": "b04c26c4169a3826a9707358e214e85ff043a8269ab8c4444cb1d1b80a32c0be",
+        "_meta/entity-types.md": "4cb74fc7725b1d7ea0db45ca2ddfa1e18ce0a17377347d9ecb6901337c26bfbb",
+        "_meta/index.md": "f05f92b1038f208d735eca4d0759dac751fbe2185a3b812513bcfe95a90eff44",
+        "_meta/relationship-types.md": "ca9a94565a8cf1801416df9fda587b9fce330fbed6cb3516fd69cc3505d55507",
+        "_meta/vault-config.md": "ca392bcc7fc9de5bb98ce0993897c09f68d6898c4f7edd0074762c6d3be3c84e"
+      }
+    },
+    {
+      "system": "none",
+      "name": "Qzx  Echo Ünï:  #1 ---",
+      "campaign": "Qzx Echo Ünï: #1 ---",
+      "created": "2034-11-29",
+      "files": {
+        "_Campaign/Player Characters.md": "b96ae92a95dade7374861834df5a663738b4ab3e041411dbb71e019c1d9484a2",
+        "_Campaign/Timeline.md": "d9cfd21a17941e28309ac24e5e7137d9630b9b1132ad09dbb5d3ead997aa1bf2",
+        "_Templates/npc.md": "3b525c2f0d46163139f123333918734f72a586de2e69597aa5bfadccb5a03b5f",
+        "_Templates/pc.md": "3a7684d7099f6c397027b7f1934dc495c4cc948ed3abcca50d4e92a01f4c0011",
+        "_meta/entity-types.md": "4cb74fc7725b1d7ea0db45ca2ddfa1e18ce0a17377347d9ecb6901337c26bfbb",
+        "_meta/index.md": "f05f92b1038f208d735eca4d0759dac751fbe2185a3b812513bcfe95a90eff44",
+        "_meta/relationship-types.md": "ca9a94565a8cf1801416df9fda587b9fce330fbed6cb3516fd69cc3505d55507",
+        "_meta/vault-config.md": "1cf036e40102a2438de3fa97db0ea3c2ceb34d3cff55b74bec6f9d66815e5c9b"
+      }
+    }
+  ],
+  "rulesScan": []
+}

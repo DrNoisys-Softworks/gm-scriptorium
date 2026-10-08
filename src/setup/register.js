@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { loadConfig } = require('../cli/args');
 const read = require('../vault/read');
 const { packDirFor, createPackEntries } = require('../vault/packwrite');
+const { createVault } = require('../vault/vaultcreate');
 const { addCampaign, removeCampaign, setDefaultCampaign, assertConfigPathNotInVault } = require('../config/write');
 const { parseConfig } = require('../config/load');
 const { migrateConfig } = require('../config/migrate');
@@ -14,20 +15,30 @@ const { migrateConfig } = require('../config/migrate');
 const configWrite = require('../config/write');
 const { assertNotInsideAnyVault } = require('../remote/paths');
 const welcome = require('../admin/welcome');
-const { ConfigError, VaultUnreachableError } = require('../util/errors');
+const { ConfigError, ScriptoriumError, VaultUnreachableError } = require('../util/errors');
 const { SCAFFOLD, scaffoldEntries, nonEmptyOutputRefusal } = require('./scaffold');
 const checks = require('./checks');
+const template = require('./template');
 
 /*
- * Browser setup's commit (docs/decisions/0028-installer-and-first-run.md, sections 1 and 2), and
- * the campaign set-default and remove (docs/decisions/0050-several-campaigns.md, section 5). This
- * is the ONLY panel-side importer of src/config/write.js, and only src/admin/handlers/setup.js (the
- * commit route) and src/admin/handlers/campaigns.js (the two routes above) require this one. It reaches neither
+ * Browser setup's commit (docs/decisions/0028-installer-and-first-run.md, sections 1 and 2), the
+ * campaign set-default and remove (docs/decisions/0050-several-campaigns.md, section 5) and adding a
+ * campaign from the running panel (docs/decisions/0052-add-a-campaign.md). This is the ONLY
+ * panel-side importer of src/config/write.js, and only src/admin/handlers/setup.js (the commit
+ * route) and src/admin/handlers/campaigns.js (the routes above) require this one. It reaches neither
  * src/cli/config.js (which starts the editor) nor src/cli/init.js, nor child_process
  * (test/setup-structure.test.js proves each of those).
  *
  * Vault writes go only through createPackEntries (src/vault/packwrite.js: create-only, never an
- * overwrite). Nothing is ever rolled back: whatever was created stays, and the result says so.
+ * overwrite) and, when the GM starts a new campaign, createVault (src/vault/vaultcreate.js: also
+ * create-only, docs/decisions/0048-new-campaign-vault.md). Nothing is ever rolled back: whatever was
+ * created stays, and the result says so.
+ *
+ * First run and add share ONE pipeline for each path (an existing vault, a new vault). They differ
+ * only in a gate, called twice: 'early', before the first await, and 'late', after the last await
+ * and synchronous from there to the writes. The first-run gate refuses when any campaign exists.
+ * The add gate re-reads the config, refuses when it is not the file the page saw (its sha256), and
+ * at the late call refuses a name, vault or output that clashes with a registered campaign.
  */
 
 function invalid(field, rule) {
@@ -37,19 +48,78 @@ function invalid(field, rule) {
 const BAD_STATES = new Set(['bad', 'unreachable', 'deferred']);
 
 /**
- * @param {{ name: string, vault: string, output: string, outputConfirmed?: boolean, title?: string, theme?: string }} answers
+ * @param {{ name: string, vault: string, output: string, outputConfirmed?: boolean, title?: string, theme?: string,
+ *   newVault?: boolean, system?: string }} answers newVault: true means `vault` is a folder to create a new vault in
+ *   (title is then the new vault's site title, system its game system)
  * @param {{ configPath: string, panelDir: string }} where
- * @param {{ fsp?: object, timeoutMs?: number }} [deps] probe injection (tests only)
+ * @param {{ fsp?: object, timeoutMs?: number, now?: () => Date, env?: object, templateDir?: string }} [deps] injection (tests only)
  * @returns {Promise<
  *   { created: string[], untouched: string[], packDir: string, configPath: string, isDefault: boolean } |
  *   { refused: 'taken' } |
  *   { invalid: { field: string, rule: string } }>}
  */
 async function commitSetup(answers, { configPath, panelDir }, deps = {}) {
+  return pipeline(answers, { configPath, panelDir }, deps, firstRunGate(configPath));
+}
+
+/**
+ * The first-run gate: today's rule, unchanged. Any registered campaign is `taken`, and the late call
+ * re-reads the file because the probes between the two calls can each wait seconds on a slow share.
+ */
+function firstRunGate(configPath) {
+  return () => {
+    const { config } = loadConfig({ config: configPath });
+    if (Object.keys(config.campaigns || {}).length > 0) return { refused: 'taken' };
+    return { config };
+  };
+}
+
+/**
+ * The add gate (ADR 0052). Both calls read the file ONCE, strictly, and compare its sha256 with the
+ * one the page was given; the late call also refuses a clash with a registered campaign, from the
+ * resolved values and with no disk access.
+ */
+function addGate(configPath, configSha256) {
+  return (phase, resolved) => {
+    let snap;
+    try {
+      snap = readConfigSnapshot(configPath, { lenient: false });
+    } catch (err) {
+      if (err instanceof ConfigError) return { refused: 'config-invalid', message: err.message };
+      throw err;
+    }
+    if (snap.sha256 !== configSha256) return { refused: 'config-changed' };
+    if (phase === 'late') {
+      const clash = checks.registeredClash(snap.config, { name: resolved.name, vault: resolved.vaultAbs, output: resolved.outAbs });
+      if (clash) return invalid(clash.field === 'vault' && resolved.newVault ? 'newVault' : clash.field, clash.rule);
+    }
+    return { config: snap.config };
+  };
+}
+
+/**
+ * Adds a campaign to an existing config from the running panel: the same checks and the same writes
+ * as first-run setup (commitSetup), behind the add gate.
+ *
+ * @param {object} answers the commit answers, without configSha256
+ * @param {{ configPath: string, panelDir: string, configSha256: string }} where configSha256: the file the page saw
+ * @param {object} [deps] injection (tests only)
+ * @returns {Promise<object>} commitSetup's success shape, or
+ *   { refused: 'config-changed' } | { refused: 'config-invalid', message } | { invalid: { field, rule } }
+ */
+async function addFromPanel(answers, { configPath, panelDir, configSha256 }, deps = {}) {
+  return pipeline(answers, { configPath, panelDir }, deps, addGate(configPath, configSha256));
+}
+
+function pipeline(answers, where, deps, gate) {
+  return answers.newVault === true ? commitNewVault(answers, where, deps, gate) : commitExisting(answers, where, deps, gate);
+}
+
+async function commitExisting(answers, { configPath, panelDir }, deps, gate) {
   // 1. The race check comes first and re-reads the file: another instance, or a terminal `init`,
-  // may have registered a campaign since this page loaded.
-  const { config } = loadConfig({ config: configPath });
-  if (Object.keys(config.campaigns || {}).length > 0) return { refused: 'taken' };
+  // may have changed it since this page loaded.
+  const early = gate('early', null);
+  if (!early.config) return early;
 
   // 2. Re-validate every answer on the server, with the same functions the live checks use.
   const nameRes = await checks.checkName(answers.name);
@@ -73,8 +143,9 @@ async function commitSetup(answers, { configPath, panelDir }, deps = {}) {
   // The probes above can each wait seconds on a slow share, so the first read of the config may be
   // stale. This is the last await: read the config again, and from here to the write everything is
   // synchronous, so nothing can register a campaign in between except a truly simultaneous write.
-  const latest = loadConfig({ config: configPath }).config;
-  if (Object.keys(latest.campaigns || {}).length > 0) return { refused: 'taken' };
+  const late = gate('late', { name, vaultAbs, outAbs, newVault: false });
+  if (!late.config) return late;
+  const latest = late.config;
 
   // 3. The pack folder must not be a file.
   const packDir = packDirFor(vaultAbs);
@@ -125,6 +196,112 @@ async function commitSetup(answers, { configPath, panelDir }, deps = {}) {
     configPath,
     isDefault,
     ms: { pack: packMs, register: registerMs },
+  };
+}
+
+/**
+ * The new-campaign commit: the same order as above, with the vault created first.
+ *   race check > revalidate every answer > re-read the config > refuse a config or panel folder in
+ *   the vault > render the starter in memory > create the vault > create the pack > the one config write.
+ * If the vault cannot be created nothing else is written. If a later step fails the vault stays,
+ * and the message says so.
+ */
+async function commitNewVault(answers, { configPath, panelDir }, deps, gate) {
+  const early = gate('early', null);
+  if (!early.config) return early;
+
+  const nameRes = await checks.checkName(answers.name);
+  if (BAD_STATES.has(nameRes.state)) return invalid('name', nameRes.rule);
+  const name = nameRes.value;
+
+  const vaultRes = await checks.checkNewVault(answers.vault, { name, commit: true, configPath, panelDir }, deps);
+  if (BAD_STATES.has(vaultRes.state)) return invalid('newVault', vaultRes.rule);
+  const vaultAbs = vaultRes.value;
+
+  const outRes = await checks.checkOutput(answers.output, { vault: vaultAbs, name, commit: true }, deps);
+  if (BAD_STATES.has(outRes.state)) return invalid('output', outRes.rule);
+  const outAbs = outRes.value;
+  if (outRes.facts.nonEmptyForeign && answers.outputConfirmed !== true) return invalid('output', nonEmptyOutputRefusal(outAbs));
+
+  const titleRes = await checks.checkStarterTitle(answers.title, { name }, deps);
+  if (BAD_STATES.has(titleRes.state)) return invalid('starterTitle', titleRes.rule);
+  const themeRes = await checks.checkTheme(answers.theme, { vault: vaultAbs, name });
+  if (BAD_STATES.has(themeRes.state)) return invalid('theme', themeRes.rule);
+  const systemRes = await checks.checkSystem(answers.system, deps);
+  if (BAD_STATES.has(systemRes.state)) return invalid('system', systemRes.rule);
+
+  // The last await: from here to the writes everything is synchronous (see commitSetup).
+  const late = gate('late', { name, vaultAbs, outAbs, newVault: true });
+  if (!late.config) return late;
+  const latest = late.config;
+
+  const next = addCampaign(latest, name, { vault: vaultAbs, output: outAbs });
+  try {
+    assertConfigPathNotInVault(configPath, next);
+    assertNotInsideAnyVault(panelDir, next);
+  } catch (err) {
+    if (err instanceof ConfigError) return invalid('config', err.message);
+    throw err;
+  }
+
+  let starter;
+  try {
+    const now = typeof deps.now === 'function' ? deps.now() : new Date();
+    starter = template.renderStarter(template.loadTemplate({ dir: deps.templateDir }), {
+      system: systemRes.value,
+      title: titleRes.value,
+      created: template.localDate(now),
+    });
+  } catch (err) {
+    if (err instanceof ConfigError) return invalid('starterTitle', err.message);
+    throw err;
+  }
+
+  // 1. The vault. A failure here leaves nothing else written.
+  let vault;
+  const vaultStart = process.hrtime.bigint();
+  try {
+    vault = createVault(vaultAbs, starter, { configPath, panelDir, campaign: name });
+  } catch (err) {
+    if (err instanceof VaultUnreachableError) return invalid('newVault', err.message);
+    throw err;
+  }
+
+  const vaultMs = Number(process.hrtime.bigint() - vaultStart) / 1e6;
+
+  // 2. The pack, inside the vault just made. A failure leaves the vault and says so.
+  let created;
+  const packStart = process.hrtime.bigint();
+  try {
+    created = createPackEntries(vaultAbs, scaffoldEntries(vaultAbs, SCAFFOLD, { title: titleRes.value, theme: themeRes.value }), { campaign: name }).created;
+  } catch (err) {
+    if (!(err instanceof ScriptoriumError)) throw err;
+    return invalid('newVault', `${err.message.replace(/\.$/, '')}. The new vault at ${vaultAbs} was created and is left as it is.`);
+  }
+  const packMs = Number(process.hrtime.bigint() - packStart) / 1e6;
+
+  // 3. The one config write.
+  const registerStart = process.hrtime.bigint();
+  configWrite.writeConfigFile(configPath, next);
+  const registerMs = Number(process.hrtime.bigint() - registerStart) / 1e6;
+  const isDefault = !latest.default_campaign && next.default_campaign === name;
+
+  try {
+    welcome.addPending(panelDir, name);
+  } catch {
+    // swallowed deliberately: the welcome is a courtesy, the registration already succeeded.
+  }
+
+  return {
+    created,
+    untouched: [],
+    packDir: packDirFor(vaultAbs),
+    configPath,
+    isDefault,
+    vaultRoot: vault.root,
+    vaultCreated: vault.created,
+    vaultAncestors: vault.createdAncestors,
+    ms: { vault: vaultMs, pack: packMs, register: registerMs },
   };
 }
 
@@ -214,4 +391,4 @@ function setDefaultFromPanel({ name, configSha256 }, { configPath }) {
   return { ok: true, configSha256: readConfigSnapshot(configPath, { lenient: true }).sha256 };
 }
 
-module.exports = { commitSetup, readConfigSnapshot, removeFromPanel, setDefaultFromPanel };
+module.exports = { commitSetup, addFromPanel, readConfigSnapshot, removeFromPanel, setDefaultFromPanel };

@@ -75,6 +75,9 @@ test('handlers/campaigns.js requires exactly the listed modules, in order, and n
     '../../setup/probe',
     '../../cli/args',
     '../../config/resolve',
+    '../assets',
+    './remote',
+    '../../setup/checks',
   ]);
   assert.equal(DYNAMIC_RE.test(stripComments(source)), false);
   assert.equal(DYNAMIC_RE.test('const x = require(name);'), true, 'positive control');

@@ -1,0 +1,2 @@
+assets/vault-template/** -text
+test/fixtures/vault-template*/** -text

@@ -1,0 +1,1172 @@
+{
+  "schema": 1,
+  "templateVersion": "1",
+  "upstream": {
+    "repository": "https://github.com/AntTheLimey/gm-apprentice",
+    "commit": "a0215b1f2e688c476e37d372fd647935360f00b8",
+    "script": "skills/shared/scripts/vault_scaffold.py",
+    "pluginVersion": "1.10.37",
+    "command": "python3 -I scripts/vault-template-run.py <checkout> <vault> <system or none> <name> <date>",
+    "clock": "the scaffold module's datetime is replaced by a fixed date in the driver; a control run per system uses the scaffold command line with the date of capture"
+  },
+  "gm_apprentice_version": "1.10.37",
+  "license": "CC-BY-SA-4.0",
+  "attribution": "Based on the vault scaffold in gm-apprentice (https://github.com/AntTheLimey/gm-apprentice) by AntTheLimey, licensed under CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/legalcode). Changes: one setting (publish site: false to true), the campaign name and date filled in, and three files added by GM-Scriptorium.",
+  "placeholders": [
+    {
+      "token": "{{SCRIPTORIUM_CAMPAIGN}}",
+      "value": "campaign",
+      "rule": "the site title with every run of whitespace collapsed to one space"
+    },
+    {
+      "token": "{{SCRIPTORIUM_CREATED}}",
+      "value": "created",
+      "rule": "the local date of creation as YYYY-MM-DD"
+    }
+  ],
+  "systems": {
+    "dnd-5e-2024": {
+      "dirs": [
+        "Adventures",
+        "Chapters",
+        "Characters",
+        "Characters/NPCs",
+        "Characters/PCs",
+        "Clues",
+        "Creatures",
+        "Documents",
+        "Events",
+        "Factions & Organizations",
+        "Heritages",
+        "Items & Artifacts",
+        "Locations",
+        "_Campaign",
+        "_Templates",
+        "_World",
+        "_attachments",
+        "_attachments/characters",
+        "_attachments/creatures",
+        "_attachments/documents",
+        "_attachments/events",
+        "_attachments/factions",
+        "_attachments/items",
+        "_attachments/locations",
+        "_meta"
+      ],
+      "files": {
+        "_Campaign/Player Characters.md": {
+          "store": "common/_Campaign/Player Characters.md",
+          "sha256": "764c83f8f13a98607d52286ba4090053f7d2cb061d32158f4e93e83204d84b99",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Campaign/Timeline.md": {
+          "store": "common/_Campaign/Timeline.md",
+          "sha256": "b0305b385696f0e57a5372e618d199fefa58913246054539b4c9d5c64e360e8b",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 1
+          }
+        },
+        "_Campaign/Welcome.md": {
+          "store": "common/_Campaign/Welcome.md",
+          "sha256": "0c90d5230ed38217a36b35673903ba7b80a1547b5b9b6d1dbc80ec8f8205f677",
+          "origin": "scriptorium",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 3
+          }
+        },
+        "_Templates/_Template_Campaign_Overview.md": {
+          "store": "common/_Templates/_Template_Campaign_Overview.md",
+          "sha256": "40c8f101db4c51c14158ef5e7ffe27d42aa5400feeabb879d27127e488b2551c",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Clue.md": {
+          "store": "common/_Templates/_Template_Clue.md",
+          "sha256": "f9d60bcc5b6fe6bbb77c5bedbcd4de385df2c4fb040ec531e991ba45ed5a0f52",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Creature.md": {
+          "store": "systems/dnd-5e-2024/_Templates/_Template_Creature.md",
+          "sha256": "a0071965ba64b50a43bc6beebed7080ce1659ccacc89de987ebf86fd273683ec",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Document.md": {
+          "store": "common/_Templates/_Template_Document.md",
+          "sha256": "13dbad9119e826b461bbc789a7c7d258340e3f14573efd8437260bc315a866a6",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Event.md": {
+          "store": "common/_Templates/_Template_Event.md",
+          "sha256": "4f519fc0d64c66aec0115786bcc8a0ea15a370de89dab54117e161193998911f",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Faction.md": {
+          "store": "common/_Templates/_Template_Faction.md",
+          "sha256": "75bfae75e0bbbccc61ed1f97260f5294dc24ee5d1809d34545427cc5345affa7",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Heritage.md": {
+          "store": "common/_Templates/_Template_Heritage.md",
+          "sha256": "d13b19aeaffd312517f3e3603981bb1ea454b7b821dcd08510a50534ae33bfbc",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Item.md": {
+          "store": "common/_Templates/_Template_Item.md",
+          "sha256": "e79e822b2634951fe913e40bfef65e417104aaf741508d47eca2ed6557fed6c4",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Location.md": {
+          "store": "common/_Templates/_Template_Location.md",
+          "sha256": "7ae9713ba5074e4aacc7075a4a931e79bb304ea8097457844d5b96d72743fbdb",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_NPC.md": {
+          "store": "systems/dnd-5e-2024/_Templates/_Template_NPC.md",
+          "sha256": "e5704207e21e5a53e3b2cc99678d078a2847b4d68b65ddc63b4a54d393a876e2",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Organization.md": {
+          "store": "common/_Templates/_Template_Organization.md",
+          "sha256": "e18fb5859f560688c6e206c8dc06ff5db3083151b8c16059a8ace746eaabc3e2",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Plan.md": {
+          "store": "common/_Templates/_Template_Plan.md",
+          "sha256": "2621bf4e61381376cbb886b80e4d0f43fd251f4abed884a94375b1da7d28a035",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Session.md": {
+          "store": "common/_Templates/_Template_Session.md",
+          "sha256": "9963f8562820b55ffcda770eb6de844c0e37c53175e096085985b67c6de20dc5",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Session_Plan.md": {
+          "store": "common/_Templates/_Template_Session_Plan.md",
+          "sha256": "dae0fc98f45fa12d2c4986dafb15a85f385baf75dbc486fd1bc503e2eff1e15b",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Session_WrapUp.md": {
+          "store": "common/_Templates/_Template_Session_WrapUp.md",
+          "sha256": "d63b3c68a4bf8d152f76079d5d091a2da54b68a01a3c51668bcd0f253bc8dbc4",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_World_Domain.md": {
+          "store": "common/_Templates/_Template_World_Domain.md",
+          "sha256": "fd08d64c79e7c87be10dea4a5608b605bc5e601bfd36f3c57749aca91d077db0",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/character-story.md": {
+          "store": "common/_Templates/character-story.md",
+          "sha256": "864d16ad27789d574570fa62a416dddb96376339416418586b0aa6ddbaf43431",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/pc-dnd-5e-2024.md": {
+          "store": "systems/dnd-5e-2024/_Templates/pc-dnd-5e-2024.md",
+          "sha256": "467ddca41a019f15661a2bf4644d2a69a99735952ec852fab00121eb4d9ad070",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_World/_flags.md": {
+          "store": "common/_World/_flags.md",
+          "sha256": "0d1e78219c1f210185a6ded7ff817ef4e1f304025aa98c7be5cae39e65274a0b",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_World/world-index.md": {
+          "store": "common/_World/world-index.md",
+          "sha256": "d638135b8c68e5f94f70cc755a2a415403e93a0cbb908369de0b8ba0e87a1295",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/NOTICE.txt": {
+          "store": "common/_meta/NOTICE.txt",
+          "sha256": "cc7a83054602de1d703c7bef9a1592a7b11ebc74428a08ad6cdcc3311a1a15bf",
+          "origin": "scriptorium",
+          "tokens": {}
+        },
+        "_meta/entity-types.md": {
+          "store": "common/_meta/entity-types.md",
+          "sha256": "51f521f8b0770b8b0bf71905f90d795204ff92d7ac157b4b2cffec0161450164",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/index.md": {
+          "store": "common/_meta/index.md",
+          "sha256": "26a096f81a01d4f6ccdc8d0f10787b4ca08e4d6c12c731682a6e24a0741578e1",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CREATED}}": 2
+          }
+        },
+        "_meta/publish-manifest.md": {
+          "store": "common/_meta/publish-manifest.md",
+          "sha256": "851489498fa46cd4496a3d6392eaf9c7b91b8129ebd743ee5934d448cea90fdd",
+          "origin": "scriptorium",
+          "tokens": {}
+        },
+        "_meta/relationship-types.md": {
+          "store": "common/_meta/relationship-types.md",
+          "sha256": "d102a83e4d90b0103aaee63cbfe4b2964f8c224288602fc915d9deae1c911d50",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/vault-config.md": {
+          "store": "systems/dnd-5e-2024/_meta/vault-config.md",
+          "sha256": "ff86cc773fe9eae1a4fb7fd5b084e5397255ad0f78e334d576691a13778acc53",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 1
+          }
+        }
+      }
+    },
+    "fitd": {
+      "dirs": [
+        "Adventures",
+        "Chapters",
+        "Characters",
+        "Characters/NPCs",
+        "Characters/PCs",
+        "Clues",
+        "Creatures",
+        "Documents",
+        "Events",
+        "Factions & Organizations",
+        "Heritages",
+        "Items & Artifacts",
+        "Locations",
+        "_Campaign",
+        "_Templates",
+        "_World",
+        "_attachments",
+        "_attachments/characters",
+        "_attachments/creatures",
+        "_attachments/documents",
+        "_attachments/events",
+        "_attachments/factions",
+        "_attachments/items",
+        "_attachments/locations",
+        "_meta"
+      ],
+      "files": {
+        "_Campaign/Player Characters.md": {
+          "store": "common/_Campaign/Player Characters.md",
+          "sha256": "764c83f8f13a98607d52286ba4090053f7d2cb061d32158f4e93e83204d84b99",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Campaign/Timeline.md": {
+          "store": "common/_Campaign/Timeline.md",
+          "sha256": "b0305b385696f0e57a5372e618d199fefa58913246054539b4c9d5c64e360e8b",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 1
+          }
+        },
+        "_Campaign/Welcome.md": {
+          "store": "common/_Campaign/Welcome.md",
+          "sha256": "0c90d5230ed38217a36b35673903ba7b80a1547b5b9b6d1dbc80ec8f8205f677",
+          "origin": "scriptorium",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 3
+          }
+        },
+        "_Templates/_Template_Campaign_Overview.md": {
+          "store": "common/_Templates/_Template_Campaign_Overview.md",
+          "sha256": "40c8f101db4c51c14158ef5e7ffe27d42aa5400feeabb879d27127e488b2551c",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Clue.md": {
+          "store": "common/_Templates/_Template_Clue.md",
+          "sha256": "f9d60bcc5b6fe6bbb77c5bedbcd4de385df2c4fb040ec531e991ba45ed5a0f52",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Creature.md": {
+          "store": "systems/fitd/_Templates/_Template_Creature.md",
+          "sha256": "d66509605ecd96e05e5c261b15ec52f795473cf055719e65d725307f28311b25",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Document.md": {
+          "store": "common/_Templates/_Template_Document.md",
+          "sha256": "13dbad9119e826b461bbc789a7c7d258340e3f14573efd8437260bc315a866a6",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Event.md": {
+          "store": "common/_Templates/_Template_Event.md",
+          "sha256": "4f519fc0d64c66aec0115786bcc8a0ea15a370de89dab54117e161193998911f",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Faction.md": {
+          "store": "common/_Templates/_Template_Faction.md",
+          "sha256": "75bfae75e0bbbccc61ed1f97260f5294dc24ee5d1809d34545427cc5345affa7",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Heritage.md": {
+          "store": "common/_Templates/_Template_Heritage.md",
+          "sha256": "d13b19aeaffd312517f3e3603981bb1ea454b7b821dcd08510a50534ae33bfbc",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Item.md": {
+          "store": "common/_Templates/_Template_Item.md",
+          "sha256": "e79e822b2634951fe913e40bfef65e417104aaf741508d47eca2ed6557fed6c4",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Location.md": {
+          "store": "common/_Templates/_Template_Location.md",
+          "sha256": "7ae9713ba5074e4aacc7075a4a931e79bb304ea8097457844d5b96d72743fbdb",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_NPC.md": {
+          "store": "systems/fitd/_Templates/_Template_NPC.md",
+          "sha256": "3837717eca22b337b2ae1fa54de0493ee48acfa3af8a5d98acf3fa5d057ccb5f",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Organization.md": {
+          "store": "common/_Templates/_Template_Organization.md",
+          "sha256": "e18fb5859f560688c6e206c8dc06ff5db3083151b8c16059a8ace746eaabc3e2",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Plan.md": {
+          "store": "common/_Templates/_Template_Plan.md",
+          "sha256": "2621bf4e61381376cbb886b80e4d0f43fd251f4abed884a94375b1da7d28a035",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Session.md": {
+          "store": "common/_Templates/_Template_Session.md",
+          "sha256": "9963f8562820b55ffcda770eb6de844c0e37c53175e096085985b67c6de20dc5",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Session_Plan.md": {
+          "store": "common/_Templates/_Template_Session_Plan.md",
+          "sha256": "dae0fc98f45fa12d2c4986dafb15a85f385baf75dbc486fd1bc503e2eff1e15b",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Session_WrapUp.md": {
+          "store": "common/_Templates/_Template_Session_WrapUp.md",
+          "sha256": "d63b3c68a4bf8d152f76079d5d091a2da54b68a01a3c51668bcd0f253bc8dbc4",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_World_Domain.md": {
+          "store": "common/_Templates/_Template_World_Domain.md",
+          "sha256": "fd08d64c79e7c87be10dea4a5608b605bc5e601bfd36f3c57749aca91d077db0",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/character-story.md": {
+          "store": "common/_Templates/character-story.md",
+          "sha256": "864d16ad27789d574570fa62a416dddb96376339416418586b0aa6ddbaf43431",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/crew-fitd.md": {
+          "store": "systems/fitd/_Templates/crew-fitd.md",
+          "sha256": "ebce119298b899af51647f1be534ed93495c5cc850718c9ab9dfef90cf3d4b5a",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/pc-fitd.md": {
+          "store": "systems/fitd/_Templates/pc-fitd.md",
+          "sha256": "30451350d60cc28df37f25afa6585bf780fcb5dc75e242c04c29694f7fde2174",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_World/_flags.md": {
+          "store": "common/_World/_flags.md",
+          "sha256": "0d1e78219c1f210185a6ded7ff817ef4e1f304025aa98c7be5cae39e65274a0b",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_World/world-index.md": {
+          "store": "common/_World/world-index.md",
+          "sha256": "d638135b8c68e5f94f70cc755a2a415403e93a0cbb908369de0b8ba0e87a1295",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/NOTICE.txt": {
+          "store": "common/_meta/NOTICE.txt",
+          "sha256": "cc7a83054602de1d703c7bef9a1592a7b11ebc74428a08ad6cdcc3311a1a15bf",
+          "origin": "scriptorium",
+          "tokens": {}
+        },
+        "_meta/entity-types.md": {
+          "store": "common/_meta/entity-types.md",
+          "sha256": "51f521f8b0770b8b0bf71905f90d795204ff92d7ac157b4b2cffec0161450164",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/index.md": {
+          "store": "common/_meta/index.md",
+          "sha256": "26a096f81a01d4f6ccdc8d0f10787b4ca08e4d6c12c731682a6e24a0741578e1",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CREATED}}": 2
+          }
+        },
+        "_meta/publish-manifest.md": {
+          "store": "common/_meta/publish-manifest.md",
+          "sha256": "851489498fa46cd4496a3d6392eaf9c7b91b8129ebd743ee5934d448cea90fdd",
+          "origin": "scriptorium",
+          "tokens": {}
+        },
+        "_meta/relationship-types.md": {
+          "store": "common/_meta/relationship-types.md",
+          "sha256": "d102a83e4d90b0103aaee63cbfe4b2964f8c224288602fc915d9deae1c911d50",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/vault-config.md": {
+          "store": "systems/fitd/_meta/vault-config.md",
+          "sha256": "104e268b231c345c7f2fd24e447175cae9772a28ccffe6d15ad6fd78c49b99e5",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 1
+          }
+        }
+      }
+    },
+    "none": {
+      "dirs": [
+        "Adventures",
+        "Chapters",
+        "Characters",
+        "Characters/NPCs",
+        "Characters/PCs",
+        "Clues",
+        "Creatures",
+        "Documents",
+        "Events",
+        "Factions & Organizations",
+        "Heritages",
+        "Items & Artifacts",
+        "Locations",
+        "_Campaign",
+        "_Templates",
+        "_World",
+        "_attachments",
+        "_attachments/characters",
+        "_attachments/creatures",
+        "_attachments/documents",
+        "_attachments/events",
+        "_attachments/factions",
+        "_attachments/items",
+        "_attachments/locations",
+        "_meta"
+      ],
+      "files": {
+        "_Campaign/Player Characters.md": {
+          "store": "common/_Campaign/Player Characters.md",
+          "sha256": "764c83f8f13a98607d52286ba4090053f7d2cb061d32158f4e93e83204d84b99",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Campaign/Timeline.md": {
+          "store": "common/_Campaign/Timeline.md",
+          "sha256": "b0305b385696f0e57a5372e618d199fefa58913246054539b4c9d5c64e360e8b",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 1
+          }
+        },
+        "_Campaign/Welcome.md": {
+          "store": "common/_Campaign/Welcome.md",
+          "sha256": "0c90d5230ed38217a36b35673903ba7b80a1547b5b9b6d1dbc80ec8f8205f677",
+          "origin": "scriptorium",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 3
+          }
+        },
+        "_Templates/_Template_Campaign_Overview.md": {
+          "store": "common/_Templates/_Template_Campaign_Overview.md",
+          "sha256": "40c8f101db4c51c14158ef5e7ffe27d42aa5400feeabb879d27127e488b2551c",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Clue.md": {
+          "store": "common/_Templates/_Template_Clue.md",
+          "sha256": "f9d60bcc5b6fe6bbb77c5bedbcd4de385df2c4fb040ec531e991ba45ed5a0f52",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Creature.md": {
+          "store": "systems/none/_Templates/_Template_Creature.md",
+          "sha256": "7ac9844bf8a85d077c6eeef5182665a6973bae53c4a57e19eda1da5b026656d7",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Document.md": {
+          "store": "common/_Templates/_Template_Document.md",
+          "sha256": "13dbad9119e826b461bbc789a7c7d258340e3f14573efd8437260bc315a866a6",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Event.md": {
+          "store": "common/_Templates/_Template_Event.md",
+          "sha256": "4f519fc0d64c66aec0115786bcc8a0ea15a370de89dab54117e161193998911f",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Faction.md": {
+          "store": "common/_Templates/_Template_Faction.md",
+          "sha256": "75bfae75e0bbbccc61ed1f97260f5294dc24ee5d1809d34545427cc5345affa7",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Heritage.md": {
+          "store": "common/_Templates/_Template_Heritage.md",
+          "sha256": "d13b19aeaffd312517f3e3603981bb1ea454b7b821dcd08510a50534ae33bfbc",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Item.md": {
+          "store": "common/_Templates/_Template_Item.md",
+          "sha256": "e79e822b2634951fe913e40bfef65e417104aaf741508d47eca2ed6557fed6c4",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Location.md": {
+          "store": "common/_Templates/_Template_Location.md",
+          "sha256": "7ae9713ba5074e4aacc7075a4a931e79bb304ea8097457844d5b96d72743fbdb",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_NPC.md": {
+          "store": "systems/none/_Templates/_Template_NPC.md",
+          "sha256": "aa681e7c0bd9b8b2784c7598187e01a829d00afaf93fcf2487a4ce0d1b6a3510",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Organization.md": {
+          "store": "common/_Templates/_Template_Organization.md",
+          "sha256": "e18fb5859f560688c6e206c8dc06ff5db3083151b8c16059a8ace746eaabc3e2",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Plan.md": {
+          "store": "common/_Templates/_Template_Plan.md",
+          "sha256": "2621bf4e61381376cbb886b80e4d0f43fd251f4abed884a94375b1da7d28a035",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Session.md": {
+          "store": "common/_Templates/_Template_Session.md",
+          "sha256": "9963f8562820b55ffcda770eb6de844c0e37c53175e096085985b67c6de20dc5",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Session_Plan.md": {
+          "store": "common/_Templates/_Template_Session_Plan.md",
+          "sha256": "dae0fc98f45fa12d2c4986dafb15a85f385baf75dbc486fd1bc503e2eff1e15b",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Session_WrapUp.md": {
+          "store": "common/_Templates/_Template_Session_WrapUp.md",
+          "sha256": "d63b3c68a4bf8d152f76079d5d091a2da54b68a01a3c51668bcd0f253bc8dbc4",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_World_Domain.md": {
+          "store": "common/_Templates/_Template_World_Domain.md",
+          "sha256": "fd08d64c79e7c87be10dea4a5608b605bc5e601bfd36f3c57749aca91d077db0",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/character-story.md": {
+          "store": "common/_Templates/character-story.md",
+          "sha256": "864d16ad27789d574570fa62a416dddb96376339416418586b0aa6ddbaf43431",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/pc-generic.md": {
+          "store": "systems/none/_Templates/pc-generic.md",
+          "sha256": "a027fa451030f776e70106ce3bc3973bb24b9b6aaf796046135431b7976db021",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_World/_flags.md": {
+          "store": "common/_World/_flags.md",
+          "sha256": "0d1e78219c1f210185a6ded7ff817ef4e1f304025aa98c7be5cae39e65274a0b",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_World/world-index.md": {
+          "store": "common/_World/world-index.md",
+          "sha256": "d638135b8c68e5f94f70cc755a2a415403e93a0cbb908369de0b8ba0e87a1295",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/NOTICE.txt": {
+          "store": "common/_meta/NOTICE.txt",
+          "sha256": "cc7a83054602de1d703c7bef9a1592a7b11ebc74428a08ad6cdcc3311a1a15bf",
+          "origin": "scriptorium",
+          "tokens": {}
+        },
+        "_meta/entity-types.md": {
+          "store": "common/_meta/entity-types.md",
+          "sha256": "51f521f8b0770b8b0bf71905f90d795204ff92d7ac157b4b2cffec0161450164",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/index.md": {
+          "store": "common/_meta/index.md",
+          "sha256": "26a096f81a01d4f6ccdc8d0f10787b4ca08e4d6c12c731682a6e24a0741578e1",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CREATED}}": 2
+          }
+        },
+        "_meta/publish-manifest.md": {
+          "store": "common/_meta/publish-manifest.md",
+          "sha256": "851489498fa46cd4496a3d6392eaf9c7b91b8129ebd743ee5934d448cea90fdd",
+          "origin": "scriptorium",
+          "tokens": {}
+        },
+        "_meta/relationship-types.md": {
+          "store": "common/_meta/relationship-types.md",
+          "sha256": "d102a83e4d90b0103aaee63cbfe4b2964f8c224288602fc915d9deae1c911d50",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/vault-config.md": {
+          "store": "systems/none/_meta/vault-config.md",
+          "sha256": "9802ea75f0340cc9913696beba9ebfd74cb4226ee120557fe74fff3e6a46d2d5",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 1
+          }
+        }
+      }
+    },
+    "pf2e": {
+      "dirs": [
+        "Adventures",
+        "Chapters",
+        "Characters",
+        "Characters/NPCs",
+        "Characters/PCs",
+        "Clues",
+        "Creatures",
+        "Documents",
+        "Events",
+        "Factions & Organizations",
+        "Heritages",
+        "Items & Artifacts",
+        "Locations",
+        "_Campaign",
+        "_Templates",
+        "_World",
+        "_attachments",
+        "_attachments/characters",
+        "_attachments/creatures",
+        "_attachments/documents",
+        "_attachments/events",
+        "_attachments/factions",
+        "_attachments/items",
+        "_attachments/locations",
+        "_meta"
+      ],
+      "files": {
+        "_Campaign/Player Characters.md": {
+          "store": "common/_Campaign/Player Characters.md",
+          "sha256": "764c83f8f13a98607d52286ba4090053f7d2cb061d32158f4e93e83204d84b99",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Campaign/Timeline.md": {
+          "store": "common/_Campaign/Timeline.md",
+          "sha256": "b0305b385696f0e57a5372e618d199fefa58913246054539b4c9d5c64e360e8b",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 1
+          }
+        },
+        "_Campaign/Welcome.md": {
+          "store": "common/_Campaign/Welcome.md",
+          "sha256": "0c90d5230ed38217a36b35673903ba7b80a1547b5b9b6d1dbc80ec8f8205f677",
+          "origin": "scriptorium",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 3
+          }
+        },
+        "_Templates/_Template_Campaign_Overview.md": {
+          "store": "common/_Templates/_Template_Campaign_Overview.md",
+          "sha256": "40c8f101db4c51c14158ef5e7ffe27d42aa5400feeabb879d27127e488b2551c",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Clue.md": {
+          "store": "common/_Templates/_Template_Clue.md",
+          "sha256": "f9d60bcc5b6fe6bbb77c5bedbcd4de385df2c4fb040ec531e991ba45ed5a0f52",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Creature.md": {
+          "store": "systems/pf2e/_Templates/_Template_Creature.md",
+          "sha256": "68145a7f527efcac95743741e1639f0278a9ed1cb32258f450aa68685c65b3a8",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Document.md": {
+          "store": "common/_Templates/_Template_Document.md",
+          "sha256": "13dbad9119e826b461bbc789a7c7d258340e3f14573efd8437260bc315a866a6",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Event.md": {
+          "store": "common/_Templates/_Template_Event.md",
+          "sha256": "4f519fc0d64c66aec0115786bcc8a0ea15a370de89dab54117e161193998911f",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Faction.md": {
+          "store": "common/_Templates/_Template_Faction.md",
+          "sha256": "75bfae75e0bbbccc61ed1f97260f5294dc24ee5d1809d34545427cc5345affa7",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Heritage.md": {
+          "store": "common/_Templates/_Template_Heritage.md",
+          "sha256": "d13b19aeaffd312517f3e3603981bb1ea454b7b821dcd08510a50534ae33bfbc",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Item.md": {
+          "store": "common/_Templates/_Template_Item.md",
+          "sha256": "e79e822b2634951fe913e40bfef65e417104aaf741508d47eca2ed6557fed6c4",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Location.md": {
+          "store": "common/_Templates/_Template_Location.md",
+          "sha256": "7ae9713ba5074e4aacc7075a4a931e79bb304ea8097457844d5b96d72743fbdb",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_NPC.md": {
+          "store": "systems/pf2e/_Templates/_Template_NPC.md",
+          "sha256": "3c5e533d97df0ef13aae781d10743e76ed9ccc379a247fd7f7b762f51a3e2f12",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Organization.md": {
+          "store": "common/_Templates/_Template_Organization.md",
+          "sha256": "e18fb5859f560688c6e206c8dc06ff5db3083151b8c16059a8ace746eaabc3e2",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Plan.md": {
+          "store": "common/_Templates/_Template_Plan.md",
+          "sha256": "2621bf4e61381376cbb886b80e4d0f43fd251f4abed884a94375b1da7d28a035",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Session.md": {
+          "store": "common/_Templates/_Template_Session.md",
+          "sha256": "9963f8562820b55ffcda770eb6de844c0e37c53175e096085985b67c6de20dc5",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Session_Plan.md": {
+          "store": "common/_Templates/_Template_Session_Plan.md",
+          "sha256": "dae0fc98f45fa12d2c4986dafb15a85f385baf75dbc486fd1bc503e2eff1e15b",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_Session_WrapUp.md": {
+          "store": "common/_Templates/_Template_Session_WrapUp.md",
+          "sha256": "d63b3c68a4bf8d152f76079d5d091a2da54b68a01a3c51668bcd0f253bc8dbc4",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/_Template_World_Domain.md": {
+          "store": "common/_Templates/_Template_World_Domain.md",
+          "sha256": "fd08d64c79e7c87be10dea4a5608b605bc5e601bfd36f3c57749aca91d077db0",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/character-story.md": {
+          "store": "common/_Templates/character-story.md",
+          "sha256": "864d16ad27789d574570fa62a416dddb96376339416418586b0aa6ddbaf43431",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_Templates/pc-pf2e.md": {
+          "store": "systems/pf2e/_Templates/pc-pf2e.md",
+          "sha256": "357537c4e2c9e8b7b82cc5f3c7a3d34a960ff7cc0672da4126001db3d65066d5",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_World/_flags.md": {
+          "store": "common/_World/_flags.md",
+          "sha256": "0d1e78219c1f210185a6ded7ff817ef4e1f304025aa98c7be5cae39e65274a0b",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_World/world-index.md": {
+          "store": "common/_World/world-index.md",
+          "sha256": "d638135b8c68e5f94f70cc755a2a415403e93a0cbb908369de0b8ba0e87a1295",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/NOTICE.txt": {
+          "store": "common/_meta/NOTICE.txt",
+          "sha256": "cc7a83054602de1d703c7bef9a1592a7b11ebc74428a08ad6cdcc3311a1a15bf",
+          "origin": "scriptorium",
+          "tokens": {}
+        },
+        "_meta/entity-types.md": {
+          "store": "common/_meta/entity-types.md",
+          "sha256": "51f521f8b0770b8b0bf71905f90d795204ff92d7ac157b4b2cffec0161450164",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/index.md": {
+          "store": "common/_meta/index.md",
+          "sha256": "26a096f81a01d4f6ccdc8d0f10787b4ca08e4d6c12c731682a6e24a0741578e1",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CREATED}}": 2
+          }
+        },
+        "_meta/publish-manifest.md": {
+          "store": "common/_meta/publish-manifest.md",
+          "sha256": "851489498fa46cd4496a3d6392eaf9c7b91b8129ebd743ee5934d448cea90fdd",
+          "origin": "scriptorium",
+          "tokens": {}
+        },
+        "_meta/relationship-types.md": {
+          "store": "common/_meta/relationship-types.md",
+          "sha256": "d102a83e4d90b0103aaee63cbfe4b2964f8c224288602fc915d9deae1c911d50",
+          "origin": "upstream",
+          "tokens": {}
+        },
+        "_meta/vault-config.md": {
+          "store": "systems/pf2e/_meta/vault-config.md",
+          "sha256": "914a906ab7876e7e4cf81de22751ccf0bb32729400fefc32fd920e14631bdc9f",
+          "origin": "upstream",
+          "tokens": {
+            "{{SCRIPTORIUM_CAMPAIGN}}": 1
+          }
+        }
+      }
+    }
+  },
+  "deviations": [
+    {
+      "file": "_meta/vault-config.md",
+      "from": "  site: false",
+      "to": "  site: true",
+      "why": "a new vault has to build as soon as it is created; upstream turns the site on in a later publish step that this tool does not run"
+    }
+  ],
+  "parity": [
+    {
+      "system": "dnd-5e-2024",
+      "name": "Qzx Capture Bravo Ünï",
+      "campaign": "Qzx Capture Bravo Ünï",
+      "created": "2034-11-29",
+      "files": {
+        "_Campaign/Player Characters.md": "764c83f8f13a98607d52286ba4090053f7d2cb061d32158f4e93e83204d84b99",
+        "_Campaign/Timeline.md": "46297604fa7d3944c190c8abc21afe01dadb490b17b29874cab4b28bb76ea4b9",
+        "_Templates/_Template_Campaign_Overview.md": "40c8f101db4c51c14158ef5e7ffe27d42aa5400feeabb879d27127e488b2551c",
+        "_Templates/_Template_Clue.md": "f9d60bcc5b6fe6bbb77c5bedbcd4de385df2c4fb040ec531e991ba45ed5a0f52",
+        "_Templates/_Template_Creature.md": "a0071965ba64b50a43bc6beebed7080ce1659ccacc89de987ebf86fd273683ec",
+        "_Templates/_Template_Document.md": "13dbad9119e826b461bbc789a7c7d258340e3f14573efd8437260bc315a866a6",
+        "_Templates/_Template_Event.md": "4f519fc0d64c66aec0115786bcc8a0ea15a370de89dab54117e161193998911f",
+        "_Templates/_Template_Faction.md": "75bfae75e0bbbccc61ed1f97260f5294dc24ee5d1809d34545427cc5345affa7",
+        "_Templates/_Template_Heritage.md": "d13b19aeaffd312517f3e3603981bb1ea454b7b821dcd08510a50534ae33bfbc",
+        "_Templates/_Template_Item.md": "e79e822b2634951fe913e40bfef65e417104aaf741508d47eca2ed6557fed6c4",
+        "_Templates/_Template_Location.md": "7ae9713ba5074e4aacc7075a4a931e79bb304ea8097457844d5b96d72743fbdb",
+        "_Templates/_Template_NPC.md": "e5704207e21e5a53e3b2cc99678d078a2847b4d68b65ddc63b4a54d393a876e2",
+        "_Templates/_Template_Organization.md": "e18fb5859f560688c6e206c8dc06ff5db3083151b8c16059a8ace746eaabc3e2",
+        "_Templates/_Template_Plan.md": "2621bf4e61381376cbb886b80e4d0f43fd251f4abed884a94375b1da7d28a035",
+        "_Templates/_Template_Session.md": "9963f8562820b55ffcda770eb6de844c0e37c53175e096085985b67c6de20dc5",
+        "_Templates/_Template_Session_Plan.md": "dae0fc98f45fa12d2c4986dafb15a85f385baf75dbc486fd1bc503e2eff1e15b",
+        "_Templates/_Template_Session_WrapUp.md": "d63b3c68a4bf8d152f76079d5d091a2da54b68a01a3c51668bcd0f253bc8dbc4",
+        "_Templates/_Template_World_Domain.md": "fd08d64c79e7c87be10dea4a5608b605bc5e601bfd36f3c57749aca91d077db0",
+        "_Templates/character-story.md": "864d16ad27789d574570fa62a416dddb96376339416418586b0aa6ddbaf43431",
+        "_Templates/pc-dnd-5e-2024.md": "467ddca41a019f15661a2bf4644d2a69a99735952ec852fab00121eb4d9ad070",
+        "_World/_flags.md": "0d1e78219c1f210185a6ded7ff817ef4e1f304025aa98c7be5cae39e65274a0b",
+        "_World/world-index.md": "d638135b8c68e5f94f70cc755a2a415403e93a0cbb908369de0b8ba0e87a1295",
+        "_meta/entity-types.md": "51f521f8b0770b8b0bf71905f90d795204ff92d7ac157b4b2cffec0161450164",
+        "_meta/index.md": "100c69e6f16ac9b71b4887c1c6630d8ff7ef9e95d92827f72048259b5a57aa72",
+        "_meta/relationship-types.md": "d102a83e4d90b0103aaee63cbfe4b2964f8c224288602fc915d9deae1c911d50",
+        "_meta/vault-config.md": "11ed315bf42acf58e9d65b92166236de1f5ab8752cad746915a18140b33efe1c"
+      }
+    },
+    {
+      "system": "dnd-5e-2024",
+      "name": "Qzx  Echo Ünï:  #1 ---",
+      "campaign": "Qzx Echo Ünï: #1 ---",
+      "created": "2031-05-06",
+      "files": {
+        "_Campaign/Player Characters.md": "764c83f8f13a98607d52286ba4090053f7d2cb061d32158f4e93e83204d84b99",
+        "_Campaign/Timeline.md": "e14731569d9a49d22a9a0956273ad90e1174a5a72f085ebe2f72f899e4e7314a",
+        "_Templates/_Template_Campaign_Overview.md": "40c8f101db4c51c14158ef5e7ffe27d42aa5400feeabb879d27127e488b2551c",
+        "_Templates/_Template_Clue.md": "f9d60bcc5b6fe6bbb77c5bedbcd4de385df2c4fb040ec531e991ba45ed5a0f52",
+        "_Templates/_Template_Creature.md": "a0071965ba64b50a43bc6beebed7080ce1659ccacc89de987ebf86fd273683ec",
+        "_Templates/_Template_Document.md": "13dbad9119e826b461bbc789a7c7d258340e3f14573efd8437260bc315a866a6",
+        "_Templates/_Template_Event.md": "4f519fc0d64c66aec0115786bcc8a0ea15a370de89dab54117e161193998911f",
+        "_Templates/_Template_Faction.md": "75bfae75e0bbbccc61ed1f97260f5294dc24ee5d1809d34545427cc5345affa7",
+        "_Templates/_Template_Heritage.md": "d13b19aeaffd312517f3e3603981bb1ea454b7b821dcd08510a50534ae33bfbc",
+        "_Templates/_Template_Item.md": "e79e822b2634951fe913e40bfef65e417104aaf741508d47eca2ed6557fed6c4",
+        "_Templates/_Template_Location.md": "7ae9713ba5074e4aacc7075a4a931e79bb304ea8097457844d5b96d72743fbdb",
+        "_Templates/_Template_NPC.md": "e5704207e21e5a53e3b2cc99678d078a2847b4d68b65ddc63b4a54d393a876e2",
+        "_Templates/_Template_Organization.md": "e18fb5859f560688c6e206c8dc06ff5db3083151b8c16059a8ace746eaabc3e2",
+        "_Templates/_Template_Plan.md": "2621bf4e61381376cbb886b80e4d0f43fd251f4abed884a94375b1da7d28a035",
+        "_Templates/_Template_Session.md": "9963f8562820b55ffcda770eb6de844c0e37c53175e096085985b67c6de20dc5",
+        "_Templates/_Template_Session_Plan.md": "dae0fc98f45fa12d2c4986dafb15a85f385baf75dbc486fd1bc503e2eff1e15b",
+        "_Templates/_Template_Session_WrapUp.md": "d63b3c68a4bf8d152f76079d5d091a2da54b68a01a3c51668bcd0f253bc8dbc4",
+        "_Templates/_Template_World_Domain.md": "fd08d64c79e7c87be10dea4a5608b605bc5e601bfd36f3c57749aca91d077db0",
+        "_Templates/character-story.md": "864d16ad27789d574570fa62a416dddb96376339416418586b0aa6ddbaf43431",
+        "_Templates/pc-dnd-5e-2024.md": "467ddca41a019f15661a2bf4644d2a69a99735952ec852fab00121eb4d9ad070",
+        "_World/_flags.md": "0d1e78219c1f210185a6ded7ff817ef4e1f304025aa98c7be5cae39e65274a0b",
+        "_World/world-index.md": "d638135b8c68e5f94f70cc755a2a415403e93a0cbb908369de0b8ba0e87a1295",
+        "_meta/entity-types.md": "51f521f8b0770b8b0bf71905f90d795204ff92d7ac157b4b2cffec0161450164",
+        "_meta/index.md": "aea84f9bf38fbe882f92209683aa9faffe975f33d74034f67899860842ea8477",
+        "_meta/relationship-types.md": "d102a83e4d90b0103aaee63cbfe4b2964f8c224288602fc915d9deae1c911d50",
+        "_meta/vault-config.md": "9332ea8c416739e88d42247aac4b3becaeaca79a627ab4ae45c22ec00f0025b0"
+      }
+    },
+    {
+      "system": "fitd",
+      "name": "Qzx Capture Bravo Ünï",
+      "campaign": "Qzx Capture Bravo Ünï",
+      "created": "2034-11-29",
+      "files": {
+        "_Campaign/Player Characters.md": "764c83f8f13a98607d52286ba4090053f7d2cb061d32158f4e93e83204d84b99",
+        "_Campaign/Timeline.md": "46297604fa7d3944c190c8abc21afe01dadb490b17b29874cab4b28bb76ea4b9",
+        "_Templates/_Template_Campaign_Overview.md": "40c8f101db4c51c14158ef5e7ffe27d42aa5400feeabb879d27127e488b2551c",
+        "_Templates/_Template_Clue.md": "f9d60bcc5b6fe6bbb77c5bedbcd4de385df2c4fb040ec531e991ba45ed5a0f52",
+        "_Templates/_Template_Creature.md": "d66509605ecd96e05e5c261b15ec52f795473cf055719e65d725307f28311b25",
+        "_Templates/_Template_Document.md": "13dbad9119e826b461bbc789a7c7d258340e3f14573efd8437260bc315a866a6",
+        "_Templates/_Template_Event.md": "4f519fc0d64c66aec0115786bcc8a0ea15a370de89dab54117e161193998911f",
+        "_Templates/_Template_Faction.md": "75bfae75e0bbbccc61ed1f97260f5294dc24ee5d1809d34545427cc5345affa7",
+        "_Templates/_Template_Heritage.md": "d13b19aeaffd312517f3e3603981bb1ea454b7b821dcd08510a50534ae33bfbc",
+        "_Templates/_Template_Item.md": "e79e822b2634951fe913e40bfef65e417104aaf741508d47eca2ed6557fed6c4",
+        "_Templates/_Template_Location.md": "7ae9713ba5074e4aacc7075a4a931e79bb304ea8097457844d5b96d72743fbdb",
+        "_Templates/_Template_NPC.md": "3837717eca22b337b2ae1fa54de0493ee48acfa3af8a5d98acf3fa5d057ccb5f",
+        "_Templates/_Template_Organization.md": "e18fb5859f560688c6e206c8dc06ff5db3083151b8c16059a8ace746eaabc3e2",
+        "_Templates/_Template_Plan.md": "2621bf4e61381376cbb886b80e4d0f43fd251f4abed884a94375b1da7d28a035",
+        "_Templates/_Template_Session.md": "9963f8562820b55ffcda770eb6de844c0e37c53175e096085985b67c6de20dc5",
+        "_Templates/_Template_Session_Plan.md": "dae0fc98f45fa12d2c4986dafb15a85f385baf75dbc486fd1bc503e2eff1e15b",
+        "_Templates/_Template_Session_WrapUp.md": "d63b3c68a4bf8d152f76079d5d091a2da54b68a01a3c51668bcd0f253bc8dbc4",
+        "_Templates/_Template_World_Domain.md": "fd08d64c79e7c87be10dea4a5608b605bc5e601bfd36f3c57749aca91d077db0",
+        "_Templates/character-story.md": "864d16ad27789d574570fa62a416dddb96376339416418586b0aa6ddbaf43431",
+        "_Templates/crew-fitd.md": "ebce119298b899af51647f1be534ed93495c5cc850718c9ab9dfef90cf3d4b5a",
+        "_Templates/pc-fitd.md": "30451350d60cc28df37f25afa6585bf780fcb5dc75e242c04c29694f7fde2174",
+        "_World/_flags.md": "0d1e78219c1f210185a6ded7ff817ef4e1f304025aa98c7be5cae39e65274a0b",
+        "_World/world-index.md": "d638135b8c68e5f94f70cc755a2a415403e93a0cbb908369de0b8ba0e87a1295",
+        "_meta/entity-types.md": "51f521f8b0770b8b0bf71905f90d795204ff92d7ac157b4b2cffec0161450164",
+        "_meta/index.md": "100c69e6f16ac9b71b4887c1c6630d8ff7ef9e95d92827f72048259b5a57aa72",
+        "_meta/relationship-types.md": "d102a83e4d90b0103aaee63cbfe4b2964f8c224288602fc915d9deae1c911d50",
+        "_meta/vault-config.md": "ca99ac6b45f31f1dab1acfc8a31a0aaf473f884b64cff246a5fd163374526d10"
+      }
+    },
+    {
+      "system": "fitd",
+      "name": "Qzx  Echo Ünï:  #1 ---",
+      "campaign": "Qzx Echo Ünï: #1 ---",
+      "created": "2031-05-06",
+      "files": {
+        "_Campaign/Player Characters.md": "764c83f8f13a98607d52286ba4090053f7d2cb061d32158f4e93e83204d84b99",
+        "_Campaign/Timeline.md": "e14731569d9a49d22a9a0956273ad90e1174a5a72f085ebe2f72f899e4e7314a",
+        "_Templates/_Template_Campaign_Overview.md": "40c8f101db4c51c14158ef5e7ffe27d42aa5400feeabb879d27127e488b2551c",
+        "_Templates/_Template_Clue.md": "f9d60bcc5b6fe6bbb77c5bedbcd4de385df2c4fb040ec531e991ba45ed5a0f52",
+        "_Templates/_Template_Creature.md": "d66509605ecd96e05e5c261b15ec52f795473cf055719e65d725307f28311b25",
+        "_Templates/_Template_Document.md": "13dbad9119e826b461bbc789a7c7d258340e3f14573efd8437260bc315a866a6",
+        "_Templates/_Template_Event.md": "4f519fc0d64c66aec0115786bcc8a0ea15a370de89dab54117e161193998911f",
+        "_Templates/_Template_Faction.md": "75bfae75e0bbbccc61ed1f97260f5294dc24ee5d1809d34545427cc5345affa7",
+        "_Templates/_Template_Heritage.md": "d13b19aeaffd312517f3e3603981bb1ea454b7b821dcd08510a50534ae33bfbc",
+        "_Templates/_Template_Item.md": "e79e822b2634951fe913e40bfef65e417104aaf741508d47eca2ed6557fed6c4",
+        "_Templates/_Template_Location.md": "7ae9713ba5074e4aacc7075a4a931e79bb304ea8097457844d5b96d72743fbdb",
+        "_Templates/_Template_NPC.md": "3837717eca22b337b2ae1fa54de0493ee48acfa3af8a5d98acf3fa5d057ccb5f",
+        "_Templates/_Template_Organization.md": "e18fb5859f560688c6e206c8dc06ff5db3083151b8c16059a8ace746eaabc3e2",
+        "_Templates/_Template_Plan.md": "2621bf4e61381376cbb886b80e4d0f43fd251f4abed884a94375b1da7d28a035",
+        "_Templates/_Template_Session.md": "9963f8562820b55ffcda770eb6de844c0e37c53175e096085985b67c6de20dc5",
+        "_Templates/_Template_Session_Plan.md": "dae0fc98f45fa12d2c4986dafb15a85f385baf75dbc486fd1bc503e2eff1e15b",
+        "_Templates/_Template_Session_WrapUp.md": "d63b3c68a4bf8d152f76079d5d091a2da54b68a01a3c51668bcd0f253bc8dbc4",
+        "_Templates/_Template_World_Domain.md": "fd08d64c79e7c87be10dea4a5608b605bc5e601bfd36f3c57749aca91d077db0",
+        "_Templates/character-story.md": "864d16ad27789d574570fa62a416dddb96376339416418586b0aa6ddbaf43431",
+        "_Templates/crew-fitd.md": "ebce119298b899af51647f1be534ed93495c5cc850718c9ab9dfef90cf3d4b5a",
+        "_Templates/pc-fitd.md": "30451350d60cc28df37f25afa6585bf780fcb5dc75e242c04c29694f7fde2174",
+        "_World/_flags.md": "0d1e78219c1f210185a6ded7ff817ef4e1f304025aa98c7be5cae39e65274a0b",
+        "_World/world-index.md": "d638135b8c68e5f94f70cc755a2a415403e93a0cbb908369de0b8ba0e87a1295",
+        "_meta/entity-types.md": "51f521f8b0770b8b0bf71905f90d795204ff92d7ac157b4b2cffec0161450164",
+        "_meta/index.md": "aea84f9bf38fbe882f92209683aa9faffe975f33d74034f67899860842ea8477",
+        "_meta/relationship-types.md": "d102a83e4d90b0103aaee63cbfe4b2964f8c224288602fc915d9deae1c911d50",
+        "_meta/vault-config.md": "8e3725564ec92d3a0a7d36481cddb75aefa41cd3be77b3ff06c5b1936a2a4676"
+      }
+    },
+    {
+      "system": "none",
+      "name": "Qzx Capture Bravo Ünï",
+      "campaign": "Qzx Capture Bravo Ünï",
+      "created": "2034-11-29",
+      "files": {
+        "_Campaign/Player Characters.md": "764c83f8f13a98607d52286ba4090053f7d2cb061d32158f4e93e83204d84b99",
+        "_Campaign/Timeline.md": "46297604fa7d3944c190c8abc21afe01dadb490b17b29874cab4b28bb76ea4b9",
+        "_Templates/_Template_Campaign_Overview.md": "40c8f101db4c51c14158ef5e7ffe27d42aa5400feeabb879d27127e488b2551c",
+        "_Templates/_Template_Clue.md": "f9d60bcc5b6fe6bbb77c5bedbcd4de385df2c4fb040ec531e991ba45ed5a0f52",
+        "_Templates/_Template_Creature.md": "7ac9844bf8a85d077c6eeef5182665a6973bae53c4a57e19eda1da5b026656d7",
+        "_Templates/_Template_Document.md": "13dbad9119e826b461bbc789a7c7d258340e3f14573efd8437260bc315a866a6",
+        "_Templates/_Template_Event.md": "4f519fc0d64c66aec0115786bcc8a0ea15a370de89dab54117e161193998911f",
+        "_Templates/_Template_Faction.md": "75bfae75e0bbbccc61ed1f97260f5294dc24ee5d1809d34545427cc5345affa7",
+        "_Templates/_Template_Heritage.md": "d13b19aeaffd312517f3e3603981bb1ea454b7b821dcd08510a50534ae33bfbc",
+        "_Templates/_Template_Item.md": "e79e822b2634951fe913e40bfef65e417104aaf741508d47eca2ed6557fed6c4",
+        "_Templates/_Template_Location.md": "7ae9713ba5074e4aacc7075a4a931e79bb304ea8097457844d5b96d72743fbdb",
+        "_Templates/_Template_NPC.md": "aa681e7c0bd9b8b2784c7598187e01a829d00afaf93fcf2487a4ce0d1b6a3510",
+        "_Templates/_Template_Organization.md": "e18fb5859f560688c6e206c8dc06ff5db3083151b8c16059a8ace746eaabc3e2",
+        "_Templates/_Template_Plan.md": "2621bf4e61381376cbb886b80e4d0f43fd251f4abed884a94375b1da7d28a035",
+        "_Templates/_Template_Session.md": "9963f8562820b55ffcda770eb6de844c0e37c53175e096085985b67c6de20dc5",
+        "_Templates/_Template_Session_Plan.md": "dae0fc98f45fa12d2c4986dafb15a85f385baf75dbc486fd1bc503e2eff1e15b",
+        "_Templates/_Template_Session_WrapUp.md": "d63b3c68a4bf8d152f76079d5d091a2da54b68a01a3c51668bcd0f253bc8dbc4",
+        "_Templates/_Template_World_Domain.md": "fd08d64c79e7c87be10dea4a5608b605bc5e601bfd36f3c57749aca91d077db0",
+        "_Templates/character-story.md": "864d16ad27789d574570fa62a416dddb96376339416418586b0aa6ddbaf43431",
+        "_Templates/pc-generic.md": "a027fa451030f776e70106ce3bc3973bb24b9b6aaf796046135431b7976db021",
+        "_World/_flags.md": "0d1e78219c1f210185a6ded7ff817ef4e1f304025aa98c7be5cae39e65274a0b",
+        "_World/world-index.md": "d638135b8c68e5f94f70cc755a2a415403e93a0cbb908369de0b8ba0e87a1295",
+        "_meta/entity-types.md": "51f521f8b0770b8b0bf71905f90d795204ff92d7ac157b4b2cffec0161450164",
+        "_meta/index.md": "100c69e6f16ac9b71b4887c1c6630d8ff7ef9e95d92827f72048259b5a57aa72",
+        "_meta/relationship-types.md": "d102a83e4d90b0103aaee63cbfe4b2964f8c224288602fc915d9deae1c911d50",
+        "_meta/vault-config.md": "d2b96f7b1759f0a17cdf29edf57f09a642b87c4adfd6238b11586137fb05fbf5"
+      }
+    },
+    {
+      "system": "none",
+      "name": "Qzx  Echo Ünï:  #1 ---",
+      "campaign": "Qzx Echo Ünï: #1 ---",
+      "created": "2031-05-06",
+      "files": {
+        "_Campaign/Player Characters.md": "764c83f8f13a98607d52286ba4090053f7d2cb061d32158f4e93e83204d84b99",
+        "_Campaign/Timeline.md": "e14731569d9a49d22a9a0956273ad90e1174a5a72f085ebe2f72f899e4e7314a",
+        "_Templates/_Template_Campaign_Overview.md": "40c8f101db4c51c14158ef5e7ffe27d42aa5400feeabb879d27127e488b2551c",
+        "_Templates/_Template_Clue.md": "f9d60bcc5b6fe6bbb77c5bedbcd4de385df2c4fb040ec531e991ba45ed5a0f52",
+        "_Templates/_Template_Creature.md": "7ac9844bf8a85d077c6eeef5182665a6973bae53c4a57e19eda1da5b026656d7",
+        "_Templates/_Template_Document.md": "13dbad9119e826b461bbc789a7c7d258340e3f14573efd8437260bc315a866a6",
+        "_Templates/_Template_Event.md": "4f519fc0d64c66aec0115786bcc8a0ea15a370de89dab54117e161193998911f",
+        "_Templates/_Template_Faction.md": "75bfae75e0bbbccc61ed1f97260f5294dc24ee5d1809d34545427cc5345affa7",
+        "_Templates/_Template_Heritage.md": "d13b19aeaffd312517f3e3603981bb1ea454b7b821dcd08510a50534ae33bfbc",
+        "_Templates/_Template_Item.md": "e79e822b2634951fe913e40bfef65e417104aaf741508d47eca2ed6557fed6c4",
+        "_Templates/_Template_Location.md": "7ae9713ba5074e4aacc7075a4a931e79bb304ea8097457844d5b96d72743fbdb",
+        "_Templates/_Template_NPC.md": "aa681e7c0bd9b8b2784c7598187e01a829d00afaf93fcf2487a4ce0d1b6a3510",
+        "_Templates/_Template_Organization.md": "e18fb5859f560688c6e206c8dc06ff5db3083151b8c16059a8ace746eaabc3e2",
+        "_Templates/_Template_Plan.md": "2621bf4e61381376cbb886b80e4d0f43fd251f4abed884a94375b1da7d28a035",
+        "_Templates/_Template_Session.md": "9963f8562820b55ffcda770eb6de844c0e37c53175e096085985b67c6de20dc5",
+        "_Templates/_Template_Session_Plan.md": "dae0fc98f45fa12d2c4986dafb15a85f385baf75dbc486fd1bc503e2eff1e15b",
+        "_Templates/_Template_Session_WrapUp.md": "d63b3c68a4bf8d152f76079d5d091a2da54b68a01a3c51668bcd0f253bc8dbc4",
+        "_Templates/_Template_World_Domain.md": "fd08d64c79e7c87be10dea4a5608b605bc5e601bfd36f3c57749aca91d077db0",
+        "_Templates/character-story.md": "864d16ad27789d574570fa62a416dddb96376339416418586b0aa6ddbaf43431",
+        "_Templates/pc-generic.md": "a027fa451030f776e70106ce3bc3973bb24b9b6aaf796046135431b7976db021",
+        "_World/_flags.md": "0d1e78219c1f210185a6ded7ff817ef4e1f304025aa98c7be5cae39e65274a0b",
+        "_World/world-index.md": "d638135b8c68e5f94f70cc755a2a415403e93a0cbb908369de0b8ba0e87a1295",
+        "_meta/entity-types.md": "51f521f8b0770b8b0bf71905f90d795204ff92d7ac157b4b2cffec0161450164",
+        "_meta/index.md": "aea84f9bf38fbe882f92209683aa9faffe975f33d74034f67899860842ea8477",
+        "_meta/relationship-types.md": "d102a83e4d90b0103aaee63cbfe4b2964f8c224288602fc915d9deae1c911d50",
+        "_meta/vault-config.md": "9ecb204484a273661124ca141141299b8584a365f1dcf9717f607fc0b24fc485"
+      }
+    },
+    {
+      "system": "pf2e",
+      "name": "Qzx Capture Bravo Ünï",
+      "campaign": "Qzx Capture Bravo Ünï",
+      "created": "2034-11-29",
+      "files": {
+        "_Campaign/Player Characters.md": "764c83f8f13a98607d52286ba4090053f7d2cb061d32158f4e93e83204d84b99",
+        "_Campaign/Timeline.md": "46297604fa7d3944c190c8abc21afe01dadb490b17b29874cab4b28bb76ea4b9",
+        "_Templates/_Template_Campaign_Overview.md": "40c8f101db4c51c14158ef5e7ffe27d42aa5400feeabb879d27127e488b2551c",
+        "_Templates/_Template_Clue.md": "f9d60bcc5b6fe6bbb77c5bedbcd4de385df2c4fb040ec531e991ba45ed5a0f52",
+        "_Templates/_Template_Creature.md": "68145a7f527efcac95743741e1639f0278a9ed1cb32258f450aa68685c65b3a8",
+        "_Templates/_Template_Document.md": "13dbad9119e826b461bbc789a7c7d258340e3f14573efd8437260bc315a866a6",
+        "_Templates/_Template_Event.md": "4f519fc0d64c66aec0115786bcc8a0ea15a370de89dab54117e161193998911f",
+        "_Templates/_Template_Faction.md": "75bfae75e0bbbccc61ed1f97260f5294dc24ee5d1809d34545427cc5345affa7",
+        "_Templates/_Template_Heritage.md": "d13b19aeaffd312517f3e3603981bb1ea454b7b821dcd08510a50534ae33bfbc",
+        "_Templates/_Template_Item.md": "e79e822b2634951fe913e40bfef65e417104aaf741508d47eca2ed6557fed6c4",
+        "_Templates/_Template_Location.md": "7ae9713ba5074e4aacc7075a4a931e79bb304ea8097457844d5b96d72743fbdb",
+        "_Templates/_Template_NPC.md": "3c5e533d97df0ef13aae781d10743e76ed9ccc379a247fd7f7b762f51a3e2f12",
+        "_Templates/_Template_Organization.md": "e18fb5859f560688c6e206c8dc06ff5db3083151b8c16059a8ace746eaabc3e2",
+        "_Templates/_Template_Plan.md": "2621bf4e61381376cbb886b80e4d0f43fd251f4abed884a94375b1da7d28a035",
+        "_Templates/_Template_Session.md": "9963f8562820b55ffcda770eb6de844c0e37c53175e096085985b67c6de20dc5",
+        "_Templates/_Template_Session_Plan.md": "dae0fc98f45fa12d2c4986dafb15a85f385baf75dbc486fd1bc503e2eff1e15b",
+        "_Templates/_Template_Session_WrapUp.md": "d63b3c68a4bf8d152f76079d5d091a2da54b68a01a3c51668bcd0f253bc8dbc4",
+        "_Templates/_Template_World_Domain.md": "fd08d64c79e7c87be10dea4a5608b605bc5e601bfd36f3c57749aca91d077db0",
+        "_Templates/character-story.md": "864d16ad27789d574570fa62a416dddb96376339416418586b0aa6ddbaf43431",
+        "_Templates/pc-pf2e.md": "357537c4e2c9e8b7b82cc5f3c7a3d34a960ff7cc0672da4126001db3d65066d5",
+        "_World/_flags.md": "0d1e78219c1f210185a6ded7ff817ef4e1f304025aa98c7be5cae39e65274a0b",
+        "_World/world-index.md": "d638135b8c68e5f94f70cc755a2a415403e93a0cbb908369de0b8ba0e87a1295",
+        "_meta/entity-types.md": "51f521f8b0770b8b0bf71905f90d795204ff92d7ac157b4b2cffec0161450164",
+        "_meta/index.md": "100c69e6f16ac9b71b4887c1c6630d8ff7ef9e95d92827f72048259b5a57aa72",
+        "_meta/relationship-types.md": "d102a83e4d90b0103aaee63cbfe4b2964f8c224288602fc915d9deae1c911d50",
+        "_meta/vault-config.md": "ecf6e538ff5c79fc6c10eebd27a7e8297b74eb04f45d93dd078d742adf62801e"
+      }
+    },
+    {
+      "system": "pf2e",
+      "name": "Qzx  Echo Ünï:  #1 ---",
+      "campaign": "Qzx Echo Ünï: #1 ---",
+      "created": "2031-05-06",
+      "files": {
+        "_Campaign/Player Characters.md": "764c83f8f13a98607d52286ba4090053f7d2cb061d32158f4e93e83204d84b99",
+        "_Campaign/Timeline.md": "e14731569d9a49d22a9a0956273ad90e1174a5a72f085ebe2f72f899e4e7314a",
+        "_Templates/_Template_Campaign_Overview.md": "40c8f101db4c51c14158ef5e7ffe27d42aa5400feeabb879d27127e488b2551c",
+        "_Templates/_Template_Clue.md": "f9d60bcc5b6fe6bbb77c5bedbcd4de385df2c4fb040ec531e991ba45ed5a0f52",
+        "_Templates/_Template_Creature.md": "68145a7f527efcac95743741e1639f0278a9ed1cb32258f450aa68685c65b3a8",
+        "_Templates/_Template_Document.md": "13dbad9119e826b461bbc789a7c7d258340e3f14573efd8437260bc315a866a6",
+        "_Templates/_Template_Event.md": "4f519fc0d64c66aec0115786bcc8a0ea15a370de89dab54117e161193998911f",
+        "_Templates/_Template_Faction.md": "75bfae75e0bbbccc61ed1f97260f5294dc24ee5d1809d34545427cc5345affa7",
+        "_Templates/_Template_Heritage.md": "d13b19aeaffd312517f3e3603981bb1ea454b7b821dcd08510a50534ae33bfbc",
+        "_Templates/_Template_Item.md": "e79e822b2634951fe913e40bfef65e417104aaf741508d47eca2ed6557fed6c4",
+        "_Templates/_Template_Location.md": "7ae9713ba5074e4aacc7075a4a931e79bb304ea8097457844d5b96d72743fbdb",
+        "_Templates/_Template_NPC.md": "3c5e533d97df0ef13aae781d10743e76ed9ccc379a247fd7f7b762f51a3e2f12",
+        "_Templates/_Template_Organization.md": "e18fb5859f560688c6e206c8dc06ff5db3083151b8c16059a8ace746eaabc3e2",
+        "_Templates/_Template_Plan.md": "2621bf4e61381376cbb886b80e4d0f43fd251f4abed884a94375b1da7d28a035",
+        "_Templates/_Template_Session.md": "9963f8562820b55ffcda770eb6de844c0e37c53175e096085985b67c6de20dc5",
+        "_Templates/_Template_Session_Plan.md": "dae0fc98f45fa12d2c4986dafb15a85f385baf75dbc486fd1bc503e2eff1e15b",
+        "_Templates/_Template_Session_WrapUp.md": "d63b3c68a4bf8d152f76079d5d091a2da54b68a01a3c51668bcd0f253bc8dbc4",
+        "_Templates/_Template_World_Domain.md": "fd08d64c79e7c87be10dea4a5608b605bc5e601bfd36f3c57749aca91d077db0",
+        "_Templates/character-story.md": "864d16ad27789d574570fa62a416dddb96376339416418586b0aa6ddbaf43431",
+        "_Templates/pc-pf2e.md": "357537c4e2c9e8b7b82cc5f3c7a3d34a960ff7cc0672da4126001db3d65066d5",
+        "_World/_flags.md": "0d1e78219c1f210185a6ded7ff817ef4e1f304025aa98c7be5cae39e65274a0b",
+        "_World/world-index.md": "d638135b8c68e5f94f70cc755a2a415403e93a0cbb908369de0b8ba0e87a1295",
+        "_meta/entity-types.md": "51f521f8b0770b8b0bf71905f90d795204ff92d7ac157b4b2cffec0161450164",
+        "_meta/index.md": "aea84f9bf38fbe882f92209683aa9faffe975f33d74034f67899860842ea8477",
+        "_meta/relationship-types.md": "d102a83e4d90b0103aaee63cbfe4b2964f8c224288602fc915d9deae1c911d50",
+        "_meta/vault-config.md": "9f24a6e05bafa146bad5790001d86938642bb836c52ce259d170a8f7325fdae3"
+      }
+    }
+  ],
+  "rulesScan": []
+}

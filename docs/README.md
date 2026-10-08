@@ -74,9 +74,11 @@ the way.
 - [0044. Obsidian %% comments are removed before the site is built, and the build refuses to publish one](decisions/0044-obsidian-comments-withheld.md): `%%private notes%%` never reach the site.
 - [0045. The leak checks read headings the way the generator renders them, and read JSON data islands](decisions/0045-leak-checks-read-rendered-headings-and-data-islands.md): a bold, indented, underlined or story-file `GM Notes` heading is caught, and comment text inside timeline and connections data is searched.
 - [0046. One process spawner for outside programs](decisions/0046-one-process-spawner.md): Programs the tool starts all go through one module with a fixed list, no shell and a scrubbed environment.
+- [0048. Starting a new campaign: creating a vault from the gm-apprentice scaffold](decisions/0048-new-campaign-vault.md): A GM with no vault can create one in a new or empty folder, from gm-apprentice's own scaffold output, by a writer that never overwrites and never deletes.
 - [0049. The folder picker](decisions/0049-folder-picker.md): Path fields can browse folders in the panel and make a new one, without listing any file.
 - [0050. Several campaigns in one panel](decisions/0050-several-campaigns.md): One running panel can switch between registered campaigns, set the default and remove one from the list, and config.toml is now written crash-safely.
 - [0051. Code signing for the Windows executable](decisions/0051-code-signing.md): Signed releases carry a valid signature, checked on Windows, while self-update keeps trusting SHA256SUMS.
+- [0052. Adding a campaign from the panel](decisions/0052-add-a-campaign.md): A GM can add another campaign from the running panel, on this computer or over remote access, with the same questions and checks as first-run setup, then switch to it.
 
 ## Licensing
 

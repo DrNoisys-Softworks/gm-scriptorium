@@ -25,7 +25,7 @@ const GLOBAL_BOOLEAN_FLAGS = new Set(['json', 'quiet', 'no-color', 'version', 'h
  */
 const COMMON_FLAGS = ['help', 'version', 'notices', 'config', 'json', 'quiet', 'no-color', 'campaign', 'vault', 'out', 'site-config'];
 const COMMAND_FLAGS = Object.freeze({
-  init: [...COMMON_FLAGS, 'name', 'title', 'theme', 'yes'],
+  init: [...COMMON_FLAGS, 'name', 'title', 'theme', 'yes', 'new-vault', 'system'],
   check: [...COMMON_FLAGS, 'graph'],
   build: [...COMMON_FLAGS, 'force', 'no-check'],
   serve: [...COMMON_FLAGS, 'build', 'port', 'host', 'admin', 'preview-port'],
@@ -38,7 +38,7 @@ const COMMAND_FLAGS = Object.freeze({
 });
 // Of the accepted flags, the ones that need a value after them (`update --version <tag>` is the one
 // place --version takes a value; elsewhere it is the boolean that prints the version).
-const VALUE_FLAGS = new Set(['campaign', 'config', 'vault', 'out', 'site-config', 'port', 'host', 'name', 'title', 'theme', 'preview-port', 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy']);
+const VALUE_FLAGS = new Set(['campaign', 'config', 'vault', 'out', 'site-config', 'port', 'host', 'name', 'title', 'theme', 'new-vault', 'system', 'preview-port', 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy']);
 
 function editDistance(a, b) {
   const prev = Array.from({ length: b.length + 1 }, (_, j) => j);

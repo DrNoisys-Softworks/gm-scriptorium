@@ -170,6 +170,47 @@ function buildGloamFontsSectionLines() {
   });
 }
 
+/**
+ * Section 8 (docs/decisions/0048-new-campaign-vault.md, section 4): the starter that new vaults are
+ * made from is the output of gm-apprentice's vault scaffold, licensed CC BY-SA 4.0. Built from the
+ * template manifest and the licence text copied from upstream at the pinned commit.
+ */
+function buildStarterSectionLines() {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'assets', 'vault-template', 'manifest.json'), 'utf8'));
+  const licenseText = fs.readFileSync(path.join(__dirname, 'vendor', 'gm-apprentice-LICENSE-CC-BY-SA-4.0.txt'), 'utf8').trim();
+  const stored = new Map();
+  for (const system of Object.values(manifest.systems)) for (const entry of Object.values(system.files)) stored.set(entry.store, entry);
+  const own = new Set();
+  for (const system of Object.values(manifest.systems)) for (const [rel, entry] of Object.entries(system.files)) if (entry.origin === 'scriptorium') own.add(rel);
+  const up = manifest.upstream;
+  const lines = [];
+  lines.push(SEPARATOR);
+  lines.push('SECTION 8: THE STARTER FOR NEW VAULTS');
+  lines.push(SEPARATOR);
+  lines.push('');
+  lines.push(
+    `When a user starts a new campaign, Scriptorium creates a vault from a starter template embedded in the executable. ` +
+      `Most of the starter is the output of the vault scaffold in gm-apprentice (${up.repository}) by AntTheLimey, ` +
+      `captured at commit ${up.commit} (plugin version ${up.pluginVersion}, script ${up.script}). That output is licensed ` +
+      `under ${manifest.license} (Creative Commons Attribution-ShareAlike 4.0 International): ` +
+      'https://creativecommons.org/licenses/by-sa/4.0/legalcode. The complete licence text follows. Each new vault carries a _meta/NOTICE.txt that says the same, so the notice travels with the files.',
+  );
+  lines.push('');
+  lines.push(
+    'Changes made to the scaffold output: in _meta/vault-config.md the line "  site: false" is changed to "  site: true"; the campaign name and the creation date are filled in where the scaffold writes them. ' +
+      `Files written by Scriptorium and not taken from gm-apprentice: ${[...own].sort().join(', ')}.`,
+  );
+  lines.push('');
+  lines.push('Stored files (the starter keeps files shared by every game system once):');
+  for (const [store, entry] of [...stored.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+    lines.push(`  ${store} (sha256 ${entry.sha256})`);
+  }
+  lines.push('');
+  lines.push(licenseText);
+  lines.push('');
+  return lines;
+}
+
 function isProdPackage(meta) {
   return !meta.dev && !meta.devOptional && !meta.optional;
 }
@@ -416,6 +457,8 @@ function buildNoticesText() {
   // Section 7: the gloam theme's embedded fonts (ADR 0032, base theme slice)
   out.push(...buildGloamFontsSectionLines());
 
+  // Section 8: the starter for new vaults (ADR 0048)
+  out.push(...buildStarterSectionLines());
 
   return out.join('\n');
 }

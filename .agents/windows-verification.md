@@ -12,7 +12,6 @@ Where a criterion says `scriptorium-win-x64.exe` or `scriptorium-linux-x64`, it 
 **Do not read a real leak finding as a broken tool.** `check` on a real, uncurated campaign vault is
 expected to report leak ERRORs, and `build` is expected to correctly refuse to build as a result. That
 
-
 is the tool working, not a defect. If `check`/`build` come back clean on a real, uncurated vault,
 something changed underneath you and that is the surprising result, not the reverse.
 
@@ -1943,6 +1942,17 @@ ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux pac
 7. Ctrl-C: `stopped.`, exit 0, and no `scriptorium-preview-*` folder left in `%TEMP%`. Run the same command again: the campaign panel opens, not setup. `/setup` redirects to the Overview. The welcome shows until dismissed; dismiss it, restart, and it's gone.
 8. Re-hash the real config.
 
+### C137: starting a new campaign creates a vault on a local drive, in a OneDrive folder and on a network share, in the real win-x64 exe
+
+`docs/decisions/0048-new-campaign-vault.md`, sections 1, 2 and 5. **Mark this OPEN: verified on Linux from source and from the Linux packaged binary only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 6; the two must match. Work in a local scratch folder S.
+
+1. Run `init --yes --name fresh --new-vault "S\Fresh Campaign" --system none --config S\config.toml`. It exits 0. The vault has `Factions & Organizations` and `Items & Artifacts`, and `_meta\NOTICE.txt`. Hash `_meta\entity-types.md` with `certutil`; it must match the value recorded in the pull request. Then run `build fresh` and `serve fresh`: the landing page shows the title and the welcome page. Run it again with `--name second --new-vault "S\Games\Fantasy\Second"`: the two folders above it are created level by level, and the output lists them.
+2. Run `serve --admin --config S2\config.toml` with no config. Choose "Start a new campaign here". Enter `S2\New Vault`, which is missing: the check goes green and the system list shows. Go through review, then Build my first preview: the ready screen appears, and the preview shows the landing page and the welcome page.
+3. In an empty folder under `%OneDrive%`: the info note shows and creation succeeds. If `desktop.ini` appears, its hash is unchanged before and after. Record any OneDrive conflict copies.
+4. Use `\\localhost\C$\...\UNCVault`, which is missing. Nothing is checked until you leave the box. Then the network-share warning shows with the git note. Creation and the preview both work.
+5. A folder you made with `git init` and nothing else is accepted, and the hash of `.git\HEAD` is the same before and after. Refusals, each leaving the folder unchanged (exit 3 in `init`): a non-empty folder; a junction (`mklink /J`); `C:\`; a folder inside `S\Fresh Campaign`.
+6. Deny write on an empty folder (`icacls <dir> /deny %USERNAME%:(WD)`). Creation stops with a plain message listing what was created, and nothing is removed. Remove the deny afterwards. Re-hash the real config.
+
 ### C138: the folder picker lists only folders, never stalls, and creates one folder at a time, in the real win-x64 exe
 
 ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OPEN: Linux-verified from source and a Linux packaged build only; Windows paths, drives, junctions and reparse points are only proven by running the exe.** Isolate config as in C35: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile` of `%APPDATA%\Scriptorium\config.toml` before step 1 and after the last step; the two must match. Work in a local scratch folder S.
@@ -1974,6 +1984,19 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
 5. Hold `config.toml` open without delete sharing (PowerShell `[IO.File]::Open(path,'Open','Read','Read')`), then Set as default. It is refused within about 4 seconds, the file is intact, and no `.config.toml.scriptorium-tmp-*` is left. Close the handle and retry: it works.
 6. If remote access is configured, switch from the remote browser: `audit.log` shows request `a`, response `z`. Otherwise leave this step OPEN.
 7. On the Title screen type a new title without saving, then pick another campaign in the switcher. A confirm says "You have unsaved changes on this page. Switch anyway?". Stay keeps the title and the campaign. Switch moves the panel and lands on the Overview. On the Campaigns screen the long vault and output paths wrap and the page does not scroll sideways at a narrow window.
+8. Ctrl-C: no `scriptorium-preview-*` is left in `%TEMP%`. Re-hash the real config.
+
+### C140: adding a campaign from the panel, on this PC and over remote access, in the real win-x64 exe
+
+`docs/decisions/0052-add-a-campaign.md`. **Mark this OPEN: Linux-verified from source and a Linux packaged build only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 8; the two must match.
+
+1. With `a` registered, run `serve --admin` and open Campaigns, then Add a campaign. Typing `#/campaigns/add` in the address bar also opens it, and Back does not loop.
+2. Add `z` with its vault chosen by Browse on a scratch mapped `Z:`. The review says the default stays `a`. Then press Switch and build its first preview: it reaches ready, and Go to my panel shows `z`'s Overview with the welcome.
+3. Parity: on a twin config run `init --yes` for the same campaign. `certutil` hashes of `pack.toml` and `vault.config.json` are equal, and the config entries differ only in their paths.
+4. Refusals, each leaving the config's `certutil` hash unchanged: the name `a`, `a`'s vault, `a`'s output, and an output inside `a`'s vault.
+5. Start a new campaign into a missing `S\New Vault`. It is created, registered and listed.
+6. Run `config add c ...` in a terminal during the review, then press Add. It is refused with "Your settings changed outside the panel. Reload and try again." and `c` is kept.
+7. If remote access is configured, add from the remote browser: a typed path is checked only on leaving the box, and `audit.log` shows `campaign-check`, `campaign-add` with paths, and the response with `affected`. Otherwise leave this step OPEN.
 8. Ctrl-C: no `scriptorium-preview-*` is left in `%TEMP%`. Re-hash the real config.
 
 ### C141: a signed win-x64 exe has a valid, trusted, timestamped signature and still starts, and a self-update lands on it
