@@ -30,6 +30,21 @@ To see the tool work before you point it at your own vault, build the sample cam
 `examples/the-long-lease`. The [sample guide](../examples/README.md) takes you through it step by step.
 
 ```
+gm-scriptorium
+```
+Run with no command in a terminal (or double-click the program on Windows) and it opens the admin
+panel in your default browser, signed in. With no campaign registered yet, the panel starts with
+setup (see below); otherwise it opens your campaign. The window it opens in says it is running, and
+closing that window (or pressing Ctrl-C in it) stops the panel and tidies up after it. If the browser
+did not open, press O in that window to open it again; if it still cannot be opened, the window prints
+the panel link instead. If something goes wrong at the start, the window shows the message and waits
+for Enter, so a double-clicked window does not close before you can read it. Opening the browser
+leaves a small launcher file in a private folder next to your config for under a minute; it is
+removed as soon as it has been used. On Linux, a browser installed as a snap cannot always read that
+hidden folder, and the command does not notice; use `gm-scriptorium serve --admin` and its link there.
+Running a command without a terminal (from a script, say) still prints the help.
+
+```
 gm-scriptorium init
 ```
 Interactive first-run setup: point it at your vault, give the campaign a name, pick a theme, and it
