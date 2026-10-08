@@ -99,27 +99,17 @@ function cli(root, args) {
 }
 
 /*
- * KNOWN GAP, reported to the owner: on the real starter `check` gives no error but exactly these
- * seven warnings, all census/unrecognised-type. The scaffold's own entity-types page lists
- * `meta`, `timeline` and `pc_roster` only under its "Required Fields" section, which the
- * recognised-type union (src/vault/entitytypes.js) does not read, and not in its hierarchy or
- * folder mapping. The starter cannot be edited (byte parity with the scaffold), so the fix is in the
- * checker, not here. When it lands this list becomes empty and the test below must say "0 warning(s)".
+ * The scaffold's entity-types page lists `meta`, `timeline` and `pc_roster` only under its
+ * "Required Fields" section. The checker reads that section since #62 (src/vault/entitytypes.js), so
+ * the real starter gives no warning at all. If this list ever needs an entry again, the checker or
+ * the pinned starter has changed: find out which before adding one.
  */
-const KNOWN_WARNINGS = [
-  'WARN census/unrecognised-type _Campaign/Player Characters.md  _Campaign/Player Characters.md: type "pc_roster" is not in the recognised union (hierarchy + folder-mapping + character-story)',
-  'WARN census/unrecognised-type _Campaign/Timeline.md  _Campaign/Timeline.md: type "timeline" is not in the recognised union (hierarchy + folder-mapping + character-story)',
-  'WARN census/unrecognised-type _meta/entity-types.md  _meta/entity-types.md: type "meta" is not in the recognised union (hierarchy + folder-mapping + character-story)',
-  'WARN census/unrecognised-type _meta/index.md  _meta/index.md: type "meta" is not in the recognised union (hierarchy + folder-mapping + character-story)',
-  'WARN census/unrecognised-type _meta/publish-manifest.md  _meta/publish-manifest.md: type "meta" is not in the recognised union (hierarchy + folder-mapping + character-story)',
-  'WARN census/unrecognised-type _meta/relationship-types.md  _meta/relationship-types.md: type "meta" is not in the recognised union (hierarchy + folder-mapping + character-story)',
-  'WARN census/unrecognised-type _meta/vault-config.md  _meta/vault-config.md: type "meta" is not in the recognised union (hierarchy + folder-mapping + character-story)',
-];
+const KNOWN_WARNINGS = [];
 
 const warnings = (out) => out.split('\n').filter((l) => /^(WARN|ERROR) /.test(l));
 
 for (const system of SHIPPED) {
-  test(`FR-17 on the real starter: a new ${system} vault has no error, only the known seven census warnings, builds, and the leak checks stay clean`, { timeout: 120000 }, async (t) => {
+  test(`FR-17 on the real starter: a new ${system} vault has no error and no warning, builds, and the leak checks stay clean`, { timeout: 120000 }, async (t) => {
     const root = scratch(t);
     await runInitCommand(
       { yes: true, name: 'fresh', 'new-vault': path.join(root, 'Fresh Campaign & Co'), system, title: 'The Brass Lantern', config: path.join(root, 'cfg', 'config.toml') },
@@ -137,7 +127,7 @@ for (const system of SHIPPED) {
 
     const checked = cli(root, ['check', 'fresh']);
     assert.equal(checked.code, 0, checked.all);
-    assert.match(checked.all, /0 error\(s\), 7 warning\(s\), \d+ info\./);
+    assert.match(checked.all, /0 error\(s\), 0 warning\(s\), \d+ info\./);
     assert.deepEqual(warnings(checked.all), KNOWN_WARNINGS);
 
     const built = cli(root, ['build', 'fresh']);
