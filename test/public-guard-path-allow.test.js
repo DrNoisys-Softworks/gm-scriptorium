@@ -266,3 +266,40 @@ test('PA-9: pre-push and release apply path entries to files in the pushed range
   assert.match(r.stdout, /^VERDICT block$/m);
   void ZERO_OID;
 });
+
+test('PA-10: path matching is exact bytes; an NFC entry never excuses the NFD twin (and the reverse)', (t) => {
+  const nfc = 'docs/café.md';
+  const nfd = 'docs/café.md';
+  assert.notEqual(nfc, nfd);
+  for (const [entry, excused] of [[nfc, nfc], [nfd, nfd]]) {
+    const dir = repo(t, `${BASE_ALLOW}path ${entry} -- exact file\n`, { files: [nfc, nfd] });
+    const tracked = git(['ls-files', '-z'], dir).toString('utf8').split('\0').filter(Boolean);
+    assert.equal(tracked.length, 2, 'git must keep the two spellings as two distinct files');
+    const r = guard(['scan', 'tree', 'HEAD'], { cwd: dir });
+    assert.equal(r.code, 1, 'the other twin must still hit');
+    assert.match(r.stdout, /^TOTAL hits=1 targets=2 .*allowed=1 /m);
+    assert.equal([...r.stdout.matchAll(/^ALLOWED /gm)].length, 1);
+    assert.equal([...r.stdout.matchAll(/^HIT /gm)].length, 1);
+    assert.doesNotMatch(r.stdout, /^UNUSED allow:2$/m);
+    void excused;
+  }
+});
+
+test('PA-11: a tracked-but-deleted worktree file and a gitlink path both report UNUSED and excuse nothing', (t) => {
+  const dir = repo(t, `${BASE_ALLOW}path docs/gone.md -- deleted file\npath docs/sub -- gitlink\n`, { files: ['docs/gone.md', 'docs/other.md'] });
+  // A gitlink (submodule) entry at docs/sub, present in the index and in HEAD.
+  git(['update-index', '--add', '--cacheinfo', `160000,${rev(dir, 'HEAD')},docs/sub`], dir);
+  commit(dir, 'add a gitlink');
+  fs.rmSync(path.join(dir, 'docs/gone.md'));
+  const worktree = guard(['scan', 'tree'], { cwd: dir });
+  assert.match(worktree.stdout, /^UNUSED allow:2$/m, 'deleted file entry');
+  assert.match(worktree.stdout, /^UNUSED allow:3$/m, 'gitlink entry');
+  assert.deepEqual(allowedLabels(worktree.stdout), []);
+  assert.deepEqual(hitLabels(worktree.stdout), ['docs/other.md']);
+  assert.match(worktree.stdout, /missing=[1-9]/);
+  const rev1 = guard(['scan', 'tree', 'HEAD'], { cwd: dir });
+  assert.match(rev1.stdout, /^UNUSED allow:3$/m, 'gitlink entry in a revision');
+  // The file is still in HEAD, so there its entry is legitimately used; the gitlink never is.
+  assert.deepEqual(allowedLabels(rev1.stdout), ['docs/gone.md']);
+  assert.doesNotMatch(rev1.stdout, /^UNUSED allow:2$/m);
+});

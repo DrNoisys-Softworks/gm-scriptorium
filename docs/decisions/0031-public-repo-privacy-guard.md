@@ -131,11 +131,15 @@ words ("For (A) that's fine").
 **The limits.**
 
 - The target must be an exact repo-relative file path. Globs, directories, `..` or `.` segments,
-  absolute paths, drive letters, backslashes, empty segments and an empty target are refused,
+  absolute paths, drive letters, backslashes, control characters, empty segments and an empty target are refused,
   and the guard stops with `bad-allow` and the line number of the offending entry.
 - A reason is always required. A line without one is refused as a malformed list.
-- An entry excuses every hit inside that one file, and no other file. Matching is exact, so the
-  same name in another folder, or a longer name that starts or ends the same way, is still
+- An entry excuses every hit in that one file, its path text included, in every commit of a
+  range and for any future content of that path. An excused file must therefore stay
+  byte-identical to its upstream source: if it changes, nothing flags it. No other file is
+  excused. Matching is exact string equality with no normalisation, so the same name in another
+  folder, a longer name that starts or ends the same way, or a differently-encoded spelling of
+  the same-looking name (for example the decomposed form of an accented letter) is still
   checked.
 - An entry that matched nothing in what was scanned (the file is absent, the path is a
   directory, or it lies outside the revision or pathspec scanned) is reported as `UNUSED` with
