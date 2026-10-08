@@ -1525,7 +1525,9 @@
     var status = h('div');
     status.id = 'su-commit-st';
     status.setAttribute('aria-live', 'polite');
-    footer.appendChild(status);
+    // Add mode: a refusal is shown above the review, on the page's own ground (the slip's paper would wash the note out).
+    if (ADD) wrap.insertBefore(status, head);
+    else footer.appendChild(status);
     var btns = h('div', 'cf-btns');
     if (ADD) {
       var addBtn = button('primary', 'Add ' + S.name.trim(), 'plus', function () { commitAdd(status, [addBtn]); });

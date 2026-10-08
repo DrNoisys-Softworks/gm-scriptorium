@@ -395,6 +395,12 @@ for (const browserName of ['chromium', 'firefox']) {
       await page.click('[data-part="next"]');
       await page.waitForSelector('.a1-slip');
       await check('review');
+      // A refusal is drawn above the review, on the page's own ground, and must stay readable.
+      await page.route('**/api/campaigns/add', (route) => (route.request().method() === 'POST' ? route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: 'config-changed', message: 'Your settings changed outside the panel. Reload and try again.' }) }) : route.continue()));
+      await page.click('.cf-btns .a1-btn');
+      await page.waitForFunction(() => document.getElementById('su-commit-st').textContent.includes('Your settings changed outside the panel. Reload and try again.'));
+      await check('refused');
+      await page.unroute('**/api/campaigns/add');
       await page.click('.cf-btns .a1-btn');
       await page.waitForSelector('.am-acts');
       await check('added');
