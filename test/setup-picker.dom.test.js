@@ -184,7 +184,7 @@ for (const browserName of ['chromium', 'firefox']) {
       await page.waitForFunction((p) => document.querySelector('.pk-path').textContent === p, fx.work);
       await page.keyboard.press('End');
       await page.keyboard.press('Enter');
-      await page.waitForFunction(() => document.querySelector('.pk p[role="status"]') && document.querySelector('.pk p[role="status"]').textContent.includes('Links can’t be opened here. Type the path into the field instead.'));
+      await page.waitForFunction(() => document.querySelector('.pk div[role="status"]') && document.querySelector('.pk div[role="status"]').textContent.includes('Links can’t be opened here. Type the path into the field instead.'));
       assert.equal(await pathShown(page), fx.work, 'a link is never entered');
       await page.keyboard.press('Escape');
       assert.equal(await page.locator('.pk').count(), 0);
@@ -222,7 +222,7 @@ for (const browserName of ['chromium', 'firefox']) {
       assert.equal(page.folderRequests.some((r) => r.includes('host')), false, 'no request named the share while typing');
       await typeInto(page, locInput, '\\\\host\\share\\x');
       await page.keyboard.press('Enter');
-      await page.waitForSelector('.pk p[role="status"]:not([hidden])');
+      await page.waitForSelector('.pk div[role="status"]:not([hidden])');
       assert.equal(page.folderRequests.filter((r) => r.includes('path=') && r.includes('host')).length, 1, 'Enter asks exactly once');
       await page.context().close();
     });
@@ -247,7 +247,7 @@ for (const browserName of ['chromium', 'firefox']) {
       await page.waitForFunction(() => document.querySelector('.pk-opt[aria-selected="true"] .a1-pill.sage'));
       assert.equal(fs.statSync(path.join(fx.work, 'Session Art')).isDirectory(), true, 'it is on disk the moment it is made');
       assert.match(await page.textContent('.pk-opt[aria-selected="true"]'), /Session Art.*just created/);
-      assert.match(await page.textContent('.pk p[role="status"]'), /Press Enter to open it, then Choose this folder/);
+      assert.match(await page.textContent('.pk div[role="status"]'), /Press Enter to open it, then Choose this folder/);
       await page.keyboard.press('Enter');
       await page.waitForFunction((p) => document.querySelector('.pk-path').textContent === p, path.join(fx.work, 'Session Art'));
       await page.click('.pk >> text=Choose this folder');

@@ -105,13 +105,29 @@
     function say(text) {
       setText(ui.live, text);
     }
-    function note(text, bad) {
+    // kind: 'bad' (a card with a bold line and an optional detail), 'info' or 'ok' (a quiet line with an
+    // icon), or nothing (a plain line). The note is a polite live region, so it is announced as it appears.
+    function note(text, kind, detail) {
       ui.note.textContent = '';
       ui.note.hidden = !text;
       if (!text) return;
-      ui.note.className = bad ? 'pk-err' : 'pk-note';
-      if (bad) ui.note.appendChild(icon('warn'));
-      ui.note.appendChild(h('span', null, text));
+      if (kind === 'bad' || kind === true) {
+        ui.note.className = 'a1-note err';
+        ui.note.appendChild(icon('warn'));
+        var box = h('div');
+        var p1 = h('p');
+        p1.appendChild(h('b', null, text));
+        box.appendChild(p1);
+        if (detail) box.appendChild(h('p', null, detail));
+        ui.note.appendChild(box);
+        return;
+      }
+      ui.note.className = 'pk-note';
+      if (kind === 'info' || kind === 'ok') ui.note.appendChild(icon(kind === 'ok' ? 'tick' : 'info'));
+      ui.note.appendChild(document.createTextNode((kind ? ' ' : '') + text));
+    }
+    function stillIn() {
+      return view && view.kind === 'folder' ? 'You are still in ' + view.path + '. Pick another folder, or type the path into the field.' : '';
     }
 
     // --- building the panel ------------------------------------------------------------------
@@ -171,6 +187,7 @@
       });
 
       var tools = h('div', 'pk-tools');
+      ui.tools = tools;
       var lab = h('label', 'st-check');
       lab.setAttribute('for', id + '-hid');
       ui.hidden = h('input');
@@ -194,7 +211,7 @@
       ui.empty = h('p', 'pk-note');
       ui.empty.hidden = true;
       p.appendChild(ui.empty);
-      ui.note = h('p', 'pk-note');
+      ui.note = h('div', 'pk-note');
       ui.note.setAttribute('role', 'status');
       ui.note.hidden = true;
       p.appendChild(ui.note);
@@ -274,7 +291,8 @@
       var items = view.items;
       var isRoots = view.kind === 'roots';
       setText(ui.path, isRoots ? 'Places' : view.path);
-      ui.up.disabled = isRoots;
+      ui.up.hidden = isRoots;
+      ui.tools.hidden = isRoots;
       ui.choose.disabled = isRoots;
       if (ui.extra) ui.extra.disabled = isRoots;
       if (ui.newBtn) ui.newBtn.disabled = isRoots;
@@ -303,6 +321,8 @@
           nameBox.appendChild(pill('sage', 'just created'));
         }
         if (it.home) nameBox.appendChild(h('span', 'pk-sub', it.path));
+        if (it.root && !it.home && it.path === '/') nameBox.appendChild(h('span', 'pk-sub', 'The top of this computer'));
+        if (it.unreadable) nameBox.appendChild(h('span', 'pk-sub', 'Listed by name only; it can’t be examined.'));
         li.appendChild(nameBox);
         li.addEventListener('click', function () {
           // A first click selects; a second click on the same row opens it (a tap on a phone).
@@ -318,7 +338,7 @@
       mark();
       var skipped = '';
       if (isRoots && view.unchecked) skipped = view.unchecked;
-      if (!ui.noteSticky) note(skipped, false);
+      if (!ui.noteSticky) note(skipped);
       if (announce) say(announce);
     }
 
@@ -344,7 +364,7 @@
       return A.api('/api/folders' + (refresh ? '?refresh=1' : '')).then(function (r) {
         if (mine !== seq) return;
         if (!r.ok || !r.body || r.body.view !== 'roots') {
-          note(problem(r), true);
+          note(problem(r), 'bad');
           return;
         }
         var b = r.body;
@@ -378,13 +398,15 @@
         if (mine !== seq) return;
         var b = r.body;
         if (!r.ok || !b) {
-          note(problem(r), true);
+          note(problem(r), 'bad', stillIn());
           if (!view) showRoots(false);
           return;
         }
         if (b.state !== 'ok') {
-          note(LIST_STATES[b.state] || 'That folder can’t be opened.', b.state !== 'link');
-          say(LIST_STATES[b.state] || 'That folder can’t be opened.');
+          var why = LIST_STATES[b.state] || 'That folder can’t be opened.';
+          if (b.state === 'link') note(why, 'info');
+          else note(why, 'bad', stillIn());
+          ui.noteSticky = true;
           if (!view) showRoots(false);
           return;
         }
@@ -399,7 +421,7 @@
           for (var i = 0; i < view.items.length; i++) if (view.items[i].name === keep) active = i;
         }
         draw(leaf(b.path) + (filter ? ', matching “' + filter + '”, ' : ', ') + countText(view.items.length, b.truncated));
-        note(b.truncated ? 'Showing the first 500 folders. Type a name to narrow the list.' : '', false);
+        note(b.truncated ? 'Showing the first 500 folders. Type a name to narrow the list.' : '');
       });
     }
 
@@ -416,7 +438,7 @@
         if (mine !== seq) return;
         var b = r.body;
         if (!r.ok || !b || b.view !== 'start') {
-          note(problem(r), true);
+          note(problem(r), 'bad');
           return showRoots(false);
         }
         if (b.deferred) {
@@ -435,8 +457,7 @@
       var it = view.items[i];
       if (!it) return;
       if (it.link) {
-        note(LIST_STATES.link, false);
-        say(LIST_STATES.link);
+        note(LIST_STATES.link, 'info');
         ui.noteSticky = true;
         return;
       }
@@ -515,7 +536,7 @@
               draw('Created “' + made + '”. ' + leaf(parent) + ', ' + countText(view.items.length, view.truncated));
             }
             ui.noteSticky = true;
-            note('Made ' + b.path + '. Press Enter to open it, then Choose this folder.', false);
+            note('Made ' + b.path + '. Press Enter to open it, then Choose this folder.', 'ok');
             ui.list.focus();
           });
         }
