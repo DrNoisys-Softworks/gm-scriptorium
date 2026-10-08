@@ -8,9 +8,11 @@ const { THEMES, INIT_DEFAULT_THEME, loadTheme } = require('../build/themes');
 const { loadPackToml } = require('../build/packtoml');
 const { loadPackConfig } = require('../cli/check');
 const { paletteScheme } = require('../checks/themescheme');
-const { packDirFor } = require('../vault/packwrite');
-const { ScriptoriumError, VaultUnreachableError } = require('../util/errors');
-const { validateName, validateTitle, validateTheme } = require('./validate');
+const { packDirFor, isInsideOrEqual } = require('../vault/packwrite');
+const { inspectTarget } = require('../vault/vaultcreate');
+const { ConfigError, ScriptoriumError, VaultUnreachableError } = require('../util/errors');
+const { validateName, validateTitle, validateTheme, validateSystem, validateStarterTitle } = require('./validate');
+const template = require('./template');
 const { defaultOutputFor, defaultTitleFor, isNonEmptyForeignOutput, nonEmptyOutputWarning } = require('./scaffold');
 const probeLib = require('./probe');
 
@@ -204,4 +206,115 @@ async function checkTheme(value, { vault = '', name = '' } = {}) {
   }
 }
 
-module.exports = { checkName, checkVault, checkOutput, checkTitle, checkTheme, suggestSlug, RELATIVE_RULE, NEED_VAULT_RULE };
+/*
+ * The new-campaign path (docs/decisions/0048-new-campaign-vault.md, section 5). Same shape and same
+ * rules as the checks above: the browser never decides validity, and a refusal's `rule` is the
+ * writer's or the validator's own message, word for word.
+ */
+
+const ONEDRIVE_VARS = ['OneDrive', 'OneDriveConsumer', 'OneDriveCommercial'];
+
+function underOneDrive(abs, env) {
+  for (const key of ONEDRIVE_VARS) {
+    const base = env && env[key];
+    if (typeof base === 'string' && base !== '' && isInsideOrEqual(path.resolve(base), abs)) return true;
+  }
+  return false;
+}
+
+function newVaultFacts(overrides) {
+  return { exists: false, litter: [], missingAncestors: [], unc: false, oneDrive: false, ...overrides };
+}
+
+/**
+ * The folder a NEW vault would be created in. ok: it does not exist yet, or is empty (apart from
+ * OS litter and an .obsidian folder). Missing parent folders are allowed and listed in
+ * facts.missingAncestors, because the commit creates them, level by level, after the review.
+ * Nothing is created here.
+ */
+async function checkNewVault(value, { name = '', commit = false, configPath, panelDir } = {}, deps = {}) {
+  const typed = typedPath(value);
+  if (typed.relative) return result('newVault', 'bad', typed.clean, RELATIVE_RULE, newVaultFacts({}));
+  if (typed.unc && commit !== true) return result('newVault', 'deferred', typed.clean, null, newVaultFacts({ unc: true }));
+
+  const probed = await probeLib.probePath(typed.abs, probeOpts(deps));
+  if (probed !== 'ok' && probed !== 'missing') return unreachable('newVault', typed.abs, probed, typed.unc, newVaultFacts({}));
+
+  let info;
+  try {
+    info = inspectTarget(typed.abs, { configPath, panelDir, campaign: name || null });
+  } catch (err) {
+    if (!(err instanceof VaultUnreachableError)) throw err;
+    return result('newVault', 'bad', typed.abs, err.message, newVaultFacts({ unc: typed.unc }));
+  }
+  const facts = newVaultFacts({
+    exists: info.state === 'empty',
+    litter: info.litter,
+    missingAncestors: info.missingAncestors,
+    unc: typed.unc,
+    oneDrive: underOneDrive(typed.abs, (deps && deps.env) || process.env),
+  });
+  return result('newVault', typed.unc ? 'warn' : 'ok', typed.abs, null, facts);
+}
+
+/** @returns {{ tpl: object }|{ problem: string }} */
+function loadStarter(deps) {
+  try {
+    return { tpl: template.loadTemplate({ dir: deps && deps.templateDir }) };
+  } catch (err) {
+    if (err instanceof ScriptoriumError) return { problem: err.message };
+    throw err;
+  }
+}
+
+async function checkSystem(value, deps = {}) {
+  const shown = typeof value === 'string' ? value : '';
+  const loaded = loadStarter(deps);
+  if (loaded.problem) return result('system', 'bad', shown, loaded.problem, { systems: [] });
+  const systems = template.starterSystems(loaded.tpl);
+  try {
+    return result('system', 'ok', validateSystem(value, systems), null, { systems });
+  } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    return result('system', 'bad', shown, err.message, { systems });
+  }
+}
+
+/** The site title of a new vault: normalised, and read back through every page it will be written into. */
+async function checkStarterTitle(value, { name = '' } = {}, deps = {}) {
+  const fallback = name || null;
+  const raw = value === undefined || value === null ? fallback : value;
+  const facts = { default: fallback };
+  const shown = typeof raw === 'string' ? raw : '';
+  let title;
+  try {
+    title = validateStarterTitle(raw);
+  } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    return result('starterTitle', 'bad', shown, err.message, facts);
+  }
+  const loaded = loadStarter(deps);
+  if (loaded.problem) return result('starterTitle', 'bad', shown, loaded.problem, facts);
+  try {
+    template.assertTitleReadsBack(loaded.tpl, title);
+  } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    return result('starterTitle', 'bad', shown, err.message, facts);
+  }
+  return result('starterTitle', 'ok', title, null, facts);
+}
+
+module.exports = {
+  checkName,
+  checkVault,
+  checkOutput,
+  checkTitle,
+  checkTheme,
+  checkNewVault,
+  checkSystem,
+  checkStarterTitle,
+  underOneDrive,
+  suggestSlug,
+  RELATIVE_RULE,
+  NEED_VAULT_RULE,
+};

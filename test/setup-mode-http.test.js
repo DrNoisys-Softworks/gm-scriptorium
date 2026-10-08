@@ -402,7 +402,11 @@ test('state: reports setup active with the config path, the three themes, the de
   const h = await startPanel(t, { config: configPath });
   const res = await get(h, '/api/setup/state');
   assert.equal(res.status, 200);
-  assert.deepEqual(json(res), {
+  // newVault (ADR 0048) is checked in test/setup-newvault-http.test.js; only its shape is pinned here.
+  const body = json(res);
+  assert.deepEqual(Object.keys(body.newVault).sort(), ['available', 'problem', 'systems']);
+  delete body.newVault;
+  assert.deepEqual(body, {
     active: true,
     configPath,
     campaign: null,

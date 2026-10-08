@@ -10,6 +10,7 @@ const setupmode = require('../setupmode');
 const { runExclusive } = require('../context');
 const register = require('../../setup/register');
 const checks = require('../../setup/checks');
+const template = require('../../setup/template');
 const { THEMES, INIT_DEFAULT_THEME } = require('../../build/themes');
 
 /*
@@ -21,9 +22,9 @@ const { THEMES, INIT_DEFAULT_THEME } = require('../../build/themes');
  * commit route is the only caller of it (test/setup-structure.test.js proves both).
  */
 
-const FIELDS = ['name', 'vault', 'output', 'title', 'theme'];
+const FIELDS = ['name', 'vault', 'output', 'title', 'theme', 'newVault', 'system', 'starterTitle'];
 const MAX_VALUE = 2048;
-const ANSWER_KEYS = ['name', 'vault', 'output', 'outputConfirmed', 'title', 'theme'];
+const ANSWER_KEYS = ['name', 'vault', 'output', 'outputConfirmed', 'title', 'theme', 'newVault', 'system'];
 
 function sendJson(res, status, payload) {
   respond.send(res, status, respond.adminHeaders({ 'Content-Type': 'application/json; charset=utf-8' }), JSON.stringify(payload));
@@ -53,6 +54,16 @@ function setupPage(req, res, ctx, { kind, isHead }) {
   return undefined;
 }
 
+/** Whether this build can start a new campaign (ADR 0048): the shipped game systems, or why it cannot. */
+function newVaultState(deps) {
+  try {
+    const tpl = template.loadTemplate({ dir: deps.templateDir });
+    return { available: true, systems: template.starterSystems(tpl), problem: null };
+  } catch (err) {
+    return { available: false, systems: [], problem: err.message };
+  }
+}
+
 /** GET /api/setup/state. Works before and after the handover (the Overview welcome reads it). */
 function state(req, res, ctx, { kind }) {
   if (kind === 'remote') return refuseRemote(res);
@@ -74,6 +85,7 @@ function state(req, res, ctx, { kind }) {
     remoteDeferred: ctx.setup && ctx.setup.active ? ctx.setup.remoteDeferred || null : null,
     welcome: showWelcome,
     sep: path.sep,
+    newVault: newVaultState(ctx.setup && ctx.setup.probeDeps ? ctx.setup.probeDeps : {}),
   });
   return undefined;
 }
@@ -110,6 +122,9 @@ async function check(req, res, ctx, { kind, query }) {
   else if (field === 'vault') result = await checks.checkVault(value.value, { name: where.name, commit }, deps);
   else if (field === 'output') result = await checks.checkOutput(value.value, { ...where, commit }, deps);
   else if (field === 'title') result = await checks.checkTitle(value.value, where);
+  else if (field === 'newVault') result = await checks.checkNewVault(value.value, { ...where, commit, configPath: ctx.setup.configPath, panelDir: panelDirOf(ctx) }, deps);
+  else if (field === 'system') result = await checks.checkSystem(value.value, deps);
+  else if (field === 'starterTitle') result = await checks.checkStarterTitle(value.value, { name: where.name }, deps);
   else result = await checks.checkTheme(value.value, where);
   sendJson(res, 200, result);
   return undefined;
@@ -148,7 +163,7 @@ async function readAnswers(req, res) {
       return null;
     }
   }
-  for (const key of ['title', 'theme']) {
+  for (const key of ['title', 'theme', 'system']) {
     if (parsed[key] !== undefined && (typeof parsed[key] !== 'string' || parsed[key].length > MAX_VALUE)) {
       badBody(res, `${key} must be text`);
       return null;
@@ -156,6 +171,10 @@ async function readAnswers(req, res) {
   }
   if (parsed.outputConfirmed !== undefined && typeof parsed.outputConfirmed !== 'boolean') {
     badBody(res, 'outputConfirmed must be true or false');
+    return null;
+  }
+  if (parsed.newVault !== undefined && typeof parsed.newVault !== 'boolean') {
+    badBody(res, 'newVault must be true or false');
     return null;
   }
   return parsed;
