@@ -316,17 +316,17 @@ for (const browserName of ['chromium', 'firefox']) {
       await page.click('[data-part="next"]');
       await h1Focused(page, 'Which game system?');
       const rows = await page.$$eval('.su-opt', (els) => els.map((e) => [e.querySelector('.nm').textContent, e.querySelector('.id').textContent, e.querySelector('input').checked]));
-      assert.deepEqual(rows, [['None', 'none', true], ['D&D 5e (2024)', 'dnd-5e-2024', false], ['Pathfinder 2e', 'pf2e', false], ['Forged in the Dark', 'fitd', false]]);
+      assert.deepEqual(rows, [['None', 'none', false], ['D&D 5e (2024)', 'dnd-5e-2024', true], ['Pathfinder 2e', 'pf2e', false], ['Forged in the Dark', 'fitd', false]]);
       assert.equal(await page.textContent('.su-opt .d'), 'No system templates. Fits any game.');
       assert.equal(await page.textContent('.su-sys + .a1-hint'), 'More systems are on the way. Ask for yours');
       const link = await page.$eval('.su-sys + .a1-hint a', (a) => [a.getAttribute('href'), a.getAttribute('target'), a.getAttribute('rel'), a.textContent]);
       assert.deepEqual(link, ['https://github.com/DrNoisys-Softworks/gm-scriptorium/issues/new?template=game_system_request.yml', '_blank', 'noopener noreferrer', 'Ask for yours']);
       await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
       await tabTo(page, 'input[name="su-sys"]');
-      assert.equal(await page.evaluate(() => document.activeElement.value), 'none');
-      await page.keyboard.press('ArrowDown');
       assert.equal(await page.evaluate(() => document.activeElement.value), 'dnd-5e-2024');
-      assert.equal(await page.$eval('.su-opt.sel .id', (e) => e.textContent), 'dnd-5e-2024');
+      await page.keyboard.press('ArrowDown');
+      assert.equal(await page.evaluate(() => document.activeElement.value), 'pf2e');
+      assert.equal(await page.$eval('.su-opt.sel .id', (e) => e.textContent), 'pf2e');
       assert.equal(await page.textContent('.su-rail button[aria-current="step"] span:nth-of-type(2)'), 'Game system');
       await page.context().close();
     });
@@ -478,7 +478,7 @@ for (const browserName of ['chromium', 'firefox']) {
       await h1Focused(page, 'Which game system?');
       await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
       await tabTo(page, 'input[name="su-sys"]');
-      await page.keyboard.press('ArrowDown'); // dnd-5e-2024
+      // dnd-5e-2024 is already picked
       await tabTo(page, '[data-part="next"]');
       await page.keyboard.press('Enter');
       await h1Focused(page, 'Where should the built site go?');

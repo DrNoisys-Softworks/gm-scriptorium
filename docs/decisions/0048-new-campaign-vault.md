@@ -168,8 +168,8 @@ because the vault is made on the last screen) and draws one state for each answe
 a new folder, an empty one, one with only litter, a git repository with nothing else in it, a folder with
 things in it, a file, a link, a folder inside a vault (with a button to use that vault instead), folders
 above it that will be made, a OneDrive folder, and a network share. Every refusal shows the server's own
-rule line, word for word. The game system question lists none and the shipped systems, with a link to ask
-for another. The review lists everything that will be created, with a disclosure for every folder and
+rule line, word for word. The game system question lists none and the shipped systems, with D&D 5e (2024) picked to begin with (the owner's ruling: the audience is D&D players), and a link to ask
+for another. The command line never guesses a system. The review lists everything that will be created, with a disclosure for every folder and
 file in the starter, and the ready screen says what to do next, including that setup does not run git.
 
 **An empty folder may already be a git repository.** A folder that holds only a `.git` folder, with or

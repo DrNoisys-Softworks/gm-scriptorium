@@ -33,7 +33,7 @@
 
   var S = {
     server: null,
-    way: 'have', newvault: '', system: 'none',
+    way: 'have', newvault: '', system: 'dnd-5e-2024',
     name: '', vault: '', output: '', outputTouched: false, outputConfirmed: false, title: '', theme: null,
     res: {}, // latest server answer per field
     committed: false, built: null, result: null, failure: null, progress: []
@@ -1182,6 +1182,7 @@
   }
 
   function screenSystem() {
+    if (systemIds().indexOf(S.system) < 0) S.system = 'none'; // a build without that system falls back
     var wrap = h('div', 'su-q');
     wrap.appendChild(qHead(qnOf('system'), 'Which game system?', 'Setup adds note templates for this system to the new vault. They are ordinary notes you can change.'));
     var box = h('fieldset', 'su-sys');
