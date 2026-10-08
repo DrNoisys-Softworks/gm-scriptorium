@@ -120,7 +120,7 @@ test('#109 roadmap browser checks', { skip: SKIP, timeout: 300000 }, async (t) =
       assert.equal(g.last, true);
       assert.deepEqual(g.badges, ['later', 'later', 'later', 'later', 'later']);
       const live = await page.$$eval('[data-role="side"] [data-nav]', (as) => as.filter((a) => !a.closest('.is-roadmap')).map((a) => a.getAttribute('data-nav')));
-      assert.equal(live.length, 9);
+      assert.equal(live.length, 10); // ADR 0050 adds the Campaigns screen: 9 -> 10
       assert.ok(!live.some((id) => LATER.includes(id)));
       await page.context().close();
     });

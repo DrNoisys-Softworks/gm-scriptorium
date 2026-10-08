@@ -7,7 +7,8 @@ const { startLocalListener: startLocalListenerImpl, startPanelListener: startPan
 const { createToken: createTokenImpl } = require('../admin/session');
 const { createAdminContext } = require('../admin/context');
 const { createAdminHandler, createPreviewHandler } = require('../admin/router');
-const { removePreviewRoot } = require('../admin/preview');
+const { removeAllPreviewRoots } = require('../admin/preview');
+const campaignstate = require('../admin/campaignstate');
 const { EXIT_CODES } = require('../util/exitcodes');
 const { onStopSignal } = require('../util/stop-signals');
 const { ConfigError } = require('../util/errors');
@@ -205,6 +206,10 @@ async function startAdminPanel(
   ctx.tickets = tickets;
   ctx.clock = now;
   ctx.signinBusy = false;
+  // ADR 0050: switching is off when --vault overrides the launched campaign's folder (outside setup mode).
+  ctx.campaigns = campaignstate.createCampaignsState({
+    lockedReason: !setupMode && flags.vault !== undefined ? campaignstate.vaultFlagReason(ctx.campaign) : null,
+  });
   const deferredMode = setupMode ? savedRemoteMode(ctxInfo.config) : 'local';
   if (setupMode) ctx.setup = { active: true, configPath: ctxInfo.configPath, flags, remoteDeferred: deferredMode === 'local' ? null : deferredMode };
 
@@ -251,7 +256,7 @@ async function startAdminPanel(
     await previewHandle.close();
     // Phase 8 slice S2 (NFR07): best-effort, swallowed inside removePreviewRoot itself --
     // a cleanup failure (e.g. a locked file) must never change the exit code Ctrl-C reports.
-    removePreviewRoot(ctx);
+    removeAllPreviewRoots(ctx);
   };
 
   return { ok: true, ctx, token, settings, plan, planned, setup: setupMode, stop };

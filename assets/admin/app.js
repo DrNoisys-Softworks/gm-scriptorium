@@ -15,9 +15,46 @@
  * every deferred script has executed.
  */
 (function () {
+  /*
+   * ADR 0050 section 4: the campaign this page was loaded for (the first good /api/session), sent
+   * on every change request so the server can refuse a tab that is out of date. Once the server
+   * has said the panel moved on (a 409 campaign-changed, or a GET that names another campaign),
+   * the page is stale: a banner asks for a reload (campaigns.js listens for the event below), and
+   * every later change request is answered here with a 409 and never sent.
+   */
+  var pageCampaign = null;
+  var stale = null;
+
+  function markStale(was, now) {
+    if (stale) return;
+    stale = { was: was, now: typeof now === 'string' ? now : null };
+    document.dispatchEvent(new CustomEvent('scriptorium:stale', { detail: stale }));
+  }
+
+  function isChange(method) {
+    var m = String(method || 'GET').toUpperCase();
+    return m !== 'GET' && m !== 'HEAD';
+  }
+
+  function isCampaignRead(path) {
+    return path === '/api/session' || path === '/api/state' || path.indexOf('/api/state?') === 0;
+  }
+
   function api(path, options) {
     var opts = Object.assign({ credentials: 'same-origin' }, options || {});
     var method = opts.method;
+    if (isChange(method)) {
+      if (stale) {
+        return Promise.resolve({
+          ok: false,
+          status: 409,
+          body: { error: 'campaign-changed', campaign: stale.now, message: 'This tab is out of date. Reload to continue.' },
+        });
+      }
+      if (pageCampaign !== null) {
+        opts.headers = Object.assign({}, opts.headers, { 'X-Scriptorium-Campaign': encodeURIComponent(pageCampaign) });
+      }
+    }
     return fetch(path, opts).then(function (res) {
       return res
         .json()
@@ -26,6 +63,12 @@
         })
         .then(function (body) {
           var result = { ok: res.ok, status: res.status, body: body };
+          if (res.ok && !isChange(method) && isCampaignRead(path) && body && typeof body.campaign === 'string') {
+            if (pageCampaign === null && path === '/api/session') pageCampaign = body.campaign;
+            else if (pageCampaign !== null && body.campaign !== pageCampaign) markStale(pageCampaign, body.campaign);
+          } else if (res.status === 409 && body && body.error === 'campaign-changed') {
+            markStale(pageCampaign, body.campaign);
+          }
           var admin = window.ScriptoriumAdmin;
           if (admin && admin.ST && admin.store) {
             var state = admin.ST.stateFromResponse(path, method, result);
@@ -96,7 +139,16 @@
     });
   }
 
-  window.ScriptoriumAdmin = { api: api, el: el, setText: setText, register: register };
+  window.ScriptoriumAdmin = {
+    api: api,
+    el: el,
+    setText: setText,
+    register: register,
+    /** The stale state ({ was, now }), or null while this page still matches the panel. */
+    stale: function () {
+      return stale;
+    },
+  };
 
   // Every script is `defer`, so every module has registered by the time DOMContentLoaded fires;
   // unconditional (no readyState check) is deliberate (shared design 1.1's boot note).
