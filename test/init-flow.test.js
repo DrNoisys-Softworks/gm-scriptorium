@@ -8,7 +8,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { PassThrough } = require('stream');
 
-const { runInitCommand, runInitOffer } = require('../src/cli/init');
+const { runInitCommand } = require('../src/cli/init');
 const { createPrompter } = require('../src/cli/prompt');
 const { parseConfig } = require('../src/config/load');
 const { ConfigError } = require('../src/util/errors');
@@ -424,70 +424,6 @@ test('F10: SIGINT at the vault prompt rejects with I-ABORT, and the vault is unc
     assert.equal(fs.existsSync(configPath), false);
     prompter.close();
   });
-});
-
-test('O1: declining the offer prints HELP, still pauses, and returns 0', { timeout: 15000 }, async () => {
-  const { input, output, getWritten } = makeStreams();
-  const reportError = () => 1;
-  const promise = runInitOffer({}, { help: 'HELP-SENTINEL\n', reportError, input, output });
-  input.write('n\n');
-  input.write('\n'); // the pause
-  const code = await promise;
-  assert.equal(code, 0);
-  const written = getWritten();
-  const offerIdx = written.indexOf('Set up a campaign now?');
-  const helpIdx = written.indexOf('HELP-SENTINEL');
-  const pauseIdx = written.indexOf('Press Enter to close this window.');
-  assert.ok(offerIdx !== -1 && helpIdx !== -1 && pauseIdx !== -1, `got: ${JSON.stringify(written)}`);
-  assert.ok(offerIdx < helpIdx && helpIdx < pauseIdx);
-});
-
-test('O2: accepting the offer runs init end to end and still pauses', { timeout: 15000 }, async () => {
-  await withScratchDir(async (root) => {
-    const vaultPath = initVault(root);
-    const configPath = path.join(root, 'config.toml');
-    const { input, output, getWritten } = makeStreams();
-    const reportError = () => 1;
-    const promise = runInitOffer({ config: configPath }, { help: 'HELP\n', reportError, input, output });
-    input.write('y\n');
-    input.write('alpha\n');
-    input.write(`${vaultPath}\n`);
-    input.write('\n\n\n');
-    input.write('y\n');
-    input.write('n\n');
-    input.write('\n'); // the pause
-
-    const code = await promise;
-    assert.equal(code, 0);
-    assert.ok(fs.existsSync(path.join(vaultPath, '_meta', 'scriptorium', 'vault.config.json')));
-    assert.ok(getWritten().trimEnd().endsWith('Press Enter to close this window.'));
-  });
-});
-
-test("O3: EOF during the offer's own init reports I-ABORT via the stub, and still pauses", { timeout: 15000 }, async () => {
-  const { input, output, getWritten } = makeStreams();
-  let recordedErr = null;
-  const reportError = (err) => {
-    recordedErr = err;
-    return 1;
-  };
-  const promise = runInitOffer({}, { help: 'HELP\n', reportError, input, output });
-  input.write('y\n');
-  input.end();
-  const code = await promise;
-  assert.equal(code, 1);
-  assert.ok(recordedErr && recordedErr.message === 'init aborted; nothing written');
-  assert.ok(getWritten().includes('Press Enter to close this window.'));
-});
-
-test('O4: EOF at the offer prompt is treated as decline', { timeout: 15000 }, async () => {
-  const { input, output, getWritten } = makeStreams();
-  const reportError = () => 1;
-  const promise = runInitOffer({}, { help: 'HELP-SENTINEL\n', reportError, input, output });
-  input.end();
-  const code = await promise;
-  assert.equal(code, 0);
-  assert.ok(getWritten().includes('HELP-SENTINEL'));
 });
 
 // --- A1 (orchestrator addendum): the non-empty foreign output folder -------

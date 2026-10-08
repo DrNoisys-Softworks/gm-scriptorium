@@ -1769,7 +1769,7 @@ name; the one new write route is `POST /api/vault-config/fields`.
 
 ## 14. Amended by ADR 0028
 
-[ADR 0028](0028-installer-and-first-run.md) changes two things in this record.
+[ADR 0028](0028-installer-and-first-run.md) changes three things in this record.
 
 - **Section 5 (the context is resolved once).** In the ordinary case nothing changes: the campaign
   context is resolved once, at launch, and fixed. When `serve --admin` starts with no campaign
@@ -1782,3 +1782,4 @@ name; the one new write route is `POST /api/vault-config/fields`.
   `src/setup/register.js` > `src/config/write.js`, so that browser setup can register a first
   campaign. That is the panel's only write to `config.toml`, and ADR 0028 section 2 names the tests
   that fence it.
+- **Section 3 (the token is printed in the console).** `serve --admin` still prints the one-time link. In launch mode (running with no command) the console does not print it: the browser is signed in with a one-time launch code carried in an owner-only launcher file, and the link is printed only as the fallback when the browser could not be opened. ADR 0028 sections 7 and 8 describe the code, the one narrow Origin exception it needs on `/auth/launch`, and the fallback.

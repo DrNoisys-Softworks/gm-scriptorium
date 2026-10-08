@@ -706,9 +706,9 @@ test('a loopback-Host request from a trusted-proxy address that is not loopback 
 
 const AUDITED_POSTS = ADMIN_ROUTES.filter((r) => r.method === 'POST' && r.audit === true).map((r) => r.path);
 
-test('A2: the POST routes WITHOUT the audit flag are exactly /api/noop and the three that write their own events (pinned structurally)', () => {
+test('A2: the POST routes WITHOUT the audit flag are exactly /api/noop and the four that write their own events (pinned structurally)', () => {
   const unflagged = ADMIN_ROUTES.filter((r) => r.method === 'POST' && r.audit !== true).map((r) => r.path).sort();
-  assert.deepEqual(unflagged, ['/api/noop', '/api/remote/signout', '/api/remote/signout-all', '/auth/password']);
+  assert.deepEqual(unflagged, ['/api/noop', '/api/remote/signout', '/api/remote/signout-all', '/auth/launch', '/auth/password']);
   assert.equal(AUDITED_POSTS.length, 17);
   for (const r of ADMIN_ROUTES.filter((x) => x.method !== 'POST')) assert.notEqual(r.audit, true, `${r.path}: audit is for POSTs`);
 });
@@ -1095,7 +1095,7 @@ test('local mode, the deliberate differences only: /api/session gains access, /o
   const cookie = { Cookie: `scriptorium_admin_${env.adminPort}=${env.token}` };
   const sess = JSON.parse((await loopbackReq(env, { pathname: '/api/session', headers: cookie })).text);
   assert.deepEqual(sess.access, { mode: 'local', via: 'loopback', reach: 'Bound to 127.0.0.1 only', previewUrl: null, loopbackScheme: 'http' });
-  assert.deepEqual(Object.keys(sess).sort(), ['access', 'campaign', 'previewPort', 'readOnlyReason', 'siteSource', 'writable']);
+  assert.deepEqual(Object.keys(sess).sort(), ['access', 'campaign', 'launch', 'previewPort', 'readOnlyReason', 'siteSource', 'writable']);
   assert.equal((await loopbackReq(env, { pathname: '/open-preview', headers: cookie })).status, 303);
   const pwRes = await request(env.adminPort, { method: 'POST', pathname: '/auth/password', host: `127.0.0.1:${env.adminPort}`, body: '{}', headers: { Origin: `http://127.0.0.1:${env.adminPort}`, 'Content-Type': 'application/json' } });
   assert.equal(pwRes.status, 403);

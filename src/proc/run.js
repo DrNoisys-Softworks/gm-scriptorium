@@ -10,7 +10,12 @@ const { ScriptoriumError } = require('../util/errors');
  * The one place in Scriptorium that starts another program on the admin path (ADR 0046). It is
  * async only, has a fixed list of program names, never uses a shell, builds the child's
  * environment from scratch, runs the child in an empty temp folder, and kills the whole process
- * tree on timeout, cancel, output cap or shutdown. Nothing in bin/ reaches it yet.
+ * tree on timeout, cancel, output cap or shutdown.
+ *
+ * One deliberate exception sits at the end of this file: openFile, the launch-only browser opener
+ * (ADR 0028, section 8; ADR 0046 addendum). It hands one local file to the operating system's own
+ * opener and lets go. It is not on the list, is never registered in the live-run set and is never
+ * killed, because the browser it starts has to outlive the panel (the "stopped" tab).
  *
  * What this still cannot see (residual limits, written down rather than left for the next person
  * to rediscover; the same list is in ADR 0046, "Will not catch"):
@@ -221,6 +226,20 @@ function winFileExists(p) {
 }
 
 /**
+ * The first absolute PATH entry that holds `command` as an executable regular file, or null.
+ * Shared by resolveCommand and the browser opener, so the two cannot drift. Relative and empty
+ * entries are never looked at.
+ */
+function findOnPosixPath(command, pathValue, exists) {
+  for (const entry of pathValue.split(':')) {
+    if (entry === '' || !path.posix.isAbsolute(entry)) continue;
+    const candidate = path.posix.join(entry, command);
+    if (exists(candidate)) return candidate;
+  }
+  return null;
+}
+
+/**
  * Finds `command` on the PATH of the given (child) environment, and nowhere else. Read-only.
  *
  * @param {string} command  an allowed name
@@ -253,12 +272,8 @@ function resolveCommand(command, { env, platform }, deps = {}) {
     throw notFound();
   }
 
-  const exists = deps.fileExists || posixFileExists;
-  for (const entry of value.split(':')) {
-    if (entry === '' || !path.posix.isAbsolute(entry)) continue;
-    const candidate = path.posix.join(entry, command);
-    if (exists(candidate)) return { resolvedPath: candidate, kind: 'direct' };
-  }
+  const found = findOnPosixPath(command, value, deps.fileExists || posixFileExists);
+  if (found !== null) return { resolvedPath: found, kind: 'direct' };
   throw notFound();
 }
 
@@ -633,6 +648,99 @@ async function run(opts, deps = {}) {
   });
 }
 
+// --- the browser opener (launch mode only) ---------------------------------------------------------------
+
+// Passed through to the opener on POSIX so a desktop session's browser can be found and shown. Not in
+// a base list on purpose: the allowlisted programs never need them.
+const OPENER_ENV_EXTRA = Object.freeze([
+  'DISPLAY', 'WAYLAND_DISPLAY', 'XDG_CURRENT_DESKTOP', 'XDG_SESSION_TYPE', 'XDG_DATA_DIRS',
+  'DBUS_SESSION_BUS_ADDRESS', 'BROWSER',
+]);
+
+const OPEN_OPTION_KEYS = new Set(['target', 'env', 'settleMs']);
+const OPEN_DEFAULT_SETTLE_MS = 10000;
+const CONTROL_CHAR_RE = /[\u0000-\u001f\u007f]/;
+const WIN_ABSOLUTE_RE = /^(?:[A-Za-z]:\\|\\\\[^\\/]+\\[^\\/])/;
+
+function validateOpenOptions(opts, platform) {
+  const bad = (reason) => fail('E_PROC_BAD_OPTIONS', 'the options are not valid', { reason });
+  if (!isPlainObject(opts)) throw bad('options');
+  for (const key of Object.keys(opts)) {
+    if (!OPEN_OPTION_KEYS.has(key)) throw bad('unknown-option');
+  }
+  const target = opts.target;
+  if (typeof target !== 'string' || target === '' || CONTROL_CHAR_RE.test(target)) throw bad('target');
+  const absolute = platform === 'win32' ? WIN_ABSOLUTE_RE.test(target) : path.posix.isAbsolute(target);
+  if (!absolute) throw bad('target');
+  if (!isPlainObject(opts.env)) throw bad('env');
+  if (opts.settleMs !== undefined && !isPositiveSafeInteger(opts.settleMs)) throw bad('settleMs');
+}
+
+/** The program and arguments that hand `target` to the system's opener. No PATH search on win32 or macOS. */
+function resolveOpener(target, { childEnv, platform }, deps) {
+  if (platform === 'win32') {
+    return { file: systemRootOf(childEnv) + '\\System32\\rundll32.exe', args: ['url.dll,FileProtocolHandler', target] };
+  }
+  if (platform === 'darwin') return { file: '/usr/bin/open', args: [target] };
+  const hasDisplay = ['DISPLAY', 'WAYLAND_DISPLAY'].some((name) => typeof childEnv[name] === 'string' && childEnv[name] !== '');
+  if (!hasDisplay) throw fail('E_PROC_NO_DISPLAY', 'there is no display to open a browser on', { reason: 'display' });
+  const key = findKey(childEnv, 'PATH');
+  const found = findOnPosixPath('xdg-open', childEnv[key], deps.fileExists || posixFileExists);
+  if (found === null) throw fail('E_PROC_NOT_FOUND', 'the browser opener was not found on the given PATH', { reason: 'opener' });
+  return { file: found, args: [target] };
+}
+
+/**
+ * Hands one local file to the operating system's opener and lets go: no shell, ignored stdio, a
+ * session of its own (detached), unref-ed, never added to the live-run set and never killed, by a
+ * timer or by killAll. Resolves { outcome: 'exited', exitCode, signal } if the opener finishes within
+ * settleMs, else { outcome: 'running' }. Rejects E_PROC_SPAWN if it could not be started.
+ *
+ * @param {{ target: string, env: object, settleMs?: number }} opts
+ * @param {{ spawn?: Function, platform?: string, fileExists?: Function }} [deps]  tests only
+ * @returns {Promise<{ outcome: 'exited', exitCode: number|null, signal: string|null } | { outcome: 'running' }>}
+ */
+async function openFile(opts, deps = {}) {
+  const platform = deps.platform || process.platform;
+  validateOpenOptions(opts, platform);
+  const spawnFn = deps.spawn || spawn;
+  const extra = {};
+  if (platform !== 'win32') {
+    for (const name of OPENER_ENV_EXTRA) {
+      if (Object.prototype.hasOwnProperty.call(opts.env, name) && typeof opts.env[name] === 'string' && !hasNul(opts.env[name])) {
+        setOwn(extra, name, opts.env[name]);
+      }
+    }
+  }
+  const childEnv = buildChildEnv(opts.env, extra, platform);
+  const { file, args } = resolveOpener(opts.target, { childEnv, platform }, deps);
+  const dir = platform === 'win32' ? path.win32.dirname(opts.target) : path.posix.dirname(opts.target);
+  const settleMs = opts.settleMs === undefined ? OPEN_DEFAULT_SETTLE_MS : opts.settleMs;
+
+  let child;
+  try {
+    child = spawnFn(file, args, { stdio: 'ignore', shell: false, windowsHide: true, detached: true, env: childEnv, cwd: dir });
+  } catch (err) {
+    throw fail('E_PROC_SPAWN', 'the program could not be started', { syscallCode: safeSyscallCode(err) });
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => finish(null, { outcome: 'running' }), settleMs);
+    timer.unref();
+    function finish(error, result) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(result);
+    }
+    child.on('error', (err) => finish(fail('E_PROC_SPAWN', 'the program could not be started', { syscallCode: safeSyscallCode(err) })));
+    child.once('exit', (code, signal) => finish(null, { outcome: 'exited', exitCode: code, signal }));
+    if (typeof child.unref === 'function') child.unref();
+  });
+}
+
 /** Best-effort, swallowed: a failed removal must never change what the caller sees. */
 function removeDir(dir) {
   try {
@@ -658,4 +766,6 @@ module.exports = {
   run,
   killAll,
   liveRunCount,
+  OPENER_ENV_EXTRA,
+  openFile,
 };

@@ -35,6 +35,11 @@ Replace `gm-scriptorium` with `node bin/scriptorium.js` in the commands below.
 ## Use it
 
 ```
+gm-scriptorium
+```
+Run it with no command, in a terminal, or double-click the program on Windows, and your browser opens the panel. With no campaign yet, the panel starts with setup. Close the window to stop it.
+
+```
 gm-scriptorium init
 ```
 Set up a campaign: point it at your vault, name it and pick a theme.

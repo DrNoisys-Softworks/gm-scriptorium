@@ -5,12 +5,19 @@
  * manager sends (SIGTERM) killed the process with no cleanup. Both stop paths now go through this
  * one registration so they cannot drift apart.
  *
- * win32 has no real SIGTERM: Node only emulates SIGINT (Ctrl-C), SIGBREAK (Ctrl-Break / console
- * close) and unconditional kill for the rest. Registering a SIGTERM listener there is harmless
- * (it just never fires), and SIGBREAK is added so Ctrl-Break gets the same clean stop.
+ * win32 has no real SIGTERM: Node only emulates SIGINT (Ctrl-C), SIGBREAK (Ctrl-Break) and
+ * SIGHUP (the console window being closed), plus unconditional kill for the rest. Registering a
+ * SIGTERM listener there is harmless (it just never fires), SIGBREAK gets Ctrl-Break the same
+ * clean stop, and SIGHUP gets a closed console window one too (ADR 0028, section 9).
+ *
+ * POSIX registers SIGHUP only when the caller passes { hup: true }, which only launch mode does, so
+ * `serve --admin` behaves on POSIX exactly as it did before. Node resets signal dispositions when it
+ * starts, so the ignore that nohup sets never reaches a Node program: a hangup ends a plain
+ * `serve --admin` at once, with or without nohup. Only launch mode turns it into a clean stop.
  */
-function stopSignalNames(platform = process.platform) {
-  return platform === 'win32' ? ['SIGINT', 'SIGTERM', 'SIGBREAK'] : ['SIGINT', 'SIGTERM'];
+function stopSignalNames(platform = process.platform, { hup = false } = {}) {
+  if (platform === 'win32') return ['SIGINT', 'SIGTERM', 'SIGBREAK', 'SIGHUP'];
+  return hup ? ['SIGINT', 'SIGTERM', 'SIGHUP'] : ['SIGINT', 'SIGTERM'];
 }
 
 /**
@@ -18,9 +25,12 @@ function stopSignalNames(platform = process.platform) {
  * listener is removed so the process can exit.
  * @param {NodeJS.EventEmitter} signals
  * @param {(name: string) => void} handler
+ * @param {string} [platform]
+ * @param {{ hup?: boolean }} [opts]
+ * @returns {() => void} removes every listener without running the handler (safe to call twice)
  */
-function onStopSignal(signals, handler, platform = process.platform) {
-  const names = stopSignalNames(platform);
+function onStopSignal(signals, handler, platform = process.platform, opts = {}) {
+  const names = stopSignalNames(platform, opts || {});
   let fired = false;
   const listeners = names.map((name) => {
     const fn = () => {
@@ -32,6 +42,9 @@ function onStopSignal(signals, handler, platform = process.platform) {
     return [name, fn];
   });
   for (const [n, l] of listeners) signals.on(n, l);
+  return function dispose() {
+    for (const [n, l] of listeners) signals.removeListener(n, l);
+  };
 }
 
 module.exports = { onStopSignal, stopSignalNames };

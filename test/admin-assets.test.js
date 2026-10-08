@@ -16,7 +16,7 @@ const { ADMIN_ASSET_ROUTES, ADMIN_ASSETS_DIR } = require('../src/admin/assets');
 
 const ROOT = path.join(__dirname, '..');
 
-test('ADMIN_ASSET_ROUTES keys equal a literal list of 31 names (Lantern branding: 30 -> 31, favicon-32.png; ADR 0028: 28 -> 30, setup.js and welcome.js; panel v2 V1b: 20 -> 23, diff/outcome/slip; V1e-3 SD-26: 23 -> 24, sitepane.js; V1e-9 SD-100: 24 -> 25, vaultcfg.js; V1e-7 SD-69: 25 -> 26, variants.js; V1.5a ADR 0029: 26 -> 28, signin.js and remote.js)', () => {
+test('ADMIN_ASSET_ROUTES keys equal a literal list of 33 names (Lantern branding: 30 -> 31, favicon-32.png; ADR 0028: 31 -> 33, launch.js and alive.js; ADR 0028: 28 -> 30, setup.js and welcome.js; panel v2 V1b: 20 -> 23, diff/outcome/slip; V1e-3 SD-26: 23 -> 24, sitepane.js; V1e-9 SD-100: 24 -> 25, vaultcfg.js; V1e-7 SD-69: 25 -> 26, variants.js; V1.5a ADR 0029: 26 -> 28, signin.js and remote.js)', () => {
   assert.deepEqual(
     Object.keys(ADMIN_ASSET_ROUTES).sort(),
     [
@@ -38,6 +38,8 @@ test('ADMIN_ASSET_ROUTES keys equal a literal list of 31 names (Lantern branding
       'remote.js',
       'setup.js',
       'welcome.js',
+      'launch.js',
+      'alive.js',
       'vaultcfg.js',
       'vocab.js',
       'images.js',
@@ -96,11 +98,13 @@ function htmlAssetRefs(html) {
 }
 
 test('HTML src/href all start with /assets/ and name a route', () => {
-  for (const file of ['index.html', 'locked.html']) {
+  for (const file of ['index.html', 'locked.html', 'launch.html', 'launch-locked.html']) {
     const html = fs.readFileSync(path.join(ADMIN_ASSETS_DIR, file), 'utf8');
     const refs = htmlAssetRefs(html);
     assert.ok(refs.length > 0, `${file} has no src/href references`);
     for (const ref of refs) {
+      // The sign-in interstitial's no-script fallback is a plain link to the panel root.
+      if (file === 'launch.html' && ref === '/') continue;
       assert.ok(ref.startsWith('/assets/'), `${file}: "${ref}" does not start with /assets/`);
       const name = ref.slice('/assets/'.length);
       assert.ok(
@@ -112,7 +116,7 @@ test('HTML src/href all start with /assets/ and name a route', () => {
 });
 
 test('No inline script, <style>, style= or on*= in either HTML file', () => {
-  for (const file of ['index.html', 'locked.html']) {
+  for (const file of ['index.html', 'locked.html', 'launch.html', 'launch-locked.html']) {
     const html = fs.readFileSync(path.join(ADMIN_ASSETS_DIR, file), 'utf8');
     assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/i, `${file}: inline <script>`);
     assert.doesNotMatch(html, /<style[\s>]/i, `${file}: <style>`);

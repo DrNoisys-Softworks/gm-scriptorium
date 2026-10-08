@@ -231,7 +231,8 @@ function makeFakeBin(t, { empty = false } = {}) {
     if (AMBIENT.has(real)) refuse('file is an ambient vendor program');
     attempt.real = true;
     const child = realSpawn(file, args, options);
-    child.stdout.on('data', (b) => {
+    attempt.piped = Boolean(child.stdout);
+    if (child.stdout) child.stdout.on('data', (b) => {
       if (attempt.tee.length < 4096) attempt.tee = Buffer.concat([attempt.tee, b]).subarray(0, 4096);
     });
     return child;

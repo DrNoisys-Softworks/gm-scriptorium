@@ -9,8 +9,8 @@ const addr = require('../remote/addr');
  * with a fake req object.
  *
  * Checks run in this fixed order; the first failure wins: Host, URL, Method, Origin (admin POST
- * only), Auth. Auth is skipped only for the admin listener's /auth and /assets/* -- every other
- * path on either listener requires it.
+ * only), Auth. Auth is skipped only for the admin listener's /auth, /auth/launch and /assets/* --
+ * every other path on either listener requires it.
  *
  * V1.5a (docs/decisions/0029-remote-access.md section 5; SD-doc section 5): an optional `access`
  * profile (src/remote/settings.js gateProfile) adds the second kind of request. With no profile
@@ -88,11 +88,11 @@ function refuse(status, reason) {
 
 /**
  * @param {import('http').IncomingMessage} req
- * @param {{ listener: 'admin'|'preview', ownPort: number, adminPort?: number, isAuthenticated: (req: object, kind: 'loopback'|'remote') => boolean, access?: object|null }} opts
+ * @param {{ listener: 'admin'|'preview', ownPort: number, adminPort?: number, isAuthenticated: (req: object, kind: 'loopback'|'remote') => boolean, access?: object|null, launchExchange?: boolean }} opts
  * @returns {{ ok: true, pathname: string, query: URLSearchParams, kind: 'loopback'|'remote', clientAddress: string|null } |
  *           { ok: false, status: number, reason: 'host'|'peer'|'proto'|'url'|'method'|'origin'|'kind'|'token'|'session' }}
  */
-function checkRequest(req, { listener, ownPort, isAuthenticated, access = null }) {
+function checkRequest(req, { listener, ownPort, isAuthenticated, access = null, launchExchange = false }) {
   const headers = req.headers || {};
   const hostHeader = headers.host;
   const remoteProfile = access && access.remote ? access : null;
@@ -147,19 +147,24 @@ function checkRequest(req, { listener, ownPort, isAuthenticated, access = null }
   if (listener === 'admin' && req.method === 'POST') {
     const expected =
       kind === 'remote' ? remoteProfile.admin.origin : `${(access && access.loopbackScheme) || 'http'}://${hostHeader.toLowerCase()}`;
-    if (headers.origin !== expected) return refuse(403, 'origin');
+    // ADR 0028, section 7: the one exception. The launcher file is a file: page, so its POST carries
+    // "Origin: null". It is accepted for exactly this path, from a loopback-kind caller, and only in
+    // a process that has a launch code store (launchExchange). A valid unspent code is still needed.
+    const launchPost = launchExchange === true && kind === 'loopback' && pathname === '/auth/launch';
+    if (headers.origin !== expected && !(launchPost && headers.origin === 'null')) return refuse(403, 'origin');
   }
 
   // 7. Kind-restricted paths. The one-time token never signs a remote request in; the password
   // never signs a loopback request in; the preview hand-off exists only for remote requests.
   if (listener === 'admin' && kind === 'remote' && pathname === '/auth') return refuse(403, 'kind');
   if (listener === 'admin' && kind === 'loopback' && pathname === '/auth/password') return refuse(403, 'kind');
+  if (listener === 'admin' && kind === 'remote' && pathname === '/auth/launch') return refuse(403, 'kind');
   if (listener === 'preview' && kind === 'loopback' && isEnterPath(req.url)) return refuse(403, 'kind');
 
   // 8. Auth.
   const skipAuth =
     listener === 'admin'
-      ? pathname === '/auth' || pathname === '/auth/password' || pathname.startsWith('/assets/')
+      ? pathname === '/auth' || pathname === '/auth/password' || pathname === '/auth/launch' || pathname.startsWith('/assets/')
       : isEnterPath(req.url);
   if (!skipAuth && !isAuthenticated(req, kind)) return refuse(403, kind === 'remote' ? 'session' : 'token');
 

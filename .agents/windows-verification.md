@@ -1873,6 +1873,63 @@ ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux pac
 4. Fix the headings and run `build`.
 5. Hand-add `%% test %%` to a string inside a built page's `sc-tl-data` or `sc-cx-data` island.
 6. Run `check`: it exits 2 with `leak/l6-comment-in-output`.
+
+### C130: a double-click with no config opens browser setup, in the real win-x64 exe
+
+`docs/decisions/0028-installer-and-first-run.md`, sections 6 and 7. **Mark this OPEN: Linux-verified from source (and a Linux packaged build run under a pseudo terminal with a fake opener) only.** Run on a disposable test machine with no real campaign, where the default `%APPDATA%\Scriptorium\config.toml` may be used. Anywhere else, first run `setx SCRIPTORIUM_CONFIG <scratch>\config.toml`, and afterwards `reg delete HKCU\Environment /v SCRIPTORIUM_CONFIG /f`. Never `N:`.
+
+1. Make sure no config exists. Double-click `gm-scriptorium-win-x64.exe` in Explorer on Windows 11 (Windows Terminal). The console shows exactly the version line, the two running lines, `Panel` with `http://127.0.0.1:<port>` and `this PC only`, the `Setup` line, and `Browser didn’t open? Press O to open it again.` Record whether the apostrophe renders.
+2. The default browser opens, shows "Signing you in…" briefly, then the setup start screen. Watch the address bar throughout: it never shows `code`. `edge://history` holds no URL containing `code`.
+3. Repeat on Windows 10, or with the default terminal set to Windows Console Host: same text and same result.
+
+### C131: the launch code never appears in a command line or the history, and the opener copes with an unusual profile path, in the real win-x64 exe
+
+`docs/decisions/0028-installer-and-first-run.md`, sections 7 and 8. **Mark this OPEN: Linux-verified from source (and a Linux packaged build run under a pseudo terminal with a fake opener) only.** Run on a disposable test machine with no real campaign, where the default `%APPDATA%\Scriptorium\config.toml` may be used. Anywhere else, first run `setx SCRIPTORIUM_CONFIG <scratch>\config.toml`, and afterwards `reg delete HKCU\Environment /v SCRIPTORIUM_CONFIG /f`. Never `N:`.
+
+1. Before the double-click, start this in PowerShell: `1..60 | % { Get-CimInstance Win32_Process | Select ProcessId,Name,CommandLine; Start-Sleep -Milliseconds 200 } | Out-File S\procs.txt`.
+2. Double-click. Afterwards:
+   - `Select-String -Path S\procs.txt -Pattern 'code='` finds nothing;
+   - the `rundll32.exe` line reads `url.dll,FileProtocolHandler` followed only by a path ending `\panel\launch-<pid>.html`;
+   - no line holds a 43-character run of letters, digits, `-` and `_` other than inside a path.
+3. Create a local user whose name has a space and a non-ASCII letter (for example `Zoë Test`). Sign in as that user and double-click. The browser opens and signs in. If it doesn't, record it. ADR 0028 names `explorer.exe` as the fallback; do not change anything during the run.
+
+### C132: closing the window stops everything and tidies up, in the real win-x64 exe
+
+`docs/decisions/0028-installer-and-first-run.md`, section 9. **Mark this OPEN: Linux-verified from source (and a Linux packaged build run under a pseudo terminal with a fake opener) only.** Run on a disposable test machine with no real campaign, where the default `%APPDATA%\Scriptorium\config.toml` may be used. Anywhere else, first run `setx SCRIPTORIUM_CONFIG <scratch>\config.toml`, and afterwards `reg delete HKCU\Environment /v SCRIPTORIUM_CONFIG /f`. Never `N:`.
+
+1. Launch with a campaign, build a preview from the panel, and confirm a `scriptorium-preview-*` folder is in `%TEMP%`.
+2. Settings > Default apps: set `.html` to Notepad. Press O: Notepad opens the launcher file. Within 60 seconds, close the console window with the X button. Then:
+   - `%APPDATA%\Scriptorium\panel\launch-*.html` is gone;
+   - no `scriptorium-preview-*` folder is left;
+   - the open panel tab shows "GM-Scriptorium has stopped" within a few seconds.
+
+   Restore the browser as the `.html` default.
+3. Repeat with GM-Scriptorium in one tab of a multi-tab Windows Terminal, and close only that tab: same results.
+
+### C133: O, Ctrl+C and QuickEdit, in the real win-x64 exe
+
+`docs/decisions/0028-installer-and-first-run.md`, sections 6 and 9. **Mark this OPEN: Linux-verified from source (and a Linux packaged build run under a pseudo terminal with a fake opener) only.** Run on a disposable test machine with no real campaign, where the default `%APPDATA%\Scriptorium\config.toml` may be used. Anywhere else, first run `setx SCRIPTORIUM_CONFIG <scratch>\config.toml`, and afterwards `reg delete HKCU\Environment /v SCRIPTORIUM_CONFIG /f`. Never `N:`.
+
+1. Press O: a new tab opens signed in. The earlier tab still works.
+2. From an open `cmd` window, run the exe with no arguments: launch mode starts. Press Ctrl+C: it stops with no pause, and `echo %ERRORLEVEL%` prints 0.
+3. In a double-clicked console, click inside the window so QuickEdit starts a selection. In the browser, run a preview build and switch screens. Record whether the panel stalls until Esc is pressed. A stall is a recorded residual, not a failure.
+
+### C134: launch errors pause, with the right exit code, in the real win-x64 exe
+
+`docs/decisions/0028-installer-and-first-run.md`, section 6. **Mark this OPEN: Linux-verified from source (and a Linux packaged build run under a pseudo terminal with a fake opener) only.** Run on a disposable test machine with no real campaign, where the default `%APPDATA%\Scriptorium\config.toml` may be used. Anywhere else, first run `setx SCRIPTORIUM_CONFIG <scratch>\config.toml`, and afterwards `reg delete HKCU\Environment /v SCRIPTORIUM_CONFIG /f`. Never `N:`.
+
+1. Write `config_version = [[[` into the config and double-click. One plain message line shows, then `Press Enter to close this window.`, and the window stays until Enter.
+2. From `cmd`, run with no arguments: same output. After Enter, `echo %ERRORLEVEL%` prints 3.
+3. Register two campaigns with no default: same, exit 3, and the message names both campaigns.
+
+### C136: a registered campaign opens its Overview, and a second start is harmless, in the real win-x64 exe
+
+`docs/decisions/0028-installer-and-first-run.md`, sections 6 and 7. **Mark this OPEN: Linux-verified from source (and a Linux packaged build run under a pseudo terminal with a fake opener) only.** Run on a disposable test machine with no real campaign, where the default `%APPDATA%\Scriptorium\config.toml` may be used. Anywhere else, first run `setx SCRIPTORIUM_CONFIG <scratch>\config.toml`, and afterwards `reg delete HKCU\Environment /v SCRIPTORIUM_CONFIG /f`. Never `N:`.
+
+1. With one campaign registered, double-click: the browser lands on that campaign's Overview, signed in.
+2. While it runs, double-click again. A second console and a second panel on another port appear, each with its own tab, and both work.
+3. Close both. `certutil -hashfile` of the config is the same before the second start and after both are closed. No `launch-*.html` is left in `panel`.
+
 ### C135: browser setup through `serve --admin`, in the real win-x64 exe
 
 `docs/decisions/0028-installer-and-first-run.md`, sections 1 to 5. **Mark this OPEN: Linux-verified from source and a Linux packaged build only.** Isolate config as in C35: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 8; the two must match. Work in a local scratch folder S.

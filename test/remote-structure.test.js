@@ -141,8 +141,8 @@ function privateWriters(dir) {
     .map((f) => path.relative(SRC, f));
 }
 
-test('(c) writePrivateFileAtomic( and appendPrivateLine( are called, outside privatefile.js, only by sessions.js, audit.js and passwordwrite.js', () => {
-  assert.deepEqual(privateWriters(SRC), ['remote/audit.js', 'remote/passwordwrite.js', 'remote/sessions.js']);
+test('(c) writePrivateFileAtomic( and appendPrivateLine( are called, outside privatefile.js, only by sessions.js, audit.js, passwordwrite.js and (ADR 0028) the launcher file writer', () => {
+  assert.deepEqual(privateWriters(SRC), ['launch/launcherfile.js', 'remote/audit.js', 'remote/passwordwrite.js', 'remote/sessions.js']);
 });
 
 test('(c) positive control: a planted caller anywhere under the scanned folder is reported', (t) => {

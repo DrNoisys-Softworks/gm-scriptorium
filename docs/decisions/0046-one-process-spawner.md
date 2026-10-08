@@ -163,3 +163,11 @@ console window, the tree kill, the case-insensitive environment strip and the em
 is verified only from the real exe. It is OPEN: `.agents/windows-verification.md` C98 and C128. The
 Linux tests prove the text of the Windows command line and the shape of the `taskkill` call, not
 how Windows treats them.
+
+## Addendum: a launch-only entry point
+
+[ADR 0028](0028-installer-and-first-run.md) section 8 adds one function to `src/proc/run.js`, `openFile`, so that launch mode can hand a local file to the operating system's opener. It lives in this module so the structural rule that only this file (plus the two older spawners) may start a program stands unedited.
+
+It is deliberately outside the rules above that suit a program the panel waits for. It is not on the allowlist, and `openFile` takes a file path, never a command name. It is never added to the live-run set, so `killAll` never reaches it, and nothing times it out: the browser it starts has to outlive the panel. It runs with ignored stdio, in a session of its own (so closing the terminal never reaches it), unref-ed, with the same scrubbed environment as any other call plus a short list of display variables on POSIX. It never uses a shell.
+
+`bin` now reaches this module, through launch mode (`src/cli/launch.js`), where before nothing in `bin` did. The file and the one function are still the only places a program is started on the panel path.

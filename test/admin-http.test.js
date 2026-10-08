@@ -435,7 +435,7 @@ test('real-pipeline auth: two same-named cookies that are BOTH wrong is the nega
 
 // --- Route sweep --------------------------------------------------------
 
-test('route sweep: the table equals a literal list of 31 METHOD path entries plus the asset prefix (V1.5a: 26 -> 31)', () => {
+test('route sweep: the table equals a literal list of 37 METHOD path entries plus the asset prefix (V1.5a: 26 -> 31; ADR 0028 setup: 31 -> 36, launch code exchange: 36 -> 37)', () => {
   const nonAsset = ADMIN_ROUTES.filter((r) => r.path !== undefined).map((r) => `${r.method} ${r.path}`);
   assert.deepEqual(nonAsset, [
     'GET /auth',
@@ -474,6 +474,8 @@ test('route sweep: the table equals a literal list of 31 METHOD path entries plu
     'POST /api/variants/vocab',
     // V1.5a (ADR 0029): password sign-in, the preview hand-off, the read-only Remote access screen's data, and its two sign-outs.
     'POST /auth/password',
+    // ADR 0028: the launch-code exchange (public, answers only in a process that has a code store).
+    'POST /auth/launch',
     'GET /open-preview',
     'GET /api/remote',
     'POST /api/remote/signout',
@@ -488,9 +490,9 @@ test('route sweep: the table equals a literal list of 31 METHOD path entries plu
   const assetRoutes = ADMIN_ROUTES.filter((r) => r.prefix !== undefined);
   assert.deepEqual(assetRoutes.map((r) => `${r.method} ${r.prefix}`), ['GET /assets/']);
 
-  // Data-integrity check (M9): every route except /auth, /auth/password and the asset prefix declares auth:true.
+  // Data-integrity check (M9): every route except /auth, /auth/password, /auth/launch and the asset prefix declares auth:true.
   for (const route of ADMIN_ROUTES) {
-    const isPublic = route.path === '/auth' || route.path === '/auth/password' || route.prefix === '/assets/';
+    const isPublic = route.path === '/auth' || route.path === '/auth/password' || route.path === '/auth/launch' || route.prefix === '/assets/';
     assert.equal(route.auth, !isPublic, `${route.method} ${route.path || route.prefix}`);
   }
 });
@@ -503,7 +505,7 @@ test('route sweep: every auth route without a cookie is refused (locked page for
     const cookie = `scriptorium_admin_${adminPort}=${token}`;
     const origin = `http://127.0.0.1:${adminPort}`;
 
-    const authRoutes = ADMIN_ROUTES.filter((r) => r.path && r.path !== '/auth' && r.path !== '/auth/password');
+    const authRoutes = ADMIN_ROUTES.filter((r) => r.path && r.path !== '/auth' && r.path !== '/auth/password' && r.path !== '/auth/launch');
     for (const route of authRoutes) {
       // No cookie, but WITH a valid Origin on POST routes: the gate checks Origin before Auth
       // (checkRequest's fixed order), so this isolates the auth (token) refusal specifically.

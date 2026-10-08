@@ -3,7 +3,6 @@
 const fs = require('fs');
 const path = require('path');
 const { loadConfig } = require('./args');
-const { resolveConfigPath } = require('../config/location');
 const { addCampaign, assertConfigPathNotInVault } = require('../config/write');
 const { writeConfigFile } = require('./config');
 const { loadPackConfig, runCheckCommand: runCheckCommandImpl } = require('./check');
@@ -31,8 +30,8 @@ const {
 
 /*
  * ADR 0021: the first-run setup wizard. `bin` stays thin (Structural
- * decision 10): the offer and the pause live here, and `bin` only gains
- * `reportError`, moved unchanged from its existing catch body.
+ * decision 10). The no-argument offer this file once held, and its pause, were replaced by launch
+ * mode (src/cli/launch.js, ADR 0028); `init` itself is unchanged.
  *
  * Every vault write goes through src/vault/packwrite.js (the create-only
  * chokepoint); this module and src/cli/prompt.js are structurally
@@ -49,19 +48,6 @@ function displayEntry(entry) {
 
 function dSuffix(value) {
   return value !== undefined && value !== null && value !== '' ? ` [${value}]` : '';
-}
-
-/**
- * @param {{ positional: string[], flags: object, stdinIsTTY: boolean, stdoutIsTTY: boolean, exists?: (p: string) => boolean }} opts
- * @returns {boolean}
- */
-function shouldOfferInit({ positional, flags, stdinIsTTY, stdoutIsTTY, exists = fs.existsSync }) {
-  if (positional.length !== 0) return false;
-  if (flags.help || flags.version || flags.notices) return false;
-  if (flags.config !== undefined && typeof flags.config !== 'string') return false;
-  const configPath = resolveConfigPath({ cliConfigPath: flags.config });
-  if (exists(configPath)) return false;
-  return Boolean(stdinIsTTY && stdoutIsTTY);
 }
 
 /** SD-12: format checks that run before the banner and before any prompt. @throws {ConfigError} */
@@ -371,39 +357,6 @@ async function runInitCommand(
   }
 }
 
-/**
- * The TTY-only no-argument offer (D-05). Waits for Enter before returning,
- * whatever the outcome, so a Windows double-click's console window does
- * not flash and close.
- *
- * @returns {Promise<number>}
- */
-async function runInitOffer(flags, { help, reportError, input = process.stdin, output = process.stdout, signals = process }) {
-  const prompter = createPrompter({ input, output, signals });
-  let code = 0;
-  try {
-    prompter.say(BANNER_LINE_1);
-    prompter.say(BANNER_LINE_2);
-    const configPath = resolveConfigPath({ cliConfigPath: flags.config });
-    const answer = await prompter.ask(`No GM-Scriptorium config file at ${configPath}. Set up a campaign now? [Y/n]: `);
-    const wantsInit = answer !== null && (answer.trim() === '' || /^y(es)?$/i.test(answer.trim()));
-    if (!wantsInit) {
-      output.write(help);
-    } else {
-      try {
-        const result = await runInitCommand(flags, [], { input, output, signals, prompter });
-        code = result.exitCode;
-      } catch (err) {
-        code = reportError(err);
-      }
-    }
-  } finally {
-    await prompter.ask('Press Enter to close this window.\n');
-    prompter.close();
-  }
-  return code;
-}
-
 module.exports = {
   NAME_RE,
   SCAFFOLD,
@@ -414,7 +367,5 @@ module.exports = {
   defaultTitleFor,
   composePackToml,
   composeVaultConfigJson,
-  shouldOfferInit,
   runInitCommand,
-  runInitOffer,
 };

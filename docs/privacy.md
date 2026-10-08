@@ -8,7 +8,10 @@ This page is for a GM who wants to know what GM-Scriptorium sends over the netwo
   it listens on the address you chose plus this computer, and only your proxy and this computer can
   connect. With `tailscale serve` or an SSH tunnel it still listens on `127.0.0.1` only. Each launch
   creates a new random token and prints it as a link; after that the token lives in a cookie that
-  page scripts can't read. The panel checks every request's Host header, and the Origin of every
+  page scripts can't read. When you start GM-Scriptorium with no command, it does not print the link:
+  it opens your browser with a one-time code that lives in a small file in a private folder next to
+  your config, for at most a minute, and is deleted once it has been used. It prints the link only if
+  the browser could not be opened. The panel checks every request's Host header, and the Origin of every
   change, before it checks the token.
 - **Font requests depend on the theme and your vault config.** Campaigns set up with `init` use the
   built-in `gloam` theme, which ships its own font files inside the built site, so the theme itself

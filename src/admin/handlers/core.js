@@ -113,6 +113,7 @@ function apiSession(req, res, ctx, { kind } = {}) {
     readOnlyReason: ctx.readOnlyReason,
     previewPort: ctx.previewPort,
     access: sessionAccess(ctx, kind),
+    launch: Boolean(ctx.launchCodes),
   };
   respond.send(res, 200, respond.adminHeaders({ 'Content-Type': 'application/json; charset=utf-8' }), JSON.stringify(payload));
 }
