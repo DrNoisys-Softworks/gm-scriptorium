@@ -179,3 +179,39 @@ nested:
     for (const bad of ['bad one', 'scalar', 'nested', 'inner', '# comment']) assert.ok(!types.has(bad), bad);
   });
 });
+
+// UPSTREAM-HEADING-ALIASES: the section ends at the next heading. The first case has the heading
+// before any fence in the section (only the heading rule stops it); the second is the requested
+// shape, a second fence after a heading that follows the real block (the one-block rule also stops it).
+test('Required Fields: a yaml fence after the next heading is not read', () => {
+  const noBlock = `### Required Fields (by Entity Type)
+
+Prose only, no block here.
+
+### Relationships Block
+
+\`\`\`yaml
+after_heading: [type]
+\`\`\`
+`;
+  withVault(noBlock, [], (dir) => {
+    assert.ok(!entitytypes.parseRecognisedTypes(dir).has('after_heading'));
+  });
+  const twoBlocks = `### Required Fields (by Entity Type)
+
+\`\`\`yaml
+first_one: [type]
+\`\`\`
+
+### Relationships Block
+
+\`\`\`yaml
+second_one: [type]
+\`\`\`
+`;
+  withVault(twoBlocks, [], (dir) => {
+    const types = entitytypes.parseRecognisedTypes(dir);
+    assert.ok(types.has('first_one'));
+    assert.ok(!types.has('second_one'));
+  });
+});
