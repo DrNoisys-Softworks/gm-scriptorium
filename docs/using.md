@@ -102,6 +102,15 @@ this computer only, whatever your remote access settings say. A vault on a netwo
 with a warning to commit to git first. On Linux, a browser installed as a snap cannot always read the
 hidden config folder, so use the link the command prints.
 
+With more than one campaign registered, the campaign name at the top of the panel opens a list, and
+choosing another campaign switches the whole panel to it, from this computer or from a remote
+browser. If you have unsaved changes on the page, it asks before it switches. The Campaigns screen
+(under Setup) lists each campaign with its vault and output folders, sets the one that opens by
+default, and removes one from the list. Removing only takes it off GM-Scriptorium's list: the vault,
+pack, output and backups stay where they are, and the campaign you are on cannot be removed. A
+browser tab left open on the old campaign shows a banner and asks you to reload before it can change
+anything. A panel started with `--vault` cannot switch.
+
 ```
 gm-scriptorium remote show
 ```

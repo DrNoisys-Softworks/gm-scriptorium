@@ -73,6 +73,16 @@ Switch, set as default and remove work for a signed-in remote session as they do
 
 `--vault` overrides the folder of the launched campaign only (ADR 0022 section 3). A panel started that way refuses to switch, with the reason "This panel was started with --vault, which changes the folder for "<name>" only, so switching campaigns is off. Restart without --vault to switch.", with the launched campaign's name in place of the placeholder, because a switch would silently drop the override. Set as default and remove stay available.
 
+## 10. The screens
+
+The campaign name and crest at the top of the side bar (and of the top bar on a narrow screen) are the switcher: a button that opens the list described in section 1. Choosing a campaign asks the server to switch; on success the tab goes to the Overview and reloads, so nothing from the old campaign can stay on screen, and on a refusal the server's own sentence is shown under the list. A panel that cannot switch shows a lock instead of the chevron and says why in words.
+
+If the page has unsaved changes, a switch asks first with a confirm in the same style as the remove confirm ("You have unsaved changes on this page. Switch anyway?", with Stay and Switch). It reads the same count of pending edits that the navigation dots and the leave-the-page warning already read, so any form that reports its edits there is covered, and no second flag exists.
+
+The Campaigns screen lists every campaign in config order with its flags and the vault and output folders as written in `config.toml`. Showing the folders needs no access to them, so a campaign on a dead share lists like any other, and long paths wrap instead of scrolling sideways. The active campaign's Remove is off, with the reason beside it. Add a campaign is not on this screen; its address is reserved for later.
+
+A tab that has gone stale shows a banner with a Reload button and does not reload by itself, so anything being typed stays readable. From then on its page sends no more change requests; each one is answered locally with the same 409 the server would give.
+
 ## Rejected alternatives
 
 - **Choose the campaign on every request.** Every handler closes over one context, so this would change every handler, every cache and the preview listener, which has no campaign in its address. It would also let two tabs drive two campaigns at once through one lock.
@@ -101,6 +111,7 @@ Will not catch, deliberately:
 - a read in flight during a switch, which finishes against whichever campaign it started with;
 - a stalled upload, which holds a switch off as busy until it ends;
 - a tab from an older version of the panel left open across an upgrade, which sends no header;
+- unsaved edits in a form that does not report them to the pending count, which a switch will not warn about;
 - comments in `config.toml`, which every rewrite still drops;
 - anything on Windows, until the criterion below has been run there.
 
