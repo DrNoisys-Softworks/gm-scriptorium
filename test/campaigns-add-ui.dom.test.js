@@ -320,6 +320,12 @@ for (const browserName of ['chromium', 'firefox']) {
       await page.waitForTimeout(500);
       assert.equal(adds.length, 1, 'a stale tab sends no further POST');
       assert.doesNotMatch(fs.readFileSync(fx.configPath, 'utf8'), /sable-tide/);
+      // A page that is already stale cannot be re-pointed at a campaign: adopt refuses, and a change is still answered locally.
+      const adopted = await page.evaluate(() => window.ScriptoriumAdmin.adopt('sable-tide'));
+      assert.equal(adopted, false, 'adopt does nothing for a stale page');
+      const later = await page.evaluate(() => window.ScriptoriumAdmin.api('/api/campaigns/add', { method: 'POST', body: '{}' }).then((r) => ({ status: r.status, error: r.body && r.body.error })));
+      assert.deepEqual(later, { status: 409, error: 'campaign-changed' });
+      assert.equal(adds.length, 1, 'and nothing was sent');
       await page.context().close();
     });
   });

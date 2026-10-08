@@ -125,6 +125,8 @@ pack, output and backups stay where they are, and the campaign you are on cannot
 browser tab left open on the old campaign shows a banner and asks you to reload before it can change
 anything. A panel started with `--vault` cannot switch.
 
+To add another campaign, press Add a campaign on the Campaigns screen, or in the list at the top of the panel. It asks the same questions as first-run setup, with the same checks, and it refuses a name, vault or output folder that clashes with a campaign you already have. Nothing is written until the last screen, and your default campaign does not change unless you have none. Afterwards you can switch to the new campaign and build its first preview, or stay where you are. It works from a remote browser too; there, a path you type is checked when you leave the box, and the panel's audit log records it.
+
 ```
 gm-scriptorium remote show
 ```
