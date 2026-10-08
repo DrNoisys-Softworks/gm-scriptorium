@@ -128,12 +128,14 @@ const NAMED_FONT_RESIDUAL = Object.freeze([
  * A.3 of docs/agent-runs/s5-architect-2026-10-01.md: a second pinned-residual class,
  * `image-binary`, for S5's painted art (OF-6, option (ii)). Owned here, never by S5, because it
  * reuses `classifyFontBinary`'s exact machinery (one table, one classifier). Unlike
- * NAMED_FONT_RESIDUAL this table is exported and LANDS EMPTY: S5 fills it with real rows once
- * the art exists; until then every test that only exercises the empty table (T-I7's real-repo
- * check, any `RESIDUAL image-binary=0` line) is named in test/public-guard.test.js as proving
- * nothing yet (CLAUDE.md's testing standard).
+ * NAMED_FONT_RESIDUAL this table is exported and landed empty. It now holds the two README and
+ * social preview images under docs/images (the Lantern branding art); the sample campaign's
+ * painted pictures will add their own rows when they exist.
  */
-const NAMED_IMAGE_RESIDUAL = Object.freeze([]);
+const NAMED_IMAGE_RESIDUAL = Object.freeze([
+  Object.freeze({ path: 'docs/images/banner.png', sha256: '35a1e1acf30bdc0565cce1722bbcb10c1868d2528bdeeaf5b06e09ae75045275' }),
+  Object.freeze({ path: 'docs/images/social-preview.png', sha256: 'ba43761f8e5ca0d0f4478f4e80036c60839adef98e3b2a81f02d0140f224c515' }),
+]);
 
 // Compared by path SEGMENT, never by string prefix (the sibling-directory bug this guards
 // against: "examplesX/" is not under "examples/" even though it shares the string prefix --

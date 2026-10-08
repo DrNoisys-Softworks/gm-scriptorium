@@ -1124,3 +1124,19 @@ restated in `examples/README.md`.
 This commit ships vector art only. A later addition to this section will cover the sample's
 painted raster pictures and the README screenshots, once they exist, along with how each one was
 made and checked.
+
+## Lantern branding art, 2026-10-08
+
+The README banner and the social preview picture are placeholder art made for this repository, with
+AI assistance. Each is a hand-written SVG drawing (a lantern lighting a page) rendered to PNG with
+Playwright and Chromium, using Alegreya and Alegreya Sans from Google Fonts (SIL Open Font License
+1.1). The fonts are drawn into the pixels and not shipped. Neither copies a published logo or
+artwork. Both are offered under this repository's MIT licence (`LICENSE`).
+
+| File | sha256 |
+|---|---|
+| `docs/images/banner.png` | `35a1e1acf30bdc0565cce1722bbcb10c1868d2528bdeeaf5b06e09ae75045275` |
+| `docs/images/social-preview.png` | `ba43761f8e5ca0d0f4478f4e80036c60839adef98e3b2a81f02d0140f224c515` |
+
+The admin panel favicon (`assets/admin/favicon.svg` and `favicon-32.png`) is the same lantern in a
+smaller drawing, with the PNG rendered from the SVG.

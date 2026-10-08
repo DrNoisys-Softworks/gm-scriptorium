@@ -765,7 +765,7 @@ test('T-I6: every validation case gives exit 2 bad-residual, and the path is nev
 // the code under test): the two roots A.3 names.
 const IMAGE_RESIDUAL_ROOTS_FOR_TEST = ['examples', 'docs/images'];
 
-test('T-I7: the real repository -- table paths equal the on-disk image set, shas match disk and PROVENANCE.md (vacuous until S5 fills the table)', () => {
+test('T-I7: the real repository -- table paths equal the on-disk image set, shas match disk and PROVENANCE.md', () => {
   const repoRoot = path.join(__dirname, '..');
   const onDisk = [];
   for (const root of IMAGE_RESIDUAL_ROOTS_FOR_TEST) {
@@ -776,7 +776,7 @@ test('T-I7: the real repository -- table paths equal the on-disk image set, shas
   assert.deepEqual(
     onDisk.slice().sort(),
     NAMED_IMAGE_RESIDUAL.map((r) => r.path).sort(),
-    'the real repository has no committed images yet, and NAMED_IMAGE_RESIDUAL lands empty -- this comparison is vacuous until S5 fills the table',
+    'every committed image under examples/ and docs/images/ is named in NAMED_IMAGE_RESIDUAL, and nothing else is',
   );
   const provenanceText = fs.readFileSync(path.join(repoRoot, 'docs', 'PROVENANCE.md'), 'utf8');
   for (const entry of NAMED_IMAGE_RESIDUAL) {

@@ -12,7 +12,7 @@ const path = require('path');
 const ADMIN_ASSETS_DIR = path.join(__dirname, '..', '..', 'assets', 'admin');
 
 /**
- * Frozen: the 30 files served at /assets/<name> (ADR 0028: 28 -> 30, adding setup.js, browser setup's
+ * Frozen: the 31 files served at /assets/<name> (Lantern branding: 30 -> 31, adding favicon-32.png, the PNG fallback for favicon.svg) (ADR 0028: 28 -> 30, adding setup.js, browser setup's
  * script, and welcome.js, the Overview welcome) (V1.5a ADR 0029: 26 -> 28, adding signin.js, the sign-in
  * page's script, and remote.js, the read-only Remote access screen) (panel v2 V1b: 20 -> 23, adding diff.js,
  * outcome.js and slip.js -- the pure client-side modules SD-4 introduces; V1e-3 SD-26: 23 -> 24,
@@ -46,6 +46,7 @@ const ADMIN_ASSET_ROUTES = Object.freeze({
   'vocab.js': 'text/javascript; charset=utf-8',
   'images.js': 'text/javascript; charset=utf-8',
   'favicon.svg': 'image/svg+xml',
+  'favicon-32.png': 'image/png',
   'fonts/IMFeENrm28P.ttf': 'font/ttf',
   'fonts/IMFeENsc28P.ttf': 'font/ttf',
   'fonts/AlegreyaSans-Regular.ttf': 'font/ttf',
