@@ -373,3 +373,16 @@ test('the command line: an unknown subcommand and a missing flag print the usage
   assert.equal(written.length, 3);
   assert.match(written[0], /^usage:/);
 });
+
+test('the fake upstream escapes a backslash before a quote, so a name like a\\b and a"c\\"d both come out as valid quoted YAML', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fake-upstream-esc-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const out = (name, sub) => {
+    const d = path.join(dir, sub);
+    writeFakeRun(d, { system: 'none', name, created: '2026-01-01' }, { escapeQuotes: true });
+    return fs.readFileSync(path.join(d, '_Campaign', 'Timeline.md'), 'utf8').split('\n').find((l) => l.startsWith('campaign: '));
+  };
+  assert.equal(out('a\\b', 'one'), 'campaign: "a\\\\b"');
+  assert.equal(out('a"c\\"d', 'two'), 'campaign: "a\\"c\\\\\\"d"');
+  assert.equal(JSON.parse(out('a"c\\"d', 'three').slice('campaign: '.length)), 'a"c\\"d');
+});

@@ -26,7 +26,7 @@ function put(root, rel, text) {
  */
 function writeFakeRun(dir, { system, name, created }, quirks = {}) {
   const norm = name.trim().split(/\s+/).join(' ');
-  const shown = quirks.escapeQuotes ? norm.replace(/"/g, '\\"') : norm;
+  const shown = quirks.escapeQuotes ? norm.replace(/\\/g, '\\\\').replace(/"/g, '\\"') : norm;
   fs.mkdirSync(dir, { recursive: true });
   const systemLine = system === 'none' ? '' : `\n  system: "${system}"`;
   put(dir, '_meta/vault-config.md', `---\ntype: meta\ngm_apprentice_version: "9.9.9"\npublish:\n  site: false${systemLine}\n---\n\n# ${shown}: vault settings\n`);
