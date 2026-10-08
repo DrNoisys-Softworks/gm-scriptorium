@@ -140,3 +140,13 @@ Will not catch, deliberately:
 ## Windows verification
 
 `.agents/windows-verification.md` criterion C135 covers browser setup through the real win-x64 executable, and C130, C131, C132, C133, C134 and C136 cover launch mode: the console and the browser landing, the code never reaching a command line or the history, closing the window, O and Ctrl+C, the pause on errors, and a second start. All of them are **OPEN**: the behaviour is verified on Linux, from source and through a Linux packaged build under a pseudo terminal with a fake opener, and nothing on Windows has run it.
+
+## Addendum: starting a new campaign
+
+[ADR 0048](0048-new-campaign-vault.md) lets a GM with no vault create one from browser setup. No route was added. The setup-mode route list in section 1 and the admin route table are unchanged, and so are the Origin, session and loopback rules on them. The new behaviour rides on the three routes that already exist:
+
+- `GET /api/setup/check` accepts three more fields, `newVault` (the folder to create), `system` and `starterTitle`. They answer in the same shape as the others, with the writer's or the validator's own message in `rule`. A network-share folder is deferred until the GM leaves the box, exactly as for the vault question.
+- `POST /api/setup/commit` accepts two more answers, `newVault` (true or false) and `system`. With `newVault` true, `vault` is the folder to create, and `commitSetup` creates the vault first, then the pack, then writes the config once. A refusal comes back as `{ error: 'invalid', field, rule }` as before, with the field `newVault` for a folder problem, and nothing else has been written. The success payload also carries `vaultRoot`, `vaultCreated` and `vaultAncestors`.
+- `GET /api/setup/state` reports `newVault: { available, systems, problem }`, so the page knows whether this build carries a starter.
+
+`init` asks the same questions in the same order, and `init --yes --new-vault` and the browser commit produce byte-identical vault and pack trees and the same config entry. Section 2's fence is unchanged: the config writer is still reached only through `src/setup/register.js`, and the structure test now names two vault writers, the pack writer and the new vault writer, each reached only from that file.

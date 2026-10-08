@@ -297,3 +297,7 @@ plain HELP).
 ## Superseded in part by ADR 0028
 
 With no command in a terminal, the panel now opens in the browser instead of this record's offer to run `init`. [ADR 0028](0028-installer-and-first-run.md) section 6 describes it, and `shouldOfferInit` and `runInitOffer` are gone. `gm-scriptorium init`, its flags and its prompts are unchanged.
+
+## Extended by ADR 0048
+
+`init --new-vault <folder>` first creates a vault in a new or empty folder, then does everything this record describes inside it. The pack is still written only by the writer this record describes; the vault is written by a second, separate create-only writer. See [ADR 0048](0048-new-campaign-vault.md).

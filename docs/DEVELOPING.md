@@ -89,7 +89,8 @@ than deciding alone.
   `test/helpers/proc-fakebin.js`, so no test can start a real program. See
   [ADR 0046](decisions/0046-one-process-spawner.md).
 - `test/net-structure.test.js`: only `src/net/egress.js` (and the listener in `src/serve/server.js`) may load a network module, nothing under `src/net` names a fetch-style network token, and every test that uses egress goes through `test/helpers/net-stubs.js`, so no test can reach anything but this computer. See ADR 0024.
-- `test/setup-structure.test.js`: the admin panel reaches the config writer only through `src/setup/register.js`, from the setup commit route alone, and setup code writes to the vault only through `src/vault/packwrite.js`. See [ADR 0028](decisions/0028-installer-and-first-run.md).
+- `test/setup-structure.test.js`: the admin panel reaches the config writer only through `src/setup/register.js`, from the setup commit route alone, and setup code writes to the vault only through `src/vault/packwrite.js` and, when it creates a new vault, `src/vault/vaultcreate.js`. See [ADR 0028](decisions/0028-installer-and-first-run.md).
+- `test/vault-create-structure.test.js`: `src/vault/vaultcreate.js` never deletes, renames, appends, truncates or uses a recursive `mkdirSync`, every `writeFileSync` in it is `flag: 'wx'`, it requires only `fs`, `path`, the error classes and the exclusions module, and `createVault` is named only in that file, `src/setup/register.js` and `src/cli/init.js`. See [ADR 0048](decisions/0048-new-campaign-vault.md).
 - `test/launch-structure.test.js`: the browser opener is named only in `src/proc/run.js` and `src/cli/launch.js`, launch code requires no other spawner, and every test that loads the launcher injects its opener, so no test opens a real browser. See [ADR 0028](decisions/0028-installer-and-first-run.md).
 - `src/util/exitcodes.js`: the exit-code table is frozen. 0 is OK, 1 is a Scriptorium bug, 2 is
   a failed check, 3 is an unreachable vault and 4 is an update prerequisite. **No new exit
@@ -132,6 +133,10 @@ prerequisite) for a user mistake. The table-driven test is `test/exit-codes-user
 | privileged port without rights (EACCES) | 1 | 1 | `failed to start server: port 80 needs administrator rights ...` |
 | `--host` with `--admin` | 1 | 1 | `serve --admin only ever listens on 127.0.0.1, so it does not accept --host` |
 | `init --theme nonesuch` | 1 | 1 | `unknown theme "nonesuch"; valid themes: ...` |
+| `init --new-vault` together with `--vault`, `--system` without `--new-vault`, or `--yes --new-vault` without `--name` or `--system` | 1 | 1 | `init takes --vault or --new-vault, not both` / `--system only applies with --new-vault` / `init --yes --new-vault needs --system <id> or --system none` |
+| `init --system nonesuch`, or a site title the new pages cannot hold exactly as typed | 1 | 1 | `unknown game system "nonesuch"; valid systems: ..., none` / `site title can't be written into the new vault's pages exactly as typed; leave out double quotes and backslashes` |
+| the starter in this build is missing, or fails its check against its manifest | 1 | 1 | `this build has no new-campaign starter` / `the new-campaign starter in this executable failed its integrity check: <file>; nothing was written` |
+| `init --new-vault` into a folder that is not empty, is a file or a link, is a filesystem root, is inside a vault or inside the settings folder; or the creation stops part-way | 1 | 3 | `refusing to create a vault in <path>: it is not empty (it holds ...)` and its siblings / `stopped creating the vault in <path>: ...; created before stopping: ...` |
 | `init` aborted by closed stdin | 1 | 1 | `init aborted; nothing written` |
 
 Not remapped, still 1: a folderMap output collision, and any genuinely unexpected

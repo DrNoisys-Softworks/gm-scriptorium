@@ -1943,6 +1943,17 @@ ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux pac
 7. Ctrl-C: `stopped.`, exit 0, and no `scriptorium-preview-*` folder left in `%TEMP%`. Run the same command again: the campaign panel opens, not setup. `/setup` redirects to the Overview. The welcome shows until dismissed; dismiss it, restart, and it's gone.
 8. Re-hash the real config.
 
+### C137: starting a new campaign creates a vault on a local drive, in a OneDrive folder and on a network share, in the real win-x64 exe
+
+`docs/decisions/0048-new-campaign-vault.md`, sections 1, 2 and 5. **Mark this OPEN: verified on Linux from source and from the Linux packaged binary only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 6; the two must match. Work in a local scratch folder S.
+
+1. Run `init --yes --name fresh --new-vault "S\Fresh Campaign" --system none --config S\config.toml`. It exits 0. The vault has `Factions & Organizations` and `Items & Artifacts`, and `_meta\NOTICE.txt`. Hash `_meta\entity-types.md` with `certutil`; it must match the value recorded in the pull request. Then run `build fresh` and `serve fresh`: the landing page shows the title and the welcome page. Run it again with `--name second --new-vault "S\Games\Fantasy\Second"`: the two folders above it are created level by level, and the output lists them.
+2. Run `serve --admin --config S2\config.toml` with no config. Choose "Start a new campaign here". Enter `S2\New Vault`, which is missing: the check goes green and the system list shows. Go through review, then Build my first preview: the ready screen appears, and the preview shows the landing page and the welcome page.
+3. In an empty folder under `%OneDrive%`: the info note shows and creation succeeds. If `desktop.ini` appears, its hash is unchanged before and after. Record any OneDrive conflict copies.
+4. Use `\\localhost\C$\...\UNCVault`, which is missing. Nothing is checked until you leave the box. Then the network-share warning shows with the git note. Creation and the preview both work.
+5. Refusals, each leaving the folder unchanged (exit 3 in `init`): a non-empty folder; a junction (`mklink /J`); `C:\`; a folder inside `S\Fresh Campaign`.
+6. Deny write on an empty folder (`icacls <dir> /deny %USERNAME%:(WD)`). Creation stops with a plain message listing what was created, and nothing is removed. Remove the deny afterwards. Re-hash the real config.
+
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 
 None of these are product concerns; every one is a harness limit on the automated tester's side,
