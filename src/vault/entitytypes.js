@@ -5,6 +5,20 @@ const read = require('./read');
 
 const TREE_CHARS_RE = /^[\s│├└─]+/;
 
+// UPSTREAM-HEADING-ALIASES: accept gm-apprentice vault_scaffold.py section names (owner, 2026-10-08). Remove if upstream and Scriptorium agree on one set.
+// First name in each list is ours, the rest are upstream's. Matching stays case-sensitive, as before.
+// Upstream's other scaffolded sections (Frontmatter Schemas, Type-Specific Fields) are not read here.
+const HIERARCHY_HEADING = ['Hierarchy', 'Entity Type Hierarchy'].join('|');
+const FOLDER_MAPPING_HEADING = ['Folder mapping', 'Default Folder Mapping'].join('|');
+const REQUIRED_RELATIONSHIPS_HEADING = ['Required relationships', 'Required Relationships'].join('|');
+// UPSTREAM-HEADING-ALIASES: first cells that mark a table header row. Ours is "Type"; upstream's are the other two.
+const TABLE_HEADER_CELLS = ['type', 'entity type', 'type category'];
+function isHeaderCell(cell) {
+  return TABLE_HEADER_CELLS.includes(cell.trim().toLowerCase());
+}
+// UPSTREAM-HEADING-ALIASES: upstream writes "— (none required)" in the relationship cell for a type that requires nothing.
+const NONE_REQUIRED_RE = /^[-–—]\s*(?:\(\s*none required\s*\))?$/i;
+
 /*
  * The single read chokepoint for `_meta/entity-types.md` (P1-FR01). Both
  * census.js's recognised-type union and relationship.js's "Required
@@ -36,7 +50,7 @@ function parseRecognisedTypes(vaultPath) {
   if (!result.ok) return recognised;
   const content = result.content;
 
-  const hierarchyFence = content.match(/##\s*Hierarchy[\s\S]*?```(?:text)?\n([\s\S]*?)```/);
+  const hierarchyFence = content.match(new RegExp('##\\s*(?:' + HIERARCHY_HEADING + ')[\\s\\S]*?```(?:text)?\\n([\\s\\S]*?)```'));
   if (hierarchyFence) {
     for (const line of hierarchyFence[1].split('\n')) {
       const stripped = line.replace(TREE_CHARS_RE, '').trim();
@@ -48,7 +62,9 @@ function parseRecognisedTypes(vaultPath) {
     }
   }
 
-  const folderMappingSection = content.match(/##\s*Folder mapping\s*\n([\s\S]*?)(?:\n##\s|$)/);
+  const folderMappingSection = content.match(
+    new RegExp('##\\s*(?:' + FOLDER_MAPPING_HEADING + ')\\s*\\n([\\s\\S]*?)(?:\\n##\\s|$)')
+  );
   if (folderMappingSection) {
     for (const line of folderMappingSection[1].split('\n')) {
       const row = line.trim();
@@ -59,7 +75,7 @@ function parseRecognisedTypes(vaultPath) {
         .filter((c) => c.length > 0);
       if (cells.length === 0) continue;
       const typeCell = cells[0];
-      if (/^-+$/.test(typeCell) || /^type$/i.test(typeCell)) continue; // header/separator row
+      if (/^-+$/.test(typeCell) || isHeaderCell(typeCell)) continue; // header/separator row
       for (const part of typeCell.split(',')) {
         const name = part
           .replace(/`/g, '')
@@ -97,7 +113,9 @@ function splitTableRow(row) {
  * treats the same as a missing file or an unparseable one.
  */
 function parseRequiredRelationshipsTable(content) {
-  const section = content.match(/##\s*Required relationships\s*\n([\s\S]*?)(?:\n##\s|$)/);
+  const section = content.match(
+    new RegExp('##\\s*(?:' + REQUIRED_RELATIONSHIPS_HEADING + ')\\s*\\n([\\s\\S]*?)(?:\\n##\\s|$)')
+  );
   if (!section) return null;
 
   const requiredByType = new Map();
@@ -109,15 +127,16 @@ function parseRequiredRelationshipsTable(content) {
     if (cells.length === 0) continue;
 
     const firstCell = cells[0];
-    if (/^-+$/.test(firstCell) || /^type$/i.test(firstCell)) continue; // header/separator row
+    if (/^-+$/.test(firstCell) || isHeaderCell(firstCell)) continue; // header/separator row
 
     // "Rows with an empty cell are skipped" (P1-FR02), which also covers a
     // malformed row missing its second column entirely.
     if (cells.length < 2 || cells[0] === '' || cells[1] === '') continue;
+    if (NONE_REQUIRED_RE.test(cells[1])) continue; // UPSTREAM-HEADING-ALIASES: "none required" placeholder
 
     const types = cells[0]
       .split(',')
-      .map((t) => t.replace(/\(.*\)/g, '').trim())
+      .map((t) => t.replace(/`/g, '').replace(/\(.*\)/g, '').trim()) // UPSTREAM-HEADING-ALIASES: upstream backticks the type cell
       .filter((t) => t.length > 0);
     const relTypes = cells[1]
       .split(',')
