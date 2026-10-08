@@ -145,7 +145,7 @@ function writeTokensIn(file) {
 
 const SETUP_CODE = [...listJs(at('setup')), SETUP_HANDLER];
 
-test('PW15 tokens are absent from every file in src/setup and from src/admin/handlers/setup.js (vault writes only via src/vault/packwrite.js)', () => {
+test('PW15 tokens are absent from every file in src/setup and from src/admin/handlers/setup.js (vault writes only via src/vault/packwrite.js and src/vault/vaultcreate.js)', () => {
   assert.ok(SETUP_CODE.length >= 7, "the scan covers src/setup and the handler");
   for (const f of SETUP_CODE) assert.deepEqual(writeTokensIn(f), [], path.relative(ROOT, f));
 });
@@ -161,10 +161,21 @@ test('positive control: the token scan finds a planted write and ignores a comme
   assert.deepEqual(writeTokensIn(fine), []);
 });
 
-test('the only vault write helper setup code names is createPackEntries from src/vault/packwrite.js', () => {
-  const users = listJs(at('setup')).filter((f) => /createPackEntries/.test(stripComments(fs.readFileSync(f, 'utf8'))));
-  assert.deepEqual(users.map((f) => path.relative(ROOT, f)), [path.join('src', 'setup', 'register.js')]);
-  assert.match(stripComments(fs.readFileSync(REGISTER_JS, 'utf8')), /require\('\.\.\/vault\/packwrite'\)/);
+test('the only vault write helpers setup code names are createPackEntries (src/vault/packwrite.js) and createVault (src/vault/vaultcreate.js), each only in src/setup/register.js', () => {
+  for (const [helper, mod] of [['createPackEntries', 'packwrite'], ['createVault', 'vaultcreate']]) {
+    const users = listJs(at('setup')).filter((f) => new RegExp(`\\b${helper}\\b`).test(stripComments(fs.readFileSync(f, 'utf8'))));
+    assert.deepEqual(users.map((f) => path.relative(ROOT, f)), [path.join('src', 'setup', 'register.js')], helper);
+    assert.match(stripComments(fs.readFileSync(REGISTER_JS, 'utf8')), new RegExp(`require\\('\\.\\./vault/${mod}'\\)`));
+  }
+});
+
+test('positive control: a scratch file naming createVault is found by the same filter, and a comment-only mention is not', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-cv-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, 'named.js'), "const { createVault } = require('x'); createVault();\n");
+  fs.writeFileSync(path.join(dir, 'comment.js'), '// createVault is not used here\n/* createVault */\nmodule.exports = 1;\n');
+  const users = listJs(dir).filter((f) => new RegExp('\\bcreateVault\\b').test(stripComments(fs.readFileSync(f, 'utf8'))));
+  assert.deepEqual(users.map((f) => path.basename(f)), ['named.js']);
 });
 
 // --- no computed requires ------------------------------------------------------------------------------
