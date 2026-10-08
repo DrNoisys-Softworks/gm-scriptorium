@@ -7897,3 +7897,59 @@ body[data-page="signin"] {
 .su-ro .a1-hint {
   margin: 0;
 }
+
+/* ADR 0028: the sign-in interstitial (launch.html) and the stopped page (alive.js). Ported from the
+   installer mock's .stop rules; the mock's --bk-* names map onto this file's tokens (--bk-gilt >
+   --accent-strong, --bk-muted > --text-muted, --bk-fell > --font-display). Two deliberate
+   differences: the stopped page's heading is an h1 (.stop-title, same look as the mock's h2) so the
+   page has exactly one, and the interstitial's busy line is that page's h1 (reset to a plain line). */
+/* These pages paint their own ground, so their text is judged against the real colour (the dark
+   canvas colour-scheme alone leaves the background transparent), as the sign-in page does. */
+body[data-page="launch"],
+body[data-page="launch-locked"],
+body[data-page="stopped"] {
+  color: var(--text);
+  background: var(--surface-ground);
+}
+
+.stop {
+  min-height: 560px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 40px 20px;
+}
+
+.stop .a1-crest {
+  width: 44px;
+  height: 44px;
+  margin: 10px;
+}
+
+.stop .a1-crest span {
+  font-size: 17px;
+}
+
+.stop h2,
+.stop .stop-title {
+  margin: 0;
+  font: 400 34px/1.1 var(--font-display);
+  color: var(--accent-strong);
+}
+
+.stop p {
+  margin: 0;
+  color: var(--text-muted);
+  max-width: 48ch;
+}
+
+.stop .a1-fine {
+  max-width: 48ch;
+}
+
+.stop .a1-busy {
+  margin: 0;
+  font-weight: inherit;
+}

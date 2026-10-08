@@ -15,6 +15,7 @@ const prefs = require('./handlers/prefs');
 const variantHandlers = require('./handlers/variants');
 const remoteHandlers = require('./handlers/remote');
 const setupHandlers = require('./handlers/setup');
+const launchHandlers = require('./handlers/launch');
 const setupmode = require('./setupmode');
 const { ADMIN_COOKIE, PREVIEW_COOKIE } = require('../remote/sessions');
 
@@ -72,6 +73,9 @@ const ADMIN_ROUTES = Object.freeze([
   // hand-off, the read-only Remote access screen's data, and its two sign-outs. The sign-in and
   // sign-out routes write their own audit events, so they carry no audit flag.
   { method: 'POST', path: '/auth/password', auth: false, handler: remoteHandlers.passwordSignin },
+  // ADR 0028: the launch-code exchange (public; the handler writes its own audit event). It only
+  // does anything in a process that has a code store, which only launch mode creates.
+  { method: 'POST', path: '/auth/launch', auth: false, handler: launchHandlers.launchExchange },
   { method: 'GET', path: '/open-preview', auth: true, handler: remoteHandlers.openPreview },
   { method: 'GET', path: '/api/remote', auth: true, handler: remoteHandlers.apiRemote },
   { method: 'POST', path: '/api/remote/signout', auth: true, handler: remoteHandlers.signout },
@@ -118,16 +122,16 @@ function sendHtmlRefusal(res, file, isHead) {
  * never ran), so the page choices are made on the raw, undecoded req.url: a literal "/" is the only
  * form a browser navigation to the panel produces, and the raw path before "?" being exactly /auth is
  * the only way a token URL reaches the sign-in page.
- *  - token on / or /setup  : locked.html (ADR 0028 adds /setup)
+ *  - token on / or /setup  : locked.html (ADR 0028 adds /setup); launch-locked.html in launch mode
  *  - session on /          : signin.html (V1.5a: a remote browser with no session)
  *  - kind on /auth         : signin.html (V1.5a: a token URL used against the external name)
  *  - everything else       : `refused: <reason>` as text
  */
-function sendGateRefusal(res, listener, rawUrl, result, isHead) {
+function sendGateRefusal(res, listener, rawUrl, result, isHead, lockedFile = 'locked.html') {
   if (listener === 'admin') {
     const isRoot = rawUrl === '/';
     const rawPath = typeof rawUrl === 'string' ? rawUrl.split('?')[0] : '';
-    if (result.reason === 'token' && (isRoot || rawPath === '/setup')) return sendHtmlRefusal(res, 'locked.html', isHead);
+    if (result.reason === 'token' && (isRoot || rawPath === '/setup')) return sendHtmlRefusal(res, lockedFile, isHead);
     if (result.reason === 'session' && isRoot) return sendHtmlRefusal(res, 'signin.html', isHead);
     if (result.reason === 'kind' && rawPath === '/auth') return sendHtmlRefusal(res, 'signin.html', isHead);
   }
@@ -192,10 +196,11 @@ function createAdminHandler(ctx, { routes = ADMIN_ROUTES } = {}) {
           adminPort: ctx.adminPort,
           isAuthenticated: isAuthenticatedFor(ctx, 'admin'),
           access: ctx.access,
+          launchExchange: Boolean(ctx.launchCodes),
         });
 
         if (!result.ok) {
-          sendGateRefusal(res, 'admin', req.url, result, isHead);
+          sendGateRefusal(res, 'admin', req.url, result, isHead, ctx.launchCodes ? 'launch-locked.html' : 'locked.html');
           return;
         }
 
@@ -215,7 +220,9 @@ function createAdminHandler(ctx, { routes = ADMIN_ROUTES } = {}) {
 
         // ADR 0028, section 1: while browser setup is active only the setup routes answer. Anything
         // else is a clean 409 with a fixed body (never a 500), and GET / is the setup page.
-        const verdict = setupmode.fence(ctx, matchMethod, result.pathname);
+        // Launch mode: the code exchange must work while setup is active too (the first launch), so
+        // it is let through the fence, but only in a process that has a code store.
+        const verdict = route.path === '/auth/launch' && ctx.launchCodes ? 'allow' : setupmode.fence(ctx, matchMethod, result.pathname);
         if (verdict === 'page') {
           await setupHandlers.setupPage(req, res, ctx, handlerOpts);
           return;
