@@ -220,7 +220,7 @@ contrived paths on Linux. What only Windows can add:
 
 ### C22-C25: `update`, full path
 
-These need a real GitHub release to exist. The repo is currently private, under the owner's own
+These need a real GitHub release to exist. The repo is public, under the owner's own
 GitHub account. Releases `v0.1.0` and `v0.1.1` exist (published by the
 orchestrator) specifically for this test flow: install the `v0.1.0` exe from its release, then run
 `update --check` and `update` against it to confirm it offers and applies the upgrade to `v0.1.1`.
