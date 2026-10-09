@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { plain } = require('./helpers/toml-plain');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -57,7 +58,7 @@ test('serializeConfig round-trips through parseConfig with the same effective co
   assert.deepEqual(warnings, []);
   assert.equal(reparsed.campaigns.example.vault, 'D:\\Campaigns\\vault');
   assert.equal(reparsed.campaigns.example.serve_port, 8080);
-  assert.deepEqual(reparsed.campaigns.example.paths['win-desktop'].match, { platform: 'win32' });
+  assert.deepEqual(plain(reparsed.campaigns.example.paths['win-desktop'].match), { platform: 'win32' });
 });
 
 test('serializeConfig preserves an unknown top-level key across a round trip', () => {
