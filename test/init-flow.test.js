@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { plain } = require('./helpers/toml-plain');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -171,7 +172,7 @@ test('F2: re-registering an existing campaign preserves every key, updates only 
     assert.equal(alpha.site_config, '/old/site-config.json');
     assert.equal(alpha.serve_port, 8123);
     assert.equal(alpha.notes, 'keep me');
-    assert.deepEqual(alpha.paths.z.match, { platform: 'linux' });
+    assert.deepEqual(plain(alpha.paths.z.match), { platform: 'linux' });
     assert.equal(reparsed.default_campaign, 'beta');
   });
 });

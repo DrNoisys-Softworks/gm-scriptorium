@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { plain } = require('./helpers/toml-plain');
 const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
@@ -100,7 +101,7 @@ test('readConfigSnapshot: the sha is the sha256 of the bytes on disk (an outside
   const snap = register.readConfigSnapshot(file, { lenient: false });
   assert.equal(snap.exists, true);
   assert.equal(snap.sha256, EMPTY_SHA);
-  assert.deepEqual(snap.config, { config_version: 1 });
+  assert.deepEqual(plain(snap.config), { config_version: 1 });
 });
 
 test('readConfigSnapshot: a missing file gives exists false, no sha and an empty config', (t) => {

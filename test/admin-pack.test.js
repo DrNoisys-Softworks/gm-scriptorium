@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { plain } = require('./helpers/toml-plain');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -224,7 +225,7 @@ test('FR20: an unrecognised TOML key and table survive a theme save (compared vi
     const parsed = TOML.parse(fs.readFileSync(tomlPath, 'utf8'));
     assert.equal(parsed.theme, 'haze');
     assert.equal(parsed.future_key, 1);
-    assert.deepEqual(parsed.future_table, { x: 'y' });
+    assert.deepEqual(plain(parsed.future_table), { x: 'y' });
   });
 });
 

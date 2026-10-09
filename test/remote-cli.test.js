@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { plain } = require('./helpers/toml-plain');
 const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
@@ -196,7 +197,7 @@ test('set writes [remote] to config.toml and preserves the campaigns, prints the
   const after = parseConfig(fs.readFileSync(fx.configPath, 'utf8')).config;
   assert.deepEqual(after.campaigns, before.campaigns);
   assert.equal(after.default_campaign, 'alpha');
-  assert.deepEqual(after.remote, {
+  assert.deepEqual(plain(after.remote), {
     mode: 'proxy',
     port: 7928,
     preview_port: 7929,
@@ -247,7 +248,7 @@ test('set on a machine with no config creates one (config_version 1, no campaign
   assert.equal(result.exitCode, 0);
   const parsed = parseConfig(fs.readFileSync(configPath, 'utf8')).config;
   assert.equal(parsed.config_version, 1);
-  assert.deepEqual(parsed.campaigns, {});
+  assert.deepEqual(plain(parsed.campaigns), {});
   assert.equal(parsed.remote.mode, 'ssh');
 });
 
