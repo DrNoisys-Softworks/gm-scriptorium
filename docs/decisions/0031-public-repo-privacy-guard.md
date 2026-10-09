@@ -151,3 +151,25 @@ words ("For (A) that's fine").
   is, so path entries never apply there and show as `UNUSED`. `ci` has no private lists and is
   unchanged.
 - Word entries behave exactly as before, and nothing here weakens any word.
+
+## Amendment: a push with nothing new to scan
+
+**What changed.** The pre-push check used to stop with `ERROR empty-range` when a push added no
+commits, for example a release tag on a commit GitHub already has, or a branch push that is
+already up to date. It now looks at what each pushed ref adds. If every commit the ref points at
+is already on the remote, there is nothing new to scan, so the check prints
+`NOTE nothing new to scan` and carries on. The other checks (the public hygiene checks and the
+history check) still run on that ref.
+
+**What did not change.**
+
+- `scan commits <range>` still ends with `ERROR empty-range` when the range holds no commits. There
+  an empty range usually means a typo, and silence would hide it.
+- A range that should hold commits but cannot be read still fails closed. This covers a remote
+  commit the local repository does not know, a missing object, and any git error. The pre-push
+  check ends with `ERROR unreadable-range` and exit code 2.
+- A new branch whose commits the remote lacks is scanned in full, as before.
+- A deleted ref (all-zero local id) is skipped, as before.
+
+**Rejected alternative.** Treating every empty set as "nothing to scan", in both the pre-push check
+and `scan commits`. That would also let a mistyped range or a git failure pass without a word.
