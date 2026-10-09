@@ -1617,6 +1617,124 @@ test('D-AUD: Run B scans dot-directories -- a planted hygiene hit under .agents/
   assert.match(result.stdout, /^VERDICT block$/m);
 });
 
+// ---------------------------------------------------------------------------
+// Pre-push with nothing new to scan (a tag on a commit the remote already has, or a branch
+// push that is already up to date). Only the pre-push path treats an empty set as "nothing to
+// do"; the explicit `scan commits <range>` command keeps `empty-range` as a hard error, and a
+// range that cannot be read fails closed.
+// ---------------------------------------------------------------------------
+
+const PUSH_ARGS = ['pre-push', 'origin', 'https://example.invalid/repo.git'];
+const NOTHING_NEW = /^NOTE nothing new to scan$/m;
+
+/** The remote already has `oid`: a remote-tracking ref points at it. */
+function remoteHas(dir, oid) {
+  execFileSync('git', ['update-ref', 'refs/remotes/origin/main', oid], { cwd: dir, env: ISOLATED_ENV_BASE });
+}
+
+test('T-NN1: a tag-only push of a commit the remote already has passes with a nothing-to-scan note', (t) => {
+  const { dir, root, localOid } = setupPushFixture(t, { addLeak: true });
+  remoteHas(dir, localOid);
+  git(['tag', 'v9.9.9'], dir);
+  const result = runGuard(PUSH_ARGS, {
+    cwd: dir,
+    stdin: pushLine(revParse(dir, 'v9.9.9'), ZERO_OID, { localRef: 'refs/tags/v9.9.9', remoteRef: 'refs/tags/v9.9.9' }),
+    publicRoot: root,
+  });
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, NOTHING_NEW);
+  assert.match(result.stdout, /^VERDICT pass$/m);
+  assert.doesNotMatch(result.stderr, /empty-range/);
+});
+
+test('T-NN2: an annotated tag push of a commit the remote already has passes the same way', (t) => {
+  const { dir, root, localOid } = setupPushFixture(t, { addLeak: false });
+  remoteHas(dir, localOid);
+  git(['tag', '-a', '-m', 'release', 'v9.9.8'], dir);
+  const tagObj = revParse(dir, 'v9.9.8');
+  assert.notEqual(tagObj, localOid); // really a tag object, not the commit
+  const result = runGuard(PUSH_ARGS, {
+    cwd: dir,
+    stdin: pushLine(tagObj, ZERO_OID, { localRef: 'refs/tags/v9.9.8', remoteRef: 'refs/tags/v9.9.8' }),
+    publicRoot: root,
+  });
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, NOTHING_NEW);
+});
+
+test('T-NN3: an up-to-date branch push (remote oid equals local oid) passes with the note', (t) => {
+  const { dir, root, localOid } = setupPushFixture(t, { addLeak: true });
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin: pushLine(localOid, localOid), publicRoot: root });
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, NOTHING_NEW);
+  assert.match(result.stdout, /^VERDICT pass$/m);
+});
+
+test('T-NN4: a push with one real new commit is still scanned (no nothing-to-scan note)', (t) => {
+  const { dir, root, remoteOid, localOid } = setupPushFixture(t, { addLeak: false });
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin: pushLine(localOid, remoteOid), publicRoot: root });
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /^COMMITS 1$/m);
+  assert.match(result.stdout, /^PRIVATE commits unclassed=0$/m);
+  assert.doesNotMatch(result.stdout, NOTHING_NEW);
+});
+
+test('T-NN5: a new commit holding a fixture-list term still blocks, even beside a tag-only ref in the same push', (t) => {
+  const { dir, root, remoteOid, localOid } = setupPushFixture(t, { addLeak: true });
+  git(['tag', 'v9.9.7', remoteOid], dir);
+  remoteHas(dir, remoteOid);
+  const stdin =
+    pushLine(revParse(dir, 'v9.9.7'), ZERO_OID, { localRef: 'refs/tags/v9.9.7', remoteRef: 'refs/tags/v9.9.7' }) +
+    pushLine(localOid, remoteOid);
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin, publicRoot: root });
+  assert.equal(result.code, 1);
+  assert.match(result.stdout, /^PRIVATE commits unclassed=1$/m);
+  assert.match(result.stdout, /^VERDICT block$/m);
+});
+
+test('T-NN6: a brand-new branch whose commits the remote lacks is scanned and blocks on a term', (t) => {
+  const { dir, root, remoteOid, localOid } = setupPushFixture(t, { addLeak: true });
+  remoteHas(dir, remoteOid);
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin: pushLine(localOid, ZERO_OID), publicRoot: root });
+  assert.equal(result.code, 1);
+  assert.doesNotMatch(result.stdout, NOTHING_NEW);
+});
+
+test('T-NN7: an unreadable range fails closed (remote oid unknown to this repo)', (t) => {
+  const { dir, root, localOid } = setupPushFixture(t, { addLeak: false });
+  const unknown = 'f'.repeat(40);
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin: pushLine(localOid, unknown), publicRoot: root });
+  assert.notEqual(result.code, 0);
+  assert.doesNotMatch(result.stdout, NOTHING_NEW);
+  assert.doesNotMatch(result.stdout, /^VERDICT pass$/m);
+});
+
+test('T-NN8: an unreadable range fails closed (local oid is a missing object)', (t) => {
+  const { dir, root, remoteOid } = setupPushFixture(t, { addLeak: false });
+  const missing = 'e'.repeat(40);
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin: pushLine(missing, remoteOid), publicRoot: root });
+  assert.notEqual(result.code, 0);
+  assert.doesNotMatch(result.stdout, NOTHING_NEW);
+  assert.doesNotMatch(result.stdout, /^VERDICT pass$/m);
+});
+
+test('T-NN9: a delete (zero local oid) behaves as before: skipped, no note, pass', (t) => {
+  const { dir, root, remoteOid } = setupPushFixture(t, { addLeak: true });
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin: pushLine(ZERO_OID, remoteOid), publicRoot: root });
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /^VERDICT pass$/m);
+  assert.doesNotMatch(result.stdout, NOTHING_NEW);
+  assert.doesNotMatch(result.stdout, /^PRIVATE/m);
+});
+
+test('T-NN10: explicit `scan commits` on an empty range is still a hard empty-range error', (t) => {
+  const { dir, localOid } = setupPushFixture(t, { addLeak: false });
+  const result = runGuard(['scan', 'commits', `${localOid}..${localOid}`], { cwd: dir });
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /^ERROR empty-range$/m);
+  assert.doesNotMatch(result.stdout, NOTHING_NEW);
+});
+
 // Tests that pass today and prove nothing on their own (CLAUDE.md's testing standard):
 // - "ci: defaults to HEAD when no rev is given" only proves the argument is optional, not that
 //   checks actually run against it; T-G5/T-G10/the "ci: a clean repo..." test above are what

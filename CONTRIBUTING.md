@@ -27,7 +27,8 @@ touching anything under `src/generator/`, `src/build/`, `src/vault/publishset.js
   that never enter this repository.
 - To run the same public checks before you push, copy
   `scripts/hooks/pre-push` to `.git/hooks/pre-push`. The hook is tested on
-  Linux.
+  Linux. A push that adds no commits, such as a tag on a commit the remote already has, passes with
+  a note that there is nothing new to scan.
 
 ## How to open a pull request
 
