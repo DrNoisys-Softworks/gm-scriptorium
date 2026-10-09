@@ -77,6 +77,7 @@ the way.
 - [0048. Starting a new campaign: creating a vault from the gm-apprentice scaffold](decisions/0048-new-campaign-vault.md): A GM with no vault can create one in a new or empty folder, from gm-apprentice's own scaffold output, by a writer that never overwrites and never deletes.
 - [0049. The folder picker](decisions/0049-folder-picker.md): Path fields can browse folders in the panel and make a new one, without listing any file.
 - [0050. Several campaigns in one panel](decisions/0050-several-campaigns.md): One running panel can switch between registered campaigns, set the default and remove one from the list, and config.toml is now written crash-safely.
+- [0051. Code signing for the Windows executable](decisions/0051-code-signing.md): Signed releases carry a valid signature, checked on Windows, while self-update keeps trusting SHA256SUMS.
 - [0052. Adding a campaign from the panel](decisions/0052-add-a-campaign.md): A GM can add another campaign from the running panel, on this computer or over remote access, with the same questions and checks as first-run setup, then switch to it.
 
 ## Licensing

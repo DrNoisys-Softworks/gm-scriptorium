@@ -27,11 +27,22 @@ themselves.
 5. There's no installer yet, it's a single portable executable. Put it wherever you keep tools and
    run it from there. (An installer is planned but not built.)
 
-**About the Windows warning:** the executable isn't code-signed yet, so Windows SmartScreen will
-very likely say something like "Windows protected your PC" the first time you run it. Click **More
-info**, then **Run anyway**. This is expected for an unsigned binary, not a sign anything's wrong.
-Until releases are code-signed, this warning will keep appearing; it's planned, with no date set
-yet. If Smart App Control is on, it may block an unsigned executable outright.
+**About the Windows warning:** signed releases carry a valid digital signature on the Windows
+executable. The certificate is new, though, and Windows SmartScreen trusts a certificate more as
+more people run programs signed with it. Until that reputation builds, SmartScreen may still say
+something like "Windows protected your PC" the first time you run it. If it does, click **More
+info**, then **Run anyway**. That is expected for a new certificate, not a sign anything's wrong.
+
+To check a signature, right-click the executable, choose **Properties**, and open the **Digital
+Signatures** tab. You can also run this in PowerShell and look for `Valid`:
+
+```
+Get-AuthenticodeSignature .\gm-scriptorium.exe | Select-Object Status
+```
+
+The `SHA256SUMS` check above still applies and is worth doing. A release whose notes say it is
+unsigned will show the older warning instead, and you click through it the same way. If Smart App
+Control is on, it may block an unsigned executable outright.
 
 ## Updating
 

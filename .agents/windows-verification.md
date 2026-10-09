@@ -12,7 +12,6 @@ Where a criterion says `scriptorium-win-x64.exe` or `scriptorium-linux-x64`, it 
 **Do not read a real leak finding as a broken tool.** `check` on a real, uncurated campaign vault is
 expected to report leak ERRORs, and `build` is expected to correctly refuse to build as a result. That
 
-
 is the tool working, not a defect. If `check`/`build` come back clean on a real, uncurated vault,
 something changed underneath you and that is the surprising result, not the reverse.
 
@@ -2000,6 +1999,25 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
 7. If remote access is configured, add from the remote browser: a typed path is checked only on leaving the box, and `audit.log` shows `campaign-check`, `campaign-add` with paths, and the response with `affected`. Otherwise leave this step OPEN.
 8. Ctrl-C: no `scriptorium-preview-*` is left in `%TEMP%`. Re-hash the real config.
 
+### C141: a signed win-x64 exe has a valid, trusted, timestamped signature and still starts, and a self-update lands on it
+
+`docs/decisions/0051-code-signing.md`. **Mark this OPEN: the build machine only checks that the signed file is the unsigned file plus a signature (the same bytes apart from the checksum field, the security directory entry and padding). Windows' own verdict on the signature, the chain, the timestamp and start-up comes only from the real signed exe.** It applies to signed releases only; a release whose notes say it is unsigned skips this criterion. Compare the signer, thumbprint, validity dates and accepted root keys against the maintainer's private signing configuration, on the build machine, so the values never print or enter a public file. Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG`, never the real config. Do not run the update steps in Part B against a real install.
+
+**Part A, before publishing, on the hash-verified signed exe:**
+
+1. `Get-AuthenticodeSignature` on the exe reports `Valid`, a time stamper certificate is present, and the signer certificate matches the maintainer's private signing configuration. Write the values to a file and compare them on the build machine. Do not print them.
+2. The certificate chain, built with revocation checked online, ends at a root that the private signing configuration accepts. Roots are matched by public key.
+3. Properties > Digital Signatures shows the signature and a publisher. Take a screenshot and keep it private, because it shows the publisher's real name.
+4. `--version` prints the target version and exits 0, and `--help` and `--notices` run. C1 passes on the signed exe against the regenerated manifest.
+5. Report only. Put a Mark-of-the-Web (zone 3) on a scratch copy and run it. Record what SmartScreen shows, and the Smart App Control state. A reputation warning is expected for a new certificate and is not a failure. A block with no Run anyway option is recorded and escalated.
+
+**Part B, after publishing:**
+
+1. The previous release's exe runs `update --pre` and lands on the signed release. The installed file's hash equals the published signed hash, `Get-AuthenticodeSignature` reports `Valid` on it, and the old copy is kept beside it as `.old-<version>`.
+2. The signed release runs `update --pre --version <previous tag>`. It is refused, nothing is downloaded, it exits 0 and the file's hash is unchanged.
+3. Report only. Download the exe through Edge from the release page and record SmartScreen's first-run dialog.
+4. Record, as expected and not as a defect, that a self-updated exe carries no Mark-of-the-Web, so SmartScreen does not prompt on that path.
+
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 
 None of these are product concerns; every one is a harness limit on the automated tester's side,
@@ -2020,8 +2038,9 @@ next run does not have to repeat it.
 
 ## What was NOT built, so you are not looking for it
 
-- No code-signing (SC-9). Windows SmartScreen will very likely warn on first run of an unsigned `.exe`
-  downloaded via browser; that is expected, not a bug to chase.
+- Code-signing (SC-9) is no longer missing: signed releases are covered by C141. A release whose notes
+  say it is unsigned still draws a SmartScreen warning on first run of the `.exe` downloaded via browser,
+  and a signed release on a new certificate may too; both are expected, not a bug to chase.
 - arm64 and macOS packaging (P5a explicitly left these out of scope; only win-x64 and linux-x64 exist).
 - The NAS migration's status is retained in the private archive at `b5b48b4`; it is no longer
   tracked in this repository.
