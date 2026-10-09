@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { plain } = require('./helpers/toml-plain');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -259,7 +260,7 @@ test('T2: labels.group_npc = null removes that key and keeps the rest of [labels
     const after = TOML.parse(fs.readFileSync(tomlPath, 'utf8'));
     assert.ok(!Object.prototype.hasOwnProperty.call(after.labels, 'group_npc'));
     const { group_npc: _dropped, ...otherBeforeLabels } = before.labels;
-    assert.deepEqual(after.labels, otherBeforeLabels);
+    assert.deepEqual(plain(after.labels), otherBeforeLabels);
   });
 });
 

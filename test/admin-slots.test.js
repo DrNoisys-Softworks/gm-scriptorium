@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { plain } = require('./helpers/toml-plain');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -150,7 +151,7 @@ test('editPackTomlSlots: sets a slot, keeps other tables; clears down to an exac
   const set = editPackTomlSlots(withOther, { hero: 'images/hero.webp' });
   const parsedSet = TOML.parse(set);
   assert.equal(parsedSet.images.hero, 'images/hero.webp');
-  assert.deepEqual(parsedSet.labels, { chapter: 'Chapter' });
+  assert.deepEqual(plain(parsedSet.labels), { chapter: 'Chapter' });
 
   const onlyHero = 'theme = "plain"\n\n[images]\nhero = "images/hero.webp"\n';
   const cleared = editPackTomlSlots(onlyHero, { hero: null });
@@ -179,7 +180,7 @@ test('set: slots: { hero: ... } gives 200; TOML.parse(file).images.hero has that
     assert.equal(res.status, 200);
     const parsed = TOML.parse(fs.readFileSync(tomlPath, 'utf8'));
     assert.equal(parsed.images.hero, 'images/hero.webp');
-    assert.deepEqual(parsed.labels, { chapter: 'Chapter' });
+    assert.deepEqual(plain(parsed.labels), { chapter: 'Chapter' });
   });
 });
 

@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { plain } = require('./helpers/toml-plain');
 
 const s = require('../src/remote/settings');
 const { ConfigError } = require('../src/util/errors');
@@ -386,7 +387,7 @@ test('SD-a1: a [remote] table is a recognised top-level key (no warning), preser
   const { parseConfig } = require('../src/config/load');
   const { config, warnings } = parseConfig('config_version = 1\n\n[remote]\nmode = "ssh"\nport = 7400\n');
   assert.deepEqual(warnings, []);
-  assert.deepEqual(config.remote, { mode: 'ssh', port: 7400 });
+  assert.deepEqual(plain(config.remote), { mode: 'ssh', port: 7400 });
   const { TOP_LEVEL_KEYS } = require('../src/config/schema');
   assert.ok(TOP_LEVEL_KEYS.includes('remote'));
 });
