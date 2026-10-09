@@ -841,6 +841,20 @@ function runPrivateRange({ cwd, env, lists, scanRun, publicRoot, fontResidual, i
 }
 
 /**
+ * Reads the commits a push adds, for the pre-push path ONLY. Returns 'new' (at least one commit
+ * the remote lacks), 'empty' (none: a tag on a commit the remote already has, or a branch that is
+ * already up to date) or 'unreadable' (git failed: unknown remote sha, missing object, any git
+ * error). Only 'empty' lets a ref skip the private-list scan; 'unreadable' must fail closed. The
+ * explicit `scan commits <range>` command does not use this: an empty range there stays the hard
+ * `empty-range` error, because it usually means a typo.
+ */
+function prePushRangeState(cwd, env, commitsRest) {
+  const res = git(['rev-list', ...commitsRest], cwd, env);
+  if (res.error || res.status !== 0) return 'unreadable';
+  return res.stdout.toString('utf8').split('\n').some(Boolean) ? 'new' : 'empty';
+}
+
+/**
  * SD-4's `pre-push <remote> <url>`. SD-S6: Run A's own trigger is `scriptorium.privacyLists`
  * being set, not the two env vars (T-S12 unchanged: `requireLists=true` still exits 1 `no-lists`
  * before stdin is ever touched; `requireLists` unset still prints the NOTE and, since the CLI
@@ -870,6 +884,7 @@ function runPrePush(rest, { cwd, env, stdin, stdout, stderr, publicRoot, scanRun
 
   const pushLines = parsePushLines(stdin);
   let blocked = false;
+  let nothingNew = false;
   for (const { localOid, remoteOid } of pushLines) {
     if (localOid === ZERO_OID) continue; // a delete: nothing new to scan for this ref.
 
@@ -881,6 +896,12 @@ function runPrePush(rest, { cwd, env, stdin, stdout, stderr, publicRoot, scanRun
 
     if (lists) {
       const commitsRest = remoteOid === ZERO_OID ? [localOid, '--not', `--remotes=${remote}`] : [`${remoteOid}..${localOid}`];
+      const rangeState = prePushRangeState(cwd, env, commitsRest);
+      if (rangeState === 'unreadable') throw new GuardError('unreadable-range');
+      if (rangeState === 'empty') {
+        nothingNew = true; // everything this ref points at is already on the remote.
+        continue;
+      }
       const priv = runPrivateRange({ cwd, env, lists, scanRun, publicRoot, fontResidual, imageResidual, commitsRest, treeRev: localOid, stdout, stderr });
       if (priv.blocked) {
         blocked = true;
@@ -890,6 +911,7 @@ function runPrePush(rest, { cwd, env, stdin, stdout, stderr, publicRoot, scanRun
   }
 
   if (skipped && !blocked) stdout.write('NOTE private list scan skipped\n');
+  if (nothingNew && !blocked) stdout.write('NOTE nothing new to scan\n');
   stdout.write(`VERDICT ${blocked ? 'block' : 'pass'}\n`);
   return blocked ? 1 : 0;
 }
