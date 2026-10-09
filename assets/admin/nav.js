@@ -109,7 +109,7 @@
       soon: false,
       readOnly: false,
       eyebrow: 'Setup · remote access',
-      lede: 'Where the panel can be used from. The panel can change your campaign files, so remote access always needs HTTPS and a password. This screen only shows the state; the commands that change it are listed below.',
+      lede: 'Where the panel can be used from. The panel can change your campaign files, so a reverse proxy or Tailscale needs HTTPS and a password. An SSH tunnel needs neither, because SSH already protects the connection. This screen only shows the state; the commands that change it are listed below.',
     },
     {
       id: 'campaigns',

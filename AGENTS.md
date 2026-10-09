@@ -1,8 +1,8 @@
 # AGENTS.md
 
-GM-Scriptorium is a compiled Windows command-line tool that checks a gm-apprentice campaign vault,
-builds a player-facing website from it, and updates itself from this repository's releases. This
-file is the index for AI coding assistants; it holds no rules of its own.
+GM-Scriptorium is a compiled command-line tool for Windows and Linux. It checks a gm-apprentice
+campaign vault, builds a player-facing website from it, and updates itself from this repository's
+releases. This file is the index for AI coding assistants; it holds no rules of its own.
 
 ## Read in this order
 
