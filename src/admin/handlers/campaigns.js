@@ -37,6 +37,16 @@ const MAX_NAME = 200;
 const SHA_RE = /^[0-9a-f]{64}$/;
 const CONFIG_CHANGED = 'Your settings changed outside the panel. Reload and try again.';
 const ACTIVE_MESSAGE = 'Switch to another campaign first.';
+const FILE_HELD_MESSAGE = 'Your settings file is open in another program. Close it and try again.';
+// On Windows a rename over a file that another program holds open (without delete sharing) fails
+// with one of these. src/config/write.js has already retried for a few seconds and cleaned up.
+const HELD_OPEN_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
+
+/** The message the panel shows for a write that threw: plain for a held-open file, else the error's own. */
+function writeFailureMessage(err) {
+  if (err && err.syscall === 'rename' && HELD_OPEN_CODES.has(err.code)) return FILE_HELD_MESSAGE;
+  return err && err.message;
+}
 const BUSY_PROBE = 'The panel is already waiting on other folders. Try again in a moment.';
 
 function sendJson(res, status, payload) {
@@ -243,7 +253,7 @@ async function writeCampaign(req, res, ctx, { auditNote }, change) {
     try {
       return change(parsed);
     } catch (err) {
-      return { io: err.message };
+      return { io: writeFailureMessage(err) };
     }
   });
   if (!ran.ok) {
@@ -423,7 +433,7 @@ async function addOne(req, res, ctx, { kind, pathname, clientAddress, auditNote 
     try {
       return await register.addFromPanel(answers, { configPath, panelDir, configSha256 }, deps);
     } catch (err) {
-      return { io: err.message };
+      return { io: writeFailureMessage(err) };
     }
   });
   if (!ran.ok) {
