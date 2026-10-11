@@ -240,9 +240,10 @@ function forbiddenPathCount(paths) {
 }
 
 function listTreePaths(cwd, env, rev) {
-  const res = git(['ls-tree', '-r', '--name-only', rev], cwd, env);
+  // -z: NUL-separated, so a path holding a newline (or any quoted character) arrives whole.
+  const res = git(['ls-tree', '-r', '-z', '--name-only', rev], cwd, env);
   if (res.status !== 0) throw new GuardError('bad-rev');
-  return res.stdout.toString('utf8').split('\n').filter(Boolean);
+  return res.stdout.toString('utf8').split('\0').filter(Boolean);
 }
 
 /**
@@ -428,6 +429,16 @@ function parseHitRows(text) {
       byCategory[cat] = Number(n);
     }
     rows.push({ count: Number(m[1]), label: m[2], byCategory });
+  }
+  // Fail closed: the scanner's own TOTAL says how many hits it found. If the rows read back do
+  // not account for every one (a row that was split, mangled or dropped), add one row no
+  // classifier can excuse, so the scan blocks instead of passing on a partial read.
+  const total = /^TOTAL hits=(\d+)\b/m.exec(text);
+  if (total) {
+    const seen = rows.reduce((n, r) => n + r.count, 0);
+    if (Number(total[1]) !== seen) {
+      rows.push({ count: Math.max(1, Number(total[1]) - seen), label: '[unreadable scanner output]', byCategory: { unreadable: 1 } });
+    }
   }
   return rows;
 }

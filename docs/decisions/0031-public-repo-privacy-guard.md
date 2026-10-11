@@ -173,3 +173,24 @@ history check) still run on that ref.
 
 **Rejected alternative.** Treating every empty set as "nothing to scan", in both the pre-push check
 and `scan commits`. That would also let a mistyped range or a git failure pass without a word.
+
+## Amendment: file names that hold a newline
+
+**What changed.** A committed file whose name held a newline could make the check pass when it
+should have blocked. The scanner printed that file's hit on two lines, the guard could not read the
+second half back as a hit, and the scan ended with a pass. The check now fails closed in three
+ways:
+
+- Every list of paths the guard and the scanner read from git is NUL-separated (`-z`), so a path
+  arrives whole whatever characters it holds. This covers the tree, commit and working-copy scans
+  and the forbidden-path check that `ci`, `pre-push` and `release` run.
+- The scanner prints a path with control characters (newline, carriage return, escape, the other
+  control codes, and the Unicode line and paragraph separators) as a visible escape such as `\x0a`,
+  so a name can never split a report row. Matching still uses the real path.
+- The guard compares the scanner's own total with the hits it could read back. If they differ, it
+  adds one hit that nothing can excuse, so the scan blocks.
+
+**Limits.** An allowlist `path` entry still cannot name a path with a control character (those are
+refused when the list loads), so such a file is never excused. A file name that holds a private
+word is reported with that word masked, as before. The escaped spelling in a report is for reading
+only; it is not a form you can put in the allow file.
