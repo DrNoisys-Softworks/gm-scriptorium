@@ -223,6 +223,34 @@ for (const browserName of ['chromium', 'firefox']) {
     });
   });
 
+  test(`unsaved changes in ${browserName}: after Switch the browser raises no second "Reload site?" prompt (issue 68)`, { skip: SKIP, timeout: 240000 }, async (t) => {
+    await withPanel(t, [], async ({ open, base, srv }) => {
+      const page = await open(WIDTHS[0]);
+      const dialogs = [];
+      page.on('dialog', (d) => {
+        dialogs.push(d.type());
+        d.accept().catch(() => {});
+      });
+      await page.evaluate(() => { location.hash = '#/title'; });
+      await page.fill('#pack-title-input', 'An edit nobody saved');
+      // Control: before the GM chooses anything, the guard is armed and asks the browser to prompt.
+      const armed = await page.evaluate(() => {
+        const ev = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(ev);
+        return ev.defaultPrevented;
+      });
+      assert.equal(armed, true, 'the unsaved-changes guard is armed before Switch');
+
+      await openSwitcher(page, WIDTHS[0]);
+      await pop(page, WIDTHS[0]).locator('[data-campaign="beta"]').click();
+      await page.locator('dialog.cs-dialog[open] button', { hasText: 'Switch' }).click();
+      await page.waitForFunction(() => (document.querySelector('[data-role="side"] [data-part="campaign"]') || {}).textContent === 'beta');
+      assert.equal(await serverCampaign(base, srv.token), 'beta');
+      assert.deepEqual(dialogs, [], 'no native prompt of any kind appeared');
+      await page.context().close();
+    });
+  });
+
   test(`with nothing unsaved in ${browserName} a switch needs no confirm`, { skip: SKIP, timeout: 240000 }, async (t) => {
     await withPanel(t, [], async ({ open }) => {
       const page = await open();
