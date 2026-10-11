@@ -1946,12 +1946,15 @@ ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux pac
 
 `docs/decisions/0048-new-campaign-vault.md`, sections 1, 2 and 5. **Mark this OPEN: verified on Linux from source and from the Linux packaged binary only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 6; the two must match. Work in a local scratch folder S.
 
-1. Run `init --yes --name fresh --new-vault "S\Fresh Campaign" --system none --config S\config.toml`. It exits 0. The vault has `Factions & Organizations` and `Items & Artifacts`, and `_meta\NOTICE.txt`. Hash `_meta\entity-types.md` with `certutil`; it must match the value recorded in the pull request. Then run `build fresh` and `serve fresh`: the landing page shows the title and the welcome page. Run it again with `--name second --new-vault "S\Games\Fantasy\Second"`: the two folders above it are created level by level, and the output lists them.
+1. Run `init --yes --name fresh --new-vault "S\Fresh Campaign" --system none --config S\cfg\config.toml`. It exits 0. The vault has `Factions & Organizations` and `Items & Artifacts`, and `_meta\NOTICE.txt`. Hash `_meta\entity-types.md` with `certutil`; it must match the value recorded in the pull request. Then run `build fresh` and `serve fresh`: the landing page shows the title and the welcome page. Run it again with `--name second --new-vault "S\Games\Fantasy\Second"`: the two folders above it are created level by level, and the output lists them.
+   *Changed 2026-10-11: the config is now in its own folder `S\cfg`, not beside the new vault. The program refuses a vault inside its own settings folder (exit 3), so the old path could never pass; the program was right.*
 2. Run `serve --admin --config S2\config.toml` with no config. Choose "Start a new campaign here". Enter `S2\New Vault`, which is missing: the check goes green and the system list shows. Go through review, then Build my first preview: the ready screen appears, and the preview shows the landing page and the welcome page.
 3. In an empty folder under `%OneDrive%`: the info note shows and creation succeeds. If `desktop.ini` appears, its hash is unchanged before and after. Record any OneDrive conflict copies.
-4. Use `\\localhost\C$\...\UNCVault`, which is missing. Nothing is checked until you leave the box. Then the network-share warning shows with the git note. Creation and the preview both work.
+4. Use `\\localhost\scratch\...\UNCVault`, which is missing. Nothing is checked until you leave the box. Then the network-share warning shows with the git note. Creation and the preview both work.
+   *Changed 2026-10-11: `\\localhost\scratch\...` replaces `\\localhost\C$\...`. A standard user cannot open the `C$` administrative share. Share S as `scratch` first (for example `net share scratch=S` from an elevated prompt).*
 5. A folder you made with `git init` and nothing else is accepted, and the hash of `.git\HEAD` is the same before and after. Refusals, each leaving the folder unchanged (exit 3 in `init`): a non-empty folder; a junction (`mklink /J`); `C:\`; a folder inside `S\Fresh Campaign`.
-6. Deny write on an empty folder (`icacls <dir> /deny %USERNAME%:(WD)`). Creation stops with a plain message listing what was created, and nothing is removed. Remove the deny afterwards. Re-hash the real config.
+6. Deny write on an empty folder (`icacls <dir> /deny %USERNAME%:(WD,AD)`). Creation stops with a plain message listing what was created, and nothing is removed. Remove the deny afterwards. Re-hash the real config.
+   *Changed 2026-10-11: the deny is now `(WD,AD)`. On Windows `(WD)` alone does not stop a folder being created; with `(WD,AD)` the program gives the expected plain refusal.*
 
 ### C138: the folder picker lists only folders, never stalls, and creates one folder at a time, in the real win-x64 exe
 
@@ -1959,7 +1962,8 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
 
 1. Start browser setup. Browse on the vault field: `C:` and a scratch mapped drive both list. No "insert a disk" dialog appears for an empty card reader or optical drive.
 2. Disconnect the mapped drive and press Refresh. It shows "not responding" within a few seconds while the others list, and the panel keeps answering (switch screens).
-3. Type `\\localhost\C$\` plus a scratch path in the location box. Nothing is requested until Enter or Go, then it lists.
+3. Type `\\localhost\scratch\` plus a scratch path in the location box. Nothing is requested until Enter or Go, then it lists.
+   *Changed 2026-10-11: `\\localhost\scratch\` replaces `\\localhost\C$\`, which a standard user cannot open. Use the `scratch` share made in C137 step 4.*
 4. A `mklink /J` junction in S is marked as a link and can't be entered or chosen.
 5. A OneDrive folder lists and opens as an ordinary folder.
 6. At `C:\`, `$Recycle.Bin` and `System Volume Information` are hidden until Show hidden folders is ticked.
