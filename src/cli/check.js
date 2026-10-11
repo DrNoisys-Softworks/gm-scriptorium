@@ -13,6 +13,7 @@ const { buildEnvelope } = require('../report/json');
 const { renderHuman } = require('../report/human');
 const { EXIT_CODES } = require('../util/exitcodes');
 const { ConfigError, VaultUnreachableError } = require('../util/errors');
+const { stripBom } = require('../util/bom');
 const pkg = require('../../package.json');
 
 const PACK_CONFIG_FILE = 'vault.config.json';
@@ -52,7 +53,7 @@ function loadSiteConfig(siteConfigPath) {
     );
   }
   const raw = fs.readFileSync(siteConfigPath, 'utf8');
-  const jsonConfig = JSON.parse(raw);
+  const jsonConfig = JSON.parse(stripBom(raw));
   if (jsonConfig.vaultPath) {
     jsonConfig.vaultPath = path.resolve(path.dirname(siteConfigPath), jsonConfig.vaultPath);
   }
@@ -156,7 +157,7 @@ function resolveSiteSource(ctxInfo, vaultPath) {
 function parsePackConfigText(raw, packConfigPath, campaign) {
   let jsonConfig;
   try {
-    jsonConfig = JSON.parse(raw);
+    jsonConfig = JSON.parse(stripBom(raw));
   } catch (err) {
     throw new ConfigError(
       `campaign "${campaign}": ${packConfigPath} is not valid JSON: ${err.message.replace(/\s+/g, ' ')}`,

@@ -1,6 +1,7 @@
 'use strict';
 
 const TOML = require('smol-toml');
+const { stripBom } = require('../util/bom');
 
 /*
  * Phase 8 slice S3 (SD-5, SD-7): the pure edit step between "read the raw bytes" and "validate
@@ -35,7 +36,7 @@ function editPackTomlTheme(raw, theme) {
  * @returns {string}
  */
 function editVaultConfigJson(raw, edits = {}) {
-  const parsed = JSON.parse(raw);
+  const parsed = JSON.parse(stripBom(raw));
   if (Object.prototype.hasOwnProperty.call(edits, 'siteTitle')) parsed.siteTitle = edits.siteTitle;
   return `${JSON.stringify(parsed, null, 2)}\n`;
 }
