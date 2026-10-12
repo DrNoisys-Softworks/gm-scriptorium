@@ -113,6 +113,17 @@ test('parseArgv: bare --force still never swallows the campaign name (the refusa
   assert.equal(a.flags.force, true);
 });
 
+test('validateFlags: build refuses force with the split line, every other command keeps its own unknown-flag message', () => {
+  const { validateFlags } = require('../src/cli/args');
+  const { ConfigError } = require('../src/util/errors');
+  assert.throws(
+    () => validateFlags('build', { force: true }),
+    (err) => err instanceof ConfigError && err.message === BARE_FORCE_LINE,
+  );
+  assert.doesNotThrow(() => validateFlags('build', { 'force-check': true, 'force-out': true, 'no-check': true }));
+  assert.throws(() => validateFlags('serve', { force: true }), /unknown flag --force for "serve"/);
+});
+
 // --- bare --force ----------------------------------------------------------------------------------
 
 test('CLI: bare --force exits 1 with the one line, no stack, writes nothing, config untouched', () => {
