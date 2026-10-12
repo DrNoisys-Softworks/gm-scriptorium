@@ -615,7 +615,7 @@ test('CLI: with the 1.12.3 pin the generator withholds handout Keeper sections i
   }
 });
 
-test('CLI: if the read shim failed, the output gate refuses the build and --force cannot override it', () => {
+test('CLI: if the read shim failed, the output gate refuses the build and --force-out --force-check cannot override it', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-cmt-gate-'));
   try {
     const vault = makeVault(root, 'with', true);
@@ -639,7 +639,7 @@ test('CLI: if the read shim failed, the output gate refuses the build and --forc
   }
 });
 
-test('CLI: a comment that reaches only a timeline data island is refused by the output gate, and --force cannot override it (ADR 0045)', () => {
+test('CLI: a comment that reaches only a timeline data island is refused by the output gate, and --force-out --force-check cannot override it (ADR 0045)', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-cmt-island-'));
   try {
     const vault = path.join(root, 'v');

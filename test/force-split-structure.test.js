@@ -105,37 +105,104 @@ function walkModuleGraph(entryFiles) {
   return { files, builtins, unresolved };
 }
 
-/**
- * Every runAtomicBuild( occurrence in `source` (comments stripped) that is not the function's own
- * declaration, with a reason when it is not an object literal whose force is exactly `false`.
- * Returns the violations as strings; an empty list means every call is acceptable.
- */
-function forceViolations(source) {
-  const stripped = stripComments(source);
-  const out = [];
-  const re = /runAtomicBuild\s*\(/g;
-  let m;
-  while ((m = re.exec(stripped))) {
-    const before = stripped.slice(0, m.index);
-    if (/function\s+$/.test(before)) continue; // the declaration itself
-    const after = stripped.slice(m.index + m[0].length);
-    const text = stripped.slice(m.index, m.index + 60).replace(/\s+/g, ' ');
-    if (!/^\s*\{/.test(after)) {
-      out.push(`not an object literal: ${text}`);
+/** Index just past the bracket that closes the one opening at `open` (strings are skipped), or -1. */
+function matchClose(s, open) {
+  const pairs = { '{': '}', '(': ')', '[': ']' };
+  const stack = [];
+  for (let i = open; i < s.length; i++) {
+    const c = s[i];
+    if (c === "'" || c === '"' || c === '`') {
+      for (i++; i < s.length && s[i] !== c; i++) if (s[i] === '\\') i++;
       continue;
     }
-    const open = after.indexOf('{');
-    let depth = 0;
-    let end = -1;
-    for (let i = open; i < after.length; i++) {
-      if (after[i] === '{') depth++;
-      else if (after[i] === '}' && --depth === 0) {
-        end = i;
-        break;
-      }
+    if (pairs[c]) stack.push(pairs[c]);
+    else if (c === '}' || c === ')' || c === ']') {
+      if (stack.pop() !== c) return -1;
+      if (stack.length === 0) return i + 1;
     }
-    const body = end === -1 ? after.slice(open) : after.slice(open, end + 1);
-    if (!/\bforce\s*:\s*false\s*(,|\})/.test(body)) out.push(`force is not the literal false: ${body.replace(/\s+/g, ' ').slice(0, 120)}`);
+  }
+  return -1;
+}
+
+/** The top-level comma-separated entries of the object literal whose '{' is at `open`. */
+function topLevelEntries(s, open) {
+  const end = matchClose(s, open);
+  if (end === -1) return null;
+  const inner = s.slice(open + 1, end - 1);
+  const entries = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i];
+    if (c === "'" || c === '"' || c === '`') {
+      for (i++; i < inner.length && inner[i] !== c; i++) if (inner[i] === '\\') i++;
+      continue;
+    }
+    if ('{(['.includes(c)) depth++;
+    else if ('})]'.includes(c)) depth--;
+    else if (c === ',' && depth === 0) {
+      entries.push(inner.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  entries.push(inner.slice(start).trim());
+  return entries.filter((e) => e !== '');
+}
+
+/**
+ * ADR 0055. Every appearance of the identifier runAtomicBuild in `source` (comments stripped) must be
+ * one of: the function's own declaration; the plain destructured require (no rename); a shorthand
+ * entry of module.exports; or a call `runAtomicBuild({...})` whose object literal has no spread and
+ * exactly one top-level `force` entry, whose value is the literal `false`. Anything else (an alias,
+ * .call or .apply, a member or bracket access, a reassignment, passing it as a value, a call with a
+ * non-literal argument) is a violation. Returns violation strings; empty means acceptable.
+ */
+function forceViolations(source) {
+  const s = stripComments(source);
+  const out = [];
+  const allowedRanges = [];
+  for (const re of [/const\s*\{[^}]*\}\s*=\s*require\([^)]*\)/g, /module\.exports\s*=\s*\{[^}]*\}/g]) {
+    let r;
+    while ((r = re.exec(s))) allowedRanges.push([r.index, r.index + r[0].length]);
+  }
+  const re = /runAtomicBuild/g;
+  let m;
+  while ((m = re.exec(s))) {
+    const i = m.index;
+    const before = s.slice(Math.max(0, i - 40), i);
+    const after = s.slice(i + m[0].length);
+    const ctx = s.slice(Math.max(0, i - 20), i + 50).replace(/\s+/g, ' ');
+    if (/[A-Za-z0-9_$]$/.test(before) || /^[A-Za-z0-9_$]/.test(after)) continue; // part of a longer identifier
+    if (/function\s+$/.test(before)) continue; // the declaration itself
+    const inAllowed = allowedRanges.some(([a, b]) => i >= a && i < b);
+    if (inAllowed) {
+      if (/^\s*[,}]/.test(after) && !/:\s*$/.test(before)) continue; // plain destructure or shorthand export
+      out.push(`renamed or aliased in a destructure or export: ${ctx}`);
+      continue;
+    }
+    if (/\.\s*$/.test(before)) {
+      out.push(`member access: ${ctx}`);
+      continue;
+    }
+    const call = /^\s*\(\s*(\{)/.exec(after);
+    if (!call) {
+      out.push(`not a direct runAtomicBuild({...}) call (alias, value, bracket access or non-literal argument): ${ctx}`);
+      continue;
+    }
+    const open = i + m[0].length + call[0].length - 1;
+    const entries = topLevelEntries(s, open);
+    if (!entries) {
+      out.push(`unbalanced call: ${ctx}`);
+      continue;
+    }
+    let forceFalse = 0;
+    for (const e of entries) {
+      if (e.startsWith('...')) out.push(`object spread in call: ${e.slice(0, 60)}`);
+      else if (e.startsWith('[')) out.push(`computed key in call: ${e.slice(0, 60)}`);
+      else if (/^(['"]?)force\1\s*:\s*false$/.test(e)) forceFalse++;
+      else if (/^(['"]?)force\1\s*(:|=|$)/.test(e)) out.push(`force is not the literal false: ${e.slice(0, 60)}`);
+    }
+    if (forceFalse !== 1) out.push(`expected exactly one top-level force: false, found ${forceFalse}: ${ctx}`);
   }
   return out;
 }
@@ -181,19 +248,41 @@ test('every runAtomicBuild call reachable from bin passes the literal force: fal
   assert.equal((stripComments(build).match(/runAtomicBuild\s*\(/g) || []).length, 1, 'src/cli/build.js has exactly one call site');
 });
 
-test('predicate controls: the check accepts force: false and flags every other shape', () => {
+test('predicate controls: the check accepts the sanctioned shapes and flags every other shape', () => {
+  // accepted
   assert.deepEqual(forceViolations('runAtomicBuild({ campaign, force: false, themePlan })'), []);
   assert.deepEqual(forceViolations('runAtomicBuild({\n  force: false\n})'), []);
   assert.deepEqual(forceViolations('function runAtomicBuild({ campaign, force = false }) {}'), []);
-  assert.equal(forceViolations('runAtomicBuild({ campaign, force: forced })').length, 1);
-  assert.equal(forceViolations('runAtomicBuild({ campaign, force: forceCheck })').length, 1);
-  assert.equal(forceViolations('runAtomicBuild({ campaign, force: true })').length, 1);
-  assert.equal(forceViolations('runAtomicBuild({ campaign, force: falsey })').length, 1);
-  assert.equal(forceViolations('runAtomicBuild({ campaign })').length, 1);
-  // A non-literal argument slips past any text match on the object, so it is refused outright.
-  assert.equal(forceViolations('runAtomicBuild(opts)').length, 1);
-  assert.equal(forceViolations('run.runAtomicBuild(opts)').length, 1);
-  assert.equal(forceViolations('const r = cliBuild.runAtomicBuild(buildOpts({ force: false }))').length, 1);
-  // Comments are not code.
+  assert.deepEqual(forceViolations("const { runAtomicBuild } = require('../build/run');"), []);
+  assert.deepEqual(forceViolations('module.exports = { runAtomicBuild, generatorWarningLines };'), []);
   assert.deepEqual(forceViolations('// runAtomicBuild({ force: true })\nconst x = 1;'), []);
+  // wrong value
+  assert.ok(forceViolations('runAtomicBuild({ campaign, force: forced })').length >= 1);
+  assert.ok(forceViolations('runAtomicBuild({ campaign, force: forceCheck })').length >= 1);
+  assert.ok(forceViolations('runAtomicBuild({ campaign, force: true })').length >= 1);
+  assert.ok(forceViolations('runAtomicBuild({ campaign, force: falsey })').length >= 1);
+  assert.ok(forceViolations('runAtomicBuild({ campaign })').length >= 1);
+  assert.equal(forceViolations('runAtomicBuild({ campaign, force })').length >= 1, true);
+  // nested force must not satisfy the check
+  assert.ok(forceViolations('runAtomicBuild({ force: forceCheck, meta: { force: false } })').length >= 1);
+  // spread, before or after
+  assert.ok(forceViolations('runAtomicBuild({ force: false, ...{ force: forceCheck } })').length >= 1);
+  assert.ok(forceViolations('runAtomicBuild({ ...o, force: false })').length >= 1);
+  // computed key
+  assert.ok(forceViolations("runAtomicBuild({ force: false, ['force']: true })").length >= 1);
+  // two force entries
+  assert.ok(forceViolations('runAtomicBuild({ force: false, force: forceCheck })').length >= 1);
+  // non-literal argument
+  assert.ok(forceViolations('runAtomicBuild(opts)').length >= 1);
+  assert.ok(forceViolations('runAtomicBuild(buildOpts({ force: false }))').length >= 1);
+  // aliases and indirect use
+  assert.ok(forceViolations("const { runAtomicBuild: rab } = require('../build/run'); rab({ ...o, force: true });").length >= 1);
+  assert.ok(forceViolations('module.exports = { runAtomicBuild: other };').length >= 1);
+  assert.ok(forceViolations('runAtomicBuild.call(null, { force: true })').length >= 1);
+  assert.ok(forceViolations('runAtomicBuild.apply(null, [{ force: true }])').length >= 1);
+  assert.ok(forceViolations('run.runAtomicBuild({ force: false })').length >= 1);
+  assert.ok(forceViolations("run['runAtomicBuild']({ force: true })").length >= 1);
+  assert.ok(forceViolations('const f = runAtomicBuild; f({ force: true });').length >= 1);
+  assert.ok(forceViolations('go(runAtomicBuild);').length >= 1);
+  assert.ok(forceViolations('runAtomicBuild = other;').length >= 1);
 });

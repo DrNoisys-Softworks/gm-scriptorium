@@ -128,7 +128,7 @@ test('unpaired control: L3/L4/L5 all fire for the unpaired hub; build exits 2; -
     assert.equal(forced.exitCode, 2, forced.human);
     assert.equal(forced.envelope.refusedByScan, true, 'the output-leak scan still refuses');
     assert.ok(forced.envelope.outputScanFindings.some((f) => f.id === 'leak/l4-output-name' && f.outputPath === 'sessions/session-2.html'));
-    assert.ok(!forced.envelope.overriddenFindings.some((f) => f.id === 'leak/l4-output-name'), 'a scan hit is never recorded as overridden');
+    assert.deepEqual(forced.envelope.overriddenFindings, [], 'a scan-refused envelope records nothing as overridden');
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }

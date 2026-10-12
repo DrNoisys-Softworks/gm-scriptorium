@@ -183,7 +183,7 @@ test('a second preview build, after a first one injected GM links, still succeed
 // either fixture. On its own it proves nothing; it only means something paired with the
 // --force refusal tests above, which prove the SAME gate does refuse when the marker IS present.
 
-test('FR34(c): a CLI build of a scratch copy of vocab-vault contains no marker (paired with the --force refusal above)', () => {
+test('FR34(c): a CLI build of a scratch copy of vocab-vault contains no marker (paired with the --force-out --force-check refusal above)', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-gm-link-frc-vocab-'));
   try {
     const dest = scratchCopyVault('vocab-vault', root);
@@ -201,7 +201,7 @@ test('FR34(c): a CLI build of a scratch copy of vocab-vault contains no marker (
   }
 });
 
-test('FR34(c): a CLI build of a scratch copy of mini-vault contains no marker (paired with the --force refusal above)', () => {
+test('FR34(c): a CLI build of a scratch copy of mini-vault contains no marker (paired with the --force-out --force-check refusal above)', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-gm-link-frc-mini-'));
   try {
     const dest = scratchCopyVault('mini-vault', root);

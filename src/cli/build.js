@@ -265,7 +265,7 @@ function runBuildForContext(ctxInfo, flags) {
         };
       }
       // ADR 0034: frontmatter/non-yaml-language is never forceable, so it is excluded from what
-      // --force can claim to override here. For a vault with no tagged fences this filter is a
+      // --force-check can claim to override here. For a vault with no tagged fences this filter is a
       // no-op and the output is byte-identical to before this slice.
       overriddenFindings = checkEnvelope.findings.filter((f) => f.severity === 'error' && f.id !== NON_YAML_LANGUAGE_ID);
       if (overriddenFindings.length > 0) {

@@ -43,7 +43,7 @@ function buildSiteConfig(dir) {
 // -- AC-R3 (CoC side): the protected build path renders the fixture's own skill rows and ships
 // no CoC marker (the canonical starting skill list). --
 
-test('build --force against the CoC fixture renders the sheet\'s own skills and ships no CoC marker', () => {
+test('build --force-check against the CoC fixture renders the sheet\'s own skills and ships no CoC marker', () => {
   withTmpDir((dir) => {
     const siteDir = path.join(dir, 'site');
     fs.mkdirSync(siteDir, { recursive: true });

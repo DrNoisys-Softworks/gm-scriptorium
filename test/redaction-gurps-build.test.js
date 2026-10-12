@@ -43,7 +43,7 @@ function buildSiteConfig(dir) {
 // -- AC-R3: the protected build path (Scriptorium's own runBuildCommand, which runs
 // applyRedactions() through bootstrap.js) renders the combat tab but ships no GURPS marker. --
 
-test('build --force against the GURPS fixture renders gurps-combat and ships no GURPS marker', () => {
+test('build --force-check against the GURPS fixture renders gurps-combat and ships no GURPS marker', () => {
   withTmpDir((dir) => {
     const siteDir = path.join(dir, 'site');
     fs.mkdirSync(siteDir, { recursive: true });

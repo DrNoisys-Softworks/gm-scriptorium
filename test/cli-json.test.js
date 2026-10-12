@@ -90,7 +90,7 @@ test('build --json embeds the full check envelope and refuses with exit 2 on the
   });
 });
 
-test('build --json --force reports ok:true, the overridden findings, and stable fields across two runs', () => {
+test('build --json --force-check reports ok:true, the overridden findings, and stable fields across two runs', () => {
   withScratchDir((dir) => {
     const configPath = path.join(dir, 'config.toml');
     const outDir = path.join(dir, 'out');
