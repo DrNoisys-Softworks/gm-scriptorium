@@ -1740,3 +1740,142 @@ test('T-NN10: explicit `scan commits` on an empty range is still a hard empty-ra
 //   checks actually run against it; T-G5/T-G10/the "ci: a clean repo..." test above are what
 //   prove the checks themselves fire.
 // - "release: defaults to-rev to HEAD" is the same shape, for the same reason.
+
+// ---------------------------------------------------------------------------
+// Pre-push after merging main into a branch: commits already reachable from a remote-tracking ref
+// of the remote being pushed to are public already, so only commits the remote lacks are scanned.
+// The term below comes from the synthetic fixture list, never a real private list.
+// ---------------------------------------------------------------------------
+
+/**
+ * root, then a feature branch with one clean commit (`featureOid`, already pushed), while main
+ * gets a commit whose MESSAGE holds the synthetic term (`mainOid`, already public). The feature
+ * branch then merges main and adds one new commit with `newMessage`/`newContent`.
+ */
+function setupMergeMainFixture(t, { newMessage = 'clean new work', newContent = 'fine\n' } = {}) {
+  const dir = initRepo(t);
+  const listsDir = writeLists(t);
+  configureLists(dir, listsDir);
+  seedHygiene(dir);
+  commitPlain(dir, 'root');
+  const root = revParse(dir, 'HEAD');
+  git(['checkout', '-q', '-b', 'feature'], dir);
+  fs.writeFileSync(path.join(dir, 'feature.txt'), 'feature one\n');
+  commitPlain(dir, 'feature work one');
+  const featureOid = revParse(dir, 'HEAD');
+  git(['checkout', '-q', 'main'], dir);
+  fs.writeFileSync(path.join(dir, 'main.txt'), 'main work\n');
+  commitPlain(dir, `squash merge by ${TERM_ZORBLAX}`);
+  const mainOid = revParse(dir, 'HEAD');
+  git(['checkout', '-q', 'feature'], dir);
+  git(['merge', '--no-ff', '-q', '-m', 'merge main into feature', 'main'], dir);
+  fs.writeFileSync(path.join(dir, 'new.txt'), newContent);
+  commitPlain(dir, newMessage);
+  const localOid = revParse(dir, 'HEAD');
+  return { dir, root, featureOid, mainOid, localOid };
+}
+
+function trackRemote(dir, remote, name, oid) {
+  execFileSync('git', ['update-ref', `refs/remotes/${remote}/${name}`, oid], { cwd: dir, env: ISOLATED_ENV_BASE });
+}
+
+const FEATURE_REF = { localRef: 'refs/heads/feature', remoteRef: 'refs/heads/feature' };
+
+test('T-PP1: merging main into a pushed branch scans only the new commit, not the public main commits', (t) => {
+  const { dir, root, featureOid, mainOid, localOid } = setupMergeMainFixture(t);
+  trackRemote(dir, 'origin', 'main', mainOid);
+  trackRemote(dir, 'origin', 'feature', featureOid);
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin: pushLine(localOid, featureOid, FEATURE_REF), publicRoot: root });
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /^COMMITS 2$/m); // the merge commit and the clean commit
+  assert.match(result.stdout, /^PRIVATE commits unclassed=0$/m);
+  assert.match(result.stdout, /^VERDICT pass$/m);
+});
+
+test('T-PP2: the new commit message holding a term still blocks after a merge of main', (t) => {
+  const { dir, root, featureOid, mainOid, localOid } = setupMergeMainFixture(t, { newMessage: `new work by ${TERM_ZORBLAX}` });
+  trackRemote(dir, 'origin', 'main', mainOid);
+  trackRemote(dir, 'origin', 'feature', featureOid);
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin: pushLine(localOid, featureOid, FEATURE_REF), publicRoot: root });
+  assert.equal(result.code, 1);
+  assert.match(result.stdout, /^PRIVATE commits unclassed=1$/m);
+  assert.match(result.stdout, /^VERDICT block$/m);
+});
+
+test('T-PP3: a term in the new commit diff still blocks after a merge of main', (t) => {
+  const { dir, root, featureOid, mainOid, localOid } = setupMergeMainFixture(t, { newContent: `mentions ${TERM_ZORBLAX}\n` });
+  trackRemote(dir, 'origin', 'main', mainOid);
+  trackRemote(dir, 'origin', 'feature', featureOid);
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin: pushLine(localOid, featureOid, FEATURE_REF), publicRoot: root });
+  assert.equal(result.code, 1);
+  assert.match(result.stdout, /^VERDICT block$/m);
+});
+
+test('T-PP4: a main commit that is only in a different remote is NOT excluded (scanned, blocks)', (t) => {
+  const { dir, root, featureOid, mainOid, localOid } = setupMergeMainFixture(t);
+  trackRemote(dir, 'other', 'main', mainOid); // public on "other", but we push to "origin"
+  trackRemote(dir, 'origin', 'feature', featureOid);
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin: pushLine(localOid, featureOid, FEATURE_REF), publicRoot: root });
+  assert.equal(result.code, 1);
+  assert.match(result.stdout, /^PRIVATE commits unclassed=1$/m);
+});
+
+test('T-PP5: with no remote-tracking ref for main (stale or missing), the main commit is scanned: fail closed', (t) => {
+  const { dir, root, featureOid, localOid } = setupMergeMainFixture(t);
+  trackRemote(dir, 'origin', 'feature', featureOid);
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin: pushLine(localOid, featureOid, FEATURE_REF), publicRoot: root });
+  assert.equal(result.code, 1);
+  assert.match(result.stdout, /^VERDICT block$/m);
+});
+
+test('T-PP6: a brand-new branch (zero remote oid) after a merge of main scans only the new commits', (t) => {
+  const { dir, root, featureOid, mainOid, localOid } = setupMergeMainFixture(t);
+  trackRemote(dir, 'origin', 'main', mainOid);
+  trackRemote(dir, 'origin', 'feature', featureOid);
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin: pushLine(localOid, ZERO_OID, FEATURE_REF), publicRoot: root });
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /^VERDICT pass$/m);
+});
+
+test('T-PP7: an unknown remote oid still fails closed with the exclusion in the range', (t) => {
+  const { dir, root, mainOid, localOid } = setupMergeMainFixture(t);
+  trackRemote(dir, 'origin', 'main', mainOid);
+  const result = runGuard(PUSH_ARGS, { cwd: dir, stdin: pushLine(localOid, 'f'.repeat(40), FEATURE_REF), publicRoot: root });
+  assert.notEqual(result.code, 0);
+  assert.doesNotMatch(result.stdout, /^VERDICT pass$/m);
+});
+
+// A pre-push remote argument can be a path or URL, so it must never act as a ref glob.
+for (const [label, remoteArg] of [
+  ['a glob character', '*'],
+  ['a question-mark glob', '?'],
+  ['a bracket glob', '[a-z]ther'],
+  ['a URL', 'https://example.invalid/repo.git'],
+  ['a path', '../elsewhere/repo.git'],
+]) {
+  test(`T-PP8: remote argument ${label} excludes nothing: a commit public only under "other" is scanned and blocks`, (t) => {
+    const { dir, root, featureOid, mainOid, localOid } = setupMergeMainFixture(t);
+    trackRemote(dir, 'other', 'main', mainOid);
+    trackRemote(dir, 'origin', 'feature', featureOid);
+    const result = runGuard(['pre-push', remoteArg, 'https://example.invalid/repo.git'], {
+      cwd: dir,
+      stdin: pushLine(localOid, featureOid, FEATURE_REF),
+      publicRoot: root,
+    });
+    assert.equal(result.code, 1);
+    assert.match(result.stdout, /^PRIVATE commits unclassed=1$/m);
+    assert.match(result.stdout, /^VERDICT block$/m);
+  });
+}
+
+test('T-PP9: a zero-oid push to a glob-named remote also excludes nothing from another remote', (t) => {
+  const { dir, root, mainOid, localOid } = setupMergeMainFixture(t);
+  trackRemote(dir, 'other', 'main', mainOid);
+  const result = runGuard(['pre-push', '*', 'https://example.invalid/repo.git'], {
+    cwd: dir,
+    stdin: pushLine(localOid, ZERO_OID, FEATURE_REF),
+    publicRoot: root,
+  });
+  assert.equal(result.code, 1);
+  assert.match(result.stdout, /^VERDICT block$/m);
+});

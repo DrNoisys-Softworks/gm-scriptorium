@@ -280,6 +280,7 @@ orchestrator) specifically for this test flow: install the `v0.1.0` exe from its
     `test/update-cleanup.test.js`'s AC-26-04/AC-26-05/AC-26-06 (scratch `exeDir`, not the real install
     location); unverified whether Windows Explorer or antivirus holding a handle on the notices file
     behaves the same as the simulated `EBUSY` AC-26-06 exercises.
+    *Changed 2026-10-12: once the `--version` notices change lands (issue #49), `--version` no longer writes `THIRD-PARTY-NOTICES.txt`, so "run `scriptorium --version` once and confirm the file reappears" no longer describes the program. After `update` the file stays gone; the way to get the text is `--notices`. This step and AC-26-08 below are checked through C156 instead.*
   - **AC-26-08 `[WINDOWS-ONLY, OPEN]`, not attempted:** the same sequence above (old stamp -> gone after
     `update` -> new stamp after the next `--version`) run end-to-end on the real install, not a scratch
     directory, as the final confirmation that the mechanism holds outside the test harness.
@@ -1936,7 +1937,8 @@ ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux pac
 1. Copy `examples\the-long-lease` to `S\vault` and delete `S\vault\_meta\scriptorium`. Run `serve --admin --config S\config.toml` (the file doesn't exist yet). The usual three lines print, then `setup: no campaign yet, so the panel starts with setup`. Open the printed link in Edge: the setup start screen shows.
 2. Local vault. Name `lease`, vault `S\vault`: the checks go green. The output defaults to `S\lease-site`, the title comes from the vault, and the theme shows its default. The review lists four entries under `_meta\scriptorium\` and the config path. Choose Build my first preview: four lines tick over, then the ready screen. Open my preview shows the site. Go to my panel shows the Overview with the welcome. `S\lease-site` doesn't exist.
 3. Parity. In folder T, make the same copy and run `init --yes --name lease --vault T\vault --config T\config.toml`. `certutil -hashfile` of `pack.toml` and `vault.config.json` gives the same value in both folders. The two `config.toml` files differ only in the vault and output paths.
-4. Network share. Share a folder holding a fresh copy, or use `\\localhost\C$\...`. Typing the path shows nothing until you leave the box. Then the network-share warning shows with the two git commands. Continue works, and the review shows the network share pill.
+4. Network share. Share a folder holding a fresh copy, or use `\\localhost\scratch\...`. Typing the path shows nothing until you leave the box. Then the network-share warning shows with the two git commands. Continue works, and the review shows the network share pill.
+   *Changed 2026-10-12: `\\localhost\scratch\...` replaces `\\localhost\C$\...`, which a standard user cannot open. Share the scratch folder as `scratch` first, as in C137 step 4.*
 5. Map `Z:` to a share, disconnect it, and type `Z:\vault`: "Can't find that folder" shows, with the mapped-drive hint in the grey rule line. Type `\\no-such-host-scriptorium\share\vault` and leave the box. The panel keeps answering (switch screens), and the field reports that it can't reach the folder within a few seconds.
 6. An output folder inside the vault (`S\vault\site`) is refused with `refusing to build inside the vault: ...`, and Continue stays off.
 7. Ctrl-C: `stopped.`, exit 0, and no `scriptorium-preview-*` folder left in `%TEMP%`. Run the same command again: the campaign panel opens, not setup. `/setup` redirects to the Overview. The welcome shows until dismissed; dismiss it, restart, and it's gone.
@@ -1946,12 +1948,16 @@ ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux pac
 
 `docs/decisions/0048-new-campaign-vault.md`, sections 1, 2 and 5. **Mark this OPEN: verified on Linux from source and from the Linux packaged binary only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 6; the two must match. Work in a local scratch folder S.
 
-1. Run `init --yes --name fresh --new-vault "S\Fresh Campaign" --system none --config S\config.toml`. It exits 0. The vault has `Factions & Organizations` and `Items & Artifacts`, and `_meta\NOTICE.txt`. Hash `_meta\entity-types.md` with `certutil`; it must match the value recorded in the pull request. Then run `build fresh` and `serve fresh`: the landing page shows the title and the welcome page. Run it again with `--name second --new-vault "S\Games\Fantasy\Second"`: the two folders above it are created level by level, and the output lists them.
-2. Run `serve --admin --config S2\config.toml` with no config. Choose "Start a new campaign here". Enter `S2\New Vault`, which is missing: the check goes green and the system list shows. Go through review, then Build my first preview: the ready screen appears, and the preview shows the landing page and the welcome page.
+1. Run `init --yes --name fresh --new-vault "S\Fresh Campaign" --system none --config S\cfg\config.toml`. It exits 0. The vault has `Factions & Organizations` and `Items & Artifacts`, and `_meta\NOTICE.txt`. Hash `_meta\entity-types.md` with `certutil`; it must match the value recorded in the pull request. Then run `build fresh` and `serve fresh`: the landing page shows the title and the welcome page. Run it again with `--name second --new-vault "S\Games\Fantasy\Second"`: the two folders above it are created level by level, and the output lists them.
+   *Changed 2026-10-11: the config is now in its own folder `S\cfg`, not beside the new vault. The program refuses a vault inside its own settings folder (exit 3), so the old path could never pass; the program was right.*
+2. Run `serve --admin --config S2cfg\config.toml` with no config. Choose "Start a new campaign here". Enter `S2\New Vault`, which is missing: the check goes green and the system list shows. Go through review, then Build my first preview: the ready screen appears, and the preview shows the landing page and the welcome page.
+   *Changed 2026-10-12: the config is now in its own folder `S2cfg`, not in `S2` beside the new vault `S2\New Vault`. The program refuses a vault inside its own settings folder (exit 3), the same fault as step 1.*
 3. In an empty folder under `%OneDrive%`: the info note shows and creation succeeds. If `desktop.ini` appears, its hash is unchanged before and after. Record any OneDrive conflict copies.
-4. Use `\\localhost\C$\...\UNCVault`, which is missing. Nothing is checked until you leave the box. Then the network-share warning shows with the git note. Creation and the preview both work.
+4. Use `\\localhost\scratch\...\UNCVault`, which is missing. Nothing is checked until you leave the box. Then the network-share warning shows with the git note. Creation and the preview both work.
+   *Changed 2026-10-11: `\\localhost\scratch\...` replaces `\\localhost\C$\...`. A standard user cannot open the `C$` administrative share. Share S as `scratch` first (for example `net share scratch=S` from an elevated prompt).*
 5. A folder you made with `git init` and nothing else is accepted, and the hash of `.git\HEAD` is the same before and after. Refusals, each leaving the folder unchanged (exit 3 in `init`): a non-empty folder; a junction (`mklink /J`); `C:\`; a folder inside `S\Fresh Campaign`.
-6. Deny write on an empty folder (`icacls <dir> /deny %USERNAME%:(WD)`). Creation stops with a plain message listing what was created, and nothing is removed. Remove the deny afterwards. Re-hash the real config.
+6. Deny write on an empty folder (`icacls <dir> /deny %USERNAME%:(WD,AD)`). Creation stops with a plain message listing what was created, and nothing is removed. Remove the deny afterwards. Re-hash the real config.
+   *Changed 2026-10-11: the deny is now `(WD,AD)`. On Windows `(WD)` alone does not stop a folder being created; with `(WD,AD)` the program gives the expected plain refusal.*
 
 ### C138: the folder picker lists only folders, never stalls, and creates one folder at a time, in the real win-x64 exe
 
@@ -1959,7 +1965,8 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
 
 1. Start browser setup. Browse on the vault field: `C:` and a scratch mapped drive both list. No "insert a disk" dialog appears for an empty card reader or optical drive.
 2. Disconnect the mapped drive and press Refresh. It shows "not responding" within a few seconds while the others list, and the panel keeps answering (switch screens).
-3. Type `\\localhost\C$\` plus a scratch path in the location box. Nothing is requested until Enter or Go, then it lists.
+3. Type `\\localhost\scratch\` plus a scratch path in the location box. Nothing is requested until Enter or Go, then it lists.
+   *Changed 2026-10-11: `\\localhost\scratch\` replaces `\\localhost\C$\`, which a standard user cannot open. Use the `scratch` share made in C137 step 4.*
 4. A `mklink /J` junction in S is marked as a link and can't be entered or chosen.
 5. A OneDrive folder lists and opens as an ordinary folder.
 6. At `C:\`, `$Recycle.Bin` and `System Volume Information` are hidden until Show hidden folders is ticked.
@@ -2017,6 +2024,41 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
 2. The signed release runs `update --pre --version <previous tag>`. It is refused, nothing is downloaded, it exits 0 and the file's hash is unchanged.
 3. Report only. Download the exe through Edge from the release page and record SmartScreen's first-run dialog.
 4. Record, as expected and not as a defect, that a self-updated exe carries no Mark-of-the-Web, so SmartScreen does not prompt on that path.
+
+### C153: a held-open config.toml in the panel shows a plain message and loses nothing, in the real win-x64 exe
+
+Issue #67, `docs/decisions/0050-several-campaigns.md`. **Mark this OPEN: Linux tests prove the logic only; the raw EPERM comes from how NTFS refuses a rename over a file held open.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 4; the two must match.
+
+1. Register two campaigns in the scratch config and run `serve --admin`. Hash the scratch `config.toml`.
+2. In PowerShell hold it open: `$f=[IO.File]::Open('<scratch config.toml>','Open','Read','Read')`. In the panel, press Set as default on the second campaign.
+3. Within about 3 seconds the panel shows "Your settings file is open in another program. Close it and try again." There is no EPERM text. The scratch `config.toml` hash is unchanged, and no `.config.toml.scriptorium-tmp-*` file is beside it.
+4. Run `$f.Close()` and press Set as default again. It succeeds. Re-hash the real config.
+
+### C154: `remote password` refuses a config path inside an unlisted vault, on NTFS, in the real win-x64 exe
+
+Issue #47, `docs/decisions/0029-remote-access.md`. **Mark this OPEN: Linux tests prove the logic only; the path comparison on NTFS (case, short names, links) is only proven by running the exe.** Isolate config as in C135: never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match. Work in a local scratch folder S.
+
+1. Make a folder `S\vault` holding `_meta\vault-config.md` that no registered campaign lists (an unlisted vault).
+2. Run `gm-scriptorium remote password --config S\vault\config.toml` and read `echo %ERRORLEVEL%`. It exits 3, and the one-line message contains "never inside a vault".
+3. No `panel` folder was created in `S\vault`, and no `password.json` exists. Repeat with the path spelled in a different case and through a short (8.3) name if available: the same refusal. Re-hash the real config.
+
+### C155: a Notepad UTF-8 BOM in the config and campaign files is accepted and not written back, in the real win-x64 exe
+
+Issue #48. **Mark this OPEN: Linux tests prove the logic only; the BOM comes from Windows Notepad's "UTF-8 with BOM" save.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 5; the two must match. Use a scratch copy of a campaign.
+
+1. Open the scratch campaign's `vault.config.json` in Notepad and save it as "UTF-8 with BOM". Run `check`. It must not report "not valid JSON".
+2. Run `serve --admin`, open the same campaign, change the site title and save. The saved file opens with no BOM (first three bytes are not `EF BB BF`).
+3. Repeat steps 1 and 2 for the campaign's `pack.toml`.
+4. Repeat for the scratch `config.toml`: save it with a BOM, run `status` and then use Set as default in the panel. Both work, and the saved file has no BOM.
+5. Re-hash the real config.
+
+### C156: `--version` names the notices option and creates no file, in the real win-x64 exe
+
+Issue #49, `docs/decisions/0011-notices-beside-the-executable.md`. **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match.
+
+1. Copy the exe to a scratch folder with no `THIRD-PARTY-NOTICES.txt` and run `gm-scriptorium-win-x64.exe --version`. It prints "third-party notices: run gm-scriptorium --notices to print them".
+2. List the folder. No `THIRD-PARTY-NOTICES.txt` (or any other new file) was created beside the exe.
+3. Run `--notices`. It prints the notices text and exits 0. Re-hash the real config.
 
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 

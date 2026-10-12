@@ -307,7 +307,7 @@ test('startupText ssh: the pre line, and the exact tunnel command with matching 
 
 test('startupText proxy: the WARNING names the proxy and the bind, then the five post lines', () => {
   const t = s.startupText(PROXY, s.listenPlan(PROXY), { adminPort: 7400, previewPort: 7401, token: 'TOK' });
-  assert.deepEqual(t.pre, ['WARNING: remote access is on (mode proxy). It answers 198.51.100.20 (your proxy) and this machine, on 192.0.2.42 ports 7400 and 7401.']);
+  assert.deepEqual(t.pre, ['WARNING: remote access is on (mode proxy). It answers 198.51.100.20 (your proxy) and this computer (127.0.0.1), on 192.0.2.42 ports 7400 and 7401.']);
   assert.deepEqual(t.post, [
     'remote admin panel: https://scriptorium.home.arpa/ (sign in with the panel password)',
     'remote preview: https://preview.scriptorium.home.arpa/',

@@ -173,3 +173,47 @@ history check) still run on that ref.
 
 **Rejected alternative.** Treating every empty set as "nothing to scan", in both the pre-push check
 and `scan commits`. That would also let a mistyped range or a git failure pass without a word.
+
+## Amendment: file names that hold a newline
+
+**What changed.** A committed file whose name held a newline could make the check pass when it
+should have blocked. The scanner printed that file's hit on two lines, the guard could not read the
+second half back as a hit, and the scan ended with a pass. The check now fails closed in three
+ways:
+
+- Every list of paths the guard and the scanner read from git is NUL-separated (`-z`), so a path
+  arrives whole whatever characters it holds. This covers the tree, commit and working-copy scans
+  and the forbidden-path check that `ci`, `pre-push` and `release` run.
+- The scanner prints a path with control characters (newline, carriage return, escape, the other
+  control codes, and the Unicode line and paragraph separators) as a visible escape such as `\x0a`,
+  so a name can never split a report row. Matching still uses the real path.
+- The guard compares the scanner's own total with the hits it could read back. If they differ, it
+  adds one hit that nothing can excuse, so the scan blocks.
+
+**Limits.** An allowlist `path` entry still cannot name a path with a control character (those are
+refused when the list loads), so such a file is never excused. A file name that holds a private
+word is reported with that word masked, as before. The escaped spelling in a report is for reading
+only; it is not a form you can put in the allow file.
+
+## Amendment: a push after merging main scans only what is new
+
+**What changed.** The pre-push check used to scan the range from the remote's old tip of the pushed
+branch to the local tip. After a branch merged main, that range also held commits already on main,
+which are public. A private-list hit in one of those commits blocked every such push, although
+re-scanning them could not prevent anything. The check now scans only the commits that the old
+remote tip does not reach and that no remote-tracking ref of the remote being pushed to reaches
+(`git rev-list <local> --not <old remote tip> <ids of refs/remotes/<remote>/*>`). A new branch already worked
+this way.
+
+**What did not change.**
+
+- Commits the remote lacks are scanned in full: messages, trees and diffs.
+- It fails closed. If the remote-tracking refs are missing or stale, the commits that depended on
+  them are simply scanned. A remote commit this repository does not know still ends with
+  `ERROR unreadable-range`.
+- Only refs of the remote named in the push count. They are listed exactly, never matched as a pattern, so a path or URL given as the remote (even one named `*`) excludes nothing. A commit that is public on a different remote is
+  still scanned.
+- The tree at the pushed revision is still scanned in full.
+
+**Rejected alternative.** Skipping the scan when the branch has any upstream. That would also skip
+commits that really are new.
