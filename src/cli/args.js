@@ -17,6 +17,11 @@ const { ConfigError, VaultUnreachableError } = require('../util/errors');
 const GLOBAL_FLAGS_WITH_VALUE = new Set(['campaign', 'config', 'vault', 'out', 'site-config', 'port', 'host']);
 const GLOBAL_BOOLEAN_FLAGS = new Set(['json', 'quiet', 'no-color', 'version', 'help', 'notices', 'force', 'force-out', 'force-check', 'no-check', 'graph', 'build', 'check', 'pre', 'no-shim', 'yes', 'admin']);
 
+// ADR 0055: bare --force no longer exists. build refuses it with this one line, from validateFlags
+// (the CLI path) and from runBuildCommand (direct callers), so neither can ignore it silently.
+const FORCE_SPLIT_MESSAGE =
+  "--force has been split: use --force-check to build despite check errors, or --force-out to build into the site config's own outputDir. Nothing overrides the output-leak scan.";
+
 /*
  * Issue #106: the flags each command accepts. Anything else is an error (an unknown flag used to be
  * ignored silently, so a typo of --force or --json quietly did something other than intended).
@@ -38,11 +43,6 @@ const COMMAND_FLAGS = Object.freeze({
 });
 // Of the accepted flags, the ones that need a value after them (`update --version <tag>` is the one
 // place --version takes a value; elsewhere it is the boolean that prints the version).
-// ADR 0055: bare --force no longer exists. build refuses it with this one line, from validateFlags
-// (the CLI path) and from runBuildCommand (direct callers), so neither can ignore it silently.
-const FORCE_SPLIT_MESSAGE =
-  "--force has been split: use --force-check to build despite check errors, or --force-out to build into the site config's own outputDir. Nothing overrides the output-leak scan.";
-
 const VALUE_FLAGS = new Set(['campaign', 'config', 'vault', 'out', 'site-config', 'port', 'host', 'name', 'title', 'theme', 'new-vault', 'system', 'preview-port', 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy']);
 
 function editDistance(a, b) {
