@@ -3,7 +3,7 @@
 const { loadConfig } = require('./args');
 const { writeConfigFile } = require('./config');
 const { createSecretReader } = require('./secretprompt');
-const { ConfigError } = require('../util/errors');
+const { ConfigError, VaultUnreachableError } = require('../util/errors');
 const { EXIT_CODES } = require('../util/exitcodes');
 const { validatePanelPassword } = require('../setup/validate');
 const settingsLib = require('../remote/settings');
@@ -47,6 +47,19 @@ function loadSettings(flags) {
   const loaded = loadConfig(flags);
   const settings = settingsLib.parseRemoteTable(loaded.config.remote);
   return { ...loaded, settings, paths: remotePaths(loaded.configPath) };
+}
+
+/**
+ * A config folder inside a vault is a config problem, so it exits 3 like the other config and vault
+ * refusals (docs/DEVELOPING.md, "Exit codes for user errors"). Same message, different class.
+ */
+function assertPanelOutsideVaults(panelDir, config) {
+  try {
+    assertNotInsideAnyVault(panelDir, config);
+  } catch (err) {
+    if (err instanceof ConfigError) throw new VaultUnreachableError(err.message, { path: panelDir, campaign: null, reason: 'bad-config' });
+    throw err;
+  }
 }
 
 function sessionsOf(paths, now) {
@@ -168,7 +181,7 @@ async function runRemoteCommand(flags, subcommand, args = [], { stdin = process.
     }
 
     case 'password': {
-      assertNotInsideAnyVault(paths.panelDir, config);
+      assertPanelOutsideVaults(paths.panelDir, config);
       const reader = createSecretReader({ input: stdin, output: stdout });
       let chosen;
       try {
@@ -184,14 +197,14 @@ async function runRemoteCommand(flags, subcommand, args = [], { stdin = process.
     }
 
     case 'signout-all': {
-      assertNotInsideAnyVault(paths.panelDir, config);
+      assertPanelOutsideVaults(paths.panelDir, config);
       const { count } = sessionsOf(paths, now).revokeAll();
       const warning = auditCli(paths, now, { event: 'signout-all', count });
       return { exitCode: EXIT_CODES.OK, human: `signed out ${count} remote session(s)${warning}` };
     }
 
     case 'off': {
-      assertNotInsideAnyVault(paths.panelDir, config);
+      assertPanelOutsideVaults(paths.panelDir, config);
       if (config.remote !== undefined) writeConfigFile(configPath, { ...config, remote: { ...config.remote, mode: 'local' } });
       sessionsOf(paths, now).revokeAll();
       if (readPasswordRecord(paths.passwordFile).state !== 'unset') clearPasswordRecord(paths.passwordFile, { now });

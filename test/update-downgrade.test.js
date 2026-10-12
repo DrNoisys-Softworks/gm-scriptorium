@@ -10,6 +10,11 @@ const { runUpdateCommand } = require('../src/cli/update');
 const { EXIT_CODES } = require('../src/util/exitcodes');
 const { compareVersions } = require('../src/update/semver');
 const pkg = require('../package.json');
+const { installLoopbackGuard } = require('./helpers/net-stubs');
+
+// The update flow is injected here, so nothing may reach a network: the guard fails the file if it does.
+const guard = installLoopbackGuard();
+test.after(() => guard.assertClean({ minConnects: 0 }));
 
 /*
  * Defect (the Windows verifier, rc.2 Windows verification channel note): `update` treated whatever
@@ -56,9 +61,8 @@ function installDeps({ execPath, tmpRoot, tagName }) {
     platform: 'win32',
     tmpRoot,
     isPkg: true,
-    requireGh: () => '/usr/bin/gh',
-    fetchLatestRelease: () => ({ tag_name: tagName, html_url: `https://example.test/releases/${tagName}` }),
-    downloadAsset: (ghPath, tag, pattern, dir) => {
+    lookupRelease: async () => ({ tag_name: tagName, html_url: `https://example.test/releases/${tagName}` }),
+    downloadAsset: async (tag, pattern, dir) => {
       downloadCalled = true;
       fs.writeFileSync(path.join(dir, pattern), MZ_HEADER);
     },
@@ -75,13 +79,13 @@ function installDeps({ execPath, tmpRoot, tagName }) {
 // Reproduction: rc.2 -> 0.2.3 must be refused, not offered/installed.
 // ---------------------------------------------------------------------------
 
-test('DEFECT REPRO: `update --check` on a prerelease never reports a lower stable tag as available', () => {
+test('DEFECT REPRO: `update --check` on a prerelease never reports a lower stable tag as available', async () => {
   const root = makeScratch('scriptorium-downgrade-t1-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
     const deps = installDeps({ execPath, tmpRoot, tagName: 'v0.2.3' });
 
-    const result = runUpdateCommand({ check: true }, deps);
+    const result = await runUpdateCommand({ check: true }, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.doesNotMatch(result.human, /update available/);
@@ -92,13 +96,13 @@ test('DEFECT REPRO: `update --check` on a prerelease never reports a lower stabl
   }
 });
 
-test('DEFECT REPRO: `update` (no --check) on a prerelease never installs a lower stable tag', () => {
+test('DEFECT REPRO: `update` (no --check) on a prerelease never installs a lower stable tag', async () => {
   const root = makeScratch('scriptorium-downgrade-t2-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
     const deps = installDeps({ execPath, tmpRoot, tagName: 'v0.2.3' });
 
-    const result = runUpdateCommand({}, deps);
+    const result = await runUpdateCommand({}, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.doesNotMatch(result.human, /\bupdated\b/i, 'must never use the word "updated" for a refused downgrade');
@@ -109,13 +113,13 @@ test('DEFECT REPRO: `update` (no --check) on a prerelease never installs a lower
   }
 });
 
-test('DEFECT REPRO: the refusal message names both versions and points at --pre, independent of the exact wording', () => {
+test('DEFECT REPRO: the refusal message names both versions and points at --pre, independent of the exact wording', async () => {
   const root = makeScratch('scriptorium-downgrade-t3-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
     const deps = installDeps({ execPath, tmpRoot, tagName: 'v0.2.3' });
 
-    const result = runUpdateCommand({}, deps);
+    const result = await runUpdateCommand({}, deps);
 
     assert.match(result.human, new RegExp(pkg.version.replace(/\./g, '\\.')), 'must name the running version');
     assert.match(result.human, /0\.2\.3/, 'must name the rejected candidate');
@@ -134,13 +138,13 @@ test('DEFECT REPRO: the refusal message names both versions and points at --pre,
 // not fix evidence; the DEFECT REPRO tests above are the evidence.
 // ---------------------------------------------------------------------------
 
-test('regression: a genuinely higher tag is still offered under --check', () => {
+test('regression: a genuinely higher tag is still offered under --check', async () => {
   const root = makeScratch('scriptorium-downgrade-t4-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
     const deps = installDeps({ execPath, tmpRoot, tagName: 'v9.9.9' });
 
-    const result = runUpdateCommand({ check: true }, deps);
+    const result = await runUpdateCommand({ check: true }, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.match(result.human, /update available/);
@@ -149,13 +153,13 @@ test('regression: a genuinely higher tag is still offered under --check', () => 
   }
 });
 
-test('regression: a genuinely higher tag is still installed without --check', () => {
+test('regression: a genuinely higher tag is still installed without --check', async () => {
   const root = makeScratch('scriptorium-downgrade-t5-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
     const deps = installDeps({ execPath, tmpRoot, tagName: 'v9.9.9' });
 
-    const result = runUpdateCommand({}, deps);
+    const result = await runUpdateCommand({}, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.match(result.human, /^updated /);
@@ -175,13 +179,13 @@ test('regression: a genuinely higher tag is still installed without --check', ()
 // only that the rewrite did not regress this case, not that the fix works.
 // ---------------------------------------------------------------------------
 
-test('a tag exactly equal (with a leading v) to the running version is "already at the latest"', () => {
+test('a tag exactly equal (with a leading v) to the running version is "already at the latest"', async () => {
   const root = makeScratch('scriptorium-downgrade-t6-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
     const deps = installDeps({ execPath, tmpRoot, tagName: `v${pkg.version}` });
 
-    const result = runUpdateCommand({}, deps);
+    const result = await runUpdateCommand({}, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.match(result.human, /already at the latest version/);
@@ -197,13 +201,13 @@ test('a tag exactly equal (with a leading v) to the running version is "already 
 // escape hatch to suggest, since --pre is already what was used).
 // ---------------------------------------------------------------------------
 
-test('C46: `update --pre` refuses when nothing (stable or prerelease) beats the running version', () => {
+test('C46: `update --pre` refuses when nothing (stable or prerelease) beats the running version', async () => {
   const root = makeScratch('scriptorium-downgrade-t7-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
     const deps = installDeps({ execPath, tmpRoot, tagName: 'v0.2.3' });
 
-    const result = runUpdateCommand({ pre: true }, deps);
+    const result = await runUpdateCommand({ pre: true }, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.doesNotMatch(result.human, /\bupdated\b/i);
@@ -219,13 +223,13 @@ test('C46: `update --pre` refuses when nothing (stable or prerelease) beats the 
 // Fail closed on a malformed tag: never offer it, never crash uncaught.
 // ---------------------------------------------------------------------------
 
-test('a malformed release tag is refused, not offered, and reported as a Scriptorium error (exit 1)', () => {
+test('a malformed release tag is refused, not offered, and reported as a Scriptorium error (exit 1)', async () => {
   const root = makeScratch('scriptorium-downgrade-t8-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
     const deps = installDeps({ execPath, tmpRoot, tagName: 'not-a-version' });
 
-    const result = runUpdateCommand({ check: true }, deps);
+    const result = await runUpdateCommand({ check: true }, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.SCRIPTORIUM_ERROR, result.human);
     assert.doesNotMatch(result.human, /update available/);
@@ -248,7 +252,7 @@ test('a malformed release tag is refused, not offered, and reported as a Scripto
 // does not rewrite).
 // ---------------------------------------------------------------------------
 
-test('packaged path (isPkg:true) agrees with src/update/semver.js\'s own verdict on the same pair', () => {
+test('packaged path (isPkg:true) agrees with src/update/semver.js\'s own verdict on the same pair', async () => {
   const root = makeScratch('scriptorium-downgrade-t9-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
@@ -257,7 +261,7 @@ test('packaged path (isPkg:true) agrees with src/update/semver.js\'s own verdict
     const independentVerdict = compareVersions(pkg.version, 'v0.2.3');
     assert.ok(independentVerdict > 0, 'sanity: the running (prerelease) version must independently compare higher');
 
-    const result = runUpdateCommand({}, deps);
+    const result = await runUpdateCommand({}, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.doesNotMatch(result.human, /\bupdated\b/i, 'the packaged path must have reached the same refusal the comparator predicts');

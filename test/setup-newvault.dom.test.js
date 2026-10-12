@@ -128,6 +128,32 @@ async function toNewFolder(page) {
   await page.waitForSelector('#su-newvault');
 }
 
+/**
+ * Press a button under a box, let the box's committed check (field=<field>&commit=1, sent when the
+ * press blurs the box) come back while the mouse is still down, then release. The answer is held
+ * with page.route until the button is down, so the sequence is set by the test and not by timing.
+ */
+async function pressWhileCommitLands(page, field, buttonSelector) {
+  let heldOnce = false;
+  const answered = new Promise((resolve) => {
+    page.route(`**/api/setup/check?field=${field}*commit=1*`, async (route) => {
+      if (heldOnce) return route.continue();
+      heldOnce = true;
+      const resp = await route.fetch();
+      resolve(() => route.fulfill({ response: resp }));
+    });
+  });
+  await page.hover(buttonSelector);
+  await page.mouse.down();
+  const deliver = await answered;
+  const landed = page.waitForResponse((r) => r.url().includes(`field=${field}`) && r.url().includes('commit=1'));
+  await deliver();
+  await (await landed).finished();
+  // two paint frames: every handler the answer queued has run by then
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await page.mouse.up();
+}
+
 for (const browserName of ['chromium', 'firefox']) {
   const offset = browserName === 'firefox' ? 1 : 0;
   test(`start a new campaign, browsing in ${browserName}`, { skip: SKIP, timeout: 420000 }, async (t) => {
@@ -201,6 +227,177 @@ for (const browserName of ['chromium', 'firefox']) {
       assert.equal(await nextEnabled(page), true);
       assert.deepEqual(await page.$$eval('.su-rail li button > span:nth-of-type(2)', (els) => els.map((e) => e.textContent)), ['Campaign name', 'New vault folder', 'Site title', 'Game system', 'Output folder', 'Theme', 'Review']);
       assert.equal(await page.textContent('.a1-eyebrow'), 'Question 2 of 6');
+      await page.context().close();
+    });
+
+    // Pressing "Start a new campaign here instead" first blurs the vault box, and leaving the box
+    // commits the field, so a second check is on its way while the mouse is still down. If its
+    // answer is drawn before the button is released, the pressed button is gone and the click is
+    // lost. The press and the release are separated here, with the committed answer held until
+    // the test lets it through, so the sequence is set by the test and not by timing.
+    for (const dead of ['missing', 'notEmpty']) {
+      await t.test(`the way across is not lost when the committed check lands mid-click (${dead})`, async () => {
+        const page = await open(1280);
+        await page.click('.su-foot .a1-btn.primary');
+        await typeInto(page, '#su-name', 'ember-road');
+        await waitStatus(page, 'su-name-st', 'works.');
+        await page.click('[data-part="next"]');
+        const target = dead === 'missing' ? path.join(fx.C, 'Ember Road') : fx.notEmpty;
+        await typeInto(page, '#su-vault', target);
+        await waitStatus(page, 'su-vault-st', dead === 'missing' ? 'Can’t find that folder' : 'isn’t a vault');
+        let heldOnce = false;
+        const answered = new Promise((resolve) => {
+          page.route('**/api/setup/check?*commit=1*', async (route) => {
+            if (heldOnce) return route.continue();
+            heldOnce = true;
+            const resp = await route.fetch();
+            resolve(() => route.fulfill({ response: resp }));
+          });
+        });
+        const btn = '#su-vault-st button:has-text("Start a new campaign here instead")';
+        await page.hover(btn);
+        await page.mouse.down();
+        const deliver = await answered;
+        const landed = page.waitForResponse((r) => r.url().includes('commit=1'));
+        await deliver();
+        await (await landed).finished();
+        // two paint frames: every handler the answer queued has run by then
+        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+        await page.mouse.up();
+        await page.waitForSelector('#su-newvault', { timeout: 5000 });
+        assert.equal(await page.inputValue('#su-newvault'), target);
+        await page.context().close();
+      });
+    }
+
+    // The other order: the button is released before the committed answer comes back. The answer
+    // belongs to the vault question, which the GM has already left, so it must not touch the
+    // Continue button of the new vault question they are now on.
+    await t.test('a vault answer that lands after the way across does not disable Continue', async () => {
+      const page = await open(1280);
+      await page.click('.su-foot .a1-btn.primary');
+      await typeInto(page, '#su-name', 'ember-road');
+      await waitStatus(page, 'su-name-st', 'works.');
+      await page.click('[data-part="next"]');
+      const missing = path.join(fx.C, 'Ember Road');
+      await typeInto(page, '#su-vault', missing);
+      await waitStatus(page, 'su-vault-st', 'Can\u2019t find that folder');
+      let heldOnce = false;
+      const answered = new Promise((resolve) => {
+        page.route('**/api/setup/check?field=vault*commit=1*', async (route) => {
+          if (heldOnce) return route.continue();
+          heldOnce = true;
+          const resp = await route.fetch();
+          resolve(() => route.fulfill({ response: resp }));
+        });
+      });
+      await page.click('#su-vault-st button:has-text("Start a new campaign here instead")');
+      await page.waitForSelector('#su-newvault');
+      await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+      assert.equal(await nextEnabled(page), true);
+      const deliver = await answered;
+      const landed = page.waitForResponse((r) => r.url().includes('field=vault') && r.url().includes('commit=1'));
+      await deliver();
+      await (await landed).finished();
+      // two paint frames: every handler the answer queued has run by then
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      assert.equal(await nextEnabled(page), true, 'the late vault answer left Continue alone');
+      await page.context().close();
+    });
+
+    await t.test('the new vault question: the way back to "have a vault" is not lost when the committed check lands mid-click', async () => {
+      const page = await open(1280);
+      await toNewFolder(page);
+      await typeInto(page, '#su-newvault', path.join(fx.host, 'Ember Road'));
+      await waitStatus(page, 'su-newvault-st', 'inside a vault');
+      await pressWhileCommitLands(page, 'newVault', '#su-newvault-st button:has-text("as my vault")');
+      await page.waitForSelector('#su-vault', { timeout: 5000 });
+      assert.equal(await page.inputValue('#su-vault'), fx.host);
+      await page.context().close();
+    });
+
+    await t.test('the output question: "Use the suggested folder instead" is not lost when the committed check lands mid-click', async () => {
+      const page = await open(1280);
+      await toNewFolder(page);
+      await typeInto(page, '#su-newvault', path.join(fx.C, 'Ember Road'));
+      await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+      await page.click('[data-part="next"]');
+      await page.waitForFunction(() => !!document.getElementById('su-title') && document.getElementById('su-title').value !== '');
+      await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+      await page.click('[data-part="next"]');
+      await page.waitForSelector('input[name="su-sys"]');
+      await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+      await page.click('[data-part="next"]');
+      await page.waitForSelector('#su-out');
+      await page.waitForFunction(() => document.getElementById('su-out').value !== '' && document.getElementById('su-out-st').textContent.includes('Outside the vault'));
+      await typeInto(page, '#su-out', fx.notEmpty);
+      await waitStatus(page, 'su-out-st', 'already has other files');
+      await pressWhileCommitLands(page, 'output', '#su-out-st button:has-text("Use the suggested folder instead")');
+      await page.waitForFunction(() => document.getElementById('su-out').value.endsWith('ember-road-site'), null, { timeout: 5000 });
+      await waitStatus(page, 'su-out-st', 'Outside the vault');
+      await page.context().close();
+    });
+
+    // The confirm box belongs to the message under the output box. Typing a character and deleting
+    // it clears the confirmation and asks the server again, and the answer comes back unchanged.
+    // The message must still be redrawn, or the box stays ticked while Continue is off.
+    await t.test('the output question: an unchanged answer after the confirmation is cleared does not leave the box ticked', async () => {
+      const page = await open(1280);
+      await toNewFolder(page);
+      await typeInto(page, '#su-newvault', path.join(fx.C, 'Ember Road'));
+      await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+      await page.click('[data-part="next"]');
+      await page.waitForFunction(() => !!document.getElementById('su-title') && document.getElementById('su-title').value !== '');
+      await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+      await page.click('[data-part="next"]');
+      await page.waitForSelector('input[name="su-sys"]');
+      await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+      await page.click('[data-part="next"]');
+      await page.waitForSelector('#su-out');
+      await page.waitForFunction(() => document.getElementById('su-out').value !== '' && document.getElementById('su-out-st').textContent.includes('Outside the vault'));
+      await typeInto(page, '#su-out', fx.notEmpty);
+      await waitStatus(page, 'su-out-st', 'already has other files');
+      // pressed with the box's committed answer landing before the release, so the sequence is fixed
+      await pressWhileCommitLands(page, 'output', '#su-outok');
+      assert.equal(await page.isChecked('#su-outok'), true);
+      assert.equal(await nextEnabled(page), true, 'ticking the box lets you continue');
+      const asked = page.waitForResponse((r) => r.url().includes('field=output') && r.url().includes('commit=0'));
+      await page.focus('#su-out');
+      await page.keyboard.type('x');
+      await page.keyboard.press('Backspace');
+      assert.equal(await page.inputValue('#su-out'), fx.notEmpty);
+      await (await asked).finished();
+      // two paint frames: every handler the answer queued has run by then
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      assert.equal(await nextEnabled(page), false, 'the confirmation was cleared, so Continue is off');
+      assert.equal(await page.isChecked('#su-outok'), false, 'and the box shows it');
+      await page.context().close();
+    });
+
+    // Ticking the confirm box changes what the message shows, so the next unchanged answer must not
+    // count as new: it would replace the button the GM is pressing.
+    await t.test('the output question: after ticking the box, "Use the suggested folder instead" is not lost mid-click', async () => {
+      const page = await open(1280);
+      await toNewFolder(page);
+      await typeInto(page, '#su-newvault', path.join(fx.C, 'Ember Road'));
+      await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+      await page.click('[data-part="next"]');
+      await page.waitForFunction(() => !!document.getElementById('su-title') && document.getElementById('su-title').value !== '');
+      await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+      await page.click('[data-part="next"]');
+      await page.waitForSelector('input[name="su-sys"]');
+      await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+      await page.click('[data-part="next"]');
+      await page.waitForSelector('#su-out');
+      await page.waitForFunction(() => document.getElementById('su-out').value !== '' && document.getElementById('su-out-st').textContent.includes('Outside the vault'));
+      await typeInto(page, '#su-out', fx.notEmpty);
+      await waitStatus(page, 'su-out-st', 'already has other files');
+      // pressed with the box's committed answer landing before the release, so the sequence is fixed
+      await pressWhileCommitLands(page, 'output', '#su-outok');
+      assert.equal(await page.isChecked('#su-outok'), true);
+      await page.focus('#su-out'); // back in the box, so pressing the button leaves it
+      await pressWhileCommitLands(page, 'output', '#su-out-st button:has-text("Use the suggested folder instead")');
+      await page.waitForFunction(() => document.getElementById('su-out').value.endsWith('ember-road-site'), null, { timeout: 5000 });
       await page.context().close();
     });
 

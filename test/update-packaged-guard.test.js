@@ -9,6 +9,11 @@ const path = require('path');
 const { runUpdateCommand } = require('../src/cli/update');
 const { UPDATE_TMP_PREFIX, OWNER_MARKER_FILENAME } = require('../src/update/replace');
 const { EXIT_CODES } = require('../src/util/exitcodes');
+const { installLoopbackGuard } = require('./helpers/net-stubs');
+
+// The update flow is injected here, so nothing may reach a network: the guard fails the file if it does.
+const guard = installLoopbackGuard();
+test.after(() => guard.assertClean({ minConnects: 0 }));
 
 /*
  * P5a-FR07 (closes F8): `update` must refuse with UPDATE_PREREQUISITE (exit 4) whenever
@@ -37,11 +42,11 @@ function makeExeAndTmp(root, exeName = 'scriptorium.exe') {
   return { exeDir, execPath, tmpRoot };
 }
 
-test('P5a-FR07: isPkg:false refuses with UPDATE_PREREQUISITE (exit 4) and names why', () => {
+test('P5a-FR07: isPkg:false refuses with UPDATE_PREREQUISITE (exit 4) and names why', async () => {
   const root = makeScratch('scriptorium-guard-t1-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
-    const result = runUpdateCommand({}, { execPath, tmpRoot, platform: 'win32', isPkg: false });
+    const result = await runUpdateCommand({}, { execPath, tmpRoot, platform: 'win32', isPkg: false });
 
     assert.equal(result.exitCode, EXIT_CODES.UPDATE_PREREQUISITE);
     assert.match(result.human, /packaged/i);
@@ -51,12 +56,12 @@ test('P5a-FR07: isPkg:false refuses with UPDATE_PREREQUISITE (exit 4) and names 
   }
 });
 
-test('P5a-FR07: isPkg:false fires on win32, linux and darwin alike (platform-independent)', () => {
+test('P5a-FR07: isPkg:false fires on win32, linux and darwin alike (platform-independent)', async () => {
   for (const platform of ['win32', 'linux', 'darwin']) {
     const root = makeScratch(`scriptorium-guard-t2-${platform}-`);
     try {
       const { execPath, tmpRoot } = makeExeAndTmp(root);
-      const result = runUpdateCommand({}, { execPath, tmpRoot, platform, isPkg: false });
+      const result = await runUpdateCommand({}, { execPath, tmpRoot, platform, isPkg: false });
       assert.equal(result.exitCode, EXIT_CODES.UPDATE_PREREQUISITE, `platform=${platform}`);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
@@ -64,15 +69,15 @@ test('P5a-FR07: isPkg:false fires on win32, linux and darwin alike (platform-ind
   }
 });
 
-test('P5a-FR07: the default isPkg wiring (no override, plain unpackaged node) refuses at exit 4', () => {
-  // No requireGh/fetchLatestRelease/etc supplied either: if the guard did not fire here, the
-  // REAL requireGh would run next and this test's result would depend on this box's gh
-  // installation state rather than on the guard. Asserting the guard's own distinctive message
-  // (not just the exit code) rules that out.
+test('P5a-FR07: the default isPkg wiring (no override, plain unpackaged node) refuses at exit 4', async () => {
+  // No lookupRelease/downloadAsset/etc supplied either: if the guard did not fire here, the
+  // REAL release lookup would run next and this test's result would depend on this box's network
+  // rather than on the guard. Asserting the guard's own distinctive message (not just the exit
+  // code) rules that out.
   const root = makeScratch('scriptorium-guard-t3-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
-    const result = runUpdateCommand({}, { execPath, tmpRoot });
+    const result = await runUpdateCommand({}, { execPath, tmpRoot });
 
     assert.equal(result.exitCode, EXIT_CODES.UPDATE_PREREQUISITE);
     assert.match(result.human, /packaged GM-Scriptorium executable/);
@@ -81,7 +86,7 @@ test('P5a-FR07: the default isPkg wiring (no override, plain unpackaged node) re
   }
 });
 
-test('P5a-FR07: the guard fires before any sweep (file effect) or network call', () => {
+test('P5a-FR07: the guard fires before any sweep (file effect) or network call', async () => {
   const root = makeScratch('scriptorium-guard-t4-');
   try {
     const { exeDir, execPath, tmpRoot } = makeExeAndTmp(root);
@@ -95,23 +100,23 @@ test('P5a-FR07: the guard fires before any sweep (file effect) or network call',
     fs.mkdirSync(deadDir);
     fs.writeFileSync(path.join(deadDir, OWNER_MARKER_FILENAME), '999999999');
 
-    let requireGhCalled = false;
-    const result = runUpdateCommand(
+    let lookupCalled = false;
+    const result = await runUpdateCommand(
       {},
       {
         execPath,
         tmpRoot,
         platform: 'win32',
         isPkg: false,
-        requireGh: () => {
-          requireGhCalled = true;
-          return '/usr/bin/gh';
+        lookupRelease: async () => {
+          lookupCalled = true;
+          return { tag_name: 'v9.9.9' };
         },
       },
     );
 
     assert.equal(result.exitCode, EXIT_CODES.UPDATE_PREREQUISITE);
-    assert.equal(requireGhCalled, false, 'requireGh (the first network-adjacent call) must never run');
+    assert.equal(lookupCalled, false, 'the release lookup (the first network call) must never run');
     assert.equal(fs.existsSync(staleOld), true, 'sweepOldExecutables must not have run');
     assert.equal(fs.existsSync(deadDir), true, 'sweepStaleUpdateDirs must not have run');
     assert.deepEqual(fs.readdirSync(exeDir).sort(), [path.basename(execPath), path.basename(staleOld)].sort());
@@ -120,21 +125,20 @@ test('P5a-FR07: the guard fires before any sweep (file effect) or network call',
   }
 });
 
-test('P5a-FR07: isPkg:true lets the run proceed past the guard (positive control)', () => {
+test('P5a-FR07: isPkg:true lets the run proceed past the guard (positive control)', async () => {
   const root = makeScratch('scriptorium-guard-t5-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
 
-    const result = runUpdateCommand(
+    const result = await runUpdateCommand(
       {},
       {
         execPath,
         tmpRoot,
         platform: 'win32',
         isPkg: true,
-        requireGh: () => '/usr/bin/gh',
-        fetchLatestRelease: () => ({ tag_name: 'v9.9.9', html_url: 'https://example.test/releases/v9.9.9' }),
-        downloadAsset: (ghPath, tag, pattern, dir) => {
+        lookupRelease: async () => ({ tag_name: 'v9.9.9', html_url: 'https://example.test/releases/v9.9.9' }),
+        downloadAsset: async (tag, pattern, dir) => {
           fs.writeFileSync(path.join(dir, pattern), Buffer.from([0x4d, 0x5a, 0x00, 0x00]));
         },
         verifyDownload: () => {},

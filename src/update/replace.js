@@ -285,7 +285,7 @@ function sweepStaleStagedExecutables(
 /*
  * Issue #26: `update`'s success path deletes THIRD-PARTY-NOTICES.txt beside the executable, so a
  * stale (old-version) copy is never left silently claiming to describe the new binary --
- * `deliverNotices()` (`src/util/notices.js`) rewrites it on the very next `--version`. Confined to
+ * an earlier release's `--version` wrote it, and no current release does. Confined to
  * the success path only (`src/cli/update.js`, after `replaceExecutable` returns): on every
  * FAILURE path the old binary is still the one on disk, and its notices file is still an accurate
  * description of it, so deleting it there would destroy correct information for no reason. See
