@@ -1198,3 +1198,34 @@ licence. The `.ico` was built from the two SVG files: rendered to PNG with `rsvg
 
 The `.ico` is a binary file, so the public-guard residual classes now include one committed binary
 art file. It holds no text a guard list could match beyond the image data.
+
+## Windows installer and uninstaller, 2026-10-12
+
+The Windows installer and uninstaller (ADR 0053) are built with NSIS 3.08, the Debian package
+`nsis` 3.08-3+deb12u1 on the release machine. NSIS is a build tool and is not a dependency of the
+program, but each output carries NSIS's stub code and its System, nsExec and nsDialogs plug-ins, so the
+licence file of the package is reproduced in `THIRD-PARTY-NOTICES.txt` Section 9. NSIS is licensed
+under the zlib/libpng licence; its LZMA module is under the Common Public Licence with a linking
+exception, and its bzip2 module is under the bzip2 licence. The installer is built with compression off.
+
+| File | sha256 |
+|---|---|
+| `scripts/vendor/nsis-3.08-copyright.txt` (a copy of `/usr/share/doc/nsis/copyright`) | `d2b03d11801736ff4fda2a1e215a13c324dca7fd76eb948ae7d835000fe339d3` |
+
+The two pictures the wizard shows are original artwork made for this project, covered by the project's
+MIT licence. They were drawn from the Lantern drawing (see "Windows icon and version strings" above):
+`packaging/windows/art/side.svg` is the 164 by 314 panel on the welcome and finish pages, and
+`header.svg` is the 150 by 57 strip on the other pages. Each was rendered to a 24-bit BMP with
+`rsvg-convert` and a short throw-away script. The wordmark in `side.svg` is outlined text, set in IM Fell
+English and IM Fell English SC (SIL Open Font License 1.1, listed in `THIRD-PARTY-NOTICES.txt` Section 6),
+turned into shapes so the picture needs no font at run time.
+
+| File | sha256 |
+|---|---|
+| `packaging/windows/art/side.svg` | `d37ed0ef6a3408e7b9a45ea3e968d16b9bc67ba75c77b0ebeba680bfb5904ffe` |
+| `packaging/windows/art/header.svg` | `54d106e0e8d685d762e026154d76e6baf621bcc97cf389d01d5e54f31c1585e5` |
+| `packaging/windows/art/side.bmp` | `0accda7166cc9708ab868938156b414ab70d592571486cbe78e670159ae29300` |
+| `packaging/windows/art/header.bmp` | `69885c6f2eec14d7eade6180c21fae7ba6383a681848c2e034105aba247e1eba` |
+
+The two BMP files are binary, so the public-guard residual classes now include them as well as the icon.
+They hold no text a guard list could match beyond the image data.

@@ -22,6 +22,7 @@
     "test": "node --test test/**/*.test.js",
     "notices": "node scripts/generate-notices.js",
     "package": "node scripts/package.js",
+    "installer": "node scripts/installer.js",
     "verify-generator": "node scripts/generator-pin.js verify"
   },
   "pkg": {

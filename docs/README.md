@@ -79,6 +79,7 @@ the way.
 - [0050. Several campaigns in one panel](decisions/0050-several-campaigns.md): One running panel can switch between registered campaigns, set the default and remove one from the list, and config.toml is now written crash-safely.
 - [0051. Code signing for the Windows executable](decisions/0051-code-signing.md): Signed releases carry a valid signature, checked on Windows, while self-update keeps trusting SHA256SUMS.
 - [0052. Adding a campaign from the panel](decisions/0052-add-a-campaign.md): A GM can add another campaign from the running panel, on this computer or over remote access, with the same questions and checks as first-run setup, then switch to it.
+- [0053. The Windows installer and uninstaller](decisions/0053-windows-installer.md): Setup installs for the signed-in user only and the uninstaller removes a short list of named files and never settings, built on Linux with the signed files stored as they are so the build can prove it packed them.
 
 ## Licensing
 

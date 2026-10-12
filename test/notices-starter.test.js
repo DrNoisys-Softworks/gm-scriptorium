@@ -26,7 +26,7 @@ test('Section 8 comes after Section 7 and names upstream, the commit, the author
   const s7 = text.indexOf('SECTION 7: ');
   const s8 = text.indexOf('SECTION 8: THE STARTER FOR NEW VAULTS');
   assert.ok(s7 > 0 && s8 > s7);
-  const section = text.slice(s8);
+  const section = text.slice(s8, text.indexOf('SECTION 9:'));
   for (const needle of [
     'https://github.com/AntTheLimey/gm-apprentice',
     'a0215b1f2e688c476e37d372fd647935360f00b8',
@@ -45,7 +45,7 @@ test('Section 8 comes after Section 7 and names upstream, the commit, the author
 
 test('Section 8 lists every starter file with its sha256 once, and says which three are not upstream\'s', () => {
   const text = buildNoticesText();
-  const section = text.slice(text.indexOf('SECTION 8: THE STARTER FOR NEW VAULTS'));
+  const section = text.slice(text.indexOf('SECTION 8: THE STARTER FOR NEW VAULTS'), text.indexOf('SECTION 9:'));
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'assets', 'vault-template', 'manifest.json'), 'utf8'));
   const stored = new Map();
   for (const s of Object.values(manifest.systems)) for (const e of Object.values(s.files)) stored.set(e.store, e);
