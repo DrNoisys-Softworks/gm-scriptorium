@@ -1804,3 +1804,10 @@ name; the one new write route is `POST /api/vault-config/fields`.
 
 - **Section 4 (reads: the fixed readable set).** The add checks take a folder path from a request and probe it, bounded, outside setup mode and for a remote session. Over remote access a typed path is only probed when the GM commits it, and each such probe is audited with its path before it runs. ADR 0052 section 6 says plainly what a signed-in session can learn from them.
 - **The write exception.** The route that adds a campaign is a third panel write to `config.toml`, on the same chain as the other two: `src/admin/handlers/campaigns.js` > `src/setup/register.js` > `src/config/write.js`. `register.js` is still the only panel-side importer of the writer, and ADR 0052 section 3 names the tests that fence it.
+
+## 18. Amended by ADR 0054
+
+[ADR 0054](0054-gm-access-from-the-player-site.md) changes two things in this record, for an opt-in only.
+
+- **Section 1 (the panel changes nothing a published build contains).** A published build may now carry one GM link in each page's footer, only when the campaign's `pack.toml` switches it on. With it off, a build is byte for byte what it was.
+- **Section 8 (the GM link and the unconditional output-gate marker).** "A published build never can carry a GM link" now refers to the preview GM link and its marker only. That gate stays unconditional, and `--force` still cannot override it. The published link has a marker of its own, and it is added before the output gates run, so every gate runs over the tree that is published. The sentence that `runAtomicBuild`'s signature gains no new parameter is amended to read: no parameter can skip or override any gate, and `gmLink` only switches the published link on.

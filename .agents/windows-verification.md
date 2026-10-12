@@ -2060,6 +2060,52 @@ Issue #49, `docs/decisions/0011-notices-beside-the-executable.md`. **Mark this O
 2. List the folder. No `THIRD-PARTY-NOTICES.txt` (or any other new file) was created beside the exe.
 3. Run `--notices`. It prints the notices text and exits 0. Re-hash the real config.
 
+### C157: the `remote account` prompts, in conhost and Windows Terminal, in the real win-x64 exe
+
+`docs/decisions/0054-gm-access-from-the-player-site.md`: `gm-scriptorium remote account add | change | reset | remove | rename | list` read each password with nothing echoed on a terminal, and from standard input when there is no terminal, never from an argument or an environment variable. Verified on Linux from source, through a fake terminal and the real `bin` (`test/remote-cli.test.js`). **Mark this OPEN: Linux-verified from source and a Linux packaged build only.**
+
+Isolate config exactly as in C35 and as in C69: a scratch TOML via `SCRIPTORIUM_CONFIG` and the same path as `--config` on every command. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 9; they must match. Let `<scratch>` be a local scratch folder that holds the scratch TOML.
+
+1. In conhost (`cmd.exe`), run `remote account add rook --config <scratch>\config.toml`. It prompts `New password for rook: ` and then `Type it again: `, with nothing echoed, not even asterisks. It prints `account "rook" added.` and exits 0 (`echo %ERRORLEVEL%`).
+2. Repeat in Windows Terminal, pasting the password with Ctrl+V at both prompts.
+3. `remote account change rook`: it asks `Current password for rook: ` first. A wrong one exits 1 with `that is not the current password for "rook"; nothing changed`.
+4. `remote account reset rook` asks no current password, and prints `password for "rook" reset. Its remote devices are signed out.`
+5. `remote account add Rook` exits 1 with `an account named "rook" already exists`. `remote account add "bad name"` exits 1 with `account names are 1 to 32 letters, digits, dots, hyphens or underscores, starting with a letter or digit`. Adding a ninth account exits 1 with `there can be at most 8 accounts`.
+6. Backspace and Ctrl-C behave as in C69 steps 4 and 5.
+7. Piped from PowerShell, `"a new passphrase 123" | gm-scriptorium remote account add saffron --config <scratch>\config.toml` works. With a password as an argument, `remote account add saffron hunter2hunter2 --config <scratch>\config.toml` exits 1 with one line and no password in it. With `$env:SCRIPTORIUM_PANEL_PASSWORD` set to something else, the password that works is still the one typed or piped.
+8. `remote account list` shows names and dates only, never a secret.
+9. `findstr /s /m /c:"<each password you typed>" "<scratch>\*"` and the same over `%APPDATA%\Scriptorium` find nothing. Re-hash the config.
+
+### C158: the access list on `panel\accounts.json`, in the real win-x64 exe
+
+`docs/decisions/0054-gm-access-from-the-player-site.md`: `accounts.json` sits in the `panel` folder beside the resolved config. On POSIX it is `0700` and `0600` from creation; on Windows it inherits the folder's access list. Verified on Linux for the POSIX modes (`test/remote-accounts.test.js`). **Mark this OPEN: the Windows access list is unverified.**
+
+Repeat C70 steps 2 and 3 for the accounts file: for each of a scratch folder inside the profile and one outside it, add an account with `remote account add`, then record `icacls <folder>\panel` and `icacls <folder>\panel\accounts.json`. Expect no user or group beyond the owner, SYSTEM and Administrators. A broader access list outside the profile is recorded here, not fixed. Confirm `panel` is a real folder (`dir /AL` shows nothing for it).
+
+### C159: Edge through a proxy with usernames: sign-in, the lockout per name and the password manager
+
+`docs/decisions/0054-gm-access-from-the-player-site.md`: sign-in takes a username and a password, a name is paused after five wrong tries and everyone after fifty, and the sign-in page is built so a browser's password manager can save and fill it. Verified in Chromium and Firefox through the repo's test proxy (what the page does, not what the browser's password manager offers). **Mark this OPEN: Edge is unverified, and so is every claim that a password manager saves and fills.**
+
+Use the repo's test proxy with a TLS front in scratch Edge profiles, as in C74, with isolated config as in C35. Add two accounts, `rook` and `saffron`.
+
+1. Sign in as `rook` in the first profile and check the cookie attributes as in C74 step 2. DevTools shows `X-Robots-Tag: noindex` on the sign-in page and on `/api/session`.
+2. Edge offers to save the login after the successful sign-in. Sign out of this device: Edge fills both fields on the sign-in page. A failed sign-in does not offer to save.
+3. Type five wrong passwords for `rook`, then the right one: it is refused with the same message as a wrong password. In a second profile, `saffron` still signs in.
+4. Five wrong tries for a name that does not exist (`nobody`) leave `rook` able to sign in.
+5. The Remote access screen, opened on the PC through the loopback link, lists `rook` and `saffron` with when each password was set and the last sign-in, and has no control that edits an account.
+6. DevTools shows zero console errors and zero CSP violations, apart from the deliberate 403s.
+
+### C160: reset from the PC, `remote off`, and an install from before accounts, in the real win-x64 exe
+
+`docs/decisions/0054-gm-access-from-the-player-site.md`: an earlier single password keeps working as the account `gm` with nothing rewritten on read, a reset or removal signs one account out, and `remote off` clears every account. Verified on Linux over real sockets (`test/remote-signin-accounts.test.js`). **Mark this OPEN: Linux-verified only.**
+
+Isolate config as in C35.
+
+1. In a scratch config set up with the release before accounts (`remote password` only), the new exe signs in as `gm` with that password. `panel\accounts.json` does not exist until the first `remote account` command. After that command, the Remote access screen shows `gm` marked "from your earlier password", and `panel\password.json` no longer holds a hash.
+2. Signed in as `rook` and `saffron` in two profiles: `remote account reset rook` sends `rook`'s next request to the sign-in page, while `saffron` keeps working.
+3. `remote signout-all --account saffron` does the same for `saffron`.
+4. `remote off` clears every account: remote sign-in is refused, and `remote account list` prints `no accounts`.
+
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 
 None of these are product concerns; every one is a harness limit on the automated tester's side,
