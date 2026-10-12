@@ -28,22 +28,35 @@ function exits(codes) {
 
 /* V1.5a (ADR 0029): one help text per `remote` subcommand. `remote --help` shows them all. */
 const REMOTE_SUB_HELP = {
-  show: 'gm-scriptorium remote show [--config PATH]\n  Prints the remote-access settings for this machine: the mode, the addresses, where it listens,\n  whether a password is set and whether it is ready to start. Never prints a secret.',
+  show: 'gm-scriptorium remote show [--config PATH]\n  Prints the remote-access settings for this machine: the mode, the addresses, where it listens,\n  which accounts exist and whether it is ready to start. Never prints a secret.',
   set:
     'gm-scriptorium remote set [--mode local|ssh|tailscale|proxy] [--admin-url URL] [--preview-url URL] [--bind ADDR]\n' +
     '                          [--trusted-proxy ADDR,...] [--port N] [--preview-port N] [--config PATH]\n' +
     '  Saves remote-access settings (https addresses only; every value is checked before anything is written).\n' +
     '  Changing --mode drops the old admin and preview addresses unless you give new ones. Takes effect the\n' +
     '  next time the admin panel starts.',
+  account:
+    'gm-scriptorium remote account add <name> | change <name> | reset <name> | remove <name> | rename <old> <new> | list [--config PATH]\n' +
+    '  Manages the accounts that can sign in remotely. Each has a name (1 to 32 letters, digits, dots, hyphens or\n' +
+    '  underscores, any case) and a password of at least 12 characters, up to 8 accounts, all with the same rights.\n' +
+    '  add makes one. change asks for that account\'s current password first. reset needs no current password, for a\n' +
+    '  forgotten one. remove deletes one, and rename gives one a new name. change, reset, remove and rename sign that\n' +
+    '  account out on every device. list shows names and dates, never a secret.\n' +
+    '  Passwords are asked for with nothing echoed, or read from standard input when there is no terminal. They are\n' +
+    '  never accepted as an argument or from the environment.',
   password:
     'gm-scriptorium remote password [--config PATH]\n' +
-    '  Sets or changes the panel password (at least 12 characters), asking with nothing echoed, or reading\n' +
-    '  lines from standard input when there is no terminal (current password first, when one is set).\n' +
-    '  Never accepted as an argument or from the environment. Signs every remote device out.',
-  'signout-all': 'gm-scriptorium remote signout-all [--config PATH]\n  Signs every remote device out at once. A running panel notices straight away.',
-  off: 'gm-scriptorium remote off [--config PATH]\n  Returns the mode to local, signs every device out and clears the password.',
+    '  The earlier command, kept so existing notes still work: it sets or changes the password of the account\n' +
+    '  named gm (adding it when it is not there). It asks with nothing echoed, or reads lines from standard input\n' +
+    '  when there is no terminal (current password first, when gm has one). Never accepted as an argument or from\n' +
+    '  the environment. Signs every remote device out. Use "remote account" to manage the other accounts.',
+  'signout-all':
+    'gm-scriptorium remote signout-all [--account NAME] [--config PATH]\n' +
+    '  Signs every remote device out at once, or with --account only the devices signed in as that account.\n' +
+    '  A running panel notices straight away.',
+  off: 'gm-scriptorium remote off [--config PATH]\n  Returns the mode to local, signs every device out and clears every account.',
 };
-const REMOTE_SUBS = ['show', 'set', 'password', 'signout-all', 'off'];
+const REMOTE_SUBS = ['show', 'set', 'account', 'password', 'signout-all', 'off'];
 
 const HELP_BY_COMMAND = {
   init: [

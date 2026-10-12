@@ -243,8 +243,8 @@ test('each readiness problem is exactly one ConfigError, with no listener starte
   const { trusted_proxies, ...noProxy } = PROXY;
   void trusted_proxies;
   await refusal(t, noProxy, 'remote access (mode proxy) needs a trusted proxy address: run "gm-scriptorium remote set --trusted-proxy ADDR"');
-  await refusal(t, PROXY, 'remote access (mode proxy) needs a password: run "gm-scriptorium remote password"', { password: false });
-  await refusal(t, TAILSCALE, 'remote access (mode tailscale) needs a password: run "gm-scriptorium remote password"', { password: false });
+  await refusal(t, PROXY, 'remote access (mode proxy) needs an account: run "gm-scriptorium remote account add <name>"', { password: false });
+  await refusal(t, TAILSCALE, 'remote access (mode tailscale) needs an account: run "gm-scriptorium remote account add <name>"', { password: false });
 });
 
 test('V1.5a refuses direct mode, and proxy with tls, for lack of certificate support', async (t) => {
@@ -266,7 +266,7 @@ test('a cleared, invalid or missing password file all read as "needs a password"
       runServeCommand({ config: fx.configPath, admin: true }, 'alpha', { emit: h.emit, signals: h.signals, startLocalListener: h.startLocalListener, startPanelListener: h.startPanelListener, createToken: () => TOKEN }),
       h.signals,
     );
-    assert.equal(outcome.error && outcome.error.message, 'remote access (mode proxy) needs a password: run "gm-scriptorium remote password"');
+    assert.equal(outcome.error && outcome.error.message, 'remote access (mode proxy) needs an account: run "gm-scriptorium remote account add <name>"');
   }
   assert.deepEqual(h.calls(), { panel: 0, local: 0 });
 });
@@ -314,7 +314,7 @@ test('proxy: the WARNING precedes startPanelListener on a shared ordering log, t
   ]);
   assert.equal(h.calls().local, 0, 'startLocalListener is not used in proxy mode');
   assert.deepEqual(h.emitted.slice(1), [
-    'remote admin panel: https://scriptorium.home.arpa/ (sign in with the panel password)',
+    'remote admin panel: https://scriptorium.home.arpa/ (sign in with your username and password)',
     'remote preview: https://preview.scriptorium.home.arpa/',
     'listening on 192.0.2.42 and 127.0.0.1 port 7922 (panel) and 7923 (preview)',
     `on this machine: http://127.0.0.1:7922/auth?token=${TOKEN}`,

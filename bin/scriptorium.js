@@ -20,7 +20,8 @@ Commands:
   build    [campaign] [--no-check] [--force] [--out <path>] [--json]
   serve    [campaign] [--build] [--port N] [--host ADDR] | [campaign] --admin [--port N] [--preview-port N]
   remote   show | set [--mode local|ssh|tailscale|proxy] [--admin-url URL] [--preview-url URL] [--bind ADDR]
-           [--trusted-proxy ADDR,...] [--port N] [--preview-port N] | password | signout-all | off
+           [--trusted-proxy ADDR,...] [--port N] [--preview-port N] | account add|change|reset|remove|rename|list
+           | password | signout-all [--account NAME] | off
   status   [campaign] [--json]
   config   list | add <name> --vault <path> [--out <path>] [--site-config <path>] | remove <name> | set-default <name> | path | edit
   update   [--check] [--pre] [--version TAG]
