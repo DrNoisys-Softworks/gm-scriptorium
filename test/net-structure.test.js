@@ -5,7 +5,8 @@
  *
  *   1. Only src/net/egress.js (and the listener in src/serve/server.js) may load a network module.
  *   2. src/net is made of leaves: it requires nothing outside itself except the shared errors file.
- *   3. Nothing under src/net names a fetch-style network token, and egress.js keeps to its rules.
+ *   3. Nothing under src/net names a fetch-style network token, and egress.js keeps to its rules;
+ *      it reads the location header in one place only (ADR 0024 amendment).
  *   4. The test seam is named nowhere else under src/ or bin/.
  *   5. Every test that uses egress goes through test/helpers/net-stubs.js and installs the loopback
  *      guard, so no test can reach anything but this computer.
@@ -201,8 +202,6 @@ const FORBIDDEN_IN_EGRESS = [
   ['setInterval', /\bsetInterval\b/, 'setInterval(f, 1);'],
   ['cause', /\bcause\b/, 'new Error("x", { cause: e });'],
   ['socketPath', /\bsocketPath\b/, 'opts.socketPath = "/x";'],
-  ['location header', /\.location\b|\[\s*['"]location['"]\s*\]/i, "res.headers['location']"],
-  ['location property', /\.location\b|\[\s*['"]location['"]\s*\]/i, 'res.headers.location'],
   ['rejectUnauthorized other than true', /\brejectUnauthorized\s*[:=](?!\s*true\b)/, 'rejectUnauthorized: false'],
   ['rejectUnauthorized assigned', /\brejectUnauthorized\s*[:=](?!\s*true\b)/, 'o.rejectUnauthorized = flag;'],
 ];
@@ -217,7 +216,7 @@ test('egress.js source: none of the forbidden constructs appear (comments stripp
 test('egress.js source: positive control, every forbidden regex matches a planted line', () => {
   for (const [label, re, planted] of FORBIDDEN_IN_EGRESS) assert.match(planted, re, label);
   assert.ok(!/\bcause\b/.test('because it is'));
-  assert.ok(!FORBIDDEN_IN_EGRESS[10][1].test('rejectUnauthorized: true,'));
+  assert.ok(!FORBIDDEN_IN_EGRESS.find(([l]) => l === 'rejectUnauthorized other than true')[1].test('rejectUnauthorized: true,'));
 });
 
 test('no file under src/net writes to the console or a standard stream', () => {
@@ -227,6 +226,16 @@ test('no file under src/net writes to the console or a standard stream', () => {
       assert.ok(!re.test(stripped), `${rel(ROOT, f)} must not contain ${label}`);
     }
   }
+});
+
+const LOCATION_RE = /\.location\b|\[\s*['"]location['"]\s*\]/gi;
+test('egress.js source: the location header is read in exactly one place, as r.headers.location', () => {
+  const hits = EGRESS_STRIPPED.match(LOCATION_RE) || [];
+  assert.equal(hits.length, 1, `expected one read of the location header, found ${hits.length}`);
+  assert.match(EGRESS_STRIPPED, /\br\.headers\.location\b/);
+});
+test('egress.js source: positive control, a second read of the location header is counted', () => {
+  assert.equal(('const a = r.headers.location; const b = res.headers["location"];'.match(LOCATION_RE) || []).length, 2);
 });
 
 test('egress.js source: every timer is unref-ed so none can hold the process open', () => {
