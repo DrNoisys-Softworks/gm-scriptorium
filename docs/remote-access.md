@@ -284,6 +284,10 @@ Not protected, deliberately:
 - Hand-edited password records with other scrypt settings, and an older GM-Scriptorium run against
   a config folder that has been moved to accounts (it finds the old password file cleared and
   refuses remote sign-in).
+- Anyone who knows an account name keeping that one account paused. Five wrong tries for the name
+  every 15 minutes is enough. Other accounts and the one-time link on the machine are unaffected,
+  and a restart ends the pause. Counting per username protects an account from strangers who do not
+  know its name, not from someone who does.
 - Password quality beyond 12 characters.
 
 ## 12. Files, permissions, backups

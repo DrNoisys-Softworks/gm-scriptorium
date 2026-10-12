@@ -2,7 +2,7 @@
 
 ## Summary
 
-Remote sign-in to the admin panel now takes a username and a password, and a GM can run several named accounts, up to eight, all with the same rights. They are managed only from the command line with `gm-scriptorium remote account ...`; the panel lists them and cannot change them. An install that has one password and no username keeps working as the account `gm`, and nothing is rewritten when the file is read. The sign-in lockout counts wrong tries per username typed, whether or not that account exists: five in ten minutes pause that name for fifteen minutes, and fifty across all names pause everyone. The same decision lets a published site carry one plain "Game master" link in its footer, switched on per campaign in `pack.toml`, that opens the console's sign-in page. The main alternative, a lockout per address, is rejected below. The limits a GM will meet are that anyone who can reach the sign-in page can pause everyone's sign-in by guessing wrong fifty times, and that a published link makes the console's address public.
+Remote sign-in to the admin panel now takes a username and a password, and a GM can run several named accounts, up to eight, all with the same rights. They are managed only from the command line with `gm-scriptorium remote account ...`; the panel lists them and cannot change them. An install that has one password and no username keeps working as the account `gm`, and nothing is rewritten when the file is read. The sign-in lockout counts wrong tries per username typed, whether or not that account exists: five in ten minutes pause that name for fifteen minutes, and fifty across all names pause everyone. The same decision lets a published site carry one plain "Game master" link in its footer, switched on per campaign in `pack.toml`, that opens the console's sign-in page. The main alternative, a lockout per address, is rejected below. The limits a GM will meet are that anyone who can reach the sign-in page can pause everyone's sign-in by guessing wrong fifty times, that anyone who knows an account name can keep that one account paused, and that a published link makes the console's address public.
 
 Status: accepted. The accounts, the sign-in and the lockout (sections 2 to 5, 7 and 8) are built. The published link and the panel card that sets it (section 6) are decided here and built in later changes; their evidence is marked Pending in section 14.
 
@@ -11,7 +11,7 @@ Status: accepted. The accounts, the sign-in and the lockout (sections 2 to 5, 7 
 Four things change, and each is opt-in or invisible until used.
 
 - **Several named accounts.** Remote password sign-in takes `{username, password}`. Accounts live in `panel/accounts.json`. An account has a name and a password, nothing else: no roles, no permissions, no email.
-- **A lockout that a stranger cannot use cheaply.** Wrong tries are counted per username typed, with a higher ceiling across all names (section 4).
+- **A lockout that a stranger cannot use cheaply.** Wrong tries are counted per username typed, with a higher ceiling across all names (section 4). It is cheap to abuse only for a stranger who does not know a username. Someone who knows or guesses one can still keep that account paused (section 13).
 - **Accounts from the command line only.** `gm-scriptorium remote account add | change | reset | remove | rename | list`, plus `remote signout-all --account NAME`. The panel's Remote access screen lists names, when each password was set and the last sign-in, read-only.
 - **An opt-in link on the published site.** A campaign can add one footer link to its published pages, set in `pack.toml` and, in a later change, from a panel card. It is off unless switched on, and a build with it off is byte for byte what it was.
 
@@ -147,6 +147,7 @@ Two other amendments do not relax anything: ADR 0029 section 4 gains `accounts.j
 - **An older program after migration.** A GM who runs the earlier release against a config folder that has been migrated finds `password.json` cleared, so that older program refuses remote sign-in. That is the safe failure.
 - **The Firefox capture heuristic.** Firefox decides for itself whether to offer to save, and this design cannot force it (section 5). If it does not, that is a residual, not a defect we can fix here.
 - **Two GM links on preview pages.** A preview page shows both the preview GM link and the published link.
+- **A known username held in a pause.** Anyone who knows or guesses a username (the earlier single password is the account `gm`) can keep that one account paused by making five wrong tries every 15 minutes. Other accounts and the one-time link on the machine itself are unaffected, and a restart ends the pause. Per-username counting protects an account from strangers who do not know its name, not from someone who does.
 - **A slow guesser, and a restart.** The lockout lives in memory, so a restart clears it, and a guesser who stays under five tries per name in any 10 minutes is never paused.
 
 ## 14. Verification
