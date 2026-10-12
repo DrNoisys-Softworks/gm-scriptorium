@@ -181,7 +181,7 @@ branch to the local tip. After a branch merged main, that range also held commit
 which are public. A private-list hit in one of those commits blocked every such push, although
 re-scanning them could not prevent anything. The check now scans only the commits that the old
 remote tip does not reach and that no remote-tracking ref of the remote being pushed to reaches
-(`git rev-list <local> --not <old remote tip> --remotes=<remote>`). A new branch already worked
+(`git rev-list <local> --not <old remote tip> <ids of refs/remotes/<remote>/*>`). A new branch already worked
 this way.
 
 **What did not change.**
@@ -190,7 +190,7 @@ this way.
 - It fails closed. If the remote-tracking refs are missing or stale, the commits that depended on
   them are simply scanned. A remote commit this repository does not know still ends with
   `ERROR unreadable-range`.
-- Only refs of the remote named in the push count. A commit that is public on a different remote is
+- Only refs of the remote named in the push count. They are listed exactly, never matched as a pattern, so a path or URL given as the remote (even one named `*`) excludes nothing. A commit that is public on a different remote is
   still scanned.
 - The tree at the pushed revision is still scanned in full.
 

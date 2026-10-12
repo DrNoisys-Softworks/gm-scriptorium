@@ -1844,3 +1844,38 @@ test('T-PP7: an unknown remote oid still fails closed with the exclusion in the 
   assert.notEqual(result.code, 0);
   assert.doesNotMatch(result.stdout, /^VERDICT pass$/m);
 });
+
+// A pre-push remote argument can be a path or URL, so it must never act as a ref glob.
+for (const [label, remoteArg] of [
+  ['a glob character', '*'],
+  ['a question-mark glob', '?'],
+  ['a bracket glob', '[a-z]ther'],
+  ['a URL', 'https://example.invalid/repo.git'],
+  ['a path', '../elsewhere/repo.git'],
+]) {
+  test(`T-PP8: remote argument ${label} excludes nothing: a commit public only under "other" is scanned and blocks`, (t) => {
+    const { dir, root, featureOid, mainOid, localOid } = setupMergeMainFixture(t);
+    trackRemote(dir, 'other', 'main', mainOid);
+    trackRemote(dir, 'origin', 'feature', featureOid);
+    const result = runGuard(['pre-push', remoteArg, 'https://example.invalid/repo.git'], {
+      cwd: dir,
+      stdin: pushLine(localOid, featureOid, FEATURE_REF),
+      publicRoot: root,
+    });
+    assert.equal(result.code, 1);
+    assert.match(result.stdout, /^PRIVATE commits unclassed=1$/m);
+    assert.match(result.stdout, /^VERDICT block$/m);
+  });
+}
+
+test('T-PP9: a zero-oid push to a glob-named remote also excludes nothing from another remote', (t) => {
+  const { dir, root, mainOid, localOid } = setupMergeMainFixture(t);
+  trackRemote(dir, 'other', 'main', mainOid);
+  const result = runGuard(['pre-push', '*', 'https://example.invalid/repo.git'], {
+    cwd: dir,
+    stdin: pushLine(localOid, ZERO_OID, FEATURE_REF),
+    publicRoot: root,
+  });
+  assert.equal(result.code, 1);
+  assert.match(result.stdout, /^VERDICT block$/m);
+});
