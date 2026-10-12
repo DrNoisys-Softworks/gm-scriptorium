@@ -24,6 +24,7 @@ const { NetError } = require('../src/net/errors');
 const { UpdatePrerequisiteError, ScriptoriumError } = require('../src/util/errors');
 const { installLoopbackGuard, sentinel } = require('./helpers/net-stubs');
 const { fakeRequest, byUrl, URLS, json } = require('./helpers/fake-request');
+const { mentionsUrl } = require('./helpers/url-mention');
 const pkg = require('../package.json');
 
 const guard = installLoopbackGuard();
@@ -209,7 +210,7 @@ test('error messages: one line each, name the releases page, carry no reply text
     const e = await rejection(release.lookupRelease({ pre: true }, { request: make().request }));
     assert.ok(e instanceof UpdatePrerequisiteError);
     assert.ok(!e.message.includes('\n'), 'one line');
-    assert.ok(e.message.includes(RELEASES_URL), `names the releases page: ${e.message}`);
+    assert.ok(mentionsUrl(e.message, RELEASES_URL), `names the releases page: ${e.message}`);
     assert.ok(!e.message.includes(marker), 'no reply text');
     assert.doesNotMatch(e.message, /\bgh\b|GitHub CLI|SCRIPTORIUM_GITHUB_TOKEN|private/i);
     // The only URL in the message is the releases page.
@@ -471,7 +472,7 @@ test('the command: the exit codes of FR-22 hold for each failure kind', async (t
     const fake = fakeRequest((opts) => (opts.url === URLS.list ? { status: 500, body: '' } : route));
     const r = await runUpdateCommand({ check: true }, packagedDeps(t, fake));
     assert.equal(r.exitCode, exit, `${label}: ${r.human}`);
-    if (exit === 4) assert.ok(r.human.includes(RELEASES_URL), label);
+    if (exit === 4) assert.ok(mentionsUrl(r.human, RELEASES_URL), label);
   }
 });
 

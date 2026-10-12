@@ -19,6 +19,7 @@ const { runUpdateCommand } = require('../src/cli/update');
 const { lookupRelease } = require('../src/update/release');
 const { installLoopbackGuard } = require('./helpers/net-stubs');
 const { byUrl, URLS, json } = require('./helpers/fake-request');
+const { mentionsUrl } = require('./helpers/url-mention');
 
 const guard = installLoopbackGuard();
 test.after(() => guard.assertClean({ minConnects: 0 }));
@@ -60,7 +61,7 @@ test('F1: `update --check --pre` with an empty release list exits 4 with the "pu
   const result = await run({ check: true, pre: true }, fakeGithub({ list: json([]) }));
   assert.equal(result.exitCode, 4, result.human);
   assert.match(result.human, PUBLISHED_YET);
-  assert.ok(result.human.includes(RELEASES_URL));
+  assert.ok(mentionsUrl(result.human, RELEASES_URL));
   assert.doesNotMatch(result.human, /update failed/);
 });
 
@@ -108,5 +109,5 @@ test('F1 control: a server error (500) is the unreachable state, exit 4 (it was 
   const result = await run({ check: true, pre: true }, fakeGithub({ list: { status: 500, body: 'oops' } }));
   assert.equal(result.exitCode, 4);
   assert.match(result.human, /^Could not reach GitHub\./);
-  assert.ok(result.human.includes(RELEASES_URL));
+  assert.ok(mentionsUrl(result.human, RELEASES_URL));
 });
