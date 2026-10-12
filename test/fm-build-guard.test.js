@@ -113,9 +113,9 @@ test('a pre-existing finalOut and a stale sibling are left completely untouched 
   });
 });
 
-// --- CLI spawn: build, --force, --no-check, --force --no-check -------------------------------------
+// --- CLI spawn: build, --force-check, --no-check, --force-check --no-check -------------------------------------
 
-const FLAG_SETS = [[], ['--force'], ['--no-check'], ['--force', '--no-check']];
+const FLAG_SETS = [[], ['--force-check'], ['--no-check'], ['--force-check', '--no-check']];
 
 for (const flags of FLAG_SETS) {
   test(`CLI: build ${flags.join(' ') || '(no flags)'} on a refused vault exits 2 with refused:true`, () => {
@@ -142,7 +142,7 @@ test('CLI human output: "neither --force nor --no-check overrides this" appears,
   withRoot((root) => {
     const { vaultPath } = plantRefusedVault(root);
     const { configPath } = writeCampaignConfig(root, { vaultPath });
-    for (const flags of [['--force'], ['--no-check'], ['--force', '--no-check']]) {
+    for (const flags of [['--force-check'], ['--no-check'], ['--force-check', '--no-check']]) {
       const res = run(root, ['build', 'fm', '--config', configPath, ...flags]);
       assert.equal(res.status, 2);
       assert.match(res.stdout, /neither --force nor --no-check overrides this/);
@@ -151,14 +151,14 @@ test('CLI human output: "neither --force nor --no-check overrides this" appears,
   });
 });
 
-test('CLI: a tag-free vault building with --force has byte-identical output to before this slice (no frontmatter lines at all)', () => {
+test('CLI: a tag-free vault building with --force-check has byte-identical output to before this slice (no frontmatter lines at all)', () => {
   withRoot((root) => {
     const vaultPath = path.join(root, 'vault');
     writeBytes(path.join(vaultPath, 'NPCs', 'Public.md'), '---\ntype: npc\ntitle: Public\n---\nbody\n');
     writeBytes(path.join(vaultPath, '_meta', 'vault-config.md'), '---\ntype: meta\n---\n\n# vault config\n');
     writeBytes(path.join(vaultPath, '_meta', 'publish-manifest.md'), '---\ntype: meta\n---\n\n# Publish manifest\n\n## Publishing\n\n- [x] NPCs/Public.md\n');
     const { configPath } = writeCampaignConfig(root, { vaultPath });
-    const res = run(root, ['build', 'fm', '--config', configPath, '--force']);
+    const res = run(root, ['build', 'fm', '--config', configPath, '--force-check']);
     assert.equal(res.status, 0, res.stdout + res.stderr);
     assert.doesNotMatch(res.stdout, /non-yaml-language/);
     assert.doesNotMatch(res.stdout, /frontmatter declares/);

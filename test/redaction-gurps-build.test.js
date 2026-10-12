@@ -68,7 +68,7 @@ test('build --force against the GURPS fixture renders gurps-combat and ships no 
 
     delete require.cache[require.resolve('../src/cli/build')];
     const { runBuildCommand } = require('../src/cli/build');
-    const result = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const result = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
 
     assert.equal(result.envelope.ok, true, result.human);
 
@@ -131,8 +131,8 @@ test('two builds of the unchanged GURPS fixture report identical redactions', ()
 
     delete require.cache[require.resolve('../src/cli/build')];
     const { runBuildCommand } = require('../src/cli/build');
-    const a = runBuildCommand({ config: configPath, force: true }, 'fixture');
-    const b = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const a = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
+    const b = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
 
     assert.equal(a.envelope.ok, true, a.human);
     assert.equal(b.envelope.ok, true, b.human);

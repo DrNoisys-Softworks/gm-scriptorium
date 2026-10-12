@@ -251,7 +251,7 @@ test('status and build envelopes carry the resolved vault and the mismatch', () 
   });
 });
 
-test('build --force with a mismatched site config builds the resolved vault', () => {
+test('build --force-check with a mismatched site config builds the resolved vault', () => {
   withCleanProfileEnv(() => {
     withScratchDir((dir) => {
       fs.mkdirSync(path.join(dir, 'decoy-vault'));
@@ -268,11 +268,11 @@ test('build --force with a mismatched site config builds the resolved vault', ()
       writeScratchConfig(decoyConfigPath, { vault: MINI_VAULT, siteConfig: decoySiteConfigPath, output: outDecoy });
 
       const { runBuildCommand: runFixtureBuild } = requireFresh('../src/cli/build');
-      const fixtureResult = runFixtureBuild({ config: fixtureConfigPath, force: true }, 'fixture');
+      const fixtureResult = runFixtureBuild({ config: fixtureConfigPath, 'force-check': true }, 'fixture');
       assert.equal(fixtureResult.envelope.ok, true);
 
       const { runBuildCommand: runDecoyBuild } = requireFresh('../src/cli/build');
-      const decoyResult = runDecoyBuild({ config: decoyConfigPath, force: true }, 'fixture');
+      const decoyResult = runDecoyBuild({ config: decoyConfigPath, 'force-check': true }, 'fixture');
       assert.equal(decoyResult.envelope.ok, true);
 
       assert.equal(fixtureResult.envelope.pagesWritten, decoyResult.envelope.pagesWritten);

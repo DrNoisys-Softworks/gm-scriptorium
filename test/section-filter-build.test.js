@@ -21,7 +21,7 @@ const path = require('path');
  *
  * Idiom copied from test/redaction-gurps-build.test.js: temp dir, the fixture
  * vault plus its site-config JSON, a generated config.toml, a require.cache
- * bust on src/cli/build, and runBuildCommand({ config, force: true }).
+ * bust on src/cli/build, and runBuildCommand({ config, 'force-check': true }).
  *
  * SENTINEL SHAPE, deliberately. Both sentinels are single lowercase
  * alphabetic words with the same `...sentinel` ending, because
@@ -85,7 +85,7 @@ function buildFixtureSite(dir) {
   delete require.cache[require.resolve('../src/cli/build')];
   // eslint-disable-next-line global-require
   const { runBuildCommand } = require('../src/cli/build');
-  const result = runBuildCommand({ config: configPath, force: true }, 'fixture');
+  const result = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
   return { result, outDir };
 }
 

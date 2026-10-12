@@ -119,7 +119,7 @@ test('S3: build() in legacy-plus-pack mode prints a note: line, and the envelope
     writeScratchConfig(configPath, { vault: vaultDir, siteConfig: siteConfigPath, output: outDir });
 
     const { runBuildCommand } = requireFresh('../src/cli/build');
-    const result = runBuildCommand({ config: configPath, 'no-check': true, force: true }, 'fixture');
+    const result = runBuildCommand({ config: configPath, 'no-check': true }, 'fixture');
 
     assert.ok(result.human.includes(path.resolve(siteConfigPath)) && result.human.includes(packDir));
     assert.match(result.human, /note: /);

@@ -270,3 +270,7 @@ base-36 ref), `unmappedRefs: 0`.
 the stemmer from both `pipeline` and `searchPipeline`), because bundled lunr's own default builder
 pipeline still includes the stemmer, only the generator's own construction code removes it, so a
 synthetic index built without that same removal would silently test the wrong pipeline.
+
+## Amended by ADR 0055
+
+`build --force` no longer exists. `--force-check` overrides check errors and `--force-out` overrides the output-folder collision guard, and neither reaches this scan: no command-line flag overrides a scan hit, and the product call site passes the literal `force: false` to `runAtomicBuild`. The sections above that describe `--force` overriding a scan hit describe the maintainer scripts' programmatic override, which the command line cannot reach. See [ADR 0055](0055-force-split.md).

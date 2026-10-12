@@ -373,7 +373,7 @@ test('sourcing follows the built pages: a real (b) build still sources from the 
     fs.writeFileSync(siteConfigPath, JSON.stringify({ ...CHAIN_SITE_CONFIG, vaultPath: CHAIN_VAULT }));
     const configPath = path.join(scratch, 'config.toml');
     writeConfigToml(configPath, { vaultDir: CHAIN_VAULT, siteConfigPath, outDir: path.join(scratch, 'out'), campaign: 'recaps-stub-cli' });
-    const build = runBuildCommand({ config: configPath, force: true }, 'recaps-stub-cli');
+    const build = runBuildCommand({ config: configPath, 'force-out': true, 'force-check': true }, 'recaps-stub-cli');
     assert.equal(build.exitCode, 0, build.human);
     const warningLines = build.human.split('\n').filter((l) => l.startsWith('warning: sessions:'));
     assert.equal(warningLines.length, 2, `expected one warning: sessions: line per paired hub, got:\n${build.human}`);
@@ -390,7 +390,7 @@ test('normal (b): no warning: sessions: line', () => {
     fs.writeFileSync(siteConfigPath, JSON.stringify({ ...CHAIN_SITE_CONFIG, vaultPath: CHAIN_VAULT }));
     const configPath = path.join(scratch, 'config.toml');
     writeConfigToml(configPath, { vaultDir: CHAIN_VAULT, siteConfigPath, outDir: path.join(scratch, 'out'), campaign: 'recaps-normal' });
-    const build = runBuildCommand({ config: configPath, force: true }, 'recaps-normal');
+    const build = runBuildCommand({ config: configPath, 'force-out': true, 'force-check': true }, 'recaps-normal');
     assert.equal(build.exitCode, 0, build.human);
     const warningLines = build.human.split('\n').filter((l) => l.startsWith('warning: sessions:'));
     assert.deepEqual(warningLines, []);

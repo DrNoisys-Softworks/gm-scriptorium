@@ -99,13 +99,13 @@ test('build --json --force reports ok:true, the overridden findings, and stable 
     delete require.cache[require.resolve('../src/cli/build')];
     const { runBuildCommand } = require('../src/cli/build');
 
-    const a = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const a = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
     assert.equal(a.envelope.ok, true);
     assert.equal(a.envelope.forced, true);
     assert.ok(a.envelope.overriddenFindings.length > 0);
     assert.equal(typeof a.envelope.pagesWritten, 'number');
 
-    const b = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const b = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
     assert.equal(a.envelope.pagesWritten, b.envelope.pagesWritten, 'rebuilding unchanged content must write the same file count');
   });
 });

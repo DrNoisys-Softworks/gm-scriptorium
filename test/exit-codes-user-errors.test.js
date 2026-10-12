@@ -75,6 +75,7 @@ const CASES = [
 
   ['unknown command', () => ['chek'], 1, /unknown command: chek/],
   ['unknown flag', (r) => (goodCfg(r), ['check', '--prot']), 1, /unknown flag --prot/],
+  ['build --force (split)', (r) => (goodCfg(r), ['build', '--force']), 1, /--force has been split/],
   ['--port abc', (r) => (goodCfg(r), fs.mkdirSync(path.join(r, 'site')), fs.writeFileSync(path.join(r, 'site', 'index.html'), 'x'), ['serve', '--port', 'abc']), 1, /--port must be a whole number/],
   ['--port 99999', (r) => (goodCfg(r), fs.mkdirSync(path.join(r, 'site')), fs.writeFileSync(path.join(r, 'site', 'index.html'), 'x'), ['serve', '--port', '99999']), 1, /--port must be a whole number/],
   ['--host with --admin', (r) => (goodCfg(r), ['serve', '--admin', '--host', '0.0.0.0']), 1, /does not accept --host/],

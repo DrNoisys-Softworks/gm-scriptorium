@@ -19,7 +19,7 @@ const GLOBAL = ['campaign', 'config', 'json', 'quiet', 'no-color', 'version', 'h
 const DOCUMENTED = {
   init: ['name', 'vault', 'out', 'title', 'theme', 'yes'],
   check: ['graph', 'json', 'quiet', 'no-color'],
-  build: ['no-check', 'force', 'out', 'json'],
+  build: ['no-check', 'force-check', 'force-out', 'out', 'json'],
   serve: ['build', 'port', 'host', 'admin', 'json'],
   status: ['json'],
   config: ['vault', 'out', 'site-config'],
@@ -34,7 +34,7 @@ test('B4-106-1: every documented flag of every command, and every global flag, i
   for (const [command, names] of Object.entries(DOCUMENTED)) {
     for (const name of [...names, ...GLOBAL]) {
       const flags = { [name]: name === 'version' && command !== 'update' ? true : 'x' };
-      if (['graph', 'json', 'quiet', 'no-color', 'help', 'notices', 'yes', 'force', 'no-check', 'build', 'admin', 'check', 'pre'].includes(name)) flags[name] = true;
+      if (['graph', 'json', 'quiet', 'no-color', 'help', 'notices', 'yes', 'force', 'force-check', 'force-out', 'no-check', 'build', 'admin', 'check', 'pre'].includes(name)) flags[name] = true;
       assert.doesNotThrow(() => validateFlags(command, flags), `${command} --${name}`);
     }
   }
@@ -82,8 +82,8 @@ test('B4-106-6: end to end, a typo makes the command fail before it does anythin
     assert.match(build.err, /unknown flag --prot for "build"/);
     assert.equal(fs.existsSync(out), false, 'a rejected build must not write the site');
 
-    const forse = run(root, ['build', 'lease', '--forse']);
-    assert.match(forse.err, /Did you mean --force\?/);
+    const forse = run(root, ['build', 'lease', '--forse-check']);
+    assert.match(forse.err, /Did you mean --force-check\?/);
     assert.equal(fs.existsSync(out), false);
 
     const check = run(root, ['check', 'lease', '--bogus']);

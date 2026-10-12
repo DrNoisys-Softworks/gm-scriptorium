@@ -79,6 +79,7 @@ the way.
 - [0050. Several campaigns in one panel](decisions/0050-several-campaigns.md): One running panel can switch between registered campaigns, set the default and remove one from the list, and config.toml is now written crash-safely.
 - [0051. Code signing for the Windows executable](decisions/0051-code-signing.md): Signed releases carry a valid signature, checked on Windows, while self-update keeps trusting SHA256SUMS.
 - [0052. Adding a campaign from the panel](decisions/0052-add-a-campaign.md): A GM can add another campaign from the running panel, on this computer or over remote access, with the same questions and checks as first-run setup, then switch to it.
+- [0055. `--force` is split, and no flag overrides the output-leak scan](decisions/0055-force-split.md): `build --force-check` builds despite check errors, `build --force-out` builds into the site config's own output folder, nothing overrides the output-leak scan, and a bare `--force` exits 1 with one line.
 
 ## Licensing
 

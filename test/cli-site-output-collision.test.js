@@ -11,7 +11,7 @@ const { EXIT_CODES } = require('../src/util/exitcodes');
 /*
  * Issue #21, defect 1: a build whose resolved output equals the site
  * config's own `outputDir` must refuse by default (overridable by
- * --force), because that directory is sometimes a frozen baseline another
+ * --force-out), because that directory is sometimes a frozen baseline another
  * process owns. It must NOT refuse a legitimate, deliberately different
  * output dir — a guard that cries wolf on ordinary setups gets disabled.
  */
@@ -75,7 +75,7 @@ test('build refuses (exit 2, writes nothing) when the resolved output equals the
   });
 });
 
-test('build --force proceeds into the site config\'s own outputDir and says so', () => {
+test('build --force-out proceeds into the site config\'s own outputDir and says so', () => {
   withScratchDir((dir) => {
     const siteConfigPath = writeSiteConfig(dir);
     const collisionOut = path.join(dir, 'out');
@@ -83,11 +83,11 @@ test('build --force proceeds into the site config\'s own outputDir and says so',
     writeScratchConfig(configPath, { siteConfig: siteConfigPath, output: collisionOut });
 
     const { runBuildCommand } = requireFresh('../src/cli/build');
-    const result = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const result = runBuildCommand({ config: configPath, 'force-out': true, 'force-check': true }, 'fixture');
 
     assert.equal(result.exitCode, EXIT_CODES.OK);
     assert.equal(result.envelope.ok, true);
-    assert.match(result.human, /--force: building into the site config's own outputDir/);
+    assert.match(result.human, /--force-out: building into the site config's own outputDir/);
     assert.equal(fs.existsSync(collisionOut), true);
   });
 });
@@ -100,13 +100,13 @@ test('build does NOT refuse a legitimate output dir that differs from the site c
     writeScratchConfig(configPath, { siteConfig: siteConfigPath, output: legitimateOut });
 
     const { runBuildCommand } = requireFresh('../src/cli/build');
-    // --force here only overrides the fixture's real content findings (frontmatter/link
+    // --force-check here only overrides the fixture's real content findings (frontmatter/link
     // errors baked into mini-vault), not the collision guard — it must never fire at all.
-    const result = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const result = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
 
     assert.equal(result.exitCode, EXIT_CODES.OK);
     assert.equal(result.envelope.ok, true);
-    assert.equal(result.envelope.siteOutputDirCollision, undefined);
+    assert.equal(result.envelope.siteOutputDirCollision, null);
     assert.ok(!result.human.includes('collision guard'), 'the guard must not mention itself when it never fired');
     assert.equal(fs.existsSync(legitimateOut), true);
     // the sibling directory the site config's own outputDir names must be untouched
@@ -127,18 +127,18 @@ test('build does not refuse when the site config has no outputDir field at all',
     writeScratchConfig(configPath, { siteConfig: siteConfigPath, output: out });
 
     const { runBuildCommand } = requireFresh('../src/cli/build');
-    const result = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const result = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
 
     assert.equal(result.exitCode, EXIT_CODES.OK);
-    assert.equal(result.envelope.siteOutputDirCollision, undefined);
+    assert.equal(result.envelope.siteOutputDirCollision, null);
   });
 });
 
 // ADR 0018, D-06: the collision guard is unchanged by resolution source. A
 // pack's own outputDir is pack-relative (no special handling), so it can
-// still collide with the resolved output and still needs --force.
+// still collide with the resolved output and still needs --force-out.
 
-test('C1 (D-06): a pack-relative outputDir still collides with the same guard, and refuses without --force', () => {
+test('C1 (D-06): a pack-relative outputDir still collides with the same guard, and refuses without --force-out', () => {
   withScratchDir((dir) => {
     const vaultDir = path.join(dir, 'vault');
     fs.cpSync(MINI_VAULT, vaultDir, { recursive: true });

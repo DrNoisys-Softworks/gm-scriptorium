@@ -222,7 +222,7 @@ test('FR-19 runtime: build+check+preview on a self-host-fonts fixture make zero 
 
     const attemptsBefore = netguard.attempts();
 
-    const buildResult = runBuildCommand({ config: configToml, 'no-check': true, force: true }, 'fr19');
+    const buildResult = runBuildCommand({ config: configToml, 'no-check': true, 'force-out': true }, 'fr19');
     assert.equal(buildResult.exitCode, 0, buildResult.human);
 
     const checkResult = runCheckCommand({ config: configToml }, 'fr19');

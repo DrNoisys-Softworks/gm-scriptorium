@@ -193,7 +193,7 @@ test('build --force mirrors css/overrides.css into the built site, linked from i
 
     delete require.cache[require.resolve('../src/cli/build')];
     const { runBuildCommand } = require('../src/cli/build');
-    const result = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const result = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
 
     assert.equal(result.envelope.ok, true, result.human);
 
