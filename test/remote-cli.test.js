@@ -18,7 +18,7 @@ const { runServeCommand } = require('../src/cli/serve');
 const { runBuildCommand } = require('../src/cli/build');
 const { runStatusCommand } = require('../src/cli/status');
 const { parseConfig } = require('../src/config/load');
-const { ConfigError } = require('../src/util/errors');
+const { ConfigError, VaultUnreachableError } = require('../src/util/errors');
 const pw = require('../src/remote/password');
 const pwWrite = require('../src/remote/passwordwrite');
 const { createSessionStore } = require('../src/remote/sessions');
@@ -422,13 +422,50 @@ test('the CLI refuses to write its files inside a vault (the config folder insid
   const inVault = path.join(fx.vault, 'config.toml');
   fs.copyFileSync(fx.configPath, inVault);
   await assert.rejects(runRemoteCommand({ config: inVault }, 'password', [], { stdin: pipes([PASSWORD]).input, stdout: pipes().output }), (err) => {
-    assert.ok(err instanceof ConfigError);
+    assert.ok(err instanceof VaultUnreachableError, 'a config problem, so exit 3');
     assert.match(err.message, /inside the vault of campaign "alpha"/);
     return true;
   });
   assert.equal(fs.existsSync(path.join(fx.vault, 'panel')), false);
-  await assert.rejects(runRemoteCommand({ config: inVault }, 'signout-all', [], {}), ConfigError);
-  await assert.rejects(runRemoteCommand({ config: inVault }, 'off', [], {}), ConfigError);
+  await assert.rejects(runRemoteCommand({ config: inVault }, 'signout-all', [], {}), VaultUnreachableError);
+  await assert.rejects(runRemoteCommand({ config: inVault }, 'off', [], {}), VaultUnreachableError);
+});
+
+test('the CLI refuses a config folder inside a vault the config does not list (found by _meta/vault-config.md), and writes nothing', async (t) => {
+  const fx = fixture(t);
+  // An unregistered vault: only the marker file says so. The config sits two levels down inside it.
+  const strange = path.join(fx.root, 'strange');
+  fs.mkdirSync(path.join(strange, '_meta'), { recursive: true });
+  fs.writeFileSync(path.join(strange, '_meta', 'vault-config.md'), '---\ntype: meta\n---\n');
+  const cfgDir = path.join(strange, 'notes', 'cfg');
+  fs.mkdirSync(cfgDir, { recursive: true });
+  const cfg = path.join(cfgDir, 'config.toml');
+  fs.copyFileSync(fx.configPath, cfg);
+  const before = sha(cfg);
+  for (const sub of ['password', 'signout-all', 'off']) {
+    await assert.rejects(runRemoteCommand({ config: cfg }, sub, [], { stdin: pipes([PASSWORD]).input, stdout: pipes().output }), (err) => {
+      assert.ok(err instanceof VaultUnreachableError, `${sub}: exit 3 class`);
+      assert.match(err.message, /never inside a vault/);
+      assert.ok(err.message.includes(strange), 'names the vault it found');
+      return true;
+    });
+  }
+  assert.deepEqual(fs.readdirSync(cfgDir), ['config.toml'], 'no panel folder, no password file');
+  assert.equal(sha(cfg), before);
+});
+
+test('remote password in a config folder inside a vault exits 3 from the real binary, with a plain message and nothing written', async (t) => {
+  const fx = fixture(t);
+  const cfgDir = path.join(fx.root, 'unlisted-vault');
+  fs.mkdirSync(path.join(cfgDir, '_meta'), { recursive: true });
+  fs.writeFileSync(path.join(cfgDir, '_meta', 'vault-config.md'), '---\ntype: meta\n---\n');
+  const cfg = path.join(cfgDir, 'config.toml');
+  fs.copyFileSync(fx.configPath, cfg);
+  const res = await spawnBin(['remote', 'password', '--config', cfg], { input: `${PASSWORD}\n` });
+  assert.equal(res.code, 3);
+  assert.match(res.stderr, /never inside a vault/);
+  assert.doesNotMatch(res.stderr, /\n\s+at /, 'no stack trace');
+  assert.equal(fs.existsSync(path.join(cfgDir, 'panel')), false);
 });
 
 test('a log that cannot be written is a warning on the command, never a failure', async (t) => {

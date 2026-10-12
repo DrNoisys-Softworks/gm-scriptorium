@@ -233,7 +233,7 @@ function reachLine(settings) {
 function warningSentence(settings, plan) {
   const ports = `${plan.admin.port} and ${plan.preview.port}`;
   if (settings.mode === 'tailscale') return "Any device your tailnet's access rules allow can reach its sign-in page through tailscale serve.";
-  if (settings.mode === 'proxy') return `It answers ${settings.trusted_proxies.join(', ')} (your proxy) and this machine, on ${settings.bind} ports ${ports}.`;
+  if (settings.mode === 'proxy') return `It answers ${settings.trusted_proxies.join(', ')} (your proxy) and this computer (127.0.0.1), on ${settings.bind} ports ${ports}.`;
   const where = WILDCARD_BINDS.includes(settings.bind) ? 'every address of this machine' : settings.bind;
   return `Anything that can reach ${where} on ports ${ports} can reach its sign-in page.`;
 }

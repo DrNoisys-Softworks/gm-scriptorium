@@ -303,7 +303,7 @@ test('proxy: the WARNING precedes startPanelListener on a shared ordering log, t
   const { h, promise } = await run(t, PROXY);
   const p = promise();
   await new Promise((r) => setImmediate(r));
-  const warning = 'WARNING: remote access is on (mode proxy). It answers 127.0.0.2 (your proxy) and this machine, on 192.0.2.42 ports 7922 and 7923.';
+  const warning = 'WARNING: remote access is on (mode proxy). It answers 127.0.0.2 (your proxy) and this computer (127.0.0.1), on 192.0.2.42 ports 7922 and 7923.';
   assert.equal(h.log[0], `emit:${warning}`);
   const firstListen = h.log.findIndex((l) => l.startsWith('panel:'));
   assert.ok(firstListen > 0, 'a listener was started');

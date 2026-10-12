@@ -130,6 +130,7 @@ prerequisite) for a user mistake. The table-driven test is `test/exit-codes-user
 | unusable campaign pack: pack folder missing, no `vault.config.json`, malformed `pack.toml`, unknown theme, missing or oversize image slot file | 1 | 3 | the pack message, e.g. `campaign "x": pack directory does not exist: <path>` |
 | campaign entry with no `vault` key | 1 | 3 | `campaign "x" has no vault configured. Set one with: gm-scriptorium config add x --vault <vault folder> --out <output folder>` |
 | vault with no `site_config`, no `pack` and no `_meta/scriptorium` (what a plain `config add` makes) | 1 | 3 | `campaign "x" has no site config: ... does not exist. Run "gm-scriptorium init" to create one, or set site_config or pack on the campaign.` |
+| `remote password`, `signout-all` or `off` with the config folder inside a vault (registered or not) | 1 | 3 | `remote access keeps its files beside the config, never inside a vault, but <path> is inside the vault at <vault>` |
 | `status` with no campaigns | 0 | 0 | `no campaigns registered; run "gm-scriptorium config add" first` (informational) |
 | unknown command | 1 | 1 | `unknown command: chek` plus the usage block |
 | unknown flag, or a flag with no value | 1 | 1 | `unknown flag --prot for "build"` / `--vault needs a value` |
