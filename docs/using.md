@@ -167,8 +167,8 @@ folder into the vault's campaign pack, the folder `_meta/scriptorium/` inside th
 1. Copy the site files into `_meta/scriptorium/` inside the vault, as they are. Copy no Markdown.
 2. In the copy of `vault.config.json`, remove the `vaultPath` line, and rewrite `outputDir` so it is
    relative to the pack folder, or remove it if you do not need it.
-3. Run `gm-scriptorium check` and read what it says. It should find the pack and build from it.
-4. Delete the `site_config` line from your settings file (`gm-scriptorium config path` shows where it is).
+3. Delete the `site_config` line from your settings file (`gm-scriptorium config path` shows where it is). While the line is there, every command stops.
+4. Run `gm-scriptorium check` and read what it says. It should find the pack and build from it.
 5. Rename the old site files to end in `.moved-to-vault` rather than deleting them, so you can get
    them back.
 

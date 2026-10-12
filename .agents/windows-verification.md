@@ -2085,7 +2085,8 @@ Issue 21. **Mark this OPEN: Linux tests prove the logic only.** Isolate config a
 
 1. With the C177 scratch TOML (and again with a TOML that has no `site_config`): `check c177 --site-config S\x.json` exits 3 with the one line `--site-config is no longer accepted. ...`.
 2. `config add z --vault S\v --out S\o --site-config S\x.json` exits 3 with the same line, and the scratch `config.toml` hash is unchanged (no `z` campaign was written). Also try `update --site-config S\x.json` and `remote show --site-config S\x.json`: exit 3, same line, nothing written.
-3. Re-hash the real config.
+3. With no command at all, `--site-config S\x.json` stops at the admin allowlist with a one-line refusal and exit 1 (not 3). Record that.
+4. Re-hash the real config.
 
 ### C179: the documented migration, on the stand-in, in the real win-x64 exe
 
