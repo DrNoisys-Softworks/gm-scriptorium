@@ -77,6 +77,37 @@ test('the test job still does not package', () => {
   assert.equal(t.includes('npm run package'), false);
 });
 
+/** A top-level block: its unindented key line plus every following indented or blank line. */
+function topBlock(text, key) {
+  const lines = text.split('\n');
+  const start = lines.findIndex((l) => l === `${key}:`);
+  if (start < 0) return null;
+  let end = start + 1;
+  while (end < lines.length && (lines[end] === '' || /^\s/.test(lines[end]))) end++;
+  return lines.slice(start, end).join('\n').trimEnd();
+}
+
+test('workflow-level permissions is exactly contents: read', () => {
+  assert.equal(topBlock(YML, 'permissions'), 'permissions:\n  contents: read');
+});
+
+test('no job declares its own permissions', () => {
+  assert.equal(/^ {4}permissions:/m.test(YML), false);
+});
+
+test('the triggers are exactly push to main and pull_request', () => {
+  assert.equal(topBlock(YML, 'on'), 'on:\n  push:\n    branches: [main]\n  pull_request:');
+});
+
+test('positive controls for the permissions and trigger checks', () => {
+  assert.equal(
+    topBlock('a: 1\npermissions:\n  contents: read\n  x: y\n\njobs:\n', 'permissions'),
+    'permissions:\n  contents: read\n  x: y',
+  );
+  assert.equal(topBlock('a: 1\n', 'permissions'), null);
+  assert.equal(/^ {4}permissions:/m.test('  j:\n    permissions:\n      contents: write\n'), true);
+});
+
 test('positive controls: each pattern rejects a loosened line and accepts a good one', () => {
   assert.match('      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0', USES_RE);
   assert.doesNotMatch('      - uses: actions/cache@v6', USES_RE);

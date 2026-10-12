@@ -129,6 +129,8 @@ function runSmoke({ command, plant = true }) {
     }
     const planted = checkStep(command, root, 'check-planted', EXPECTED.planted);
     if (!planted.ok) return fail('check-planted', planted.reason);
+    // Independent literal (A9-2): a planted leak must exit 2, whatever EXPECTED says.
+    if (planted.code !== 2) return fail('check-planted', `exit got ${planted.code} want 2`);
     const hits = planted.env.findings.filter((f) => f.id === 'leak/l4-output-name');
     if (hits.length === 0) return fail('check-planted', 'marker-not-found');
     if (hits.length !== 1) return fail('check-planted', `marker-extra ${hits.length} findings`);
@@ -168,7 +170,7 @@ function checkStep(command, root, step, want) {
   if (c.error !== want.error || c.warn !== want.warn || c.info !== want.info) {
     return { ok: false, reason: `counts got ${countText(c)} want error=${want.error} warn=${want.warn} info=${want.info}` };
   }
-  return { ok: true, env };
+  return { ok: true, env, code: res.code };
 }
 
 function main(argv) {

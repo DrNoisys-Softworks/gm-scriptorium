@@ -12,6 +12,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
@@ -70,4 +71,31 @@ test('(e) the pin carries the measured literals and the planted name', () => {
   assert.deepEqual(EXPECTED.clean, { exit: 0, error: 0, warn: 0, info: 1 });
   assert.deepEqual(EXPECTED.planted, { exit: 2, error: 1, warn: 0, info: 1 });
   assert.equal(Object.isFrozen(EXPECTED), true);
+});
+
+test('(f) the planted exit is checked as the literal 2, independent of EXPECTED', () => {
+  // A wrapper around the real CLI that reports exit 0 for every check, as a binary that no longer
+  // signals a leak would. The planted step must fail on the exit even if the EXPECTED pin said 0.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-smoke-wrap-'));
+  try {
+    const wrap = path.join(dir, 'wrap.js');
+    fs.writeFileSync(
+      wrap,
+      [
+        "const { spawnSync } = require('child_process');",
+        "const r = spawnSync(process.execPath, process.argv.slice(2), { encoding: 'utf8' });",
+        'process.stdout.write(r.stdout);',
+        'process.stderr.write(r.stderr);',
+        "process.exit(process.argv[3] === 'check' ? 0 : r.status);",
+        '',
+      ].join('\n'),
+    );
+    const { runSmoke } = load();
+    const res = runSmoke({ command: [process.execPath, wrap, BIN] });
+    assert.equal(res.ok, false);
+    assert.equal(res.step, 'check-planted');
+    assert.match(res.reason, /^exit got 0 want 2$/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
