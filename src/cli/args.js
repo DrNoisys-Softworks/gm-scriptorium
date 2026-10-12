@@ -4,14 +4,14 @@ const fs = require('fs');
 const { loadConfigFile, parseConfig } = require('../config/load');
 const { migrateConfig } = require('../config/migrate');
 const { resolveConfigPath } = require('../config/location');
-const { resolveCampaignName, resolveCampaign } = require('../config/resolve');
+const { resolveCampaignName, resolveCampaign, siteConfigKeyRetired, SITE_CONFIG_FLAG_RETIRED } = require('../config/resolve');
 const { ConfigError, VaultUnreachableError } = require('../util/errors');
 
 /*
  * Global flag parsing and campaign resolution, shared by every subcommand
  * (bin/scriptorium.js dispatches, but does no parsing itself). Global
  * flags: --campaign <name>, --json, --quiet, --no-color, --config <path>,
- * --vault/--out/--site-config diagnostic overrides, --version, --help, --notices, --yes.
+ * --vault/--out diagnostic overrides, --version, --help, --notices, --yes.
  */
 
 const GLOBAL_FLAGS_WITH_VALUE = new Set(['campaign', 'config', 'vault', 'out', 'site-config', 'port', 'host']);
@@ -23,7 +23,7 @@ const GLOBAL_BOOLEAN_FLAGS = new Set(['json', 'quiet', 'no-color', 'version', 'h
  * COMMON_FLAGS are the documented global flags (see HELP in bin/scriptorium.js); --quiet and
  * --no-color are documented and accepted but nothing reads them yet.
  */
-const COMMON_FLAGS = ['help', 'version', 'notices', 'config', 'json', 'quiet', 'no-color', 'campaign', 'vault', 'out', 'site-config'];
+const COMMON_FLAGS = ['help', 'version', 'notices', 'config', 'json', 'quiet', 'no-color', 'campaign', 'vault', 'out'];
 const COMMAND_FLAGS = Object.freeze({
   init: [...COMMON_FLAGS, 'name', 'title', 'theme', 'yes', 'new-vault', 'system'],
   check: [...COMMON_FLAGS, 'graph'],
@@ -79,6 +79,10 @@ function closestFlag(name, accepted) {
 function validateFlags(command, flags) {
   const accepted = COMMAND_FLAGS[command];
   if (!accepted) return; // an unknown command is reported by the dispatcher
+  // Issue 21: the retired flag is refused first, for every command, so it exits 3 and never reaches "unknown flag".
+  if (flags['site-config'] !== undefined) {
+    throw new VaultUnreachableError(SITE_CONFIG_FLAG_RETIRED, { path: null, campaign: null, reason: 'site-config-retired' });
+  }
   for (const name of Object.keys(flags)) {
     if (accepted.includes(name)) {
       const takesValue = VALUE_FLAGS.has(name) || (name === 'version' && command === 'update');
@@ -179,8 +183,17 @@ function resolveCampaignContext(flags, explicitCampaign) {
   const { configPath, config } = loadConfig(flags);
   const campaignName = resolveCampaignName(config, explicitCampaign || flags.campaign);
   const resolved = resolveCampaign(config, campaignName, {
-    cliOverrides: { vault: flags.vault, output: flags.out, site_config: flags['site-config'] },
+    cliOverrides: { vault: flags.vault, output: flags.out },
   });
+  // Issue 21: a non-empty site_config is refused here, before anything could stat or read it. An empty
+  // string is ADR 0018's per-machine switch-off and is accepted.
+  if (typeof resolved.site_config === 'string' && resolved.site_config.length > 0) {
+    throw new VaultUnreachableError(siteConfigKeyRetired(campaignName, configPath), {
+      path: configPath,
+      campaign: campaignName,
+      reason: 'site-config-retired',
+    });
+  }
   return { configPath, config, ...resolved };
 }
 

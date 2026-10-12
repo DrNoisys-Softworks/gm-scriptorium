@@ -22,14 +22,13 @@ Commands:
   remote   show | set [--mode local|ssh|tailscale|proxy] [--admin-url URL] [--preview-url URL] [--bind ADDR]
            [--trusted-proxy ADDR,...] [--port N] [--preview-port N] | password | signout-all | off
   status   [campaign] [--json]
-  config   list | add <name> --vault <path> [--out <path>] [--site-config <path>] | remove <name> | set-default <name> | path | edit
+  config   list | add <name> --vault <path> [--out <path>] | remove <name> | set-default <name> | path | edit
   update   [--check] [--pre] [--version TAG]
 
 Global flags: --campaign <name>, --config <path>, --json, --quiet, --no-color, --version, --help,
-  --notices, --vault <path>, --out <path>, --site-config <path>
-  (--vault/--out/--site-config override the registered campaign's paths for that one run only,
-  never persisted. check/build/status read all three; serve only reads --vault/--out (it never
-  reads the site config). To change a path for good, use "config add" or "config edit".)
+  --notices, --vault <path>, --out <path>
+  (--vault/--out override the registered campaign's paths for that one run only,
+  never persisted. To change a path for good, use "config add" or "config edit".)
 
 Run "gm-scriptorium <command> --help" for what one command does and the exit codes it can return.
 Run "gm-scriptorium" with no command in a terminal to open the panel in your browser.

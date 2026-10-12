@@ -39,7 +39,6 @@ const RUNNERS = {
   'config/exclude-dirs-divergence': configdiv.runExcludeDirsDivergence,
   'config/exclude-fields-divergence': configdiv.runExcludeFieldsDivergence,
   'config/site-vault-path-mismatch': configdiv.runSiteVaultPathMismatch,
-  'config/pack-shadowed': configdiv.runPackShadowed,
   'config/theme-scheme-mismatch': themescheme.runThemeSchemeMismatch,
   'leak/l1-no-manifest': l1.runNoManifest,
   'leak/l2-excluded-dir-in-output': l2.runExcludedDirInOutput,

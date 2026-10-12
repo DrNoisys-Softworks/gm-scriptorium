@@ -1804,3 +1804,5 @@ name; the one new write route is `POST /api/vault-config/fields`.
 
 - **Section 4 (reads: the fixed readable set).** The add checks take a folder path from a request and probe it, bounded, outside setup mode and for a remote session. Over remote access a typed path is only probed when the GM commits it, and each such probe is audited with its path before it runs. ADR 0052 section 6 says plainly what a signed-in session can learn from them.
 - **The write exception.** The route that adds a campaign is a third panel write to `config.toml`, on the same chain as the other two: `src/admin/handlers/campaigns.js` > `src/setup/register.js` > `src/config/write.js`. `register.js` is still the only panel-side importer of the writer, and ADR 0052 section 3 names the tests that fence it.
+
+Issue 21 retired `site_config` ([ADR 0018](0018-campaign-pack.md), "Addendum: `site_config` retired"): the panel's read-only reason for a `site_config` campaign is gone, because such a campaign can no longer be opened or switched to. Switching to one fails with the retirement message.

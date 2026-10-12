@@ -129,7 +129,8 @@ prerequisite) for a user mistake. The table-driven test is `test/exit-codes-user
 | bad `SCRIPTORIUM_PROFILE`, or two equally specific profiles | 1 | 3 | `SCRIPTORIUM_PROFILE="x" names a profile that does not exist ...` / `two profiles are equally specific for this machine: a, b` |
 | unusable campaign pack: pack folder missing, no `vault.config.json`, malformed `pack.toml`, unknown theme, missing or oversize image slot file | 1 | 3 | the pack message, e.g. `campaign "x": pack directory does not exist: <path>` |
 | campaign entry with no `vault` key | 1 | 3 | `campaign "x" has no vault configured. Set one with: gm-scriptorium config add x --vault <vault folder> --out <output folder>` |
-| vault with no `site_config`, no `pack` and no `_meta/scriptorium` (what a plain `config add` makes) | 1 | 3 | `campaign "x" has no site config: ... does not exist. Run "gm-scriptorium init" to create one, or set site_config or pack on the campaign.` |
+| campaign still sets `site_config`, or `--site-config` given | 1 or 0 | 3 | `campaign "x" still sets site_config, which this version no longer reads; ...` / `--site-config is no longer accepted. ...` |
+| vault with no `pack` and no `_meta/scriptorium` (what a plain `config add` makes) | 1 | 3 | `campaign "x" has no site config: ... does not exist. Run "gm-scriptorium init" to create one, or set pack on the campaign.` |
 | `remote password`, `signout-all` or `off` with the config folder inside a vault (registered or not) | 1 | 3 | `remote access keeps its files beside the config, never inside a vault, but <path> is inside the vault at <vault>` |
 | `status` with no campaigns | 0 | 0 | `no campaigns registered; run "gm-scriptorium config add" first` (informational) |
 | unknown command | 1 | 1 | `unknown command: chek` plus the usage block |

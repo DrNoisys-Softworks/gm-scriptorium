@@ -37,10 +37,6 @@ function outputHasBuild(outputPath) {
  * @param {object|null} [opts.vaultMismatch] FR-18: null, or the site config's
  *   own vaultPath diverging from the vault actually resolved (src/cli/check.js's
  *   resolveVaultContext), for config/site-vault-path-mismatch to report.
- * @param {object|null} [opts.packShadowed] ADR 0018: null, or
- *   {siteConfigPath, packDir, packSource} when a legacy site_config won over
- *   a campaign pack that would otherwise have been used (src/cli/check.js's
- *   resolveVaultContext), for config/pack-shadowed to report.
  * @param {object|null} [opts.packToml] ADR 0023: the parsed pack.toml (src/build/packtoml.js's
  *   loadPackToml return value, from src/cli/check.js's resolveVaultContext), or null when no
  *   check-driving command threaded one through. Only src/checks/themescheme.js reads it.
@@ -61,7 +57,6 @@ function buildCheckContext({
   outputPath = null,
   graph = false,
   vaultMismatch = null,
-  packShadowed = null,
   packToml = null,
   deferOutputScan = false,
 }) {
@@ -86,7 +81,6 @@ function buildCheckContext({
     outputPath: resolvedOutputPath && outputHasBuild(resolvedOutputPath) ? resolvedOutputPath : null,
     graph,
     vaultMismatch,
-    packShadowed,
     packToml,
     deferOutputScan: Boolean(deferOutputScan),
     index,

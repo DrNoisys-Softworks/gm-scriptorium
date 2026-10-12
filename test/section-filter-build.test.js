@@ -77,7 +77,7 @@ function buildFixtureSite(dir) {
     '',
     '[campaigns.fixture]',
     `vault = '${FIXTURE}'`,
-    `site_config = '${siteConfigPath}'`,
+    `pack = '${path.dirname(siteConfigPath)}'`,
     `output = '${outDir}'`,
   ].join('\n');
   fs.writeFileSync(configPath, toml);

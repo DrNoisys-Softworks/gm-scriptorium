@@ -45,9 +45,9 @@ function runConfigCommand(flags, subcommand, args) {
 
     case 'add': {
       const name = args[0];
-      if (!name) throw new ConfigError('usage: gm-scriptorium config add <name> --vault <path> [--out <path>] [--site-config <path>]');
+      if (!name) throw new ConfigError('usage: gm-scriptorium config add <name> --vault <path> [--out <path>]');
       // A flag given with no value parses as `true`; writing that would corrupt the config.
-      for (const flag of ['vault', 'out', 'site-config']) {
+      for (const flag of ['vault', 'out']) {
         if (flags[flag] === true) throw new ConfigError(`--${flag} needs a value: config add ${name} --${flag} <path>`);
       }
       if (!flags.vault) throw new ConfigError('config add requires --vault <path>');
@@ -62,7 +62,6 @@ function runConfigCommand(flags, subcommand, args) {
       const next = addCampaign(config, name, {
         vault: flags.vault,
         output: flags.out,
-        siteConfig: flags['site-config'],
       });
       writeConfigFile(configPath, next);
 

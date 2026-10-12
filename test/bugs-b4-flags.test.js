@@ -15,14 +15,14 @@ const { ConfigError } = require('../src/util/errors');
  * are written by hand from the HELP text and the README, never read back from the code under test.
  */
 
-const GLOBAL = ['campaign', 'config', 'json', 'quiet', 'no-color', 'version', 'help', 'notices', 'vault', 'out', 'site-config'];
+const GLOBAL = ['campaign', 'config', 'json', 'quiet', 'no-color', 'version', 'help', 'notices', 'vault', 'out'];
 const DOCUMENTED = {
   init: ['name', 'vault', 'out', 'title', 'theme', 'yes'],
   check: ['graph', 'json', 'quiet', 'no-color'],
   build: ['no-check', 'force', 'out', 'json'],
   serve: ['build', 'port', 'host', 'admin', 'json'],
   status: ['json'],
-  config: ['vault', 'out', 'site-config'],
+  config: ['vault', 'out'],
   update: ['check', 'pre', 'version'],
 };
 

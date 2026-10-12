@@ -61,7 +61,7 @@ test('build --force against the GURPS fixture renders gurps-combat and ships no 
       '',
       '[campaigns.fixture]',
       `vault = '${FIXTURE}'`,
-      `site_config = '${siteConfigPath}'`,
+      `pack = '${path.dirname(siteConfigPath)}'`,
       `output = '${outDir}'`,
     ].join('\n');
     fs.writeFileSync(configPath, toml);
@@ -124,7 +124,7 @@ test('two builds of the unchanged GURPS fixture report identical redactions', ()
       '',
       '[campaigns.fixture]',
       `vault = '${FIXTURE}'`,
-      `site_config = '${siteConfigPath}'`,
+      `pack = '${path.dirname(siteConfigPath)}'`,
       `output = '${outDir}'`,
     ].join('\n');
     fs.writeFileSync(configPath, toml);

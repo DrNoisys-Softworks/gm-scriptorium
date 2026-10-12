@@ -241,3 +241,26 @@ is exactly the kind of silent drift this whole mechanism exists to avoid introdu
 
 The admin panel may also replace one existing vault file, `_meta/vault-config.md`, through its own
 chokepoint and only after a backup outside the vault. Nothing above is edited; see ADR 0033.
+
+## Addendum: `site_config` retired (issue 21)
+
+The `site_config` campaign key and the `--site-config` flag are no longer read or written, so the first
+place in the resolution order above is gone: a pack key, then the convention directory, is the whole
+sequence now.
+
+- A campaign whose merged `site_config` is a non-empty string, and any use of `--site-config`, exit 3 with
+  one line that points at "Moving a site folder into a pack" in `docs/using.md` and at `init`. Nothing is
+  stat'd, read or written first. The refusal sits in `resolveCampaignContext` (the one path that turns
+  config into an acting campaign) and at the top of flag validation, so `check`, `build`, `serve`
+  (plain and `--admin`), `status <campaign>` and the panel's campaign switch all stop. The list forms
+  (`config list`, `status` with no campaign, the panel's campaign list) still list it.
+- An empty string is still accepted: it is this ADR's documented per-machine switch-off, and a profile
+  that sets `site_config = ""` over a base value keeps working.
+- Nothing rewrites `config.toml`. `config add` keeps a `site_config` it did not set, like any other key.
+- `config/pack-shadowed` is gone with its only cause. `init` still creates the pack; when it finds
+  `site_config` in the block it says so and leaves the line for the GM to remove.
+- Rejected: an automatic rewrite of `config.toml`, which would break the rule that the tool does not edit
+  a settings file behind the GM's back; and a deprecation warning that still builds, which would keep
+  the old input alive and the shadow problem with it.
+- The generic migration procedure above still describes the steps; steps 5 and 6 now happen on the GM's
+  own timetable, because this version refuses to build from the legacy input at all.

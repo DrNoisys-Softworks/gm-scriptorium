@@ -17,7 +17,7 @@ const BOM = '﻿';
 const BOM_BYTES = Buffer.from([0xef, 0xbb, 0xbf]);
 
 const { stripBom } = require('../src/util/bom');
-const { loadSiteConfig, loadPackConfig, parsePackConfigText } = require('../src/cli/check');
+const { loadPackConfig, parsePackConfigText } = require('../src/cli/check');
 const { parseConfig, loadConfigFile } = require('../src/config/load');
 const { parsePackToml } = require('../src/build/packtoml');
 const { editPackTomlTheme, editVaultConfigJson } = require('../src/admin/packedit');
@@ -42,16 +42,6 @@ test('stripBom removes exactly one leading BOM and leaves everything else alone'
   assert.equal(stripBom(''), '');
   assert.equal(stripBom(`a${BOM}b`), `a${BOM}b`, 'a BOM that is not first is content, not a mark');
   assert.equal(stripBom(`${BOM}${BOM}x`), `${BOM}x`, 'only the first is the byte-order mark');
-});
-
-test('vault.config.json (site_config path) with a BOM loads', () => {
-  withDir((dir) => {
-    const file = path.join(dir, 'vault.config.json');
-    fs.writeFileSync(file, Buffer.concat([BOM_BYTES, Buffer.from(VAULT_CONFIG_JSON)]));
-    const cfg = loadSiteConfig(file);
-    assert.equal(cfg.siteTitle, 'The Long Night');
-    assert.equal(cfg.vaultPath, dir);
-  });
 });
 
 test('vault.config.json (campaign pack, read through the vault chokepoint) with a BOM loads', () => {

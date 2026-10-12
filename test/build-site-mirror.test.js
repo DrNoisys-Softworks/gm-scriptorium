@@ -186,7 +186,7 @@ test('build --force mirrors css/overrides.css into the built site, linked from i
       '',
       '[campaigns.fixture]',
       `vault = '${MINI_VAULT}'`,
-      `site_config = '${siteConfigPath}'`,
+      `pack = '${path.dirname(siteConfigPath)}'`,
       `output = '${outDir}'`,
     ].join('\n');
     fs.writeFileSync(configPath, toml);

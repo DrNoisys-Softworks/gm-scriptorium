@@ -212,38 +212,10 @@ function runSiteVaultPathMismatch(ctx) {
   ];
 }
 
-/**
- * ADR 0018: names both paths and says which one wins. Shared by the
- * finding's message and build/status's human `note:` line, the same
- * pattern siteVaultPathMismatchMessage above already uses. Lives here, not
- * in src/cli/check.js, for the same require-cycle reason.
- */
-function packShadowedMessage(p) {
-  return `site_config ${p.siteConfigPath} is in use, so the campaign pack at ${p.packDir} is ignored; remove site_config to use the pack`;
-}
-
-/** config/pack-shadowed (ADR 0018): 0 findings when ctx.packShadowed is null, else one WARN naming both paths. */
-function runPackShadowed(ctx) {
-  if (!ctx.packShadowed) return [];
-  return [
-    createFinding({
-      id: 'config/pack-shadowed',
-      severity: 'warn',
-      category: 'config',
-      campaign: ctx.campaign,
-      path: null,
-      message: packShadowedMessage(ctx.packShadowed),
-      data: ctx.packShadowed,
-    }),
-  ];
-}
-
 module.exports = {
   runExcludeSectionsDivergence,
   runExcludeDirsDivergence,
   runExcludeFieldsDivergence,
   runSiteVaultPathMismatch,
   siteVaultPathMismatchMessage,
-  runPackShadowed,
-  packShadowedMessage,
 };

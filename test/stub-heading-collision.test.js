@@ -47,7 +47,7 @@ function buildFixture(dir) {
   const configPath = path.join(dir, 'config.toml');
   fs.writeFileSync(
     configPath,
-    ['config_version = 1', 'default_campaign = "fixture"', '', '[campaigns.fixture]', `vault = '${FIXTURE}'`, `site_config = '${siteConfigPath}'`, `output = '${outDir}'`].join('\n'),
+    ['config_version = 1', 'default_campaign = "fixture"', '', '[campaigns.fixture]', `vault = '${FIXTURE}'`, `pack = '${path.dirname(siteConfigPath)}'`, `output = '${outDir}'`].join('\n'),
   );
   delete require.cache[require.resolve('../src/cli/build')];
   // eslint-disable-next-line global-require

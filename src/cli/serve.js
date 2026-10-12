@@ -4,7 +4,6 @@ const path = require('path');
 const fs = require('fs');
 const { resolveCampaignContext } = require('./args');
 const { locateVault } = require('../vault/locate');
-const { loadSiteConfig } = require('./check');
 const { runBuildCommand, requireOutputFolder } = require('./build');
 const { startServer: startServerImpl, startLocalListener: startLocalListenerImpl, startPanelListener: startPanelListenerImpl } = require('../serve/server');
 const { runAdminServe } = require('./serve-admin');

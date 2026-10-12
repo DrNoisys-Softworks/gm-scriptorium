@@ -6,6 +6,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { packFromSiteConfig } = require('./helpers/site-pack');
+
 const MINI_VAULT = path.join(__dirname, 'fixtures', 'mini-vault');
 const SITE_CONFIG_SRC = path.join(__dirname, 'fixtures', 'mini-vault-site-config.json');
 
@@ -16,7 +18,7 @@ function writeScratchConfig(configPath, { output }) {
     '',
     '[campaigns.fixture]',
     `vault = '${MINI_VAULT}'`,
-    `site_config = '${SITE_CONFIG_SRC}'`,
+    `pack = '${packFromSiteConfig(SITE_CONFIG_SRC, path.join(path.dirname(configPath), 'pack'))}'`,
     `output = '${output}'`,
   ].join('\n');
   fs.writeFileSync(configPath, toml);

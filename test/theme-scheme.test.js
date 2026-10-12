@@ -2,7 +2,7 @@
 
 /*
  * P3b, S4 (ADR 0023, SD-6): config/theme-scheme-mismatch. Scratch copies of
- * test/fixtures/mini-vault, following test/pack-shadowed.test.js's pattern.
+ * test/fixtures/mini-vault, following the scratch-copy pattern of the pack tests.
  */
 
 const test = require('node:test');

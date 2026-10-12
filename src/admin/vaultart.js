@@ -66,8 +66,7 @@ function listVaultArt(ctx) {
   // 1. jsonConfig.
   let jsonConfig;
   try {
-    jsonConfig =
-      ctx.siteSource === 'site_config' ? check.loadSiteConfig(ctx.siteConfigPath) : check.loadPackConfig(ctx.siteConfigPath, ctx.campaign);
+    jsonConfig = check.loadPackConfig(ctx.siteConfigPath, ctx.campaign);
   } catch {
     return unavailable(ctx, 'R_CONFIG', null);
   }

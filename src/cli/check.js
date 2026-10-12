@@ -1,6 +1,5 @@
 'use strict';
 
-const fs = require('fs');
 const path = require('path');
 const read = require('../vault/read');
 const { loadPackToml } = require('../build/packtoml');
@@ -24,56 +23,15 @@ function conventionPackDir(vaultPath) {
 }
 
 /**
- * Loads a legacy site config (vault.config.json). A legacy site config
- * lives OUTSIDE the vault (Requirements section 8.1: "site/ must be outside
- * vault/"), so reading it is plain fs, not routed through
- * src/vault/read.js's vault chokepoint. A campaign pack's vault.config.json
- * may live INSIDE the vault instead (docs/decisions/0018-campaign-pack.md:
- * inputs may live in the vault, output may not) and is read through
- * src/vault/read.js's readText() by loadPackConfig() below, not by this
- * function.
- *
- * A missing `site_config` is a user configuration mistake, not a
- * Scriptorium bug, so it throws `ConfigError` (same family as the sibling
- * "campaign has no vault configured" check in `resolveVaultContext` below)
- * rather than a bare `Error`. `bin/scriptorium.js` prints `ConfigError`s as
- * a clean one-line message with no stack trace and exits 1
- * (`EXIT_CODES.SCRIPTORIUM_ERROR`) — the same code every other config
- * error in this codebase already uses; the frozen exit table's "not a
- * finding about the vault" clause is what makes 1 the fit here, not 2
- * (there is no finding: the run never got far enough to produce one).
- * `check`, `build`, and `status` all resolve the vault context through
- * this same function, so fixing it here closes the hole for all three.
- */
-function loadSiteConfig(siteConfigPath) {
-  if (!siteConfigPath) {
-    throw new VaultUnreachableError(
-      'campaign has no site_config configured. Set site_config on the campaign, or use a pack (gm-scriptorium init).',
-      { path: null, campaign: null, reason: 'no-site-config' },
-    );
-  }
-  const raw = fs.readFileSync(siteConfigPath, 'utf8');
-  const jsonConfig = JSON.parse(stripBom(raw));
-  if (jsonConfig.vaultPath) {
-    jsonConfig.vaultPath = path.resolve(path.dirname(siteConfigPath), jsonConfig.vaultPath);
-  }
-  return jsonConfig;
-}
-
-/**
- * ADR 0018: resolves which of the three site-input sources a campaign uses,
- * in the sequence `site_config` (including `--site-config`) > the `pack` key >
- * the convention directory `<vault>/_meta/scriptorium/`. "Set" means a
- * non-empty string; an empty string counts as unset, the same convention
- * loadSiteConfig's own falsy check above already uses. Runs after
- * `locateVault` (never in src/config/resolve.js, which may not stat
- * anything).
+ * ADR 0018: resolves which of the two site-input sources a campaign uses, in the sequence the
+ * `pack` key > the convention directory `<vault>/_meta/scriptorium/`. "Set" means a non-empty
+ * string; an empty string counts as unset. Issue 21: the retired `site_config` key never gets this
+ * far (resolveCampaignContext in src/cli/args.js refuses it). Runs after `locateVault` (never in
+ * src/config/resolve.js, which may not stat anything).
  *
  * @param {object} ctxInfo return value of resolveCampaignContext
  * @param {string} vaultPath absolute, already resolved
- * @returns {{ siteSource: 'site_config'|'pack'|'convention', siteConfigPath: string,
- *   siteDir: string, packShadowed: null | { siteConfigPath: string, packDir: string,
- *   packSource: 'pack'|'convention' } }}
+ * @returns {{ siteSource: 'pack'|'convention', siteConfigPath: string, siteDir: string }}
  * @throws {ConfigError}
  */
 /** Issue #108: an unusable campaign pack is a campaign-config problem, exit 3 (see asPackProblem). */
@@ -82,25 +40,7 @@ function packProblem(message, atPath, campaign) {
 }
 
 function resolveSiteSource(ctxInfo, vaultPath) {
-  const hasSiteConfig = typeof ctxInfo.site_config === 'string' && ctxInfo.site_config.length > 0;
   const hasPack = typeof ctxInfo.pack === 'string' && ctxInfo.pack.length > 0;
-
-  if (hasSiteConfig) {
-    const siteDir = path.dirname(path.resolve(ctxInfo.site_config));
-    const candidate = hasPack ? path.resolve(ctxInfo.pack) : conventionPackDir(vaultPath);
-    let packShadowed = null;
-    if (read.pathExists(path.join(candidate, PACK_CONFIG_FILE))) {
-      packShadowed = {
-        siteConfigPath: path.resolve(ctxInfo.site_config),
-        packDir: candidate,
-        packSource: hasPack ? 'pack' : 'convention',
-      };
-    }
-    // siteConfigPath is ctxInfo.site_config AS GIVEN (not resolved): legacy
-    // callers (loadSiteConfig, computeVaultMismatch) must see the same
-    // argument they always have.
-    return { siteSource: 'site_config', siteConfigPath: ctxInfo.site_config, siteDir, packShadowed };
-  }
 
   if (hasPack) {
     const packDir = path.resolve(ctxInfo.pack);
@@ -117,13 +57,13 @@ function resolveSiteSource(ctxInfo, vaultPath) {
     }
     // Never falls through to the convention: an explicit pack that silently
     // doesn't apply is the class of bug FR-17 existed to kill.
-    return { siteSource: 'pack', siteConfigPath: jsonPath, siteDir: packDir, packShadowed: null };
+    return { siteSource: 'pack', siteConfigPath: jsonPath, siteDir: packDir };
   }
 
   const conventionDir = conventionPackDir(vaultPath);
   const conventionJson = path.join(conventionDir, PACK_CONFIG_FILE);
   if (read.pathExists(conventionJson)) {
-    return { siteSource: 'convention', siteConfigPath: conventionJson, siteDir: conventionDir, packShadowed: null };
+    return { siteSource: 'convention', siteConfigPath: conventionJson, siteDir: conventionDir };
   }
   if (read.pathExists(conventionDir)) {
     throw packProblem(
@@ -134,8 +74,8 @@ function resolveSiteSource(ctxInfo, vaultPath) {
   }
   // Issue #108: a campaign with no site inputs at all is a campaign-config problem, exit 3.
   throw new VaultUnreachableError(
-    `campaign "${ctxInfo.campaign}" has no site config: site_config is not set, pack is not set, and ${conventionJson} does not exist. ` +
-      'Run "gm-scriptorium init" to create one, or set site_config or pack on the campaign.',
+    `campaign "${ctxInfo.campaign}" has no site config: pack is not set, and ${conventionJson} does not exist. ` +
+      'Run "gm-scriptorium init" to create one, or set pack on the campaign.',
     { path: conventionJson, campaign: ctxInfo.campaign, reason: 'no-site-config' },
   );
 }
@@ -146,8 +86,7 @@ function resolveSiteSource(ctxInfo, vaultPath) {
  * rules `check`/`build` apply to the on-disk file, without going through `read.readText` (the
  * panel already has the bytes in hand, from the request body or the on-disk raw it re-read
  * itself). No special handling of `vaultPath` or `outputDir`: both are pack-relative, same as any
- * other site config (D-06). `vaultPath`, if present, is resolved the same way loadSiteConfig()
- * above resolves it.
+ * other site config (D-06). `vaultPath`, if present, is resolved against the pack folder.
  *
  * @param {string} raw
  * @param {string} packConfigPath absolute
@@ -232,7 +171,7 @@ function loadPackConfig(packConfigPath, campaign) {
  *
  * @param {object} siteConfig the parsed vault.config.json
  * @param {string} siteConfigPath the file it came from (resolveSiteSource's own
- *   siteConfigPath: as-given for a legacy site_config, resolved for a pack/convention one)
+ *   siteConfigPath, resolved)
  * @param {string} campaign
  * @throws {ConfigError}
  */
@@ -270,7 +209,7 @@ function assertScanKeysPresent(siteConfig, siteConfigPath, campaign) {
  * (SC-01's non-goal).
  *
  * @param {object} jsonConfig the loaded site config; `.vaultPath`, if
- *   present, is already resolved absolute by loadSiteConfig
+ *   present, is already resolved absolute by parsePackConfigText
  * @param {string} vaultPath absolute, the resolved vault
  * @param {string} siteConfigPath the site config's own path (may be relative)
  * @returns {null | { siteConfigPath: string, siteConfigVaultPath: string, resolvedVaultPath: string, used: 'resolved' }}
@@ -296,12 +235,12 @@ function computeVaultMismatch(jsonConfig, vaultPath, siteConfigPath) {
  * divergence is reported via `vaultMismatch`, never used and never fatal.
  *
  * ADR 0018: which site inputs are used is decided by resolveSiteSource
- * (site_config > pack > convention) right after locateVault, above.
+ * (pack > convention) right after locateVault, above.
  *
  * @param {object} ctxInfo return value of resolveCampaignContext (args.js:69-76)
  * @returns {{ vaultPath: string, jsonConfig: object, vaultMismatch: null | object,
- *   siteDir: string, siteSource: 'site_config'|'pack'|'convention',
- *   packShadowed: null | object, packToml: object }}
+ *   siteDir: string, siteSource: 'pack'|'convention',
+ *   packToml: object }}
  * @throws {ConfigError} ctxInfo.vault is not a non-empty string, or a pack/convention failure,
  *   or ADR 0019's pack.toml syntax/type/theme validation
  * @throws {VaultUnreachableError} from locateVault
@@ -358,10 +297,7 @@ function asPackProblem(fn, campaign) {
 
 function resolveVaultContext(ctxInfo) {
   const { vaultPath, site } = resolveVaultSite(ctxInfo);
-  const siteConfig =
-    site.siteSource === 'site_config'
-      ? loadSiteConfig(site.siteConfigPath)
-      : asPackProblem(() => loadPackConfig(site.siteConfigPath, ctxInfo.campaign), ctxInfo.campaign);
+  const siteConfig = asPackProblem(() => loadPackConfig(site.siteConfigPath, ctxInfo.campaign), ctxInfo.campaign);
   assertScanKeysPresent(siteConfig, site.siteConfigPath, ctxInfo.campaign);
   const vaultMismatch = computeVaultMismatch(siteConfig, vaultPath, site.siteConfigPath);
 
@@ -377,7 +313,6 @@ function resolveVaultContext(ctxInfo) {
     vaultMismatch,
     siteDir: site.siteDir,
     siteSource: site.siteSource,
-    packShadowed: site.packShadowed,
     packToml,
   };
 }
@@ -403,7 +338,7 @@ function resolveVaultContext(ctxInfo) {
  * @returns {{ envelope: object, exitCode: number, human: string, checkCtx: object }}
  */
 function runCheckForContextWithContext(ctxInfo, flags, opts = {}) {
-  const { vaultPath, jsonConfig, vaultMismatch, packShadowed, packToml } = resolveVaultContext(ctxInfo);
+  const { vaultPath, jsonConfig, vaultMismatch, packToml } = resolveVaultContext(ctxInfo);
 
   const graph = Boolean(flags.graph);
   const checkCtx = buildCheckContext({
@@ -413,7 +348,6 @@ function runCheckForContextWithContext(ctxInfo, flags, opts = {}) {
     outputPath: ctxInfo.output ? path.resolve(ctxInfo.output) : null,
     graph,
     vaultMismatch,
-    packShadowed,
     packToml,
     deferOutputScan: Boolean(opts.deferOutputScan),
   });
@@ -472,7 +406,6 @@ module.exports = {
   runCheckCommand,
   runCheckForContext,
   runCheckForContextWithContext,
-  loadSiteConfig,
   resolveVaultContext,
   asPackProblem,
   resolveVaultSite,

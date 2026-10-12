@@ -137,7 +137,7 @@ const HELP_BY_COMMAND = {
     '',
     'Subcommands:',
     '  list                              show every registered campaign',
-    '  add <name> --vault <path> [--out <path>] [--site-config <path>]',
+    '  add <name> --vault <path> [--out <path>]',
     '                                    register (or replace) a campaign',
     '  remove <name>                     forget a campaign; nothing on disk is deleted',
     '  set-default <name>                the campaign used when you name none',

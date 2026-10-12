@@ -128,6 +128,8 @@ proof only; this is exactly what C1 confirms on Windows):
   scriptorium-win-x64.exe build grapheme-check --force --config <config>.toml
   ```
 
+  > Note 2026-10-12 (issue 21): `--site-config` no longer exists. Register with `config add grapheme-check --vault <vault copy> --out <out-dir> --config <config>.toml`, make a folder holding a copy of the site config saved as `vault.config.json` with `vaultPath` rewritten to the absolute path of the vault copy, and add `pack = '<that folder>'` to the campaign in the scratch TOML. The `build` line is unchanged and the hash list must still match the manifest.
+
   then hash every file (PowerShell: `Get-ChildItem -Recurse -File <out-dir> | Get-FileHash -Algorithm
   SHA256 | Sort-Object Path`) and diff against the C1 manifest for this pin, delivered over
   the Windows verification channel: `c1-manifest-node.txt` (the Linux plain-node reference). **Stale as of the `publish-v1.11.44` repin (2026-10-01), again at `publish-v1.12.0` (2026-10-02), at `publish-v1.12.3` (2026-10-03) and again at `publish-v1.14.0` (2026-10-06), not yet regenerated (OPEN):** the pin's own `css/style.css` changed at the first two and is copied into every built site, at `publish-v1.12.3` the pin's page templates and link reading changed, and at `publish-v1.14.0` the pin's grouped Story toggle, the D&D sheet templates and `css/style.css` changed, so the manifest below no longer matches a build at the current pin. Regenerate it on the Linux build host before using this criterion. **Regenerated at `publish-v1.11.40`
@@ -440,6 +442,8 @@ packaged artefact. **Mark this OPEN: Linux-verified from source only.**
      dir>` (omit `--site-config`) then `check`/`build`/`status` against it should each print the one
      line and exit 3, no stack.
 
+     > Note 2026-10-12 (issue 21): `--site-config` is gone and the message is now `campaign "x" has no site config: pack is not set, and <path> does not exist. Run "gm-scriptorium init" to create one, or set pack on the campaign.` Exit 3, no stack, unchanged.
+
 ### C31: book leaves and page motion (Track B), in the real win-x64 exe's output
 
 `docs/decisions/0016-book-leaves-and-page-motion.md`: `src/build/sessionbadges.js`,
@@ -555,6 +559,8 @@ match. Use a vault on a mapped drive letter that already carries `_meta\scriptor
    `site_config` and no `pack`. `check`: exit 3 (issue #108; was 1, **OPEN** again), exactly one stderr line naming `site_config`, `pack` and
    `<scratch vault>\_meta\scriptorium\vault.config.json`, no stack trace.
 5. Re-hash `%APPDATA%\Scriptorium\config.toml`.
+
+> Note 2026-10-12 (issue 21): `site_config` no longer takes part in resolution, so step 2 (precedence) and step 3 (the `config/pack-shadowed` WARN) cannot be run: a `site_config` line now stops the command with exit 3 (see C177). Resolution now goes to the `pack` key first, then the convention directory. Step 4's single line now names `pack` and the convention path only (it no longer mentions `site_config`).
 
 ### C34: themes and image slots (pack.toml), in the real win-x64 exe
 
@@ -797,6 +803,8 @@ Isolate config exactly as in C35. Set `SCRIPTORIUM_CONFIG` to a scratch TOML and
    - `serve c39 --admin --site-config "S\x.json"`
 
    `netstat -ano` must then show no LISTENING entry that was not in `S\before.txt`.
+
+   > Note 2026-10-12 (issue 21): `serve c39 --admin --site-config "S\x.json"` now stops in flag validation with `--site-config is no longer accepted. ...` and exit 3, not exit 1 (see C178). It still opens no listening port.
 2. `serve c39 --admin --port P`, where P is a free port, prints exactly three lines:
    - `admin panel: http://127.0.0.1:P/auth?token=<T>`
    - `preview: http://127.0.0.1:<Q>/`
@@ -2059,6 +2067,35 @@ Issue #49, `docs/decisions/0011-notices-beside-the-executable.md`. **Mark this O
 1. Copy the exe to a scratch folder with no `THIRD-PARTY-NOTICES.txt` and run `gm-scriptorium-win-x64.exe --version`. It prints "third-party notices: run gm-scriptorium --notices to print them".
 2. List the folder. No `THIRD-PARTY-NOTICES.txt` (or any other new file) was created beside the exe.
 3. Run `--notices`. It prints the notices text and exits 0. Re-hash the real config.
+
+### C177: a campaign that still sets `site_config` is refused, in the real win-x64 exe
+
+Issue 21, `docs/decisions/0018-campaign-pack.md` ("Addendum: `site_config` retired"). **Mark this OPEN: Linux tests prove the logic only.** Fixture stand-in only, never the real vault or `N:`. Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config` on every command, and hash the real `%APPDATA%\Scriptorium\config.toml` before step 1 and after step 6; they must match.
+
+1. Make a scratch copy of `examples\the-long-lease` as `S\c177-vault`. Move its `_meta\scriptorium` folder out to `S\site`. Register it in the scratch TOML as campaign `c177` with `vault = 'S\c177-vault'`, `output = 'S\out'` and `site_config = 'S\site\vault.config.json'`. Hash the scratch `config.toml`.
+2. Run `check c177`, `build c177`, `status c177`, `serve c177` and `serve c177 --admin`, each on its own with `echo %ERRORLEVEL%`. Each exits 3 with exactly one stderr line that starts `campaign "c177" still sets site_config, which this version no longer reads` and ends `Nothing was changed.`, and no stack trace.
+3. Re-hash the scratch `config.toml` after each command: it never changes. `S\out` was never created and `S\site` is untouched.
+4. `config list` and `status` (no campaign name) still list `c177` and exit 0.
+5. Start the exe with no command (a double-click on the exe, with `c177` as the default campaign in the scratch TOML). The GM sees the one-line message and exit 3, and the console window does not close silently: it waits or stays open long enough to read, or it opens the panel's own error page. Record exactly what appeared. This is the GM's main entry point on Windows.
+6. Re-hash the real config.
+
+### C178: the `--site-config` flag is refused, in the real win-x64 exe
+
+Issue 21. **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135, and hash the real config before step 1 and after step 3.
+
+1. With the C177 scratch TOML (and again with a TOML that has no `site_config`): `check c177 --site-config S\x.json` exits 3 with the one line `--site-config is no longer accepted. ...`.
+2. `config add z --vault S\v --out S\o --site-config S\x.json` exits 3 with the same line, and the scratch `config.toml` hash is unchanged (no `z` campaign was written). Also try `update --site-config S\x.json` and `remote show --site-config S\x.json`: exit 3, same line, nothing written.
+3. Re-hash the real config.
+
+### C179: the documented migration, on the stand-in, in the real win-x64 exe
+
+Issue 21, `docs/using.md` "Moving a site folder into a pack". **Mark this OPEN: Linux tests prove the logic only.** Fixture stand-in only. Isolate config as in C135, and hash the real config before step 1 and after step 5. Make a pre-migration build with the previous release's exe first, from the same scratch vault with `site_config` set, into `S\out-before`, and hash its files.
+
+1. Move `S\site` back into the stand-in vault as `_meta\scriptorium`, following the new docs section: remove `vaultPath`, rewrite `outputDir` relative to the pack.
+2. Delete the `site_config` line from the scratch TOML.
+3. `check c177` exits 0 or 2, never 3, and shows no shadow warning.
+4. `build c177 --out S\out-after` hashes equal the pre-migration build's, file for file.
+5. Rename the old site files to `*.moved-to-vault`. Re-hash the real config.
 
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 

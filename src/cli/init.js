@@ -15,7 +15,6 @@ const { inspectTarget, createVault } = require('../vault/vaultcreate');
 const { remotePaths } = require('../remote/paths');
 const { createPrompter } = require('./prompt');
 const read = require('../vault/read');
-const { packShadowedMessage } = require('../checks/configdiv');
 const { ConfigError, ScriptoriumError, VaultUnreachableError } = require('../util/errors');
 const { NAME_RE, validateName, validateTheme, validateTitle, validateSystem, validateStarterTitle, composePackToml } = require('../setup/validate');
 const template = require('../setup/template');
@@ -236,7 +235,7 @@ async function runInitCommand(
   const hasBasePackKey = typeof base.pack === 'string' && base.pack.length > 0;
   if (hasBaseSiteConfig) {
     emit(
-      `note: ${packShadowedMessage({ siteConfigPath: path.resolve(base.site_config), packDir })} (init left site_config in place)`,
+      `note: init left site_config in place in ${configPath}; this version no longer reads it, so remove that line to build from the pack at ${packDir}`,
     );
   } else if (hasBasePackKey) {
     emit(

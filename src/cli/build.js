@@ -3,7 +3,7 @@
 const path = require('path');
 const { resolveCampaignContext } = require('./args');
 const { resolveVaultContext, runCheckForContext, asPackProblem } = require('./check');
-const { siteVaultPathMismatchMessage, packShadowedMessage } = require('../checks/configdiv');
+const { siteVaultPathMismatchMessage } = require('../checks/configdiv');
 const { NON_YAML_LANGUAGE_ID } = require('../checks/frontmatter');
 const { runAtomicBuild } = require('../build/run');
 const { siteConfigOutputDirCollision } = require('../build/plan');
@@ -152,7 +152,7 @@ function baseEnvelope(campaign, vaultPath, outputPath, vaultMismatch, generatedA
  */
 function runBuildForContext(ctxInfo, flags) {
   const generatedAt = new Date().toISOString();
-  const { vaultPath, jsonConfig, vaultMismatch, siteDir, packShadowed, packToml } = resolveVaultContext(ctxInfo);
+  const { vaultPath, jsonConfig, vaultMismatch, siteDir, packToml } = resolveVaultContext(ctxInfo);
   // ADR 0019, Structural decision 4: the asset step's FILE checks (P3a-FR06) run here, before
   // runAtomicBuild, so a refusal writes nothing -- sweepStaleSiblings never runs, and --force
   // never reaches planThemeAssets (only pack.toml's own SYNTAX validation, inside
@@ -169,9 +169,6 @@ function runBuildForContext(ctxInfo, flags) {
   const lines = [];
   if (vaultMismatch) {
     lines.push(`note: ${siteVaultPathMismatchMessage(vaultMismatch)}`);
-  }
-  if (packShadowed) {
-    lines.push(`note: ${packShadowedMessage(packShadowed)}`);
   }
   // Structural decision 11: pack.toml and asset-step warnings are human-only, never in the
   // JSON envelope.

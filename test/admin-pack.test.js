@@ -453,26 +453,6 @@ test('D06: commentsLost is false for an on-disk pack.toml with no comment (posit
 
 // --- FR05: writable only for a convention pack -------------------------------
 
-test('FR05: a site_config campaign is read-only, 403 with the exact reason', async (t) => {
-  await withScratchDir(async (root) => {
-    const vaultPath = path.join(root, 'vault');
-    fs.mkdirSync(path.join(vaultPath, '_meta'), { recursive: true });
-    fs.writeFileSync(path.join(vaultPath, '_meta', 'vault-config.md'), '---\ntype: meta\n---\n');
-    const siteConfigPath = path.join(root, 'site.json');
-    fs.writeFileSync(siteConfigPath, `${JSON.stringify({ siteTitle: 'X' }, null, 2)}\n`);
-
-    const ctx = ctxFor(vaultPath, { site_config: siteConfigPath });
-    const port = await launch(t, ctx);
-    const res = await post(port, '/api/pack/theme', { theme: 'haze', baseSha256: null });
-    assert.equal(res.status, 403);
-    assert.deepEqual(res.json, {
-      error: 'read-only',
-      message:
-        'This campaign builds from a site_config file, so the panel is read-only. It only ever edits the campaign pack at _meta/scriptorium/ inside the vault.',
-    });
-  });
-});
-
 test('FR05: a pack-key campaign is read-only, 403 with the exact reason', async (t) => {
   await withScratchDir(async (root) => {
     const vaultPath = path.join(root, 'vault');

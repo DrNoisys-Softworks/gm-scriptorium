@@ -177,7 +177,7 @@ test('F2: re-registering an existing campaign preserves every key, updates only 
   });
 });
 
-test('F2b: the pack-shadowed note appears when site_config is set, and is absent (the pack-key note appears) when only pack is set', { timeout: 15000 }, async () => {
+test('F2b: the site_config note appears when site_config is set, and the pack-key note does not', { timeout: 15000 }, async () => {
   await withScratchDir(async (root) => {
     const vaultPath = initVault(root, { campaign: 'Shadow One' });
     const configPath = path.join(root, 'config.toml');
@@ -189,7 +189,7 @@ test('F2b: the pack-shadowed note appears when site_config is set, and is absent
     const result = await runInitCommand({ config: configPath, name: 'alpha', vault: vaultPath, yes: true }, [], { input, output });
     assert.equal(result.exitCode, 0);
     const packDir = path.join(vaultPath, '_meta', 'scriptorium');
-    assert.ok(getWritten().includes(`note: site_config ${path.resolve('/old/site-config.json')} is in use, so the campaign pack at ${packDir} is ignored; remove site_config to use the pack (init left site_config in place)`));
+    assert.ok(getWritten().includes(`note: init left site_config in place in ${configPath}; this version no longer reads it, so remove that line to build from the pack at ${packDir}`));
     assert.ok(!getWritten().includes('the pack key'));
   });
 });

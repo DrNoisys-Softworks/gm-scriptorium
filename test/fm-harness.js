@@ -146,7 +146,7 @@ function writeCampaignConfig(root, { campaign = 'fm', vaultPath, folderMap, excl
       '',
       `[campaigns.${campaign}]`,
       `vault = '${vaultPath}'`,
-      `site_config = '${siteConfigPath}'`,
+      `pack = '${path.dirname(siteConfigPath)}'`,
       `output = '${finalOut}'`,
       '',
     ].join('\n'),

@@ -11,10 +11,10 @@ const readModule = require('../src/vault/read');
 
 /*
  * ADR 0018 (P2-FR02/FR03/FR04/FR05): resolveVaultContext resolves a
- * campaign's site inputs by precedence: site_config (including
- * --site-config) > the pack key > the convention directory
+ * campaign's site inputs by precedence: the pack key > the convention directory
  * <vault>/_meta/scriptorium/, where a pack is a directory holding
- * vault.config.json. Every test here uses a scratch directory and
+ * vault.config.json. Issue 21 retired site_config and --site-config (refused upstream,
+ * test/site-config-retired.test.js), so they have no row here. Every test here uses a scratch directory and
  * synthetic names only (NFR-08).
  */
 
@@ -44,9 +44,8 @@ function requireFresh(modulePath) {
   return require(modulePath);
 }
 
-function writeScratchConfig(configPath, { vault, siteConfig, pack, output, campaign = 'alpha' }) {
+function writeScratchConfig(configPath, { vault, pack, output, campaign = 'alpha' }) {
   const lines = ['config_version = 1', `default_campaign = "${campaign}"`, '', `[campaigns.${campaign}]`, `vault = '${vault}'`];
-  if (siteConfig !== undefined) lines.push(`site_config = '${siteConfig}'`);
   if (pack !== undefined) lines.push(`pack = '${pack}'`);
   lines.push(`output = '${output}'`);
   fs.writeFileSync(configPath, lines.join('\n'));
@@ -92,8 +91,8 @@ function baseCtxInfo(vaultDir, extra = {}) {
 
 function eNone(vaultDir) {
   return (
-    `campaign "fixture" has no site config: site_config is not set, pack is not set, and ` +
-    `${path.join(vaultDir, '_meta', 'scriptorium', 'vault.config.json')} does not exist.${' Run "gm-scriptorium init" to create one, or set site_config or pack on the campaign.'}`
+    `campaign "fixture" has no site config: pack is not set, and ` +
+    `${path.join(vaultDir, '_meta', 'scriptorium', 'vault.config.json')} does not exist.${' Run "gm-scriptorium init" to create one, or set pack on the campaign.'}`
   );
 }
 function ePackDir(packDir) {
@@ -120,7 +119,7 @@ test('T1: convention pack only', () => {
     assert.equal(result.siteSource, 'convention');
     assert.equal(result.siteDir, conventionDirFor(vaultDir));
     assert.equal(result.jsonConfig.siteTitle, 'CONVENTION-PACK');
-    assert.equal(result.packShadowed, null);
+    assert.equal('packShadowed' in result, false);
   });
 });
 
@@ -136,55 +135,25 @@ test('T2: pack key and convention both present', () => {
     assert.equal(result.siteSource, 'pack');
     assert.equal(result.siteDir, explicitPack);
     assert.equal(result.jsonConfig.siteTitle, 'EXPLICIT-PACK');
-    assert.equal(result.packShadowed, null);
+    assert.equal('packShadowed' in result, false);
   });
 });
 
-test('T3: site_config, pack key and convention all present', () => {
+test('T3: resolveVaultContext never consults a site_config field (the refusal is upstream, in resolveCampaignContext)', () => {
   withScratchDir((dir) => {
     const vaultDir = makeVault(dir);
     writePackDir(conventionDirFor(vaultDir), { siteTitle: 'CONVENTION-PACK' });
     const explicitPack = writePackDir(path.join(dir, 'explicit-pack'), { siteTitle: 'EXPLICIT-PACK' });
-    const legacyPath = writeLegacySiteConfig(path.join(dir, 'site'), { siteTitle: 'LEGACY-SITE' });
+    const neverRead = path.join(dir, 'does-not-exist', 'vault.config.json');
 
     const { resolveVaultContext } = requireFresh('../src/cli/check');
-    const result = resolveVaultContext(baseCtxInfo(vaultDir, { site_config: legacyPath, pack: explicitPack }));
+    const withPack = resolveVaultContext(baseCtxInfo(vaultDir, { site_config: neverRead, pack: explicitPack }));
+    assert.equal(withPack.siteSource, 'pack');
+    assert.equal(withPack.jsonConfig.siteTitle, 'EXPLICIT-PACK');
 
-    assert.equal(result.siteSource, 'site_config');
-    assert.equal(result.siteDir, path.dirname(legacyPath));
-    assert.equal(result.jsonConfig.siteTitle, 'LEGACY-SITE');
-    assert.deepEqual(result.packShadowed, {
-      siteConfigPath: path.resolve(legacyPath),
-      packDir: explicitPack,
-      packSource: 'pack',
-    });
-  });
-});
-
-test('T4: site_config and convention (no pack key)', () => {
-  withScratchDir((dir) => {
-    const vaultDir = makeVault(dir);
-    writePackDir(conventionDirFor(vaultDir), { siteTitle: 'CONVENTION-PACK' });
-    const legacyPath = writeLegacySiteConfig(path.join(dir, 'site'), { siteTitle: 'LEGACY-SITE' });
-
-    const { resolveVaultContext } = requireFresh('../src/cli/check');
-    const result = resolveVaultContext(baseCtxInfo(vaultDir, { site_config: legacyPath }));
-
-    assert.equal(result.siteSource, 'site_config');
-    assert.equal(result.packShadowed.packSource, 'convention');
-    assert.equal(result.packShadowed.packDir, conventionDirFor(vaultDir));
-  });
-});
-
-test('T5: site_config and no pack anywhere', () => {
-  withScratchDir((dir) => {
-    const vaultDir = makeVault(dir);
-    const legacyPath = writeLegacySiteConfig(path.join(dir, 'site'), { siteTitle: 'LEGACY-SITE' });
-
-    const { resolveVaultContext } = requireFresh('../src/cli/check');
-    const result = resolveVaultContext(baseCtxInfo(vaultDir, { site_config: legacyPath }));
-
-    assert.equal(result.packShadowed, null);
+    const withConvention = resolveVaultContext(baseCtxInfo(vaultDir, { site_config: neverRead }));
+    assert.equal(withConvention.siteSource, 'convention');
+    assert.equal(withConvention.jsonConfig.siteTitle, 'CONVENTION-PACK');
   });
 });
 
@@ -310,7 +279,7 @@ test('T13b: pack vaultPath "../.." resolves to the real vault, so vaultMismatch 
   });
 });
 
-test('T14: pack JSON is read through read.readText (module-object call), never for the legacy path', () => {
+test('T14: pack JSON is read through read.readText (module-object call)', () => {
   withScratchDir((dir) => {
     const vaultDir = makeVault(dir);
     const packDir = conventionDirFor(vaultDir);
@@ -322,20 +291,6 @@ test('T14: pack JSON is read through read.readText (module-object call), never f
       resolveVaultContext(baseCtxInfo(vaultDir));
       assert.equal(spy.mock.calls.length, 1);
       assert.equal(spy.mock.calls[0].arguments[0], jsonPath);
-    } finally {
-      spy.mock.restore();
-    }
-  });
-
-  withScratchDir((dir) => {
-    const vaultDir = makeVault(dir);
-    const legacyPath = writeLegacySiteConfig(path.join(dir, 'site'), { siteTitle: 'LEGACY-SITE' });
-
-    const { resolveVaultContext } = requireFresh('../src/cli/check');
-    const spy = mock.method(readModule, 'readText');
-    try {
-      resolveVaultContext(baseCtxInfo(vaultDir, { site_config: legacyPath }));
-      assert.equal(spy.mock.calls.length, 0);
     } finally {
       spy.mock.restore();
     }
@@ -404,36 +359,6 @@ test("T15b: base site_config, profile site_config = '' and pack -> 'pack'", () =
 
       assert.equal(result.siteSource, 'pack');
       assert.equal(result.siteDir, packB);
-    });
-  });
-});
-
-test('T16: --site-config flag wins over a TOML "pack" key, and the pack is reported shadowed', () => {
-  withCleanProfileEnv(() => {
-    withScratchDir((dir) => {
-      const vaultDir = makeVault(dir);
-      const legacyPath = writeLegacySiteConfig(path.join(dir, 'site'), { siteTitle: 'LEGACY-SITE' });
-      const packB = writePackDir(path.join(dir, 'pack-b'), { siteTitle: 'B' });
-      const configPath = path.join(dir, 'config.toml');
-      const toml = [
-        'config_version = 1',
-        'default_campaign = "alpha"',
-        '',
-        '[campaigns.alpha]',
-        `vault = '${vaultDir}'`,
-        `pack = '${packB}'`,
-        `output = '${path.join(dir, 'out')}'`,
-      ].join('\n');
-      fs.writeFileSync(configPath, toml);
-
-      const { resolveCampaignContext } = requireFresh('../src/cli/args');
-      const { resolveVaultContext } = requireFresh('../src/cli/check');
-      const ctxInfo = resolveCampaignContext({ config: configPath, 'site-config': legacyPath }, 'alpha');
-      const result = resolveVaultContext(ctxInfo);
-
-      assert.equal(result.siteSource, 'site_config');
-      assert.equal(result.packShadowed.packSource, 'pack');
-      assert.equal(result.packShadowed.packDir, packB);
     });
   });
 });

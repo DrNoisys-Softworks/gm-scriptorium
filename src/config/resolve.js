@@ -20,8 +20,8 @@ const { MATCH_KEYS } = require('./schema');
  *      match specificity (platform+hostname > platform > hostname; two
  *      equally specific matches is a hard error naming both), overrides
  *      per key, absent keys fall through to the base.
- *   3. --vault / --out / --site-config CLI flags override everything, for
- *      diagnostics only, never persisted.
+ *   3. --vault / --out CLI flags override everything, for diagnostics only,
+ *      never persisted.
  *   4. SCRIPTORIUM_PROFILE forces a named profile and skips matching.
  */
 
@@ -49,7 +49,7 @@ function matches(match, { platform, hostname }) {
  * @param {string} [opts.platform] defaults to process.platform
  * @param {string} [opts.hostname] defaults to os.hostname()
  * @param {string} [opts.envProfile] defaults to process.env.SCRIPTORIUM_PROFILE
- * @param {{ vault?: string, output?: string, site_config?: string }} [opts.cliOverrides]
+ * @param {{ vault?: string, output?: string }} [opts.cliOverrides]
  */
 function resolveCampaign(config, campaignName, opts = {}) {
   const platform = opts.platform ?? process.platform;
@@ -127,12 +127,12 @@ function resolveCampaign(config, campaignName, opts = {}) {
 
   if (cliOverrides.vault) resolved.vault = cliOverrides.vault;
   if (cliOverrides.output) resolved.output = cliOverrides.output;
-  if (cliOverrides.site_config) resolved.site_config = cliOverrides.site_config;
 
   return {
     campaign: campaignName,
     profile: winnerName,
     vault: resolved.vault,
+    // Carried through raw so resolveCampaignContext (src/cli/args.js) can refuse it; never read as a path.
     site_config: resolved.site_config,
     output: resolved.output,
     pack: resolved.pack,
@@ -165,4 +165,20 @@ function resolveCampaignName(config, explicitName) {
   );
 }
 
-module.exports = { resolveCampaign, listCampaigns, resolveCampaignName };
+/*
+ * Issue 21 (docs/decisions/0018-campaign-pack.md, addendum "site_config retired"): the site_config
+ * key and the --site-config flag are retired. These are the one source of the refusal text, shared by
+ * src/cli/args.js. Pure strings: this module never stats anything.
+ */
+const SITE_CONFIG_POINTER =
+  'Move the site folder into the vault\'s campaign pack, as "Moving a site folder into a pack" in ' +
+  'https://github.com/DrNoisys-Softworks/gm-scriptorium/blob/main/docs/using.md#moving-a-site-folder-into-a-pack ' +
+  'explains, or run "gm-scriptorium init" to make a new pack. Nothing was changed.';
+
+function siteConfigKeyRetired(name, configPath) {
+  return `campaign "${name}" still sets site_config, which this version no longer reads; remove that line from ${configPath} once the pack is in place. ${SITE_CONFIG_POINTER}`;
+}
+
+const SITE_CONFIG_FLAG_RETIRED = `--site-config is no longer accepted. ${SITE_CONFIG_POINTER}`;
+
+module.exports = { resolveCampaign, listCampaigns, resolveCampaignName, SITE_CONFIG_POINTER, siteConfigKeyRetired, SITE_CONFIG_FLAG_RETIRED };
