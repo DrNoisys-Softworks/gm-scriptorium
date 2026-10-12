@@ -33,7 +33,7 @@ function writeSiteConfig(dir) {
   const cfg = JSON.parse(fs.readFileSync(SITE_CONFIG_SRC, 'utf8'));
   cfg.vaultPath = MINI_VAULT;
   cfg.outputDir = './out';
-  const configPath = path.join(dir, 'site-config.json');
+  const configPath = path.join(dir, 'vault.config.json');
   fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2));
   return configPath;
 }
@@ -45,7 +45,7 @@ function writeScratchConfig(configPath, { siteConfig, output }) {
     '',
     '[campaigns.fixture]',
     `vault = '${MINI_VAULT}'`,
-    `site_config = '${siteConfig}'`,
+    `pack = '${path.dirname(siteConfig)}'`,
     `output = '${output}'`,
   ].join('\n');
   fs.writeFileSync(configPath, toml);
@@ -59,7 +59,7 @@ function requireFresh(modulePath) {
 test('build refuses (exit 2, writes nothing) when the resolved output equals the site config\'s own outputDir', () => {
   withScratchDir((dir) => {
     const siteConfigPath = writeSiteConfig(dir);
-    const collisionOut = path.join(dir, 'out'); // matches site-config.json's "./out"
+    const collisionOut = path.join(dir, 'out'); // matches vault.config.json's "./out"
     const configPath = path.join(dir, 'config.toml');
     writeScratchConfig(configPath, { siteConfig: siteConfigPath, output: collisionOut });
 
@@ -95,7 +95,7 @@ test('build --force proceeds into the site config\'s own outputDir and says so',
 test('build does NOT refuse a legitimate output dir that differs from the site config\'s own outputDir', () => {
   withScratchDir((dir) => {
     const siteConfigPath = writeSiteConfig(dir);
-    const legitimateOut = path.join(dir, 'somewhere-else'); // does not match site-config.json's "./out"
+    const legitimateOut = path.join(dir, 'somewhere-else'); // does not match vault.config.json's "./out"
     const configPath = path.join(dir, 'config.toml');
     writeScratchConfig(configPath, { siteConfig: siteConfigPath, output: legitimateOut });
 
@@ -119,7 +119,8 @@ test('build does not refuse when the site config has no outputDir field at all',
     const cfg = JSON.parse(fs.readFileSync(SITE_CONFIG_SRC, 'utf8'));
     cfg.vaultPath = MINI_VAULT;
     delete cfg.outputDir;
-    const siteConfigPath = path.join(dir, 'site-config-no-outputdir.json');
+    fs.mkdirSync(path.join(dir, 'pack-no-outputdir'));
+    const siteConfigPath = path.join(dir, 'pack-no-outputdir', 'vault.config.json');
     fs.writeFileSync(siteConfigPath, JSON.stringify(cfg, null, 2));
 
     const out = path.join(dir, 'out');

@@ -116,10 +116,9 @@ function buildThemeVault(root, opts = {}) {
   return { vaultPath, siteDir, jsonConfig, finalOut, campaign };
 }
 
-function writeConfigToml(root, { vaultPath, finalOut, campaign = 'alpha', siteConfig }) {
+function writeConfigToml(root, { vaultPath, finalOut, campaign = 'alpha' }) {
   const configPath = path.join(root, 'config.toml');
   const lines = ['config_version = 1', `default_campaign = "${campaign}"`, '', `[campaigns.${campaign}]`, `vault = '${vaultPath}'`];
-  if (siteConfig) lines.push(`site_config = '${siteConfig}'`);
   lines.push(`output = '${finalOut}'`, '');
   fs.writeFileSync(configPath, lines.join('\n'));
   return configPath;

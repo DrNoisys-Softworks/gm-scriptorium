@@ -462,14 +462,15 @@ test('injection: a value shaped like a TOML table close is refused, or saved as 
 
 // --- Inherited, re-proven --------------------------------------------------------------------
 
-test('FR05: a site_config campaign is read-only, 403 with the exact reason', async (t) => {
+test('FR05: a pack-key campaign is read-only, 403 with the exact reason', async (t) => {
   await withScratchDir(async (root) => {
     const vaultPath = path.join(root, 'vault');
     fs.mkdirSync(path.join(vaultPath, '_meta'), { recursive: true });
     fs.writeFileSync(path.join(vaultPath, '_meta', 'vault-config.md'), '---\ntype: meta\n---\n');
-    const siteConfigPath = path.join(root, 'site.json');
-    fs.writeFileSync(siteConfigPath, `${JSON.stringify({ siteTitle: 'X' }, null, 2)}\n`);
-    const ctx = ctxFor(vaultPath, { site_config: siteConfigPath });
+    const packKeyDir = path.join(root, 'external-pack');
+    fs.mkdirSync(packKeyDir, { recursive: true });
+    fs.writeFileSync(path.join(packKeyDir, 'vault.config.json'), `${JSON.stringify({ siteTitle: 'Y' }, null, 2)}\n`);
+    const ctx = ctxFor(vaultPath, { pack: packKeyDir });
     const port = await launch(t, ctx);
 
     const res = await post(port, '/api/pack/slots', { slots: { hero: 'images/hero.webp' }, baseSha256: sha256(Buffer.alloc(0)) });
@@ -477,7 +478,7 @@ test('FR05: a site_config campaign is read-only, 403 with the exact reason', asy
     assert.deepEqual(res.json, {
       error: 'read-only',
       message:
-        'This campaign builds from a site_config file, so the panel is read-only. It only ever edits the campaign pack at _meta/scriptorium/ inside the vault.',
+        "This campaign's pack key points at a folder of its own, so the panel is read-only. It only ever edits the campaign pack at _meta/scriptorium/ inside the vault.",
     });
   });
 });

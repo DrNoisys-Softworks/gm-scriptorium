@@ -205,7 +205,7 @@ function planBuild(vaultPath, finalOutInput) {
 
 /*
  * Issue #21, defect 1: the site config a user hand-writes (vault.config.json,
- * loaded by src/cli/check.js's loadSiteConfig) carries its own `outputDir`,
+ * loaded by src/cli/check.js's loadPackConfig) carries its own `outputDir`,
  * which is the directory the underlying generator would write to if it ran
  * standalone against that config. Scriptorium's own build NEVER reads that
  * field to pick `finalOut` (see the module comment above: finalOut always

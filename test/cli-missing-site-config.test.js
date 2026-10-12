@@ -16,6 +16,9 @@ const { EXIT_CODES } = require('../src/util/exitcodes');
  * `build`, and `status` all resolve the vault context through the same
  * `resolveVaultContext` (src/cli/check.js), so all three are covered here.
  *
+ * Issue 21 retired the site_config key: the message now names the two remaining sources (pack key or
+ * convention directory) and the loadSiteConfig cases are gone, because the function is.
+ *
  * ADR 0018 (P2-FR03) changed the message itself: a campaign with no
  * `site_config` may still have a site through the `pack` key or the
  * `<vault>/_meta/scriptorium/` convention, so the ConfigError now names all
@@ -56,22 +59,10 @@ function requireFresh(modulePath) {
 /** E-NONE (docs/decisions/0018-campaign-pack.md): stated independently of src/cli/check.js. */
 function expectedENone() {
   return (
-    `campaign "fixture" has no site config: site_config is not set, pack is not set, and ` +
-    `${path.join(MINI_VAULT, '_meta', 'scriptorium', 'vault.config.json')} does not exist.${' Run "gm-scriptorium init" to create one, or set site_config or pack on the campaign.'}`
+    `campaign "fixture" has no site config: pack is not set, and ` +
+    `${path.join(MINI_VAULT, '_meta', 'scriptorium', 'vault.config.json')} does not exist.${' Run "gm-scriptorium init" to create one, or set pack on the campaign.'}`
   );
 }
-
-test('loadSiteConfig throws VaultUnreachableError (exit 3, #108), not a bare Error, when siteConfigPath is falsy', () => {
-  const { loadSiteConfig } = requireFresh('../src/cli/check');
-  assert.throws(
-    () => loadSiteConfig(undefined),
-    (err) => err.name === 'VaultUnreachableError' && err.message.startsWith('campaign has no site_config configured. Set site_config'),
-  );
-  assert.throws(
-    () => loadSiteConfig(''),
-    (err) => err.name === 'VaultUnreachableError' && err.message.startsWith('campaign has no site_config configured. Set site_config'),
-  );
-});
 
 test('check on a campaign with no site_config raises a VaultUnreachableError (exit 3, #108)', () => {
   withScratchDir((dir) => {

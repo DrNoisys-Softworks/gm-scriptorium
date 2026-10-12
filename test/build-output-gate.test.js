@@ -121,7 +121,7 @@ function writeGateVaultOnDisk(root) {
       '',
       '[campaigns.gate]',
       `vault = '${vaultPath}'`,
-      `site_config = '${siteConfigPath}'`,
+      `pack = '${path.dirname(siteConfigPath)}'`,
       `output = '${finalOut}'`,
       '',
     ].join('\n'),

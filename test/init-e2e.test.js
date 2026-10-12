@@ -245,7 +245,6 @@ test('E4 (later commands): check and build succeed through the pack, and the glo
     assert.equal(checkRes.status, 0, `unexpected check failure: ${checkRes.stdout}\n${checkRes.stderr}`);
     const envelope = JSON.parse(checkRes.stdout);
     assert.equal(envelope.counts.error, 0, `unexpected ERROR finding(s): ${JSON.stringify(envelope.findings)}`);
-    assert.ok(!envelope.findings.some((f) => f.id === 'config/pack-shadowed'));
     // ADR 0032: init's default is gloam, whose own theme.json owns the palette, so a fresh,
     // freshly light-defaulted vault must never trip the scheme-mismatch INFO either.
     assert.ok(!envelope.findings.some((f) => f.id === 'config/theme-scheme-mismatch'));

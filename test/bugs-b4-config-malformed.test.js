@@ -22,7 +22,6 @@ test('B4-105-1: a value flag with no value is a usage error naming the flag, and
   const cases = {
     '--vault': ['config', 'add', 'x', '--vault'],
     '--out': ['config', 'add', 'x', '--vault', SAMPLE, '--out'],
-    '--site-config': ['config', 'add', 'x', '--vault', SAMPLE, '--out', '/tmp/b4-x', '--site-config'],
   };
   for (const [flag, args] of Object.entries(cases)) {
     withScratch((root) => {

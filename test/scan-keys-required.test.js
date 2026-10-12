@@ -347,7 +347,7 @@ test('runBuildCommand: positive control, a real mini-vault with both keys builds
         '',
         '[campaigns.fixture]',
         `vault = '${MINI_VAULT}'`,
-        `site_config = '${path.join(siteDir, 'vault.config.json')}'`,
+        `pack = '${siteDir}'`,
         `output = '${outDir}'`,
         '',
       ].join('\n'),

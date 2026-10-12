@@ -22,7 +22,7 @@ const BIN = path.join(__dirname, '..', 'bin', 'scriptorium.js');
 /*
  * ADR 0019: integration tests, exercising planThemeAssets/writeThemeAssets through the real
  * CLI commands (check/build/status) and through runAtomicBuild directly. Convention-pack mode
- * (<vault>/_meta/scriptorium/) unless noted; B3 is the legacy site_config exception. Synthetic
+ * (<vault>/_meta/scriptorium/) unless noted; B3 sets the pack key to a folder outside the vault. Synthetic
  * names only (NFR-08).
  */
 
@@ -98,10 +98,10 @@ function buildThemeVault(root, opts = {}) {
   return { vaultPath, siteDir, jsonConfig, finalOut, campaign };
 }
 
-function writeConfigToml(root, { vaultPath, finalOut, campaign = 'alpha', siteConfig }) {
+function writeConfigToml(root, { vaultPath, finalOut, campaign = 'alpha', pack }) {
   const configPath = path.join(root, 'config.toml');
   const lines = ['config_version = 1', `default_campaign = "${campaign}"`, '', `[campaigns.${campaign}]`, `vault = '${vaultPath}'`];
-  if (siteConfig) lines.push(`site_config = '${siteConfig}'`);
+  if (pack) lines.push(`pack = '${pack}'`);
   lines.push(`output = '${finalOut}'`, '');
   fs.writeFileSync(configPath, lines.join('\n'));
   return configPath;
@@ -238,14 +238,13 @@ test('B2: a ground slot writes the exact bytes and CSS, links every housestyle p
   });
 });
 
-// --- B3: legacy site_config campaign ----------------------------------------
+// --- B3: a campaign whose pack key names a folder outside the vault ---------
 
-test('B3: a legacy site_config campaign with pack.toml in its site dir gets the slot', () => {
+test('B3: a pack-key campaign (pack folder outside the vault) with pack.toml gets the slot', () => {
   withScratchDir((root) => {
     const { vaultPath, siteDir, jsonConfig, finalOut } = buildThemeVault(root, { convention: false });
     writePackToml(siteDir, '[images]\nground = "vault:_attachments/ground.webp"\n');
-    const siteConfigPath = path.join(siteDir, 'vault.config.json');
-    const configPath = writeConfigToml(root, { vaultPath, finalOut, siteConfig: siteConfigPath });
+    const configPath = writeConfigToml(root, { vaultPath, finalOut, pack: siteDir });
 
     const result = runBuildCommand({ config: configPath, 'no-check': true }, 'alpha');
     assert.equal(result.exitCode, EXIT_CODES.OK);

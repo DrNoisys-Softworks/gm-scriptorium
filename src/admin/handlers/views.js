@@ -8,7 +8,7 @@ const packfiles = require('../packfiles');
 const packimages = require('../packimages');
 const preview = require('../preview');
 const { runExclusive } = require('../context');
-const { runCheckForContext, loadSiteConfig, loadPackConfig } = require('../../cli/check');
+const { runCheckForContext, loadPackConfig } = require('../../cli/check');
 const { THEMES, loadTheme } = require('../../build/themes');
 const { parsePackToml } = require('../../build/packtoml');
 const read = require('../../vault/read');
@@ -55,10 +55,9 @@ function readVaultConfigJsonField(ctx) {
   const raw = file.raw.toString('utf8');
   try {
     // The display re-reads the file rather than parsing `raw` above (TOCTOU residual, Risk
-    // area 5): loadSiteConfig/loadPackConfig each read through their own chokepoint. The sha
+    // area 5): loadPackConfig reads through its own chokepoint. The sha
     // above is still safe to display alongside this because S3 re-checks it at save time.
-    const parsed =
-      ctx.siteSource === 'site_config' ? loadSiteConfig(ctx.siteConfigPath) : loadPackConfig(file.path, ctx.campaign);
+    const parsed = loadPackConfig(file.path, ctx.campaign);
     return {
       exists: true,
       raw,

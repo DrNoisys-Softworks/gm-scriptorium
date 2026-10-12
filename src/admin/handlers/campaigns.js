@@ -99,7 +99,7 @@ function describe(config, name) {
   try {
     const resolved = resolveCampaign(config, name);
     return {
-      readOnly: [resolved.site_config, resolved.pack].some((v) => typeof v === 'string' && v.length > 0),
+      readOnly: typeof resolved.pack === 'string' && resolved.pack.length > 0,
       vault: typeof resolved.vault === 'string' ? resolved.vault : null,
       output: typeof resolved.output === 'string' ? resolved.output : null,
     };
@@ -174,7 +174,6 @@ async function performSwitch(ctx, name) {
     const vault = path.resolve(info.vault);
     const targets = [vault, path.join(vault, '_meta', 'vault-config.md')];
     if (typeof info.pack === 'string' && info.pack.length > 0) targets.push(path.resolve(info.pack));
-    if (typeof info.site_config === 'string' && info.site_config.length > 0) targets.push(path.resolve(info.site_config));
     for (const target of targets) {
       const state = await probe.probePath(target, deps);
       if (state === 'ok') continue;

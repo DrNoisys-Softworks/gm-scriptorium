@@ -6,6 +6,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { packFromSiteConfig } = require('./helpers/site-pack');
+
 /*
  * Issue #30: the pinned generator reports degraded output through console.warn. A successful
  * build used to drop those lines. These tests build a tiny synthetic vault through the real
@@ -72,7 +74,7 @@ function makeCampaign(dir, { selfHostFont = false, unmapped = false, scaffold = 
       '',
       '[campaigns.t]',
       `vault = '${vault}'`,
-      `site_config = '${siteConfigPath}'`,
+      `pack = '${packFromSiteConfig(siteConfigPath, path.join(dir, 'pack'))}'`,
       `output = '${out}'`,
     ].join('\n'),
   );

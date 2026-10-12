@@ -9,7 +9,7 @@ const { VaultUnreachableError } = require('../util/errors');
 const { buildResolutionIndex } = require('../vault/index');
 const { lastSession, nextSession, countsFor } = require('../checks/statusinfo');
 const { runCheckCommand, resolveVaultContext } = require('./check');
-const { siteVaultPathMismatchMessage, packShadowedMessage } = require('../checks/configdiv');
+const { siteVaultPathMismatchMessage } = require('../checks/configdiv');
 const { EXIT_CODES } = require('../util/exitcodes');
 const { SCHEMA_VERSION } = require('../report/json');
 const pkg = require('../../package.json');
@@ -82,10 +82,9 @@ function runStatusCommand(flags, campaignArg) {
   let vaultPath;
   let jsonConfig;
   let vaultMismatch;
-  let packShadowed;
   let packToml;
   try {
-    ({ vaultPath, jsonConfig, vaultMismatch, packShadowed, packToml } = resolveVaultContext(ctxInfo));
+    ({ vaultPath, jsonConfig, vaultMismatch, packToml } = resolveVaultContext(ctxInfo));
   } catch (err) {
     if (err instanceof VaultUnreachableError) {
       const envelope = {
@@ -154,7 +153,6 @@ function runStatusCommand(flags, campaignArg) {
     `campaign: ${ctxInfo.campaign}${ctxInfo.profile ? ` (profile: ${ctxInfo.profile})` : ''}`,
     `vault: ${vaultPath} (reachable)`,
     ...(vaultMismatch ? [`note: ${siteVaultPathMismatchMessage(vaultMismatch)}`] : []),
-    ...(packShadowed ? [`note: ${packShadowedMessage(packShadowed)}`] : []),
     ...packToml.warnings.map((w) => `warning: ${w}`),
     `output: ${ctxInfo.output || '(not configured)'} ${build.exists ? `(built ${build.mtime})` : '(no build yet)'}`,
     `last session: ${last ? `${last.title}${last.playDate ? ` (${formatDateLike(last.playDate)})` : ''}` : 'none recorded'}`,

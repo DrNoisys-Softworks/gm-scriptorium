@@ -7,6 +7,8 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+const { packFromSiteConfig } = require('./helpers/site-pack');
+
 const { runAtomicBuild } = require('../src/build/run');
 const preview = require('../src/admin/preview');
 const { resolveCampaignContext } = require('../src/cli/args');
@@ -216,7 +218,7 @@ test('FR34(c): a CLI build of a scratch copy of mini-vault contains no marker (p
         '',
         '[campaigns.mini]',
         `vault = '${dest}'`,
-        `site_config = '${siteConfigPath}'`,
+        `pack = '${packFromSiteConfig(siteConfigPath, path.join(root, 'mini-pack'))}'`,
         `output = '${output}'`,
         '',
       ].join('\n'),

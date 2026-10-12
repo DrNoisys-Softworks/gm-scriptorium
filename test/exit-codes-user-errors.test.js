@@ -41,6 +41,12 @@ function copyPackVault(root, packToml) {
   return v;
 }
 
+/** A campaign that still sets the retired site_config key; the path is a folder so any read of it would fail loudly. */
+function legacyCfg(root) {
+  fs.mkdirSync(path.join(root, 'legacy-site'), { recursive: true });
+  writeCfg(root, `config_version = 1\n[campaigns.t]\nvault = '${SAMPLE}'\nsite_config = '${root}/legacy-site'\noutput = '${root}/site'\n`);
+}
+
 // [label, setup(root) -> args | {args, input}, expected code, stderr/stdout pattern]
 const CASES = [
   ['check, no campaigns registered', (r) => (writeCfg(r, 'config_version = 1\n'), ['check']), 3, /no campaigns registered/],
@@ -72,6 +78,14 @@ const CASES = [
   ['campaign entry with no vault key', (r) => (writeCfg(r, `config_version = 1\n[campaigns.t]\noutput = '${r}/site'\n`), ['check']), 3, /has no vault configured\. Set one with: gm-scriptorium config add t/],
   ['pack folder given but missing', (r) => (writeCfg(r, `config_version = 1\n[campaigns.t]\nvault = '${SAMPLE}'\npack = '${r}/nopack'\noutput = '${r}/site'\n`), ['check']), 3, /pack directory does not exist/],
   ['pack folder without vault.config.json', (r) => (fs.mkdirSync(path.join(r, 'pk')), writeCfg(r, `config_version = 1\n[campaigns.t]\nvault = '${SAMPLE}'\npack = '${r}/pk'\noutput = '${r}/site'\n`), ['check']), 3, /has no vault\.config\.json/],
+  ['campaign still sets site_config (check)', (r) => (legacyCfg(r), ['check']), 3, /campaign "t" still sets site_config, which this version no longer reads.*gm-scriptorium init/],
+  ['campaign still sets site_config (build)', (r) => (legacyCfg(r), ['build']), 3, /campaign "t" still sets site_config, which this version no longer reads.*gm-scriptorium init/],
+  ['campaign still sets site_config (serve)', (r) => (legacyCfg(r), ['serve']), 3, /campaign "t" still sets site_config, which this version no longer reads.*gm-scriptorium init/],
+  ['campaign still sets site_config (status t)', (r) => (legacyCfg(r), ['status', 't']), 3, /campaign "t" still sets site_config, which this version no longer reads.*gm-scriptorium init/],
+  ['campaign still sets site_config (serve --admin t)', (r) => (legacyCfg(r), ['serve', '--admin', 't']), 3, /campaign "t" still sets site_config, which this version no longer reads.*gm-scriptorium init/],
+  ['--site-config given (check)', (r) => (goodCfg(r), ['check', '--site-config', path.join(r, 'x.json')]), 3, /--site-config is no longer accepted.*gm-scriptorium init/],
+  ['--site-config given (config add)', (r) => (goodCfg(r), ['config', 'add', 'z', '--vault', SAMPLE, '--out', path.join(r, 'o'), '--site-config', path.join(r, 'x.json')]), 3, /--site-config is no longer accepted.*gm-scriptorium init/],
+  ['--site-config given (update)', (r) => (goodCfg(r), ['update', '--site-config', path.join(r, 'x.json')]), 3, /--site-config is no longer accepted.*gm-scriptorium init/],
 
   ['unknown command', () => ['chek'], 1, /unknown command: chek/],
   ['unknown flag', (r) => (goodCfg(r), ['check', '--prot']), 1, /unknown flag --prot/],

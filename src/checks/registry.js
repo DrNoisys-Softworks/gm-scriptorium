@@ -206,15 +206,6 @@ const CHECKS = Object.freeze([
       'The site config\'s own vaultPath points somewhere other than the vault Scriptorium resolved (--vault > matched profile > campaign block); the resolved vault is what is used, this is reported only, never fatal (FR-18).',
   },
   {
-    id: 'config/pack-shadowed',
-    category: 'config',
-    defaultSeverity: 'warn',
-    defaultEnabled: true,
-    requiresFlag: null,
-    description:
-      'The legacy site_config key is set and a campaign pack also exists (the pack key\'s directory, or <vault>/_meta/scriptorium/ by convention, holding vault.config.json). site_config wins and the pack is ignored; reported only, never fatal (docs/decisions/0018-campaign-pack.md). Remove site_config to build from the pack.',
-  },
-  {
     id: 'config/theme-scheme-mismatch',
     category: 'config',
     defaultSeverity: 'info',

@@ -10,14 +10,11 @@
  */
 
 const READ_ONLY_REASON = Object.freeze({
-  site_config:
-    'This campaign builds from a site_config file, so the panel is read-only. It only ever edits the campaign pack at _meta/scriptorium/ inside the vault.',
   pack:
     "This campaign's pack key points at a folder of its own, so the panel is read-only. It only ever edits the campaign pack at _meta/scriptorium/ inside the vault.",
 });
 
 function readOnlyReasonFor(siteSource) {
-  if (siteSource === 'site_config') return READ_ONLY_REASON.site_config;
   if (siteSource === 'pack') return READ_ONLY_REASON.pack;
   return null;
 }

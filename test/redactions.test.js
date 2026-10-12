@@ -288,7 +288,7 @@ test('a D&D-only build reports zero calls for every redaction and prints no extr
       '',
       '[campaigns.fixture]',
       `vault = '${path.join(__dirname, 'fixtures', 'mini-vault')}'`,
-      `site_config = '${path.join(siteDir, 'vault.config.json')}'`,
+      `pack = '${siteDir}'`,
       `output = '${outDir}'`,
     ].join('\n');
     fs.writeFileSync(configPath, toml);

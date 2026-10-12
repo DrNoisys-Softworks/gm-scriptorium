@@ -260,42 +260,6 @@ test('FR05: a pack key gives read-only with the exact literal reason', async (t)
   }
 });
 
-test('FR05: a site_config gives read-only with the exact literal reason', async (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-admin-views-'));
-  try {
-    const vaultPath = path.join(root, 'vault');
-    fs.mkdirSync(path.join(vaultPath, '_meta'), { recursive: true });
-    fs.writeFileSync(path.join(vaultPath, '_meta', 'vault-config.md'), '---\ntype: meta\n---\n\n# x\n');
-    const siteConfigPath = path.join(root, 'legacy-site.json');
-    fs.writeFileSync(siteConfigPath, JSON.stringify({ siteTitle: 'Legacy Test' }) + '\n');
-    const configPath = path.join(root, 'config.toml');
-    fs.writeFileSync(
-      configPath,
-      [
-        'config_version = 1',
-        'default_campaign = "alpha"',
-        '',
-        '[campaigns.alpha]',
-        `vault = '${vaultPath}'`,
-        `site_config = '${siteConfigPath}'`,
-        `output = '${root}/out'`,
-        '',
-      ].join('\n'),
-    );
-    const t2 = await launchAuthed(t, configPath);
-    const body = json(await t2.get('/api/state'));
-    assert.equal(body.siteSource, 'site_config');
-    assert.equal(body.writable, false);
-    assert.equal(
-      body.readOnlyReason,
-      'This campaign builds from a site_config file, so the panel is read-only. It only ever edits the campaign pack at _meta/scriptorium/ inside the vault.',
-    );
-    await t2.shutdown();
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
 // --- FR21: broken pack files still launch ---------------------------------
 
 test('FR21: a bad pack.toml (theme = 1) still launches; error is the exact check message', async (t) => {

@@ -10,7 +10,7 @@
  *
  * [campaigns.my-campaign]
  * vault       = '~/campaigns/my-campaign/vault'
- * site_config = '~/campaigns/my-campaign/site/vault.config.json'
+ * pack        = '~/campaigns/my-campaign/pack'
  * output      = '~/campaigns/my-campaign/out'
  * serve_port  = 8080
  *

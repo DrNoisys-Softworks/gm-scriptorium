@@ -156,6 +156,27 @@ Self-updates from the latest release. See [Updating](install.md#updating), it ne
 That's the full command surface: `init`, `check`, `build`, `serve` (with a `--admin` mode),
 `status`, `config`, `remote`, `update`. Run `gm-scriptorium --help` for the full flag list on each.
 
+## Moving a site folder into a pack
+
+This is for a campaign set up before packs existed, where the site files (`vault.config.json`, and
+`css/overrides.css`, `wrangler.toml` or `functions/api/` if you have them) sit in a folder outside the
+vault and your settings file points at them with a `site_config` line. This version no longer reads
+that line. Any command that finds it stops with a one-line message and changes nothing, so move the
+folder into the vault's campaign pack, the folder `_meta/scriptorium/` inside the vault:
+
+1. Copy the site files into `_meta/scriptorium/` inside the vault, as they are. Copy no Markdown.
+2. In the copy of `vault.config.json`, remove the `vaultPath` line, and rewrite `outputDir` so it is
+   relative to the pack folder, or remove it if you do not need it.
+3. Delete the `site_config` line from your settings file (`gm-scriptorium config path` shows where it is). While the line is there, every command stops.
+4. Run `gm-scriptorium check` and read what it says. It should find the pack and build from it.
+5. Rename the old site files to end in `.moved-to-vault` rather than deleting them, so you can get
+   them back.
+
+Nothing rewrites your settings file for you. If you would rather start a fresh pack, run
+`gm-scriptorium init`.
+
+The old `--site-config` flag is gone too, and stops with the same kind of message.
+
 ## Keeping the admin panel running on Linux
 
 This is for a GM who starts `gm-scriptorium serve --admin` over SSH or in a terminal and wants it to

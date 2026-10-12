@@ -92,7 +92,7 @@ test('readPackFile: an absent file gives exists:false with raw and sha256 null',
   });
 });
 
-test('readPackFile: for site_config, vault.config.json maps to ctx.siteConfigPath', () => {
+test('readPackFile: vault.config.json maps to ctx.siteConfigPath, wherever that file lives', () => {
   withScratchDir((dir) => {
     const siteConfigPath = path.join(dir, 'somewhere', 'site.json');
     fs.mkdirSync(path.dirname(siteConfigPath), { recursive: true });
@@ -147,23 +147,6 @@ test('resolveVaultSite returns the same site as resolveVaultContext for the pack
     const { site } = resolveVaultSite(ctxInfo);
     const full = resolveVaultContext(ctxInfo);
     assert.equal(site.siteSource, 'pack');
-    assert.equal(site.siteSource, full.siteSource);
-    assert.equal(site.siteDir, full.siteDir);
-  });
-});
-
-test('resolveVaultSite returns the same site as resolveVaultContext for the site_config source', () => {
-  withScratchDir((dir) => {
-    const vaultPath = path.join(dir, 'vault');
-    fs.mkdirSync(path.join(vaultPath, '_meta'), { recursive: true });
-    fs.writeFileSync(path.join(vaultPath, '_meta', 'vault-config.md'), '---\ntype: meta\n---\n\n# x\n');
-    const siteConfigPath = path.join(dir, 'site.json');
-    fs.writeFileSync(siteConfigPath, JSON.stringify({ siteTitle: 'X', vaultPath: './vault', excludeDirs: [], folderMap: {} }));
-
-    const ctxInfo = { campaign: 'alpha', vault: vaultPath, site_config: siteConfigPath };
-    const { site } = resolveVaultSite(ctxInfo);
-    const full = resolveVaultContext(ctxInfo);
-    assert.equal(site.siteSource, 'site_config');
     assert.equal(site.siteSource, full.siteSource);
     assert.equal(site.siteDir, full.siteDir);
   });

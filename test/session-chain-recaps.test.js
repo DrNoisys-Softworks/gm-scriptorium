@@ -34,7 +34,7 @@ function writeConfigToml(configPath, { vaultDir, siteConfigPath, outDir, campaig
       '',
       `[campaigns.${campaign}]`,
       `vault = '${vaultDir}'`,
-      `site_config = '${siteConfigPath}'`,
+      `pack = '${path.dirname(siteConfigPath)}'`,
       `output = '${outDir}'`,
       '',
     ].join('\n'),

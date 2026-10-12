@@ -214,7 +214,7 @@ test('FR-19 runtime: build+check+preview on a self-host-fonts fixture make zero 
         '',
         '[campaigns.fr19]',
         `vault = '${vaultDir}'`,
-        `site_config = '${siteConfigPath}'`,
+        `pack = '${path.dirname(siteConfigPath)}'`,
         `output = '${outDir}'`,
         '',
       ].join('\n'),

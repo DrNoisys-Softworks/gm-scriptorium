@@ -186,8 +186,8 @@ test('A3: E-NONE — no site config anywhere — rejects with the exact message,
         (err) =>
           err instanceof VaultUnreachableError &&
           err.message ===
-            `campaign "alpha" has no site config: site_config is not set, pack is not set, and ${conventionJson} does not exist. ` +
-              'Run "gm-scriptorium init" to create one, or set site_config or pack on the campaign.',
+            `campaign "alpha" has no site config: pack is not set, and ${conventionJson} does not exist. ` +
+              'Run "gm-scriptorium init" to create one, or set pack on the campaign.',
       );
       assert.deepEqual(log, []);
     },
@@ -382,10 +382,6 @@ test('A7: createAdminContext computes writable/readOnlyReason for each site sour
   const pack = createAdminContext({ ...base, site: { siteSource: 'pack', siteConfigPath: '/pack/vault.config.json', siteDir: '/pack' } });
   assert.equal(pack.writable, false);
   assert.match(pack.readOnlyReason, /^This campaign's pack key points at a folder of its own,/);
-
-  const siteConfig = createAdminContext({ ...base, site: { siteSource: 'site_config', siteConfigPath: '/x/site.json', siteDir: '/x' } });
-  assert.equal(siteConfig.writable, false);
-  assert.match(siteConfig.readOnlyReason, /^This campaign builds from a site_config file,/);
 });
 
 // --- A8: no leaked SIGINT listener -----------------------------------------

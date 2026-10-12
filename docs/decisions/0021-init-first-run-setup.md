@@ -301,3 +301,5 @@ With no command in a terminal, the panel now opens in the browser instead of thi
 ## Extended by ADR 0048
 
 `init --new-vault <folder>` first creates a vault in a new or empty folder, then does everything this record describes inside it. The pack is still written only by the writer this record describes; the vault is written by a second, separate create-only writer. See [ADR 0048](0048-new-campaign-vault.md).
+
+Issue 21 retired `site_config` ([ADR 0018](0018-campaign-pack.md), "Addendum: `site_config` retired"): when `init` finds the key in the campaign's block it still leaves it alone, and its note now reads "init left site_config in place in <config path>; this version no longer reads it, so remove that line to build from the pack at <pack folder>".

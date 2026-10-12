@@ -71,21 +71,22 @@ function cloneConfig(config) {
 }
 
 /**
- * ADR 0021, Structural decision 7: "undefined means keep". `vault`,
- * `output` and `siteConfig` are assigned onto the existing campaign block
+ * ADR 0021, Structural decision 7: "undefined means keep". `vault` and
+ * `output` are assigned onto the existing campaign block
  * only when the caller actually passed a value; an omitted (`undefined`)
  * one leaves whatever was already registered untouched, instead of
  * clobbering it. This fixes both `init` (a re-run must not silently drop
- * `site_config`/`output` it never touched) and `config add` on an already-
+ * `output` it never touched) and `config add` on an already-
  * registered name, which called this same function and previously lost
- * those keys on every re-add.
+ * those keys on every re-add. Issue 21: `site_config` is no longer a written key; an existing one in the
+ * block is preserved untouched, like any other key this function does not set.
  */
-function addCampaign(config, name, { vault, output, siteConfig }) {
+function addCampaign(config, name, { vault, output }) {
   if (!name) throw new ConfigError('campaign name is required');
   const next = cloneConfig(config);
   next.campaigns = next.campaigns || {};
   const campaign = { ...(next.campaigns[name] || {}) };
-  for (const [key, value] of Object.entries({ vault, output, site_config: siteConfig })) {
+  for (const [key, value] of Object.entries({ vault, output })) {
     if (value !== undefined) campaign[key] = value;
   }
   next.campaigns[name] = campaign;

@@ -13,7 +13,7 @@ const { ConfigError, VaultUnreachableError } = require('../src/util/errors');
 
 test('addCampaign registers a campaign and sets it as default if none was set', () => {
   const config = { config_version: 1, campaigns: {} };
-  const next = addCampaign(config, 'example', { vault: '/v', output: '/o', siteConfig: '/s' });
+  const next = addCampaign(config, 'example', { vault: '/v', output: '/o' });
   assert.equal(next.campaigns.example.vault, '/v');
   assert.equal(next.default_campaign, 'example');
   assert.deepEqual(config.campaigns, {}); // does not mutate the input
@@ -177,7 +177,7 @@ function withScratchDir(fn) {
   }
 }
 
-test('R1: addCampaign without siteConfig or output keeps site_config, output, pack, serve_port, paths and an unknown key', () => {
+test('R1: addCampaign without output keeps site_config, output, pack, serve_port, paths and an unknown key', () => {
   const config = {
     config_version: 1,
     campaigns: {
@@ -192,7 +192,7 @@ test('R1: addCampaign without siteConfig or output keeps site_config, output, pa
       },
     },
   };
-  const next = addCampaign(config, 'alpha', { vault: '/new-vault', output: undefined, siteConfig: undefined });
+  const next = addCampaign(config, 'alpha', { vault: '/new-vault', output: undefined });
   assert.deepEqual(next.campaigns.alpha, {
     vault: '/new-vault',
     site_config: '/s',
@@ -204,10 +204,10 @@ test('R1: addCampaign without siteConfig or output keeps site_config, output, pa
   });
 });
 
-test('R2: a given siteConfig is still set', () => {
+test('R2: a siteConfig option is no longer written (issue 21); the existing site_config is left as it was', () => {
   const config = { config_version: 1, campaigns: { alpha: { vault: '/v', site_config: '/old-s' } } };
   const next = addCampaign(config, 'alpha', { vault: '/v', output: undefined, siteConfig: '/new-s' });
-  assert.equal(next.campaigns.alpha.site_config, '/new-s');
+  assert.equal(next.campaigns.alpha.site_config, '/old-s');
 });
 
 test('R3: an already-set default_campaign is kept', () => {
@@ -216,7 +216,7 @@ test('R3: an already-set default_campaign is kept', () => {
     default_campaign: 'beta',
     campaigns: { alpha: { vault: '/v' }, beta: { vault: '/v2' } },
   };
-  const next = addCampaign(config, 'alpha', { vault: '/v', output: undefined, siteConfig: undefined });
+  const next = addCampaign(config, 'alpha', { vault: '/v', output: undefined });
   assert.equal(next.default_campaign, 'beta');
 });
 

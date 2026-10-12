@@ -6,6 +6,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { packFromSiteConfig } = require('./helpers/site-pack');
+
 const MINI_VAULT = path.join(__dirname, 'fixtures', 'mini-vault');
 const SITE_CONFIG_SRC = path.join(__dirname, 'fixtures', 'mini-vault-site-config.json');
 
@@ -30,12 +32,18 @@ function withCleanProfileEnv(fn) {
   }
 }
 
-function writeSiteConfig(dir, name, mutate) {
+/** Writes a campaign pack's vault.config.json straight into `dir` (so a relative vaultPath resolves against `dir`) and returns its path. */
+function writeSiteConfig(dir, mutate) {
   const cfg = JSON.parse(fs.readFileSync(SITE_CONFIG_SRC, 'utf8'));
   mutate(cfg);
-  const configPath = path.join(dir, name);
+  const configPath = path.join(dir, 'vault.config.json');
   fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2));
   return configPath;
+}
+
+/** The fixture site config as a pack folder (absolute paths, same behaviour as the legacy file), returned as its vault.config.json path. */
+function fixturePackJson(dir, name) {
+  return path.join(packFromSiteConfig(SITE_CONFIG_SRC, path.join(dir, name)), 'vault.config.json');
 }
 
 function writeScratchConfig(configPath, { vault, siteConfig, output }) {
@@ -45,7 +53,7 @@ function writeScratchConfig(configPath, { vault, siteConfig, output }) {
     '',
     '[campaigns.fixture]',
     `vault = '${vault}'`,
-    `site_config = '${siteConfig}'`,
+    `pack = '${path.dirname(siteConfig)}'`,
     `output = '${output}'`,
   ].join('\n');
   fs.writeFileSync(configPath, toml);
@@ -60,7 +68,7 @@ test('check reads the resolved vault when the site config vaultPath points elsew
   withCleanProfileEnv(() => {
     withScratchDir((dir) => {
       fs.mkdirSync(path.join(dir, 'decoy-vault'));
-      const decoySiteConfigPath = writeSiteConfig(dir, 'decoy-site-config.json', (c) => {
+      const decoySiteConfigPath = writeSiteConfig(dir, (c) => {
         c.vaultPath = 'decoy-vault';
       });
 
@@ -90,7 +98,7 @@ test('check reads the resolved vault when the site config vaultPath points elsew
       assert.ok(result.human.includes(MINI_VAULT));
 
       const fixtureConfigPath = path.join(dir, 'config-fixture.toml');
-      writeScratchConfig(fixtureConfigPath, { vault: MINI_VAULT, siteConfig: SITE_CONFIG_SRC, output: path.join(dir, 'out2') });
+      writeScratchConfig(fixtureConfigPath, { vault: MINI_VAULT, siteConfig: fixturePackJson(dir, 'pack-fixture'), output: path.join(dir, 'out2') });
       const { runCheckCommand: runCheckCommand2 } = requireFresh('../src/cli/check');
       const fixtureResult = runCheckCommand2({ config: fixtureConfigPath }, 'fixture');
 
@@ -102,7 +110,7 @@ test('check reads the resolved vault when the site config vaultPath points elsew
 test('check with a site config that has no vaultPath reads the resolved vault and reports nothing', () => {
   withCleanProfileEnv(() => {
     withScratchDir((dir) => {
-      const noVaultSiteConfigPath = writeSiteConfig(dir, 'no-vault-site-config.json', (c) => {
+      const noVaultSiteConfigPath = writeSiteConfig(dir, (c) => {
         delete c.vaultPath;
       });
 
@@ -122,7 +130,7 @@ test('check with a site config that has no vaultPath reads the resolved vault an
 test('a site config vaultPath naming the same directory is not a mismatch', () => {
   withCleanProfileEnv(() => {
     withScratchDir((dir) => {
-      const sameVaultSiteConfigPath = writeSiteConfig(dir, 'same-vault-site-config.json', (c) => {
+      const sameVaultSiteConfigPath = writeSiteConfig(dir, (c) => {
         c.vaultPath = MINI_VAULT + path.sep;
       });
 
@@ -141,7 +149,7 @@ test('a site config vaultPath naming the same directory is not a mismatch', () =
 test('the matched profile beats the campaign block, and --vault beats the profile', () => {
   withCleanProfileEnv(() => {
     withScratchDir((dir) => {
-      const decoySiteConfigPath = writeSiteConfig(dir, 'decoy-site-config.json', (c) => {
+      const decoySiteConfigPath = writeSiteConfig(dir, (c) => {
         c.vaultPath = 'decoy-vault';
       });
       fs.mkdirSync(path.join(dir, 'decoy-vault'));
@@ -154,7 +162,7 @@ test('the matched profile beats the campaign block, and --vault beats the profil
         '',
         '[campaigns.fixture]',
         `vault = '${path.join(dir, 'nonexistent-base')}'`,
-        `site_config = '${decoySiteConfigPath}'`,
+        `pack = '${path.dirname(decoySiteConfigPath)}'`,
         `output = '${path.join(dir, 'out-a')}'`,
         '',
         '[campaigns.fixture.paths.here]',
@@ -175,7 +183,7 @@ test('the matched profile beats the campaign block, and --vault beats the profil
         '',
         '[campaigns.fixture]',
         `vault = '${path.join(dir, 'nonexistent-base')}'`,
-        `site_config = '${decoySiteConfigPath}'`,
+        `pack = '${path.dirname(decoySiteConfigPath)}'`,
         `output = '${path.join(dir, 'out-b')}'`,
         '',
         '[campaigns.fixture.paths.here]',
@@ -197,7 +205,7 @@ test('status and build envelopes carry the resolved vault and the mismatch', () 
   withCleanProfileEnv(() => {
     withScratchDir((dir) => {
       fs.mkdirSync(path.join(dir, 'decoy-vault'));
-      const decoySiteConfigPath = writeSiteConfig(dir, 'decoy-site-config.json', (c) => {
+      const decoySiteConfigPath = writeSiteConfig(dir, (c) => {
         c.vaultPath = 'decoy-vault';
       });
 
@@ -238,7 +246,7 @@ test('status and build envelopes carry the resolved vault and the mismatch', () 
       assert.equal(fs.existsSync(outDir), false, 'a refused build must write nothing');
 
       const fixtureConfigPath = path.join(dir, 'config-fixture.toml');
-      writeScratchConfig(fixtureConfigPath, { vault: MINI_VAULT, siteConfig: SITE_CONFIG_SRC, output: path.join(dir, 'out2') });
+      writeScratchConfig(fixtureConfigPath, { vault: MINI_VAULT, siteConfig: fixturePackJson(dir, 'pack-fixture'), output: path.join(dir, 'out2') });
 
       const { runStatusCommand: runStatus2 } = requireFresh('../src/cli/status');
       const statusFixture = runStatus2({ config: fixtureConfigPath }, 'fixture');
@@ -255,13 +263,13 @@ test('build --force with a mismatched site config builds the resolved vault', ()
   withCleanProfileEnv(() => {
     withScratchDir((dir) => {
       fs.mkdirSync(path.join(dir, 'decoy-vault'));
-      const decoySiteConfigPath = writeSiteConfig(dir, 'decoy-site-config.json', (c) => {
+      const decoySiteConfigPath = writeSiteConfig(dir, (c) => {
         c.vaultPath = 'decoy-vault';
       });
 
       const fixtureConfigPath = path.join(dir, 'config-fixture.toml');
       const outFixture = path.join(dir, 'out-fixture');
-      writeScratchConfig(fixtureConfigPath, { vault: MINI_VAULT, siteConfig: SITE_CONFIG_SRC, output: outFixture });
+      writeScratchConfig(fixtureConfigPath, { vault: MINI_VAULT, siteConfig: fixturePackJson(dir, 'pack-fixture'), output: outFixture });
 
       const decoyConfigPath = path.join(dir, 'config-decoy.toml');
       const outDecoy = path.join(dir, 'out-decoy');

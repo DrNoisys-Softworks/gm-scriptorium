@@ -61,7 +61,7 @@ test('build --force against the CoC fixture renders the sheet\'s own skills and 
       '',
       '[campaigns.fixture]',
       `vault = '${FIXTURE}'`,
-      `site_config = '${siteConfigPath}'`,
+      `pack = '${path.dirname(siteConfigPath)}'`,
       `output = '${outDir}'`,
     ].join('\n');
     fs.writeFileSync(configPath, toml);
@@ -118,7 +118,7 @@ test('two builds of the unchanged CoC fixture report identical redactions', () =
       '',
       '[campaigns.fixture]',
       `vault = '${FIXTURE}'`,
-      `site_config = '${siteConfigPath}'`,
+      `pack = '${path.dirname(siteConfigPath)}'`,
       `output = '${outDir}'`,
     ].join('\n');
     fs.writeFileSync(configPath, toml);
