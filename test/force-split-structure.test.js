@@ -238,7 +238,7 @@ test('every runAtomicBuild call reachable from bin passes the literal force: fal
   let callers = 0;
   for (const file of repoFilesInGraph()) {
     const source = fs.readFileSync(file, 'utf8');
-    if (!/runAtomicBuild\s*\(/.test(stripComments(source))) continue;
+    if (!/runAtomicBuild/.test(stripComments(source))) continue;
     const violations = forceViolations(source);
     assert.deepEqual(violations, [], `${path.relative(ROOT, file)}: ${violations.join(' | ')}`);
     if (path.relative(ROOT, file) !== path.join('src', 'build', 'run.js')) callers++;
