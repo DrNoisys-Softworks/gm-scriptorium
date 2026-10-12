@@ -324,3 +324,31 @@ test('A5: readBackup can never reach panel/password.json (or anything outside th
     }, JSON.stringify(id));
   }
 });
+
+test('assertNotInsideAnyVault refuses a folder inside a vault found only by _meta/vault-config.md, even with no campaigns registered', (t) => {
+  const dir = scratch(t);
+  const unlisted = path.join(dir, 'unlisted');
+  fs.mkdirSync(path.join(unlisted, '_meta'), { recursive: true });
+  fs.writeFileSync(path.join(unlisted, '_meta', 'vault-config.md'), '# settings\n');
+  // Not yet created, and two levels down: judged by where it will land.
+  assert.throws(() => assertNotInsideAnyVault(path.join(unlisted, 'a', 'b', 'panel'), { campaigns: {} }), (err) => {
+    assert.ok(err instanceof ConfigError);
+    assert.ok(err.message.includes(`inside the vault at ${unlisted}`), err.message);
+    return true;
+  });
+  assert.throws(() => assertNotInsideAnyVault(unlisted, {}), ConfigError);
+  // A sibling folder with no marker above it is fine.
+  assert.doesNotThrow(() => assertNotInsideAnyVault(path.join(dir, 'elsewhere', 'panel'), { campaigns: {} }));
+  // A folder that only holds a _meta folder without the settings page is not a vault.
+  fs.mkdirSync(path.join(dir, 'plain', '_meta'), { recursive: true });
+  assert.doesNotThrow(() => assertNotInsideAnyVault(path.join(dir, 'plain', 'panel'), {}));
+});
+
+test('assertNotInsideAnyVault follows a symlink into an unlisted vault', posix, (t) => {
+  const dir = scratch(t);
+  const unlisted = path.join(dir, 'unlisted');
+  fs.mkdirSync(path.join(unlisted, '_meta'), { recursive: true });
+  fs.writeFileSync(path.join(unlisted, '_meta', 'vault-config.md'), '# settings\n');
+  fs.symlinkSync(unlisted, path.join(dir, 'link'));
+  assert.throws(() => assertNotInsideAnyVault(path.join(dir, 'link', 'panel'), {}), ConfigError);
+});

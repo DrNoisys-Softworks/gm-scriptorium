@@ -93,3 +93,11 @@ actually just the version stamp doing exactly what it was built to do.
   recognisably-Scriptorium file.
 - `src/cli/update.js`: calls it on the success path only; success message extended.
 - `README.md`'s "Third-party notices" section and this ADR both record the release-procedure trap.
+
+## Amendment: `--version` no longer writes the file (issue #49)
+
+`--version` now prints `third-party notices: run gm-scriptorium --notices to print them` and writes
+nothing. The line it printed before named a file that was often not there (moved, deleted, or the
+folder was read-only), and writing a file from a version query surprised people. `--notices` always
+works because the text is embedded. `update` still clears an old copy left by an earlier release, and
+its success message now only names `--notices`. Decision points 2 to 4 above otherwise stand.

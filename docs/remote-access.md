@@ -31,7 +31,7 @@ not optional.
 | `local` (the default) | `127.0.0.1`, any free port | this computer | not needed | the one-time link |
 | `ssh` | `127.0.0.1`, two fixed ports | this computer, including an SSH tunnel to it | the tunnel | the one-time link |
 | `tailscale` | `127.0.0.1`, two fixed ports | `tailscale serve` on this computer | `tailscale serve` | the panel password |
-| `proxy` | an address you choose, plus `127.0.0.1`, two fixed ports | your reverse proxy and this computer; every other machine is dropped before any HTTP | your proxy | the panel password |
+| `proxy` | an address you choose, plus `127.0.0.1`, two fixed ports | your reverse proxy and this computer (over 127.0.0.1 only, not its network address); every other machine is dropped before any HTTP | your proxy | the panel password |
 
 In `tailscale` and `proxy` mode the panel always also answers on `127.0.0.1`, so the one-time link
 printed when it starts keeps working on the machine itself. That is your way back in if you lose
@@ -232,7 +232,7 @@ Protected:
 - Requests for any name other than the panel's own configured names, including the machine's bare
   address, a name with something added to it, a wrong port, and a request with no or two `Host`
   headers.
-- Any machine other than your proxy (and this computer) in `proxy` mode.
+- Any machine other than your proxy (and this computer, over 127.0.0.1) in `proxy` mode.
 - Forged `X-Forwarded-For` and `X-Forwarded-Proto` from anything but your proxy.
 - Cross-site and cross-origin changes, including a sign-in attempt made by a page on the preview
   name.

@@ -372,7 +372,7 @@ test('AC-26-04: a successful update removes the beside-exe notices file and name
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.equal(fs.existsSync(noticesPath), false, 'the stale notices file must be gone after a successful update');
-    assert.match(result.human, /--version/, 'the success message must name --version as a way to get it back');
+    assert.doesNotMatch(result.human, /--version/, 'the success message must not tell people --version writes a copy');
     assert.match(result.human, /--notices/, 'the success message must name --notices as a way to get it back');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

@@ -32,7 +32,7 @@ function parsePortFlag(raw) {
  *
  * `emit`/`startServer`/`runBuild`/`signals` are options-object DI with
  * defaults bound to the already-imported symbols (precedent: discoverGh()
- * at src/update/gh.js, deliverNotices() at src/util/notices.js), so a test
+ * at src/update/gh.js, noticesLine() at src/util/notices.js), so a test
  * can assert ordering on a shared log without a real socket or a listener
  * on the real `process` (which node --test shares across every test file).
  */

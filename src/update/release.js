@@ -18,6 +18,26 @@ function noReleaseYetError() {
 }
 
 /**
+ * GitHub's /releases/latest skips prereleases, so while a project has only prereleases it answers
+ * 404, which reads as "nothing published". Look at the list once to tell the two apart. Any
+ * failure here returns null, so the caller keeps the plain "nothing published" wording and the
+ * lookup can never turn exit 4 into anything else (issue #51).
+ *
+ * @returns {object|null} the newest non-draft prerelease, or null
+ */
+function newestPrerelease(ghPath) {
+  const result = runGh(ghPath, ['api', `repos/${REPO}/releases?per_page=30`]);
+  if (result.status !== 0) return null;
+  try {
+    const parsed = JSON.parse(result.stdout);
+    if (!Array.isArray(parsed)) return null;
+    return pickHighestRelease(parsed.filter((r) => r && r.prerelease === true));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Never uses --jq (the flag surface varies across gh versions); parses
  * JSON in Scriptorium instead (Engineering Brief section 6).
  */
@@ -37,6 +57,15 @@ function fetchLatestRelease(ghPath, { pre = false, version = null } = {}) {
     // further information: never attempt an unauthenticated fallback that would produce a
     // confidently wrong message either way.
     if (/404/.test(result.stderr || '')) {
+      if (!pre && !version) {
+        const prerelease = newestPrerelease(ghPath);
+        if (prerelease) {
+          throw new UpdatePrerequisiteError(
+            `No stable release yet. The newest prerelease is ${prerelease.tag_name}; ` +
+              'run `gm-scriptorium update --pre` to get prereleases.',
+          );
+        }
+      }
       throw noReleaseYetError();
     }
     throw new ScriptoriumError(`gh api failed: ${(result.stderr || result.stdout || '').trim()}`);
