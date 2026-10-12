@@ -895,7 +895,10 @@ function runPrePush(rest, { cwd, env, stdin, stdout, stderr, publicRoot, scanRun
     }
 
     if (lists) {
-      const commitsRest = remoteOid === ZERO_OID ? [localOid, '--not', `--remotes=${remote}`] : [`${remoteOid}..${localOid}`];
+      // Scan only commits the remote lacks: not the ref's old tip, and not anything reachable from
+      // ANY remote-tracking ref of this remote (a merge of main brings in commits that are public
+      // already). A remote oid this repo does not know makes rev-list fail: unreadable, fail closed.
+      const commitsRest = remoteOid === ZERO_OID ? [localOid, '--not', `--remotes=${remote}`] : [localOid, '--not', remoteOid, `--remotes=${remote}`];
       const rangeState = prePushRangeState(cwd, env, commitsRest);
       if (rangeState === 'unreadable') throw new GuardError('unreadable-range');
       if (rangeState === 'empty') {

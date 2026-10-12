@@ -173,3 +173,26 @@ history check) still run on that ref.
 
 **Rejected alternative.** Treating every empty set as "nothing to scan", in both the pre-push check
 and `scan commits`. That would also let a mistyped range or a git failure pass without a word.
+
+## Amendment: a push after merging main scans only what is new
+
+**What changed.** The pre-push check used to scan the range from the remote's old tip of the pushed
+branch to the local tip. After a branch merged main, that range also held commits already on main,
+which are public. A private-list hit in one of those commits blocked every such push, although
+re-scanning them could not prevent anything. The check now scans only the commits that the old
+remote tip does not reach and that no remote-tracking ref of the remote being pushed to reaches
+(`git rev-list <local> --not <old remote tip> --remotes=<remote>`). A new branch already worked
+this way.
+
+**What did not change.**
+
+- Commits the remote lacks are scanned in full: messages, trees and diffs.
+- It fails closed. If the remote-tracking refs are missing or stale, the commits that depended on
+  them are simply scanned. A remote commit this repository does not know still ends with
+  `ERROR unreadable-range`.
+- Only refs of the remote named in the push count. A commit that is public on a different remote is
+  still scanned.
+- The tree at the pushed revision is still scanned in full.
+
+**Rejected alternative.** Skipping the scan when the branch has any upstream. That would also skip
+commits that really are new.
