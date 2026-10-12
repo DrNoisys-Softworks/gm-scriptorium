@@ -175,9 +175,10 @@ test('K16: parsePackToml round-trips theme = "plain"; vocab is the default', () 
   withScratchDir((dir) => {
     const T = path.join(dir, PACK_TOML_FILE);
     const result = parse(dir, 'theme = "plain"\n');
-    const { vocab, ...rest } = result;
+    const { vocab, gmLink, ...rest } = result;
     assert.deepEqual(rest, { path: T, present: true, theme: 'plain', images: [], warnings: [] });
     assert.equal(vocab, DEFAULT_VOCAB);
+    assert.equal(gmLink, null);
   });
 });
 

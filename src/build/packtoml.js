@@ -7,6 +7,7 @@ const { ConfigError } = require('../util/errors');
 const { DEFAULT_THEME, SLOT_NAMES, THEMES } = require('./themes');
 const { platformFoldsCase } = require('../vault/exclusions');
 const { DEFAULT_VOCAB, parseVocab } = require('./labels');
+const { validateExternalUrl } = require('../setup/validate');
 
 /*
  * ADR 0019: an optional pack.toml, the opt-in for the whole asset step
@@ -72,11 +73,38 @@ function validateSlotValue(slot, raw, { T, c, D }) {
 }
 
 /**
- * Pure. @returns {{ path, present: true, theme: string, images: SlotRef[], warnings: string[], vocab: object }}
+ * ADR 0054: the optional [gm_link] table. No table means off (null). A table present means on, and
+ * then `url` is required and goes through the same validator the remote settings use, so it is an
+ * https origin with no user name, path or loopback address. Any other key is only a warning.
+ */
+function parseGmLink(raw, { T, c, warnings }) {
+  if (!hasOwn(raw, 'gm_link')) return null;
+  const fail = (message) => {
+    throw new ConfigError(`campaign "${c}": ${T}: [gm_link] ${message}`, { path: T, campaign: c });
+  };
+  const table = raw.gm_link;
+  if (typeof table !== 'object' || table === null || Array.isArray(table)) fail('must be a table');
+  for (const k of Object.keys(table)) {
+    if (k !== 'url') warnings.push(`${T}: [gm_link] unrecognised key "${k}" (ignored)`);
+  }
+  if (!hasOwn(table, 'url')) fail('needs url = "https://..."');
+  let origin;
+  try {
+    origin = validateExternalUrl(table.url);
+  } catch (err) {
+    fail(`url: ${err.message}`);
+  }
+  if (/["'<>&`\\\s]/.test(origin)) fail('url: the address has a character that cannot go in a link');
+  return { url: origin };
+}
+
+/**
+ * Pure. @returns {{ path, present: true, theme: string, images: SlotRef[], warnings: string[], vocab: object, gmLink: { url: string }|null }}
  * SlotRef = { slot: string, raw: string, kind: 'vault'|'pack', rel: string } (images in
  * SLOT_NAMES order). `vocab` is ADR 0020's resolved [labels]/[timeline]/[recaps] object
  * (src/build/labels.js), or the shared DEFAULT_VOCAB reference when none of those tables is
- * present.
+ * present. `gmLink` is ADR 0054's opt-in [gm_link] table: null when the table is absent (the link
+ * is off), otherwise `{ url }` holding the validated https origin.
  * @throws {ConfigError}
  */
 function parsePackToml(text, { tomlPath, campaign = null, registry = THEMES }) {
@@ -110,7 +138,7 @@ function parsePackToml(text, { tomlPath, campaign = null, registry = THEMES }) {
   }
 
   for (const k of Object.keys(raw)) {
-    if (k !== 'theme' && k !== 'images' && k !== 'labels' && k !== 'timeline' && k !== 'recaps') {
+    if (k !== 'theme' && k !== 'images' && k !== 'labels' && k !== 'timeline' && k !== 'recaps' && k !== 'gm_link') {
       warnings.push(`${T}: unrecognised key "${k}" (ignored)`);
     }
   }
@@ -148,7 +176,9 @@ function parsePackToml(text, { tomlPath, campaign = null, registry = THEMES }) {
   const { vocab, warnings: vocabWarnings } = parseVocab(raw, { T, c });
   warnings.push(...vocabWarnings);
 
-  return { path: T, present: true, theme, images, warnings, vocab };
+  const gmLink = parseGmLink(raw, { T, c, warnings });
+
+  return { path: T, present: true, theme, images, warnings, vocab, gmLink };
 }
 
 /**
@@ -162,7 +192,7 @@ function parsePackToml(text, { tomlPath, campaign = null, registry = THEMES }) {
 function loadPackToml(siteDir, { campaign = null, registry = THEMES } = {}) {
   const tomlPath = path.join(siteDir, PACK_TOML_FILE);
   if (!read.pathExists(tomlPath)) {
-    return { path: tomlPath, present: false, theme: DEFAULT_THEME, images: [], warnings: [], vocab: DEFAULT_VOCAB };
+    return { path: tomlPath, present: false, theme: DEFAULT_THEME, images: [], warnings: [], vocab: DEFAULT_VOCAB, gmLink: null };
   }
   const text = read.readText(tomlPath);
   return parsePackToml(text, { tomlPath, campaign, registry });
