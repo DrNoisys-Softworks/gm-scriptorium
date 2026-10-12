@@ -202,6 +202,9 @@ someone.
    anything.
 10. Have the Windows checks run on the release, using the Windows verification runbook at
     `.agents/windows-verification.md`. Promote the release to latest only when they pass.
+    On every push to main, CI packages both targets and runs the Linux binary through
+    `scripts/packaged-smoke.js`. That proves nothing about Windows: the Windows executable stays a release
+    gate on the test machine (C1 and C141 part A step 4, and C184).
 11. Run the release-time `update` check, which is still **open**. Build a lower-version
     `scriptorium-linux-x64` in a scratch folder as a stand-in for an old install. Point it at the
     new release's tag and run `update --pre`. It should download, verify against `SHA256SUMS`, and

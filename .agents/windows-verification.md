@@ -2060,6 +2060,16 @@ Issue #49, `docs/decisions/0011-notices-beside-the-executable.md`. **Mark this O
 2. List the folder. No `THIRD-PARTY-NOTICES.txt` (or any other new file) was created beside the exe.
 3. Run `--notices`. It prints the notices text and exits 0. Re-hash the real config.
 
+### C184: the packaged smoke, by hand, on the real win-x64 exe with no Node on the machine
+
+rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on every push to main; that proves nothing about Windows. **Mark this OPEN: the Windows exe can only be exercised here.** Use a machine with no Node installed. Read "Checkout line endings (CRLF)" near the top of this document first, and copy `examples\the-long-lease` from an LF tree (a stock CRLF checkout changes the counts). Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` plus the same path as `--config`, with one campaign named `smoke` whose vault is the scratch copy and whose output is a scratch folder. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 5; the two must match. The expected numbers are `EXPECTED` and `PLANTED_NAME` in `scripts/packaged-smoke.js`.
+
+1. Run `gm-scriptorium-win-x64.exe --version`. It exits 0 and its first line is the release version.
+2. Run `build smoke`. It exits 0.
+3. Run `check smoke --json`. The exit code and the `counts` equal `EXPECTED.clean`, and there is no `leak/` error finding.
+4. Append the planted name (`PLANTED_NAME`) in a paragraph to `out\index.html`. Run `check smoke --json`. It exits 2, the `counts` equal `EXPECTED.planted`, and there is exactly one `leak/l4-output-name` finding, naming `index.html`.
+5. Re-hash the real config.
+
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 
 None of these are product concerns; every one is a harness limit on the automated tester's side,
