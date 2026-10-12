@@ -569,7 +569,7 @@ function remoteRequest(env, { method = 'GET', pathname, headers = {}, body }) {
 }
 
 async function remoteSession(env) {
-  const res = await remoteRequest(env, { method: 'POST', pathname: '/auth/password', headers: { 'Content-Type': 'application/json', Origin: ADMIN_ORIGIN }, body: JSON.stringify({ password: PASSWORD }) });
+  const res = await remoteRequest(env, { method: 'POST', pathname: '/auth/password', headers: { 'Content-Type': 'application/json', Origin: ADMIN_ORIGIN }, body: JSON.stringify({ username: 'gm', password: PASSWORD }) });
   assert.equal(res.status, 200, res.text);
   const raw = [].concat(res.headers['set-cookie'] || []).find((c) => c.startsWith('__Host-scriptorium_session='));
   return raw.split(';')[0];

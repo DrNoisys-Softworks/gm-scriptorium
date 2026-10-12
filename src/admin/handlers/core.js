@@ -7,6 +7,7 @@ const body = require('../body');
 const gate = require('../gate');
 const settingsLib = require('../../remote/settings');
 const { browserFamily } = require('../../remote/audit');
+const { ADMIN_COOKIE } = require('../../remote/sessions');
 
 /*
  * Phase 8 slice S1. The five real handlers this slice ships: the token-for-cookie exchange, the
@@ -104,6 +105,20 @@ function sessionAccess(ctx, kind) {
   };
 }
 
+/**
+ * ADR 0054: the account a remote session signed in as (a session from before accounts existed counts
+ * as "gm"), or null for a loopback request, which signs in by token or launch code and has no account.
+ */
+function sessionAccount(req, ctx, kind) {
+  if (kind !== 'remote' || !ctx.sessions) return null;
+  for (const [name, value] of session.parseCookies(req.headers && req.headers.cookie)) {
+    if (name !== ADMIN_COOKIE) continue;
+    const rec = ctx.sessions.verify('admin', value);
+    if (rec) return rec.account || 'gm';
+  }
+  return null;
+}
+
 /** GET /api/session. */
 function apiSession(req, res, ctx, { kind } = {}) {
   const payload = {
@@ -114,6 +129,7 @@ function apiSession(req, res, ctx, { kind } = {}) {
     previewPort: ctx.previewPort,
     access: sessionAccess(ctx, kind),
     launch: Boolean(ctx.launchCodes),
+    account: sessionAccount(req, ctx, kind),
   };
   respond.send(res, 200, respond.adminHeaders({ 'Content-Type': 'application/json; charset=utf-8' }), JSON.stringify(payload));
 }

@@ -16,6 +16,8 @@ function adminHeaders(extra = {}) {
     'Referrer-Policy': 'no-referrer',
     'X-Content-Type-Options': 'nosniff',
     'Cache-Control': 'no-store',
+    // ADR 0054 section 8: a public link will get crawled, so every admin response says not to index it.
+    'X-Robots-Tag': 'noindex',
     ...extra,
   };
 }

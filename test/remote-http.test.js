@@ -35,7 +35,7 @@ const ADMIN_ORIGIN = `https://${ADMIN_HOST}`;
 const PREVIEW_ORIGIN = `https://${PREVIEW_HOST}`;
 const TS_ADMIN_HOST = 'panel-host.example-tailnet.ts.net';
 const TS_PREVIEW_HOST = 'panel-host.example-tailnet.ts.net:8443';
-const GENERIC = '{"error":"signin","message":"Sign-in failed. Check the password and try again."}';
+const GENERIC = '{"error":"signin","message":"That didn\'t work. Check your username and password."}';
 const AUDIT_503 = '{"error":"audit","message":"The panel could not write its audit log, so changes from other devices are paused. Use the panel on this machine, or fix the disk and try again."}';
 
 const SHAPES = {
@@ -171,7 +171,9 @@ function adminPost(env, pathname, bodyObj, { headers = {}, origin } = {}) {
   return adminReq(env, { method: 'POST', pathname, body, headers: { 'Content-Type': 'application/json', Origin: origin === undefined ? `https://${env.spec.adminHost}` : origin, ...headers } });
 }
 
-const signin = (env, password = PASSWORD, extra = {}) => adminPost(env, '/auth/password', { password }, extra);
+// ADR 0054: sign-in takes a username. These older tests write the earlier single password.json, which reads
+// as the account "gm"; the account-specific cases are in test/remote-signin-accounts.test.js.
+const signin = (env, password = PASSWORD, extra = {}) => adminPost(env, '/auth/password', { username: 'gm', password }, extra);
 
 /** name=value pairs and the attribute list of one Set-Cookie header value. */
 function parseSetCookie(value) {
@@ -370,10 +372,10 @@ test('sign-in failure: one generic body (403), no cookie, whatever was wrong', l
   assert.match(wrong.headers['content-type'], /^application\/json/);
 });
 
-test('sign-in input rules: only {password: string 1-1024 chars}; anything else is a 400 with the generic body, and is NOT counted toward the lockout', linuxOnly, async (t) => {
+test('sign-in input rules: only {username: string 1-64 units, password: string 1-1024 chars}; anything else is a 400 with the generic body, and is NOT counted toward the lockout', linuxOnly, async (t) => {
   const env = await startPanel(t);
   const counter = countVerifies(t);
-  const bads = ['not json', '', '[]', '{}', '{"password":5}', '{"password":""}', '{"password":"x","extra":1}', '{"pass":"x"}', 'null', '"x"'];
+  const bads = ['not json', '', '[]', '{}', '{"password":5}', '{"password":""}', '{"password":"x","extra":1}', '{"pass":"x"}', 'null', '"x"', '{"password":"x"}', '{"username":"gm"}', '{"username":"gm","password":"x","extra":1}', '{"username":"","password":"x"}', '{"username":5,"password":"x"}'];
   for (const body of bads) {
     const res = await adminPost(env, '/auth/password', body);
     assert.equal(res.status, 400, body);
@@ -387,7 +389,7 @@ test('sign-in input rules: only {password: string 1-1024 chars}; anything else i
 test('the sign-in body is capped at 1024 bytes: 1025 gives 413, 1024 is read', linuxOnly, async (t) => {
   const env = await startPanel(t);
   const counter = countVerifies(t);
-  const pad = (n) => `{"password":"${'a'.repeat(n - 15)}"}`;
+  const pad = (n) => `{"username":"gm","password":"${'a'.repeat(n - 31)}"}`;
   assert.equal(Buffer.byteLength(pad(1025)), 1025);
   const over = await adminPost(env, '/auth/password', pad(1025));
   assert.equal(over.status, 413);
@@ -800,7 +802,7 @@ test('sign-in audit entries carry method, result, via, from, browser family and 
   const value = await signedIn(env);
   const entries = readAudit(env);
   const refused = entries.find((e) => e.event === 'signin' && e.result === 'refused');
-  assert.deepEqual(Object.keys(refused).sort(), ['browser', 'campaign', 'event', 'from', 'method', 'result', 't', 'via']);
+  assert.deepEqual(Object.keys(refused).sort(), ['account', 'browser', 'campaign', 'event', 'from', 'method', 'result', 't', 'via']);
   assert.equal(refused.browser, 'Firefox');
   assert.equal(refused.method, 'password');
   assert.equal(refused.via, 'remote');
@@ -1048,9 +1050,10 @@ test('GET /api/remote: the full shape for a remote request, and NOTHING secret (
   assert.equal(body.listening.previewPort, 7925);
   assert.deepEqual(body.listening.answers, ['127.0.0.2', '127.0.0.1', '::1']);
   assert.deepEqual(body.https, { by: 'proxy', hop: 'plain' });
-  assert.equal(body.password.set, true);
-  assert.equal(typeof body.password.setAt, 'string');
-  assert.deepEqual(body.lockout, { active: false, until: null, recentFailures: 1, refused: 0 });
+  assert.equal(body.password, undefined, 'ADR 0054: the single password field is replaced by accounts');
+  assert.equal(body.accounts.state, 'set');
+  assert.deepEqual(body.accounts.list.map((a) => [a.name, a.fromEarlierPassword, typeof a.setAt]), [['gm', true, 'string']]);
+  assert.deepEqual(body.lockout, { active: false, until: null, recentFailures: 1, refused: 0, pausedAccounts: [], pausedOther: 0 });
   assert.deepEqual(body.sessions, { active: 1 });
   assert.equal(body.audit.ok, true);
   assert.equal(body.audit.file, path.join(env.fx.panelDir, 'audit.log'));
@@ -1074,7 +1077,7 @@ test('GET /api/remote reflects the lockout: active with until, and the refused c
   await signin(env);
   const at = env.clock.t;
   const body = JSON.parse((await adminReq(env, { pathname: '/api/remote', headers: sessionCookie(value) })).text);
-  assert.deepEqual(body.lockout, { active: true, until: at + 900000, recentFailures: 0, refused: 2 });
+  assert.deepEqual(body.lockout, { active: false, until: null, recentFailures: 5, refused: 0, pausedAccounts: ['gm'], pausedOther: 0 }); // the two refused tries were counted against the paused name, so the global total stays 0
 });
 
 test('GET /api/remote for a local-mode panel: kind loopback, mode local, no external addresses, https by none', linuxOnly, async (t) => {
@@ -1087,7 +1090,7 @@ test('GET /api/remote for a local-mode panel: kind loopback, mode local, no exte
   assert.equal(body.addresses.preview, null);
   assert.deepEqual(body.https, { by: 'none', hop: null });
   assert.deepEqual(body.listening.answers, ['this machine']);
-  assert.equal(body.password.set, false);
+  assert.deepEqual(body.accounts, { state: 'unset', list: [] });
 });
 
 test('local mode, the deliberate differences only: /api/session gains access, /open-preview exists, /auth/password is refused as kind', linuxOnly, async (t) => {
@@ -1095,7 +1098,7 @@ test('local mode, the deliberate differences only: /api/session gains access, /o
   const cookie = { Cookie: `scriptorium_admin_${env.adminPort}=${env.token}` };
   const sess = JSON.parse((await loopbackReq(env, { pathname: '/api/session', headers: cookie })).text);
   assert.deepEqual(sess.access, { mode: 'local', via: 'loopback', reach: 'Bound to 127.0.0.1 only', previewUrl: null, loopbackScheme: 'http' });
-  assert.deepEqual(Object.keys(sess).sort(), ['access', 'campaign', 'launch', 'previewPort', 'readOnlyReason', 'siteSource', 'writable']);
+  assert.deepEqual(Object.keys(sess).sort(), ['access', 'account', 'campaign', 'launch', 'previewPort', 'readOnlyReason', 'siteSource', 'writable']);
   assert.equal((await loopbackReq(env, { pathname: '/open-preview', headers: cookie })).status, 303);
   const pwRes = await request(env.adminPort, { method: 'POST', pathname: '/auth/password', host: `127.0.0.1:${env.adminPort}`, body: '{}', headers: { Origin: `http://127.0.0.1:${env.adminPort}`, 'Content-Type': 'application/json' } });
   assert.equal(pwRes.status, 403);

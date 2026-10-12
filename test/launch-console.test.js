@@ -116,7 +116,7 @@ test('remoteAddressLines: local has none; ssh has the tunnel line; tailscale, pr
   assert.deepEqual(remoteAddressLines(ssh.settings, ssh.plan, info), ['tunnel from your desktop: ssh -L 7400:127.0.0.1:7400 -L 7401:127.0.0.1:7401 gm@box']);
   const ts = plan('tailscale', { port: 7926, preview_port: 7927, admin_url: 'https://panel-host.example-tailnet.ts.net', preview_url: 'https://panel-host.example-tailnet.ts.net:8443' });
   assert.deepEqual(remoteAddressLines(ts.settings, ts.plan, { adminPort: 7926, previewPort: 7927 }), [
-    'remote admin panel: https://panel-host.example-tailnet.ts.net/ (sign in with the panel password)',
+    'remote admin panel: https://panel-host.example-tailnet.ts.net/ (sign in with your username and password)',
     'remote preview: https://panel-host.example-tailnet.ts.net:8443/',
     'listening on 127.0.0.1 port 7926 (panel) and 7927 (preview)',
   ]);
@@ -546,7 +546,7 @@ test('tailscale mode: the warning first, the remote addresses without a token, t
   const lines = h.state.text.split('\n');
   assert.ok(lines[0].startsWith('WARNING: remote access is on (mode tailscale)'));
   assert.ok(lines.includes('  Panel    http://127.0.0.1:9463   on this machine'));
-  assert.ok(lines.includes('  remote admin panel: https://panel-host.example-tailnet.ts.net/ (sign in with the panel password)'));
+  assert.ok(lines.includes('  remote admin panel: https://panel-host.example-tailnet.ts.net/ (sign in with your username and password)'));
   assert.ok(lines.includes('  remote preview: https://panel-host.example-tailnet.ts.net:8443/'));
   assert.ok(lines.includes('  listening on 127.0.0.1 port 9463 (panel) and 9464 (preview)'));
   assert.ok(!h.state.text.includes(h.panel.token));
@@ -589,7 +589,7 @@ test('tailscale mode: the warning first, the remote addresses without a token, t
       req.end(body);
     });
   const remoteHost = 'panel-host.example-tailnet.ts.net';
-  const login = JSON.stringify({ password: 'correct horse battery staple' });
+  const login = JSON.stringify({ username: 'gm', password: 'correct horse battery staple' });
   const signedIn = await send('POST', '/auth/password', { Host: remoteHost, Origin: `https://${remoteHost}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(login), ...fwd }, login);
   assert.equal(signedIn.status, 200, signedIn.text);
   const sessionCookie = [].concat(signedIn.headers['set-cookie']).find((c) => c.startsWith('__Host-scriptorium_session=')).split(';')[0];

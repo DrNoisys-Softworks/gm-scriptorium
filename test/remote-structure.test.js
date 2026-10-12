@@ -84,7 +84,7 @@ const PANEL_ENTRY = at('cli', 'serve-admin.js');
 // one chain only (src/setup/register.js), which the fenced test just below and the FR35 test in
 // test/admin-assets.test.js pin. Every other entry is as strict as before.
 const FORBIDDEN_FROM_PANEL = [at('remote', 'passwordwrite.js'), at('cli', 'remote.js'), at('cli', 'config.js'), at('cli', 'init.js')];
-const REQUIRED_FROM_PANEL = [at('remote', 'sessions.js'), at('remote', 'audit.js'), at('remote', 'password.js'), at('remote', 'privatefile.js')];
+const REQUIRED_FROM_PANEL = [at('remote', 'sessions.js'), at('remote', 'audit.js'), at('remote', 'password.js'), at('remote', 'privatefile.js'), at('remote', 'accounts.js')];
 
 test('(a) the graph from src/cli/serve-admin.js never reaches the password writer, the remote CLI, or any config writer', () => {
   const graph = walkGraph(PANEL_ENTRY);
@@ -103,7 +103,7 @@ test('(a) the graph from src/cli/serve-admin.js reaches the config writer (src/c
   assert.deepEqual(importers, [path.join('src', 'setup', 'register.js')]);
 });
 
-test('(b) positive control: the same graph DOES reach the session store, the audit log, the password reader and privatefile', () => {
+test('(b) positive control: the same graph DOES reach the session store, the audit log, the password reader, privatefile and the accounts reader', () => {
   const graph = walkGraph(PANEL_ENTRY);
   const missing = REQUIRED_FROM_PANEL.filter((f) => !graph.has(f));
   assert.deepEqual(missing.map((f) => path.relative(ROOT, f)), []);
@@ -153,6 +153,22 @@ test('(c) positive control: a planted caller anywhere under the scanned folder i
   fs.writeFileSync(path.join(dir, 'admin', 'innocent.js'), "// appendPrivateLine( in a comment only\nmodule.exports = {};\n");
   const found = listJs(dir).filter((f) => WRITER_RE.test(stripComments(fs.readFileSync(f, 'utf8')))).map((f) => path.relative(dir, f));
   assert.deepEqual(found, [path.join('admin', 'sneaky.js')]);
+});
+
+// --- (f): the accounts reader is read-only (ADR 0054 section 2) --------------------------------
+
+const ACCOUNTS_WRITER_RE = /\b(writeFileSync|writeFile|appendFileSync|renameSync|unlinkSync|rmSync|mkdirSync|openSync|writePrivateFileAtomic|appendPrivateLine)\b/;
+
+test('(f) src/remote/accounts.js is read-only: no writer token, and its requires are exactly crypto, fs and ./password', () => {
+  const source = fs.readFileSync(at('remote', 'accounts.js'), 'utf8');
+  assert.doesNotMatch(stripComments(source), ACCOUNTS_WRITER_RE);
+  assert.deepEqual(extractRequireSpecs(source).sort(), ['./password', 'crypto', 'fs']);
+});
+
+test('(f) positive control: the matcher finds a planted fs.writeFileSync( and ignores a comment, and the require scan sees a planted extra require', () => {
+  assert.ok(ACCOUNTS_WRITER_RE.test(stripComments("fs.writeFileSync('x', 'y');")));
+  assert.ok(!ACCOUNTS_WRITER_RE.test(stripComments('// never writeFileSync here\nconst a = 1;')));
+  assert.deepEqual(extractRequireSpecs("const a = require('fs');\nconst w = require('./passwordwrite');").sort(), ['./passwordwrite', 'fs']);
 });
 
 // --- (d): no scryptSync ---------------------------------------------------------------------
