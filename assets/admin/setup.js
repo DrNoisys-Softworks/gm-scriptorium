@@ -636,9 +636,15 @@
    * answer can arrive again while the mouse is still down. Drawing it again would replace the
    * pressed button and the click would never land. Returns false, and leaves the status as it is,
    * when this answer is the one already drawn; otherwise clears the status and returns true.
+   * `ui` names any state outside the answer that the message shows (the output question's confirm
+   * box), so a change in it always redraws.
    */
-  function freshAnswer(status, r) {
-    var sig = r ? JSON.stringify(r) : '';
+  function answerSig(r, ui) {
+    return r ? JSON.stringify(r) + '\u0000' + (ui || '') : '';
+  }
+
+  function freshAnswer(status, r, ui) {
+    var sig = answerSig(r, ui);
     if (r && status.firstChild && status.getAttribute('data-drawn') === sig) return false;
     if (r) status.setAttribute('data-drawn', sig);
     else status.removeAttribute('data-drawn');
@@ -944,11 +950,15 @@
     return wrap;
   }
 
+  function confirmState() {
+    return S.outputConfirmed ? 'confirmed' : 'unconfirmed';
+  }
+
   function outputDraw(status, input, r) {
     var sug = document.getElementById('su-out-hint');
     if (sug) sug.hidden = !(r && r.state === 'ok');
     markInput(input, r ? r.state : null);
-    if (!freshAnswer(status, r)) return;
+    if (!freshAnswer(status, r, confirmState())) return;
     if (!r) return;
     var f = r.facts || {};
     if (r.state === 'deferred') {
@@ -997,6 +1007,7 @@
       cb.checked = S.outputConfirmed;
       cb.addEventListener('change', function () {
         S.outputConfirmed = cb.checked;
+        status.setAttribute('data-drawn', answerSig(r, confirmState())); // the box is already showing this, so the next unchanged answer leaves it alone
         setNext(cb.checked, cb.checked ? '' : 'Tick the box, or pick another folder.');
       });
       lab.appendChild(cb);
