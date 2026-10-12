@@ -308,7 +308,8 @@ test('structural: run.js keeps its exact runAtomicBuild signature line, and call
   const sigLine = src.split('\n').find((l) => l.includes('function runAtomicBuild('));
   assert.equal(
     sigLine.trim(),
-    'function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign, force = false, themePlan = null, vocab }) {',
+    // ADR 0054 amends ADR 0022 section 8: the one added parameter, gmLink, only switches the published GM link on.
+    'function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign, force = false, themePlan = null, vocab, gmLink = null }) {',
   );
 
   const occurrences = [...src.matchAll(/scanGmLinkMarker\(/g)];
@@ -318,5 +319,11 @@ test('structural: run.js keeps its exact runAtomicBuild signature line, and call
     src,
     /if\s*\([^)]*force[^)]*\)\s*\{[^}]*scanGmLinkMarker\(/s,
     'scanGmLinkMarker must never be called from inside an if() whose condition mentions force',
+  );
+  // ADR 0054: gmLink only switches the link on; no gate is ever conditional on it.
+  assert.doesNotMatch(
+    src,
+    /if\s*\([^)]*gmLink[^)]*\)\s*\{[^}]*(scanGmLinkMarker|scanCommentSurvivors|scanStagingOutput)\(/s,
+    'no output gate may be called from inside an if() whose condition mentions gmLink',
   );
 });
