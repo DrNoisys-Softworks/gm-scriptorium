@@ -57,7 +57,7 @@ comes in through a pin bump (see "Pin bump procedure" in
 | `npm run verify-generator` | The installed generator tree still matches `PIN.json`. |
 | `npm run package` | Builds both the win-x64 and linux-x64 targets into `dist/v<version>/`, with one combined `SHA256SUMS` covering both binaries and the notices file (see ADR 0001). |
 
-`npm run package` runs six gates for each target before it writes anything:
+`npm run package` runs seven gates for each target before it writes anything (the seventh applies to the Windows target only):
 
 1. Generator-pin verification. It re-verifies the pin itself, not just through the script above.
 2. Notices freshness.
@@ -65,13 +65,14 @@ comes in through a pin bump (see "Pin bump procedure" in
 4. Rules-content markers.
 5. A startup self-test of the packaged build.
 6. Starter template verification: every file under `assets/vault-template/` must match its manifest's sha256 and token counts, with no unlisted file on disk. It fails closed, before the build starts.
+7. Windows branding (win-x64 only). Before the build, `scripts/winres.js` checks the pkg base binary against the hash pkg-fetch expects and writes a copy with the Lantern icon and the version strings; only the Windows build uses that copy. After the build, `node scripts/winres.js check` reads the exe back: one icon group with the eight sizes, exactly the eight version strings, and no Node.js value. This gate does not prove that Windows draws the icon or starts the exe; that is criterion C142. The startup self-test still proves nothing about win-x64.
 
 If any target's gate fails, the run removes every binary it already produced and exits 1, so
 `dist/v<version>/` never holds a binary that `SHA256SUMS` doesn't cover. `--target` and `--out`
 still override to a single target.
 
 A change that touches packaging, notices or embedded assets is not shown to work by `npm test`
-alone. Run `npm run package`: five of its six gates exist nowhere else.
+alone. Run `npm run package`: five of its seven gates exist nowhere else.
 
 ## Constraints that are tests, not preferences
 
