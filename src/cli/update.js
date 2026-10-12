@@ -203,8 +203,8 @@ function runUpdateCommand(
       human:
         `updated ${currentVersion} -> ${tag}. Previous binary kept at ${oldPath}. ` +
         "Any third-party notices file beside the executable described the OLD version and has been " +
-        'cleared; run --version to write the new copy, or --notices to print it without writing ' +
-        `anything. Release notes: ${release.html_url}`,
+        'cleared; run --notices to print the new one. ' +
+        `Release notes: ${release.html_url}`,
     };
   } catch (err) {
     if (err instanceof UpdatePrerequisiteError) {

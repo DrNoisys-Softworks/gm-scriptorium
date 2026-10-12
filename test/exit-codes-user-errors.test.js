@@ -57,6 +57,7 @@ const CASES = [
   ['malformed config (no config_version)', (r) => (writeCfg(r, '[campaigns.t]\nvault = "x"\n'), ['status']), 3, /config_version/],
   ['config entry points at a missing vault', (r) => (writeCfg(r, `config_version = 1\n[campaigns.t]\nvault = '${r}/nowhere'\noutput = '${r}/site'\n`), ['check']), 3, /nowhere/],
   ['campaign has no output folder (build)', (r) => (writeCfg(r, `config_version = 1\n[campaigns.t]\nvault = '${SAMPLE}'\n`), ['build']), 3, /has no output folder/],
+  ['remote password with the config folder inside a vault (an unlisted one, found by its settings page)', (r) => (fs.mkdirSync(path.join(r, '_meta'), { recursive: true }), fs.writeFileSync(path.join(r, '_meta', 'vault-config.md'), '# settings\n'), goodCfg(r), { args: ['remote', 'password'], input: 'a long enough passphrase\n' }), 3, /never inside a vault/],
   ['--out inside the vault', (r) => (goodCfg(r), ['build', '--no-check', '--out', path.join(SAMPLE, 'zz-out')]), 3, /refusing to build inside the vault/],
   ['--out contains the vault', (r) => (goodCfg(r), ['build', '--no-check', '--out', path.dirname(SAMPLE)]), 3, /contains the vault/],
   ['serve before any build', (r) => (goodCfg(r), ['serve', '--port', '0']), 3, /no build exists/],

@@ -313,6 +313,9 @@
       if (r.ok && r.body && r.body.switched === true) {
         // Nothing of the old campaign may stay on screen: land on the Overview, freshly loaded.
         history.replaceState(null, '', location.pathname + location.search + '#/overview');
+        // The GM already chose Switch in the panel's own confirm, so drop the unsaved-changes guard
+        // or the browser asks a second time ("Reload site?").
+        if (A.store && A.store.allowUnload) A.store.allowUnload();
         location.reload();
         return;
       }
