@@ -128,6 +128,32 @@ async function toNewFolder(page) {
   await page.waitForSelector('#su-newvault');
 }
 
+/**
+ * Press a button under a box, let the box's committed check (field=<field>&commit=1, sent when the
+ * press blurs the box) come back while the mouse is still down, then release. The answer is held
+ * with page.route until the button is down, so the sequence is set by the test and not by timing.
+ */
+async function pressWhileCommitLands(page, field, buttonSelector) {
+  let heldOnce = false;
+  const answered = new Promise((resolve) => {
+    page.route(`**/api/setup/check?field=${field}*commit=1*`, async (route) => {
+      if (heldOnce) return route.continue();
+      heldOnce = true;
+      const resp = await route.fetch();
+      resolve(() => route.fulfill({ response: resp }));
+    });
+  });
+  await page.hover(buttonSelector);
+  await page.mouse.down();
+  const deliver = await answered;
+  const landed = page.waitForResponse((r) => r.url().includes(`field=${field}`) && r.url().includes('commit=1'));
+  await deliver();
+  await (await landed).finished();
+  // two paint frames: every handler the answer queued has run by then
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await page.mouse.up();
+}
+
 for (const browserName of ['chromium', 'firefox']) {
   const offset = browserName === 'firefox' ? 1 : 0;
   test(`start a new campaign, browsing in ${browserName}`, { skip: SKIP, timeout: 420000 }, async (t) => {
@@ -276,6 +302,39 @@ for (const browserName of ['chromium', 'firefox']) {
       // two paint frames: every handler the answer queued has run by then
       await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
       assert.equal(await nextEnabled(page), true, 'the late vault answer left Continue alone');
+      await page.context().close();
+    });
+
+    await t.test('the new vault question: the way back to "have a vault" is not lost when the committed check lands mid-click', async () => {
+      const page = await open(1280);
+      await toNewFolder(page);
+      await typeInto(page, '#su-newvault', path.join(fx.host, 'Ember Road'));
+      await waitStatus(page, 'su-newvault-st', 'inside a vault');
+      await pressWhileCommitLands(page, 'newVault', '#su-newvault-st button:has-text("as my vault")');
+      await page.waitForSelector('#su-vault', { timeout: 5000 });
+      assert.equal(await page.inputValue('#su-vault'), fx.host);
+      await page.context().close();
+    });
+
+    await t.test('the output question: "Use the suggested folder instead" is not lost when the committed check lands mid-click', async () => {
+      const page = await open(1280);
+      await toNewFolder(page);
+      await typeInto(page, '#su-newvault', path.join(fx.C, 'Ember Road'));
+      await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+      await page.click('[data-part="next"]');
+      await page.waitForFunction(() => !!document.getElementById('su-title') && document.getElementById('su-title').value !== '');
+      await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+      await page.click('[data-part="next"]');
+      await page.waitForSelector('input[name="su-sys"]');
+      await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+      await page.click('[data-part="next"]');
+      await page.waitForSelector('#su-out');
+      await page.waitForFunction(() => document.getElementById('su-out').value !== '' && document.getElementById('su-out-st').textContent.includes('Outside the vault'));
+      await typeInto(page, '#su-out', fx.notEmpty);
+      await waitStatus(page, 'su-out-st', 'already has other files');
+      await pressWhileCommitLands(page, 'output', '#su-out-st button:has-text("Use the suggested folder instead")');
+      await page.waitForFunction(() => document.getElementById('su-out').value.endsWith('ember-road-site'), null, { timeout: 5000 });
+      await waitStatus(page, 'su-out-st', 'Outside the vault');
       await page.context().close();
     });
 

@@ -631,16 +631,24 @@
     return ['bad', spec[0], d];
   }
 
-  function vaultDraw(status, input, r, extraBtn) {
-    markInput(input, r ? r.state : null);
-    // Pressing a button under the box blurs it, and leaving the box commits the field, so the same
-    // answer can arrive again while the mouse is still down. Drawing it again would replace the
-    // pressed button and the click would never land; an unchanged answer leaves the box as it is.
+  /**
+   * Pressing a button under a box blurs it, and leaving the box commits the field, so the same
+   * answer can arrive again while the mouse is still down. Drawing it again would replace the
+   * pressed button and the click would never land. Returns false, and leaves the status as it is,
+   * when this answer is the one already drawn; otherwise clears the status and returns true.
+   */
+  function freshAnswer(status, r) {
     var sig = r ? JSON.stringify(r) : '';
-    if (r && status.firstChild && status.getAttribute('data-drawn') === sig) return;
+    if (r && status.firstChild && status.getAttribute('data-drawn') === sig) return false;
     if (r) status.setAttribute('data-drawn', sig);
     else status.removeAttribute('data-drawn');
     status.textContent = '';
+    return true;
+  }
+
+  function vaultDraw(status, input, r, extraBtn) {
+    markInput(input, r ? r.state : null);
+    if (!freshAnswer(status, r)) return;
     if (!r) return;
     var f = r.facts || {};
     if (r.state === 'deferred') {
@@ -778,8 +786,8 @@
   }
 
   function newFolderDraw(status, input, r) {
-    status.textContent = '';
     markInput(input, r ? r.state : null);
+    if (!freshAnswer(status, r)) return;
     if (!r) return;
     var f = r.facts || {};
     if (r.state === 'deferred') {
@@ -937,10 +945,10 @@
   }
 
   function outputDraw(status, input, r) {
-    status.textContent = '';
     var sug = document.getElementById('su-out-hint');
     if (sug) sug.hidden = !(r && r.state === 'ok');
     markInput(input, r ? r.state : null);
+    if (!freshAnswer(status, r)) return;
     if (!r) return;
     var f = r.facts || {};
     if (r.state === 'deferred') {
