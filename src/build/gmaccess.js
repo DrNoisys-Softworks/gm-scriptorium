@@ -58,22 +58,15 @@ function gmAccessHref(origin, campaign) {
 }
 
 /*
- * PROVISIONAL (owner has not approved the mock): the visible markup below. The contract the tests
- * pin is one anchor, the marker, the exact rel, an href of the shape above, and nothing active.
- * The lantern drawing is taken from the panel favicon without its background tile and
- * without an xmlns (so the snippet holds no address but its href); it takes the footer link's
- * colour through currentColor. Restyle here once the mock is approved.
+ * The visible markup follows the approved mock (frame G1): a text link reading "Game master", no icon,
+ * after a separator, inline in the notice paragraph. The text itself names the link, so there is no
+ * aria-label. No CSS is written by a build for this link, because that is what keeps an off build identical.
  */
-const LANTERN_SVG =
-  '<svg viewBox="0 0 32 32" width="14" height="14" aria-hidden="true" focusable="false" fill="currentColor">' +
-  '<path d="M10 10 L16 6 L22 10 Z"/><rect x="10.5" y="10" width="11" height="13" rx="2"/>' +
-  '<rect x="9" y="23" width="14" height="3" rx="1"/></svg>';
-
 /** @param {string} href */
 function gmAccessSnippet(href) {
   return (
     '<span aria-hidden="true"> &middot; </span>' +
-    `<a class="scriptorium-gm-access" ${GM_ACCESS_MARKER} href="${href}" rel="noopener noreferrer nofollow">${LANTERN_SVG} GM</a>`
+    `<a class="scriptorium-gm-access" ${GM_ACCESS_MARKER} href="${href}" rel="noopener noreferrer nofollow">Game master</a>`
   );
 }
 

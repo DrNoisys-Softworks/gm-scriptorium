@@ -14,8 +14,7 @@ const { GM_ACCESS_MARKER, gmAccessHref, gmAccessSnippet, injectGmAccessLink } = 
 
 /*
  * The published GM link's writer. Expected strings are written out by hand. The visible markup
- * (the icon and the separator) is provisional until the owner approves the mock, so these tests
- * pin the CONTRACT (one anchor, exact rel, href shape, no script) and not the icon's drawing.
+ * follows the approved mock (frame G1), and these tests pin it: one anchor reading Game master, exact rel, href shape, no script, no icon.
  */
 
 const HREF_RE = /^https:\/\/[^/?#@]+\/(\?campaign=[a-z0-9][a-z0-9-]{0,62})?$/;
@@ -86,8 +85,9 @@ test('markup contract: one anchor, exact rel, marker, href shape, nothing else a
   assert.ok(!/\bon[a-z]+\s*=/i.test(html), 'no event handler');
   assert.ok(!/style\s*=/i.test(html), 'no inline style');
   assert.equal((html.match(/https?:\/\//g) || []).length, 1, 'no address other than the href');
-  assert.ok(html.includes('GM</a>'));
-  assert.match(html, /<svg [^>]*aria-hidden="true"[^>]*focusable="false"/);
+  assert.ok(html.endsWith('>Game master</a>'), 'the link reads Game master');
+  assert.ok(!/<svg/i.test(html), 'no icon');
+  assert.ok(!/aria-label/i.test(html), 'the visible text names the link');
 });
 
 test('injectGmAccessLink: one link per page, inline after "Third-party notices", at every depth', () => {
