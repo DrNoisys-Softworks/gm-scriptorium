@@ -94,6 +94,16 @@ function findLines(text, re) {
     .filter((x) => re.test(x.line));
 }
 
+/** True only for an https URL whose host is exactly tally.so. */
+function isAllowedFeedbackUrl(u) {
+  try {
+    const parsed = new URL(u);
+    return parsed.protocol === 'https:' && parsed.hostname === 'tally.so';
+  } catch {
+    return false;
+  }
+}
+
 /** The body of `Section Uninstall` up to its SectionEnd. */
 function uninstallSection(text) {
   const m = /^\s*Section\s+Uninstall\b[^\n]*\n([\s\S]*?)^\s*SectionEnd\b/m.exec(text);
@@ -298,19 +308,26 @@ test('required: version info on both exes names the product and the publisher', 
 test('required: the uninstaller finish page has an unticked feedback box that opens the hosted form', () => {
   const urls = [...NSI.matchAll(/https?:\/\/[^\s"'$]+/g)].map((m) => m[0]);
   assert.ok(urls.length >= 1, 'the feedback URL is defined');
-  for (const u of urls) {
-    const parsed = new URL(u);
-    assert.equal(parsed.protocol, 'https:', `${u} must be https`);
-    assert.equal(parsed.hostname, 'tally.so', `${u} must be on tally.so`);
-  }
+  for (const u of urls) assert.equal(isAllowedFeedbackUrl(u), true, `${u} must be https on tally.so`);
   assert.match(NSI, /^\s*!define\s+FEEDBACK_URL\s+"https:\/\/tally\.so\/r\/[A-Za-z0-9]+"\s*$/m);
   assert.match(NSI, /ExecShell\s+"open"\s+"\$\{FEEDBACK_URL\}"/);
   const unFinish = /!define\s+MUI_FINISHPAGE_RUN_NOTCHECKED[\s\S]*?!insertmacro\s+MUI_UNPAGE_FINISH/m;
   assert.match(NSI, unFinish, 'the uninstaller finish page is declared with MUI_FINISHPAGE_RUN_NOTCHECKED');
   assert.match(NSI, /Leave feedback for the developer\. All feedback is read\./);
-  // the url check itself: a control that must fail
-  const parsedBad = new URL('http://tally.so.evil.example/r/x');
-  assert.notEqual(parsedBad.protocol + parsedBad.hostname, 'https:tally.so');
+});
+
+test('the feedback URL checker accepts https on tally.so and rejects everything else', () => {
+  assert.equal(isAllowedFeedbackUrl('https://tally.so/r/eq19jQ'), true);
+  for (const bad of [
+    'http://tally.so/r/eq19jQ',
+    'https://evil.example/r/eq19jQ',
+    'https://tally.so.evil.example/r/eq19jQ',
+    'https://eviltally.so/r/eq19jQ',
+    'https://tally.so@evil.example/r/eq19jQ',
+    'not a url',
+  ]) {
+    assert.equal(isAllowedFeedbackUrl(bad), false, bad);
+  }
 });
 
 // ---------------------------------------------------------------------------------------------
