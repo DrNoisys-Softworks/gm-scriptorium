@@ -135,6 +135,10 @@ function replacePackFile(vaultPath, name, data, { expectedSha256, campaign = nul
       { path: packDir, campaign },
     );
   }
+  // Issue #24 (ADR 0021): the pack folder must sit strictly inside the real _meta.
+  if (!packwrite.isStrictlyInside(realMeta, realPackDir)) {
+    throw new ConfigError(packwrite.outsideMetaRefusal(packDir, realPackDir), { path: packDir, campaign });
+  }
 
   const target = path.join(packDir, name);
 

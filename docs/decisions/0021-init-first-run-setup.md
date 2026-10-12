@@ -301,3 +301,11 @@ With no command in a terminal, the panel now opens in the browser instead of thi
 ## Extended by ADR 0048
 
 `init --new-vault <folder>` first creates a vault in a new or empty folder, then does everything this record describes inside it. The pack is still written only by the writer this record describes; the vault is written by a second, separate create-only writer. See [ADR 0048](0048-new-campaign-vault.md).
+
+## Amended for issue 24: the pack folder sits inside the real `_meta`
+
+Writes now also require the pack folder's real path to be strictly inside the vault's real `_meta`. `createPackEntries` checks it right after the pack folder is resolved and before any entry is written, and `replacePackFile` (ADR 0022 section 6) checks the same rule, both through one shared refusal message ("resolves outside the vault's _meta folder"). The vault-root refusals above are unchanged and still fire first, so a pack folder linked to the vault root keeps its own message.
+
+A pack folder linked to another vault folder, or to `_meta` itself, is therefore refused. This retires the old frozen test PW8, which accepted a link to an arbitrary in-vault folder; it now asserts the refusal. A `_meta` that is itself a link to an in-vault folder is still accepted, and so is a pack folder linked to a folder inside `_meta`.
+
+Reads are unchanged: the `pack` key and the convention folder resolve as before. The rejected alternative was refusing every symlinked `_meta`: the rule needs only the pack folder's real path, and a linked `_meta` that stays inside the vault is harmless.

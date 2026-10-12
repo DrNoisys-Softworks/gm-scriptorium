@@ -2060,6 +2060,32 @@ Issue #49, `docs/decisions/0011-notices-beside-the-executable.md`. **Mark this O
 2. List the folder. No `THIRD-PARTY-NOTICES.txt` (or any other new file) was created beside the exe.
 3. Run `--notices`. It prints the notices text and exits 0. Re-hash the real config.
 
+### C174: a pack folder linked to another vault folder is refused, in the real win-x64 exe
+
+Issue #24, `docs/decisions/0021-init-first-run-setup.md` ("Amended for issue 24"). **Mark this OPEN: Linux tests prove the logic only; junction resolution on NTFS is only proven by running the exe.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 4; the two must match. Work in a local scratch folder S. Make the junctions from an administrator account and run the exe as the standard user (the C83 note).
+
+1. Make `S\vault\_meta` and `S\vault\Notes`, then a junction `S\vault\_meta\scriptorium` > `S\vault\Notes`.
+2. Run `gm-scriptorium init --vault S\vault --name c174 --out S\out --yes --config <scratch config>`. It is refused, the message contains "resolves outside the vault's _meta folder", and nothing new appears in `S\vault\Notes`.
+3. Put `pack.toml` and `vault.config.json` in `Notes`, register the campaign in the scratch config, run `serve --admin` and save a theme. The save is refused, and the `Notes\pack.toml` hash is unchanged.
+4. Re-hash the real config.
+
+### C175: a pack folder linked to `_meta` itself is refused, in the real win-x64 exe
+
+Issue #24, same record. **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135 and hash the real config before and after, as in C174. Work in a local scratch folder S.
+
+1. Make a junction `S\vault\_meta\scriptorium` > `S\vault\_meta`.
+2. Run `init --vault S\vault --name c175 --out S\out --yes --config <scratch config>`. It is refused with "resolves outside the vault's _meta folder", and no `pack.toml` appears in `S\vault\_meta`.
+3. Repeat C174 and C175 with `mklink /D` if Developer Mode is on. Re-hash the real config.
+
+### C176: a pack folder linked inside `_meta` still works, in the real win-x64 exe
+
+Issue #24, same record. **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135 and hash the real config before and after, as in C174. Work in a local scratch folder S.
+
+1. Make `S\vault\_meta\packs\real` and a junction `S\vault\_meta\scriptorium` > `S\vault\_meta\packs\real`.
+2. Run `init --vault S\vault --name c176 --out S\out --yes --config <scratch config>`. It succeeds, and the pack files land in `packs\real`.
+3. Run `serve --admin` and save a theme. The save works.
+4. Repeat steps 2 and 3 with the vault path typed in a different case. Re-hash the real config.
+
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 
 None of these are product concerns; every one is a harness limit on the automated tester's side,

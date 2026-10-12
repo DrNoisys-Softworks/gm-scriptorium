@@ -401,6 +401,8 @@ its own:
 8. Nothing that existed before this call is ever deleted; a failure at any step removes only the
    temp file it created, best-effort, and leaves the target exactly as it was.
 
+`packreplace.js` applies the same `_meta` rule as the pack writer: the pack folder must resolve strictly inside the real `_meta` (ADR 0021, "Amended for issue 24").
+
 ### The retry decision (SD-2)
 
 `packreplace.js` has its own bounded retry loop rather than reusing `swap.js`'s
