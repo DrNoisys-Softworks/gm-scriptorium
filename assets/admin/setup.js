@@ -632,8 +632,15 @@
   }
 
   function vaultDraw(status, input, r, extraBtn) {
-    status.textContent = '';
     markInput(input, r ? r.state : null);
+    // Pressing a button under the box blurs it, and leaving the box commits the field, so the same
+    // answer can arrive again while the mouse is still down. Drawing it again would replace the
+    // pressed button and the click would never land; an unchanged answer leaves the box as it is.
+    var sig = r ? JSON.stringify(r) : '';
+    if (r && status.firstChild && status.getAttribute('data-drawn') === sig) return;
+    if (r) status.setAttribute('data-drawn', sig);
+    else status.removeAttribute('data-drawn');
+    status.textContent = '';
     if (!r) return;
     var f = r.facts || {};
     if (r.state === 'deferred') {
@@ -711,7 +718,7 @@
     };
     var run = function () {
       ask('vault', input.value, commit).then(function (r) {
-        if (!r) return;
+        if (!r || !document.body.contains(input)) return; // answered after the GM moved on: the next screen owns Continue
         S.res.output = null;
         vaultDraw(status, input, r, recheck);
         setNext(r.state === 'ok' || r.state === 'warn', r.state === 'warn' ? 'Continue works; the warning stays on the review.' : '');
@@ -882,7 +889,7 @@
     var status = document.getElementById('su-newvault-st');
     var run = function () {
       ask('newVault', input.value, commit).then(function (r) {
-        if (!r) return;
+        if (!r || !document.body.contains(input)) return; // answered after the GM moved on: the next screen owns Continue
         S.res.output = null;
         newFolderDraw(status, input, r);
         setNext(newFolderReady(r) || r.state === 'deferred', r.state === 'warn' ? 'Continue works; the warning stays on the review.' : '');
@@ -1023,7 +1030,7 @@
     var status = document.getElementById('su-out-st');
     var run = function () {
       ask('output', input.value, commit).then(function (r) {
-        if (!r) return;
+        if (!r || !document.body.contains(input)) return; // answered after the GM moved on: the next screen owns Continue
         outputDraw(status, input, r);
         setNext(outputReady(r), r.state === 'warn' && !S.outputConfirmed ? 'Tick the box, or pick another folder.' : '');
       });

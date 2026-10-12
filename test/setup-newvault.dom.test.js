@@ -204,6 +204,81 @@ for (const browserName of ['chromium', 'firefox']) {
       await page.context().close();
     });
 
+    // Pressing "Start a new campaign here instead" first blurs the vault box, and leaving the box
+    // commits the field, so a second check is on its way while the mouse is still down. If its
+    // answer is drawn before the button is released, the pressed button is gone and the click is
+    // lost. The press and the release are separated here, with the committed answer held until
+    // the test lets it through, so the sequence is set by the test and not by timing.
+    for (const dead of ['missing', 'notEmpty']) {
+      await t.test(`the way across is not lost when the committed check lands mid-click (${dead})`, async () => {
+        const page = await open(1280);
+        await page.click('.su-foot .a1-btn.primary');
+        await typeInto(page, '#su-name', 'ember-road');
+        await waitStatus(page, 'su-name-st', 'works.');
+        await page.click('[data-part="next"]');
+        const target = dead === 'missing' ? path.join(fx.C, 'Ember Road') : fx.notEmpty;
+        await typeInto(page, '#su-vault', target);
+        await waitStatus(page, 'su-vault-st', dead === 'missing' ? 'Can’t find that folder' : 'isn’t a vault');
+        let heldOnce = false;
+        const answered = new Promise((resolve) => {
+          page.route('**/api/setup/check?*commit=1*', async (route) => {
+            if (heldOnce) return route.continue();
+            heldOnce = true;
+            const resp = await route.fetch();
+            resolve(() => route.fulfill({ response: resp }));
+          });
+        });
+        const btn = '#su-vault-st button:has-text("Start a new campaign here instead")';
+        await page.hover(btn);
+        await page.mouse.down();
+        const deliver = await answered;
+        const landed = page.waitForResponse((r) => r.url().includes('commit=1'));
+        await deliver();
+        await (await landed).finished();
+        // two paint frames: every handler the answer queued has run by then
+        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+        await page.mouse.up();
+        await page.waitForSelector('#su-newvault', { timeout: 5000 });
+        assert.equal(await page.inputValue('#su-newvault'), target);
+        await page.context().close();
+      });
+    }
+
+    // The other order: the button is released before the committed answer comes back. The answer
+    // belongs to the vault question, which the GM has already left, so it must not touch the
+    // Continue button of the new vault question they are now on.
+    await t.test('a vault answer that lands after the way across does not disable Continue', async () => {
+      const page = await open(1280);
+      await page.click('.su-foot .a1-btn.primary');
+      await typeInto(page, '#su-name', 'ember-road');
+      await waitStatus(page, 'su-name-st', 'works.');
+      await page.click('[data-part="next"]');
+      const missing = path.join(fx.C, 'Ember Road');
+      await typeInto(page, '#su-vault', missing);
+      await waitStatus(page, 'su-vault-st', 'Can\u2019t find that folder');
+      let heldOnce = false;
+      const answered = new Promise((resolve) => {
+        page.route('**/api/setup/check?field=vault*commit=1*', async (route) => {
+          if (heldOnce) return route.continue();
+          heldOnce = true;
+          const resp = await route.fetch();
+          resolve(() => route.fulfill({ response: resp }));
+        });
+      });
+      await page.click('#su-vault-st button:has-text("Start a new campaign here instead")');
+      await page.waitForSelector('#su-newvault');
+      await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+      assert.equal(await nextEnabled(page), true);
+      const deliver = await answered;
+      const landed = page.waitForResponse((r) => r.url().includes('field=vault') && r.url().includes('commit=1'));
+      await deliver();
+      await (await landed).finished();
+      // two paint frames: every handler the answer queued has run by then
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      assert.equal(await nextEnabled(page), true, 'the late vault answer left Continue alone');
+      await page.context().close();
+    });
+
     await t.test('every state of the new vault folder question, with the server\u2019s own rule word for word', async () => {
       const page = await open(1280);
       await toNewFolder(page);
