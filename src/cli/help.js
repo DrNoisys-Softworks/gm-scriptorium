@@ -19,7 +19,7 @@ const EXIT_LINES = {
   1: '  1  Scriptorium could not do what you asked (see the message); also used for unexpected failures',
   2: '  2  the vault has errors (check found problems, or build refused and wrote nothing)',
   3: '  3  the campaign, its config or its vault cannot be used: no campaign registered, unknown campaign, missing or malformed config, vault missing or not a gm-apprentice vault, output folder missing or inside the vault',
-  4: '  4  update cannot run (gh missing or not signed in, or no such release)',
+  4: '  4  update cannot run (GitHub could not be reached, or there is no such release)',
 };
 
 function exits(codes) {
@@ -151,8 +151,8 @@ const HELP_BY_COMMAND = {
   update: [
     'gm-scriptorium update [--check] [--pre] [--version TAG]',
     '',
-    'Downloads the newest release and replaces this program with it. It needs the GitHub command',
-    'line tool (gh) installed and signed in.',
+    'Downloads the newest release from GitHub and replaces this program with it. It needs an',
+    'internet connection and nothing else: no account, no token and no other tool.',
     '',
     'Flags:',
     '  --check        only say whether a newer release exists',

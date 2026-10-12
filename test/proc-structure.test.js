@@ -3,7 +3,7 @@
 /*
  * Structural pins for the one process spawner (ADR 0046).
  *
- *   1. Only src/proc/run.js (plus the two older spawners) may start a program.
+ *   1. Only src/proc/run.js (plus the one older spawner, src/cli/config.js) may start a program.
  *   2. src/proc/run.js itself keeps to its rules: no shell, no ambient environment, no console.
  *   3. Every test file that uses the spawner goes through test/helpers/proc-fakebin.js, so no
  *      test can start a program outside the scratch folder (the PATH-scrub assertion, rule f),
@@ -41,7 +41,7 @@ const ROOT = path.join(__dirname, '..');
 const RUN_FILE = path.join(ROOT, 'src', 'proc', 'run.js');
 const HELPER_REL = 'test/helpers/proc-fakebin.js';
 
-const EXPECTED_SPAWNERS = ['src/cli/config.js', 'src/proc/run.js', 'src/update/gh.js'];
+const EXPECTED_SPAWNERS = ['src/cli/config.js', 'src/proc/run.js'];
 
 function rel(root, f) {
   return path.relative(root, f).split(path.sep).join('/');
@@ -89,7 +89,7 @@ function scanSpawners(srcRoot, root) {
   return { files, spawners };
 }
 
-test('one spawner: the files under src/ that name child_process are exactly the three expected', () => {
+test('one spawner: the files under src/ that name child_process are exactly the two expected', () => {
   const { files, spawners } = scanSpawners(path.join(ROOT, 'src'), ROOT);
   assert.ok(files.length >= 100, `expected at least 100 source files, scanned ${files.length}`);
   assert.deepEqual(spawners, EXPECTED_SPAWNERS);

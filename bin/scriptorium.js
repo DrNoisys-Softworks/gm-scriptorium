@@ -140,7 +140,7 @@ async function main() {
       }
       case 'update': {
         const { runUpdateCommand } = require('../src/cli/update');
-        const result = runUpdateCommand(flags);
+        const result = await runUpdateCommand(flags);
         console.log(result.human);
         return result.exitCode;
       }

@@ -5,46 +5,51 @@ const assert = require('node:assert/strict');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { parseArgv } = require('../src/cli/args');
+const { installLoopbackGuard } = require('./helpers/net-stubs');
+
+// The update flow is injected here, so nothing may reach a network: the guard fails the file if it does.
+const guard = installLoopbackGuard();
+test.after(() => guard.assertClean({ minConnects: 0 }));
 
 /* Issue #83: `update --version <tag>` must reach the update command; plain --version still prints the version. */
 
 const BIN = path.join(__dirname, '..', 'bin', 'scriptorium.js');
 const run = (args) => spawnSync(process.execPath, [BIN, ...args], { encoding: 'utf8' });
 
-test('parseArgv: update --version TAG carries the tag as the flag value, not a positional', () => {
+test('parseArgv: update --version TAG carries the tag as the flag value, not a positional', async () => {
   const r = parseArgv(['update', '--version', 'v0.2.3']);
   assert.deepEqual(r._, ['update']);
   assert.equal(r.flags.version, 'v0.2.3');
 });
 
-test('parseArgv: plain --version stays a boolean, and does not swallow a following word', () => {
+test('parseArgv: plain --version stays a boolean, and does not swallow a following word', async () => {
   assert.equal(parseArgv(['--version']).flags.version, true);
   const r = parseArgv(['--version', 'check']);
   assert.equal(r.flags.version, true);
   assert.deepEqual(r._, ['check']);
 });
 
-test('CLI: scriptorium --version still prints the running version, exit 0', () => {
+test('CLI: scriptorium --version still prints the running version, exit 0', async () => {
   const r = run(['--version']);
   assert.equal(r.status, 0);
   assert.equal(r.stdout.split('\n')[0], require('../package.json').version);
 });
 
-test('CLI: update --version TAG reaches runUpdateCommand (source-mode guard, exit 4)', () => {
+test('CLI: update --version TAG reaches runUpdateCommand (source-mode guard, exit 4)', async () => {
   const r = run(['update', '--version', 'v0.0.1']);
   assert.equal(r.status, 4, r.stderr + r.stdout);
   assert.match(r.stdout + r.stderr, /only runs inside a packaged/);
   assert.doesNotMatch(r.stdout, /^\d+\.\d+\.\d+/m, 'must not print the running version');
 });
 
-test('runUpdateCommand: bare --version (no tag) is refused before any gh call', () => {
+test('runUpdateCommand: bare --version (no tag) is refused before any release lookup', async () => {
   const { runUpdateCommand } = require('../src/cli/update');
-  let ghCalled = false;
-  const r = runUpdateCommand({ version: true }, {
+  let lookupCalled = false;
+  const r = await runUpdateCommand({ version: true }, {
     isPkg: true, platform: 'linux', execPath: '/nonexistent/dir/scriptorium', tmpRoot: '/nonexistent/tmp',
-    requireGh: () => { ghCalled = true; return 'gh'; },
+    lookupRelease: async () => { lookupCalled = true; return { tag_name: 'v9.9.9' }; },
   });
-  assert.equal(ghCalled, false);
+  assert.equal(lookupCalled, false);
   assert.equal(r.exitCode, 1);
   assert.match(r.human, /needs a release tag/);
 });
