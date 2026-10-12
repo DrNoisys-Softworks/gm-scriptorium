@@ -21,7 +21,7 @@ In scope:
 - remote access to the admin panel (the `remote` command and the panel's
   Remote access screen)
 - launch mode (running the program with no command, which opens the panel)
-- the update mechanism
+- the update mechanism (it reaches GitHub only through the one connection module, with no account or token)
 - the build pipeline and its leak checks
 
 Out of scope: the vendored `gm-apprentice-publish` generator itself. Report

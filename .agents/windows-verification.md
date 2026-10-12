@@ -220,6 +220,8 @@ contrived paths on Linux. What only Windows can add:
 
 ### C22-C25: `update`, full path
 
+Note: the `gh` wording in this criterion applies to old binaries only. From rc.3, `update` needs no `gh` and no token (see C148).
+
 These need a real GitHub release to exist. The repo is public, under the owner's own
 GitHub account. Releases `v0.1.0` and `v0.1.1` exist (published by the
 orchestrator) specifically for this test flow: install the `v0.1.0` exe from its release, then run
@@ -286,6 +288,8 @@ orchestrator) specifically for this test flow: install the `v0.1.0` exe from its
     directory, as the final confirmation that the mechanism holds outside the test harness.
 
 ### C26: confirmed on the wire, not only by inspection
+
+Note: the `gh` wording in this criterion applies to old binaries only. From rc.3, `update` needs no `gh` and no token (see C148).
 
 `test/update-module-graph.test.js` already proves by static analysis that `src/update/` never imports
 `src/vault/` or `src/build/`, and greps for a direct HTTP client (none found). What only a live capture
@@ -1503,6 +1507,8 @@ Linux-verified only.**
 
 ### C65: the public-repository rename, in the real exe (S3, new)
 
+Note: the `gh` wording in this criterion applies to old binaries only. From rc.3, `update` needs no `gh` and no token (see C148).
+
 `docs/decisions/0030-public-repo-and-update-source.md`: GM-Scriptorium's `update` source is now
 the public repository, the release assets are `gm-scriptorium-win-x64.exe` and
 `gm-scriptorium-linux-x64`, the CLI's help and user-facing hints say "gm-scriptorium", and a built
@@ -2059,6 +2065,27 @@ Issue #49, `docs/decisions/0011-notices-beside-the-executable.md`. **Mark this O
 1. Copy the exe to a scratch folder with no `THIRD-PARTY-NOTICES.txt` and run `gm-scriptorium-win-x64.exe --version`. It prints "third-party notices: run gm-scriptorium --notices to print them".
 2. List the folder. No `THIRD-PARTY-NOTICES.txt` (or any other new file) was created beside the exe.
 3. Run `--notices`. It prints the notices text and exits 0. Re-hash the real config.
+
+### C148: `update` works with no GitHub login, in the real exe
+
+`docs/decisions/0024-ai-connections.md` (the amendment), issue #29. **Mark this OPEN: Linux tests prove the request shapes and the redirect rules on loopback stubs; only the real exe against the real GitHub shows that the download host accepts the hop (it gets no User-Agent and no other header) and what `update` puts on the wire.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after the last step; the two must match.
+
+1. On a machine with no `gh` on PATH and no `SCRIPTORIUM_GITHUB_TOKEN` (check with `where gh` and `echo %SCRIPTORIUM_GITHUB_TOKEN%`), run a lower-version build of this code from an installed copy: `update --check --pre`. It names the newer release and a release-notes link under `https://github.com/DrNoisys-Softworks/gm-scriptorium/releases/tag/`.
+2. Run `update --pre`. It downloads, verifies against `SHA256SUMS`, replaces the program and says so. The new file's hash equals the published one. A rejection by the download host (an error that points at the releases page) is a finding to report, not something to fix by sending headers.
+3. During step 1 and step 2, capture the exe's connections (`netstat -b`, or a Process Monitor capture filtered to the exe). Only `api.github.com`, `github.com` and `release-assets.githubusercontent.com` appear. Record the host names only, never a query string.
+4. Set `HTTPS_PROXY` and `HTTP_PROXY` to an address where nothing listens and repeat `update --check --pre`. It behaves exactly as in step 1: proxy settings are ignored.
+5. Turn the network off and run `update --check --pre`. One plain line that names the releases page, exit code 4.
+6. Rate limit: provoke it only if that is practical without hammering GitHub. Otherwise record it as not provoked. The message names the releases page and the exit code is 4.
+7. Re-hash the real config.
+
+### C152: the 0.2.3 > bridge > rc.3 chain
+
+`docs/decisions/0030-public-repo-and-update-source.md` (addendum). **Mark this OPEN: it needs the private archive, a lower-version build and a VM; it is the only check that an old install, which still uses `gh`, reaches the new code.** Isolate config as in C135.
+
+1. An install of 0.2.3 (which uses `gh`, so the VM needs `gh` signed in for this step only) runs `update --pre` and lands on the bridge release at the private archive. Record the version it reports.
+2. The bridge runs `update --pre` and lands on rc.3. Record the version.
+3. The rc.3 copy, with `gh` removed from PATH and no token set, runs `update --check --pre` and gets an answer. This is C148 step 1 on the end of the chain.
+4. Re-hash the real config before step 1 and after step 3; the two must match.
 
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 

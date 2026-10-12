@@ -80,18 +80,18 @@ inverts the guarantee it gives.** If a fix needs one changed, raise it with the 
 than deciding alone.
 
 - `test/update-module-graph.test.js`: nothing in `src/update/*` or `src/cli/update.js` may
-  acquire a relative require that resolves into `src/vault/` or `src/build/`, and `src/update/*`
-  may not gain a direct network call. The network assertion is a `/\bfetch\(/` regex over raw
-  source, so an injected dependency named `fetch`, or one called as `.fetch(`, breaks the build
+  acquire a relative require that resolves into `src/vault/` or `src/build/`. `src/update/*` loads
+  no network or process module and has no `fetch(` call, and the update graph reaches a network
+  module only in `src/net/egress.js`, which it must reach. The `fetch(` assertion is a regex over
+  raw source, so an injected dependency named `fetch`, or one called as `.fetch(`, breaks the build
   with a confusing message.
 - `test/generator-module-graph.test.js`: no network builtin may appear anywhere in the module
-  graph from `bin/scriptorium.js`, except the allowlisted `src/serve/server.js`, and every
-  specifier must resolve.
-- `test/proc-structure.test.js`: only `src/proc/run.js` (plus the two older spawners, `src/cli/config.js`
-  and `src/update/gh.js`) may start a program, and every test that uses the spawner must go through
+  graph from `bin/scriptorium.js`, except the allowlisted `src/serve/server.js` and
+  `src/net/egress.js`, and every specifier must resolve.
+- `test/proc-structure.test.js`: only `src/proc/run.js` (plus the one older spawner, `src/cli/config.js`) may start a program, and every test that uses the spawner must go through
   `test/helpers/proc-fakebin.js`, so no test can start a real program. See
   [ADR 0046](decisions/0046-one-process-spawner.md).
-- `test/net-structure.test.js`: only `src/net/egress.js` (and the listener in `src/serve/server.js`) may load a network module, nothing under `src/net` names a fetch-style network token, and every test that uses egress goes through `test/helpers/net-stubs.js`, so no test can reach anything but this computer. See ADR 0024.
+- `test/net-structure.test.js`: only `src/net/egress.js` (and the listener in `src/serve/server.js`) may load a network module, nothing under `src/net` names a fetch-style network token, `egress.js` reads the location header in exactly one place, and every test that uses egress goes through `test/helpers/net-stubs.js`, so no test can reach anything but this computer. See ADR 0024.
 - `test/setup-structure.test.js`: the admin panel reaches the config writer only through `src/setup/register.js`, from the setup commit route and the campaign add, set-default and remove routes, and setup code writes to the vault only through `src/vault/packwrite.js` and, when it creates a new vault, `src/vault/vaultcreate.js`. See [ADR 0028](decisions/0028-installer-and-first-run.md), [ADR 0050](decisions/0050-several-campaigns.md) and [ADR 0052](decisions/0052-add-a-campaign.md).
 - `test/vault-create-structure.test.js`: `src/vault/vaultcreate.js` never deletes, renames, appends, truncates or uses a recursive `mkdirSync`, every `writeFileSync` in it is `flag: 'wx'`, it requires only `fs`, `path`, the error classes and the exclusions module, and `createVault` is named only in that file, `src/setup/register.js` and `src/cli/init.js`. See [ADR 0048](decisions/0048-new-campaign-vault.md).
 - `test/admin-campaign-fields.test.js`: every field the panel context carries is classified as belonging to the process or to one campaign, so a switch can never carry one campaign's state into another. See [ADR 0050](decisions/0050-several-campaigns.md).

@@ -25,6 +25,7 @@ This page is for a GM who wants to know what GM-Scriptorium sends over the netwo
   from contacting any third party, use `gloam` or `plain`, and leave the vault's fonts at a generic
   family.
 - **Live character sheets need a backend GM-Scriptorium does not have.** The generator can save player state (hit points, spell slots, rests) to a site backend when `publish.live_stats` is on and a KV store is wired. GM-Scriptorium builds and serves static pages only, so the switch stays off, builds emit no script that calls an API unless both are set, and if you do turn it on without a backend the generator withholds the live sheet and says so. The scripts it ships call only the site's own `/api/` paths.
-- GM-Scriptorium itself has no telemetry and no analytics. The only network call anywhere in the
-  tool is `update`, and it only ever fetches its own release assets, never anything about your
-  campaign.
+- GM-Scriptorium itself has no telemetry and no analytics. `update` contacts only GitHub
+  (`api.github.com`, `github.com` and its download host). GitHub sees your IP address, the time and
+  the version in the User-Agent. No account and no token are used, and proxy settings are not
+  used. Nothing about your campaign is sent.
