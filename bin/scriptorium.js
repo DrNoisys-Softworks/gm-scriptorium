@@ -59,9 +59,9 @@ async function main() {
   const { _: positional, flags } = parseArgv(argv);
 
   if (flags.version && positional[0] !== 'update') {
-    const { deliverNotices } = require('../src/util/notices');
+    const { noticesLine } = require('../src/util/notices');
     console.log(pkg.version);
-    console.log(deliverNotices());
+    console.log(noticesLine());
     return EXIT_CODES.OK;
   }
   if (flags.notices) {

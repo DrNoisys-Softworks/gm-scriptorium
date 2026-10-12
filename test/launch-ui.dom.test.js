@@ -217,7 +217,10 @@ for (const browserName of ['chromium', 'firefox']) {
         await p3.waitForSelector('main.stop .stop-title', { timeout: 10000 });
         assert.equal(await p3.title(), 'GM-Scriptorium · stopped');
         assert.equal(await p3.textContent('main.stop .stop-title'), 'GM-Scriptorium has stopped');
-        assert.match(await p3.textContent('main.stop'), /You closed its window, so the panel and your preview are off\. Everything you saved is on disk\./);
+        // Issue 55: launch mode can stop by window close, Ctrl+C or a signal, so the words claim none of them.
+        assert.match(await p3.textContent('main.stop'), /The panel and your preview are off\. Everything you saved is on disk\./);
+        assert.match(await p3.textContent('main.stop'), /Start it again to carry on\./);
+        assert.doesNotMatch(await p3.textContent('main.stop'), /closed its window|Start menu/);
         assert.deepEqual(await axeViolations(p3), [], 'stopped page');
         await p3.setViewportSize({ width: 390, height: 800 });
         assert.deepEqual(await axeViolations(p3), [], 'stopped page, phone width');
@@ -240,7 +243,8 @@ for (const browserName of ['chromium', 'firefox']) {
         await page.waitForSelector('main.stop .stop-title', { timeout: 10000 });
         assert.ok(Date.now() - started < 10000);
         assert.equal(await page.title(), 'GM-Scriptorium · stopped');
-        assert.match(await page.textContent('main.stop'), /You closed its window/);
+        assert.doesNotMatch(await page.textContent('main.stop'), /closed its window|Start menu/);
+        assert.match(await page.textContent('main.stop'), /The panel and your preview are off\. Everything you saved is on disk\./);
         await context.close();
       } finally {
         await h.stop();

@@ -4,8 +4,8 @@ const fs = require('fs');
 const path = require('path');
 
 /*
- * Delivers the executable's own THIRD-PARTY-NOTICES.txt, for `--version`'s status line and
- * the `--notices` flag (bin/scriptorium.js).
+ * The executable's own THIRD-PARTY-NOTICES.txt, for `--version`'s status line and the
+ * `--notices` flag (bin/scriptorium.js).
  *
  * The file is embedded via package.json's `pkg.assets` (a plain root-relative entry, no
  * glob needed since it is a single file) and read here the same way the pinned generator
@@ -16,11 +16,11 @@ const path = require('path');
  * the existing precedent this follows, and test/package-config.test.js's change detector for
  * why that pattern matters to pkg's static asset walk).
  *
- * Before this module existed, `--version` printed a path next to the executable that nothing
- * ever wrote (THIRD-PARTY-NOTICES.txt was not in pkg.assets at all, so it was not even
- * embedded). deliverNotices() is the fix: on a packaged binary it actually writes the file
- * next to the executable before naming that path, and the printed line always describes what
- * really happened, including when the write fails.
+ * `--version` used to write a copy beside the executable and name it. That line was wrong
+ * whenever the write did not happen or the file was later moved or deleted, and writing a file
+ * from a version query surprised people (issue #49). It now only points at `--notices`, which
+ * always works. NOTICES_FILENAME stays because `update` still clears an old copy that an earlier
+ * release left beside the executable (src/update/replace.js).
  */
 
 const NOTICES_FILENAME = 'THIRD-PARTY-NOTICES.txt';
@@ -38,42 +38,17 @@ function getNoticesText() {
 }
 
 /**
- * Decides what `--version` should print about third-party notices, and, for a packaged
- * binary, actually writes the file next to the executable first.
+ * The single line `--version` prints about third-party notices. Writes nothing.
  *
- * Dependency-injected (isPkg, execPath, readNoticesText, writeFileSync) so this is
- * unit-testable without mutating global `process` state or touching the real filesystem.
- *
- * @param {{
- *   isPkg?: boolean,
- *   execPath?: string,
- *   readNoticesText?: () => string,
- *   writeFileSync?: (path: string, data: string) => void,
- * }} [opts]
- * @returns {string} the single line `--version` should print
+ * @param {{ isPkg?: boolean }} [opts]
+ * @returns {string}
  */
-function deliverNotices({
-  isPkg = typeof process.pkg !== 'undefined',
-  execPath = process.execPath,
-  readNoticesText = getNoticesText,
-  writeFileSync = fs.writeFileSync,
-} = {}) {
+function noticesLine({ isPkg = typeof process.pkg !== 'undefined' } = {}) {
   if (!isPkg) {
-    // Running from source: there is no separate "executable" to write next to (execPath is
-    // the node binary itself, not something Scriptorium ships), and the committed file is
-    // already sitting in the repo. Say so rather than writing into a node install directory.
+    // Running from source: the committed file is sitting in the repo.
     return `third-party notices: ${EMBEDDED_NOTICES_PATH} (run from source; run --notices to print them)`;
   }
-
-  const destPath = path.join(path.dirname(execPath), NOTICES_FILENAME);
-  try {
-    const text = readNoticesText();
-    writeFileSync(destPath, text);
-    return `third-party notices: ${destPath}`;
-  } catch (err) {
-    const detail = err && err.code ? err.code : (err && err.message) || String(err);
-    return `third-party notices: could not write ${destPath} (${detail}); run with --notices to print them instead`;
-  }
+  return 'third-party notices: run gm-scriptorium --notices to print them';
 }
 
-module.exports = { NOTICES_FILENAME, EMBEDDED_NOTICES_PATH, getNoticesText, deliverNotices };
+module.exports = { NOTICES_FILENAME, EMBEDDED_NOTICES_PATH, getNoticesText, noticesLine };

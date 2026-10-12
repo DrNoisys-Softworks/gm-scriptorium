@@ -240,9 +240,10 @@ function forbiddenPathCount(paths) {
 }
 
 function listTreePaths(cwd, env, rev) {
-  const res = git(['ls-tree', '-r', '--name-only', rev], cwd, env);
+  // -z: NUL-separated, so a path holding a newline (or any quoted character) arrives whole.
+  const res = git(['ls-tree', '-r', '-z', '--name-only', rev], cwd, env);
   if (res.status !== 0) throw new GuardError('bad-rev');
-  return res.stdout.toString('utf8').split('\n').filter(Boolean);
+  return res.stdout.toString('utf8').split('\0').filter(Boolean);
 }
 
 /**
@@ -428,6 +429,16 @@ function parseHitRows(text) {
       byCategory[cat] = Number(n);
     }
     rows.push({ count: Number(m[1]), label: m[2], byCategory });
+  }
+  // Fail closed: the scanner's own TOTAL says how many hits it found. If the rows read back do
+  // not account for every one (a row that was split, mangled or dropped), add one row no
+  // classifier can excuse, so the scan blocks instead of passing on a partial read.
+  const total = /^TOTAL hits=(\d+)\b/m.exec(text);
+  if (total) {
+    const seen = rows.reduce((n, r) => n + r.count, 0);
+    if (Number(total[1]) !== seen) {
+      rows.push({ count: Math.max(1, Number(total[1]) - seen), label: '[unreadable scanner output]', byCategory: { unreadable: 1 } });
+    }
   }
   return rows;
 }
@@ -841,6 +852,18 @@ function runPrivateRange({ cwd, env, lists, scanRun, publicRoot, fontResidual, i
 }
 
 /**
+ * The object ids of every remote-tracking ref under `refs/remotes/<remote>/`, enumerated exactly.
+ * A remote argument that is not a plain name (a URL, a path, anything holding a glob character or
+ * a slash) has no tracking refs here, so nothing is excluded and everything is scanned: fail closed.
+ */
+function remoteTrackingOids(cwd, env, remote) {
+  if (!/^[A-Za-z0-9_][A-Za-z0-9._-]*$/.test(remote)) return [];
+  const res = git(['for-each-ref', '--format=%(objectname)', `refs/remotes/${remote}/`], cwd, env);
+  if (res.error || res.status !== 0) return [];
+  return res.stdout.toString('utf8').split('\n').filter(Boolean);
+}
+
+/**
  * Reads the commits a push adds, for the pre-push path ONLY. Returns 'new' (at least one commit
  * the remote lacks), 'empty' (none: a tag on a commit the remote already has, or a branch that is
  * already up to date) or 'unreadable' (git failed: unknown remote sha, missing object, any git
@@ -895,7 +918,14 @@ function runPrePush(rest, { cwd, env, stdin, stdout, stderr, publicRoot, scanRun
     }
 
     if (lists) {
-      const commitsRest = remoteOid === ZERO_OID ? [localOid, '--not', `--remotes=${remote}`] : [`${remoteOid}..${localOid}`];
+      // Scan only commits the remote lacks: not the ref's old tip, and not anything reachable from
+      // a remote-tracking ref of THIS remote (a merge of main brings in commits that are public
+      // already). The refs are enumerated exactly, never passed as a glob built from the remote
+      // argument, which may be a path or URL. A remote oid this repo does not know makes rev-list
+      // fail: unreadable, fail closed.
+      const tracked = remoteTrackingOids(cwd, env, remote);
+      const commitsRest = remoteOid === ZERO_OID ? [localOid, '--not', ...tracked] : [localOid, '--not', remoteOid, ...tracked];
+      if (tracked.length === 0 && remoteOid === ZERO_OID) commitsRest.pop();
       const rangeState = prePushRangeState(cwd, env, commitsRest);
       if (rangeState === 'unreadable') throw new GuardError('unreadable-range');
       if (rangeState === 'empty') {

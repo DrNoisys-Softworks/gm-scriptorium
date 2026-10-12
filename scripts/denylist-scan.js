@@ -361,6 +361,20 @@ function maskLabel(label, matcher) {
   return out;
 }
 
+/**
+ * Makes a path label safe to print on ONE report line. Every C0 control character (newline and
+ * carriage return included), DEL, the C1 range, and the Unicode line and paragraph separators
+ * (which a JS `.` does not match either) become a visible `\xNN` or `\uNNNN` escape, so a file
+ * name can never split a HIT, LINE or ALLOWED row in two. Only the printed text changes;
+ * matching always uses the raw path.
+ */
+function escapeLabel(label) {
+  return String(label).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, (ch) => {
+    const code = ch.charCodeAt(0);
+    return code < 0x100 ? `\\x${code.toString(16).padStart(2, '0')}` : `\\u${code.toString(16).padStart(4, '0')}`;
+  });
+}
+
 function isInside(child, parent) {
   const rc = fs.realpathSync(child);
   const rp = fs.realpathSync(parent);
@@ -915,7 +929,7 @@ function run(argv, { cwd, env, stdout, stderr }) {
         .sort()
         .map((c) => `${c}=${r.byCategory[c]}`)
         .join(',');
-      emit(stdout, `HIT ${r.count} ${r.label} ${catStr}`);
+      emit(stdout, `HIT ${r.count} ${escapeLabel(r.label)} ${catStr}`);
     }
 
     if (options.lines) {
@@ -927,7 +941,7 @@ function run(argv, { cwd, env, stdout, stderr }) {
           .sort()
           .map((c) => `${c}=${r.byCategory[c]}`)
           .join(',');
-        emit(stdout, `LINE ${Object.values(r.byCategory).reduce((a, b) => a + b, 0)} ${r.label}:${r.line} ${catStr}`);
+        emit(stdout, `LINE ${Object.values(r.byCategory).reduce((a, b) => a + b, 0)} ${escapeLabel(r.label)}:${r.line} ${catStr}`);
       }
     }
 
@@ -935,7 +949,7 @@ function run(argv, { cwd, env, stdout, stderr }) {
       .filter((r) => r.kind === 'ALLOWED')
       .sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
     for (const r of sortedAllowed) {
-      emit(stdout, `ALLOWED ${r.count} ${r.label}`);
+      emit(stdout, `ALLOWED ${r.count} ${escapeLabel(r.label)}`);
     }
 
     for (const a of unusedAllow) {
@@ -978,6 +992,7 @@ module.exports = {
   countHits,
   countInBuffer,
   maskLabel,
+  escapeLabel,
   isInside,
   run,
 };

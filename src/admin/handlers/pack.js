@@ -15,6 +15,7 @@ const { parsePackToml } = require('../../build/packtoml');
 const { parsePackConfigText } = require('../../cli/check');
 const { validateTheme, validateTitle, composePackToml } = require('../../setup/validate');
 const { ConfigError, ScriptoriumError } = require('../../util/errors');
+const { stripBom } = require('../../util/bom');
 // V1e-4 (SD-30, D-6): required as a module object (never destructured), the same reason
 // packwrite above is -- through the facade only, so `pinned.slugify` is the one and only place
 // this file computes a campaign id, and a test can patch it deterministically if it ever needs
@@ -339,8 +340,8 @@ async function saveTheme(req, res, ctx) {
  * 9 precedes step 10), so both are valid JSON here.
  */
 function settingsDryRunExtras(raw, candidate) {
-  const cur = JSON.parse(raw);
-  const cand = JSON.parse(candidate);
+  const cur = JSON.parse(stripBom(raw));
+  const cand = JSON.parse(stripBom(candidate));
   const flag = !!cur.backend && typeof cur.backend === 'object' && (cur.backend.statusBar === true || cur.backend.inbox === true);
   if (!flag) return {};
   const before = pinned.slugify(cur.siteTitle || 'campaign');
