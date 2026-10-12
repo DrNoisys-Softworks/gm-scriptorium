@@ -2035,6 +2035,54 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
 4. C1 passes on this exe: `--version` prints the target version and exits 0, and `--help` and `--notices` run.
 5. The same exe, copied under another name, still starts (the original filename string must not matter).
 
+### C143: the installer installs for the signed-in user only, with the listed pages and options, in the real installer
+
+`packaging/windows/installer.nsi`, `docs/decisions/0053-windows-installer.md`. **Mark this OPEN: the build machine builds the installer and proves it packed the exact signed bytes, and a structure test pins the source rules, but nothing on Linux can run the installer. Every step below comes only from VM 201.** Use a scratch build, a standard (non-administrator) user, and a scratch `SCRIPTORIUM_CONFIG`. Never the real config.
+
+1. Run the installer as a standard user. No UAC prompt appears (watch the console, not only the guest). The welcome page names the signed-in user ("for you (<name>) only").
+2. The folder page defaults to `%LOCALAPPDATA%\Programs\GM-Scriptorium`, and Browse works. Type `C:\Program Files\GM-Scriptorium` and press Next. A box says Setup can't save files there and the page stays put. The page's header strip is dark with the Lantern, and the side panel shows the Lantern and the wordmark (compare with the approved mock).
+3. The options page offers a Start menu shortcut (ticked, greyed), a desktop shortcut (unticked) and "Add GM-Scriptorium to PATH" (unticked). Install with the desktop shortcut ticked.
+4. Settings > Apps > Installed apps lists GM-Scriptorium with publisher `DrNoisys Softworks`, the Lantern icon, the install folder and a size. It shows no version. In the registry, `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\GM-Scriptorium` holds the listed values, with no `DisplayVersion`, and nothing was written under `HKLM`.
+5. The Start menu entry and the desktop shortcut exist, and start the exe with no arguments. The folder holds `gm-scriptorium.exe`, `THIRD-PARTY-NOTICES.txt` and `Uninstall GM-Scriptorium.exe`, and no `.tmp` file.
+6. PATH: in a scratch user account whose `Path` value is longer than 1024 characters, run Setup with the PATH box ticked. Setup says PATH was too long to change safely, finishes the install, and the `Path` value is byte for byte as before (export it with `reg export HKCU\Environment` before and after and compare). On a normal PATH, tick the box: the folder is appended at the end, nothing is reordered, the value keeps its type (REG_EXPAND_SZ stays REG_EXPAND_SZ), a new terminal finds `gm-scriptorium`, and `PathAdded` is `1` under the uninstall key. Run Setup again: the folder is not added a second time.
+7. Properties > Details on both the installer and `Uninstall GM-Scriptorium.exe` shows the product `GM-Scriptorium`, the company `DrNoisys Softworks` and the matching description (Setup or Uninstall).
+
+### C144: the finish box and the Start menu start launch mode, in the real installed exe
+
+`docs/decisions/0053-windows-installer.md`. **Mark this OPEN: only the VM can show how the installed exe starts from each entry point.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG`, never the real config.
+
+1. On the finish page, leave "Open GM-Scriptorium now" ticked and press Finish. The exe opens exactly as a double-click does (C130): the browser opens on the panel. The launch window's current folder is not inside the install folder.
+2. Close it. Start it from the Start menu entry, then from the desktop shortcut. Both open the same way.
+
+### C145: the uninstaller removes only the named files and never settings, in the real uninstaller
+
+`docs/decisions/0053-windows-installer.md` section 8. **Mark this OPEN: the delete list is pinned in source by a structure test; what Windows really removes comes only from VM 201.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG`. Record `certutil -hashfile` for the scratch `config.toml`, a scratch vault's `vault.config.json` and one built site file before step 1 and after step 6; they must match.
+
+1. After an install with the desktop shortcut and PATH ticked, put these beside the exe: `gm-scriptorium.exe.old-0.0.1`, `gm-scriptorium.exe-update-1234-5.tmp`, and a file named `keep-me.txt`. Replace the notices file by one whose first 40 lines do not hold the notices title, and keep a copy.
+2. Run the uninstaller. The confirm page lists what is removed and what is never touched. Press Uninstall.
+3. The finish page names `%APPDATA%\Scriptorium` (and the folder of `SCRIPTORIUM_CONFIG`) as kept, and says the install folder was left because it holds other files. Its feedback box is unticked.
+4. The folder now holds only `keep-me.txt` and the replaced notices file (it is not Scriptorium's, so it stays). The exe, the uninstaller, the `.old-` and `.tmp` leftovers, both shortcuts and the Installed apps entry are gone, and so is the PATH entry (the other PATH entries are untouched and in order).
+5. Install again, and uninstall again with nothing else in the folder. The folder is gone. The notices file written by Setup is removed because its first lines match.
+6. Repeat step 5 with the feedback box ticked and press Finish: the default browser opens `https://tally.so/r/eq19jQ` and nothing else is sent. Re-hash the scratch config, vault and site files.
+
+### C146: installing over an install, with the exe running, over a newer version, and over a portable copy, in the real installer
+
+`docs/decisions/0053-windows-installer.md` sections 5 and 6. **Mark this OPEN: the running-copy probe, the version compare and the temp-and-rename sequence only run on Windows.** Isolate config as in C135.
+
+1. Install, then run the same installer again over it. It succeeds, the shortcuts and the Installed apps entry are not duplicated, and no `gm-scriptorium.exe-setup.tmp` is left behind.
+2. Start the installed exe (it stays running) and run the installer again, pressing Install. A box says GM-Scriptorium is open, with Retry as the default button. With the exe still running, press Retry: the box returns. Press Cancel: Setup stops, and the exe and the folder are unchanged (compare hashes). Close the exe, run the installer, and it succeeds.
+3. Install a scratch build whose version is `0.4.0-rc.99` (above the build under test). Run the build under test over it. On Install, a box says a newer version is installed here (`0.4.0-rc.99`) and Cancel is the default button. Cancel leaves the install unchanged; OK replaces it. Repeat with an installed copy of the same version (no box) and one older (no box). A stable `0.4.0` installed over `0.4.0-rc.99` counts as newer and warns the other way round.
+4. Put an exe that prints nothing parseable for `--version` at `gm-scriptorium.exe` in the folder and run Setup. A box says Setup can't tell which version is installed, and Cancel is the default.
+5. With an rc.1 portable copy and its config in use, run the installer. The portable copy is untouched; the installed copy reads the same config and shows the same campaigns.
+
+### C151: a person clicks through the installer and uninstaller end to end
+
+`docs/decisions/0053-windows-installer.md`. **Mark this OPEN: this is the owner's hands-on session, under a scratch `SCRIPTORIUM_CONFIG`, and cannot be done by a script.**
+
+1. Download the installer from the release page through the browser, run it and read every page and box aloud. Record anything that is cut off, mis-coloured, or worded in a way you would not say to a GM, with a screenshot of each page (welcome, folder, options, progress, finish, the three message boxes of C146, the confirm page and the two finish pages of the uninstaller).
+2. Compare each page against the approved storyboard frames: the dark header strip and Lantern, the side panel, and that the uninstaller's confirm and finish pages fit their text without clipping, including the "kept" lines and the feedback box.
+3. Install, use the panel for a campaign, uninstall, and confirm the campaign list and the vault are exactly as left.
+
 ### C153: a held-open config.toml in the panel shows a plain message and loses nothing, in the real win-x64 exe
 
 Issue #67, `docs/decisions/0050-several-campaigns.md`. **Mark this OPEN: Linux tests prove the logic only; the raw EPERM comes from how NTFS refuses a rename over a file held open.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 4; the two must match.
@@ -2093,6 +2141,9 @@ next run does not have to repeat it.
 - Code-signing (SC-9) is no longer missing: signed releases are covered by C141. A release whose notes
   say it is unsigned still draws a SmartScreen warning on first run of the `.exe` downloaded via browser,
   and a signed release on a new certificate may too; both are expected, not a bug to chase.
+- The installer does not remove an old portable copy of the exe, and it does not configure anything beyond
+  its pages (no settings, no campaign). The uninstaller never removes settings, campaigns or built sites by design
+  (ADR 0053), so a leftover `%APPDATA%\Scriptorium` after an uninstall is expected, not a bug to chase.
 - arm64 and macOS packaging (P5a explicitly left these out of scope; only win-x64 and linux-x64 exist).
 - The NAS migration's status is retained in the private archive at `b5b48b4`; it is no longer
   tracked in this repository.
