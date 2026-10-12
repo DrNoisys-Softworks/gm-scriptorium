@@ -156,6 +156,30 @@ Self-updates from the latest release. See [Updating](install.md#updating), it ne
 That's the full command surface: `init`, `check`, `build`, `serve` (with a `--admin` mode),
 `status`, `config`, `remote`, `update`. Run `gm-scriptorium --help` for the full flag list on each.
 
+## Keeping the admin panel running on Linux
+
+This is for a GM who starts `gm-scriptorium serve --admin` over SSH or in a terminal and wants it to
+keep running after the terminal closes. Closing the terminal sends the program a hangup, and the
+panel stops. `nohup` alone does not prevent that: the program can't detect that it was started under
+`nohup`, because Node resets the ignore that `nohup` sets before any of its code runs. Use one of
+these instead:
+
+```
+setsid gm-scriptorium serve --admin > ~/gm-scriptorium.log 2>&1 &
+```
+`setsid` starts the panel in its own session, so a closed terminal has nothing to hang up.
+
+```
+tmux new -d -s gm-scriptorium 'gm-scriptorium serve --admin'
+```
+`tmux` keeps the panel running inside a session you can reattach to with `tmux attach -t gm-scriptorium`.
+
+```
+systemd-run --user --unit=gm-scriptorium gm-scriptorium serve --admin
+```
+A systemd user service runs apart from your terminal. Stop it with `systemctl --user stop gm-scriptorium`.
+To keep it running when you are logged out, run `loginctl enable-linger` once.
+
 ## Leak checks
 
 Everything a GM writes in a campaign vault, notes on what's really behind a mystery, secret NPC
