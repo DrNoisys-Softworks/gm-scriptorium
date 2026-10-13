@@ -292,6 +292,7 @@ function runBuildForContext(ctxInfo, flags) {
     force: false,
     themePlan,
     vocab: packToml.vocab,
+    gmLink: packToml.gmLink || null,
   });
 
   if (result.refusedByFrontmatter) {

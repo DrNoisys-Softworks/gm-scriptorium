@@ -8,3 +8,4 @@
 path scripts/public-hygiene-patterns.txt -- the file's own pattern definitions contain the literal path fragments they are written to match (SD-6's self-match note)
 path THIRD-PARTY-NOTICES.txt -- verbatim third-party licence text, not owner content
 path scripts/vendor/node-v22.23.2-LICENSE.txt -- verbatim third-party licence text, not owner content
+path scripts/vendor/nsis-3.08-copyright.txt -- verbatim third-party licence text, not owner content

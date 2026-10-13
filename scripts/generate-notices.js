@@ -211,6 +211,37 @@ function buildStarterSectionLines() {
   return lines;
 }
 
+/**
+ * Section 9 (docs/decisions/0053-windows-installer.md): the Windows installer and uninstaller are
+ * built with NSIS, so each one carries NSIS's own stub code and plugins. NSIS is licensed under the
+ * zlib/libpng licence, with its LZMA module under CPL with a linking exception and its bzip2 module
+ * under the bzip2 licence. The licence text is the copyright file of the Debian package the release
+ * machine builds with (scripts/vendor/nsis-3.08-copyright.txt, sha256 in docs/PROVENANCE.md).
+ */
+const NSIS_COPYRIGHT_PATH = path.join(VENDOR_DIR, 'nsis-3.08-copyright.txt');
+
+function buildInstallerSectionLines() {
+  const licenseText = fs.readFileSync(NSIS_COPYRIGHT_PATH, 'utf8').trim();
+  const lines = [];
+  lines.push(SEPARATOR);
+  lines.push('SECTION 9: THE WINDOWS INSTALLER (NSIS)');
+  lines.push(SEPARATOR);
+  lines.push('');
+  lines.push(
+    'The Windows installer (gm-scriptorium-setup-win-x64.exe) and the uninstaller it installs ' +
+      '("Uninstall GM-Scriptorium.exe") are built with NSIS 3.08, the Nullsoft Scriptable Install System ' +
+      '(https://nsis.sourceforge.io), and each carries NSIS\'s own stub code and the System, nsExec and nsDialogs ' +
+      'plug-ins. NSIS is licensed under the zlib/libpng licence; its LZMA module is under the Common Public ' +
+      'Licence with a linking exception, and its bzip2 module is under the bzip2 licence. The installer is built ' +
+      'with compression off, so the compression modules do not process Scriptorium\'s files. The complete ' +
+      'copyright and licence file of the NSIS 3.08 package follows, unedited.',
+  );
+  lines.push('');
+  lines.push(licenseText);
+  lines.push('');
+  return lines;
+}
+
 function isProdPackage(meta) {
   return !meta.dev && !meta.devOptional && !meta.optional;
 }
@@ -459,6 +490,9 @@ function buildNoticesText() {
 
   // Section 8: the starter for new vaults (ADR 0048)
   out.push(...buildStarterSectionLines());
+
+  // Section 9: the Windows installer and uninstaller (ADR 0053)
+  out.push(...buildInstallerSectionLines());
 
   return out.join('\n');
 }
