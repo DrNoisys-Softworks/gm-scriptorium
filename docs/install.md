@@ -122,6 +122,16 @@ a proxy it cannot work. If you can't use `update`, or it can't reach GitHub, it 
 line and points at the Releases page. You can always download the new release from there and replace
 the program yourself, or run the new installer.
 
+The panel also tells you when a newer version is out. When GM-Scriptorium runs from its program
+file, the Overview shows a notice with the new version, your version and a link to what changed,
+and a Not now button that hides it until a newer version comes out. The notice never installs
+anything: to update, run the new installer or `gm-scriptorium update`. The check runs once a day
+after a check that worked; after one that failed it runs again at the next start or a day later,
+and once when you change the channel. The Updates card at the bottom of the Overview has the off
+switch and the choice between Stable and Beta. Both are saved under `[update]` in `config.toml`
+(`check` and `channel`). The command `update` is separate: it still takes `--pre` and does not
+follow the channel.
+
 Older versions of GM-Scriptorium (before this change) fetched releases through the GitHub CLI
 (`gh`) and needed it signed in. They still do, until they have updated once.
 

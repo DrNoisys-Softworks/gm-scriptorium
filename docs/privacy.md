@@ -25,6 +25,17 @@ This page is for a GM who wants to know what GM-Scriptorium sends over the netwo
   from contacting any third party, use `gloam` or `plain`, and leave the vault's fonts at a generic
   family.
 - **Live character sheets need a backend GM-Scriptorium does not have.** The generator can save player state (hit points, spell slots, rests) to a site backend when `publish.live_stats` is on and a KV store is wired. GM-Scriptorium builds and serves static pages only, so the switch stays off, builds emit no script that calls an API unless both are set, and if you do turn it on without a backend the generator withholds the live sheet and says so. The scripts it ships call only the site's own `/api/` paths.
+- **The panel checks GitHub for a newer version, and you can turn that off.** When GM-Scriptorium
+  runs from its own program file (not from source, and not during first-time setup), the panel asks
+  GitHub's releases API (`api.github.com`) whether a newer version is out. It asks once a day after
+  a check that worked. After one that failed, it asks again the next time GM-Scriptorium starts, or a
+  day later if it stays open. It also asks once when you change the update channel. GitHub sees your
+  IP address, the time and the version in the User-Agent. Nothing about your campaigns, your files or
+  your settings is sent, and nothing is ever installed by the notice. Turn it off with the switch in
+  the Updates card at the bottom of the Overview, or by setting `check = false` under `[update]`
+  in `config.toml`. With it off, no request is made. An `[update]` entry that can't be read keeps
+  checks off too, and the panel says so. The Beta channel also shows releases that are still being
+  checked before they become the latest.
 - GM-Scriptorium itself has no telemetry and no analytics. `update` contacts only GitHub
   (`api.github.com`, `github.com` and its download host). GitHub sees your IP address, the time and
   the version in the User-Agent. No account and no token are used, and proxy settings are not

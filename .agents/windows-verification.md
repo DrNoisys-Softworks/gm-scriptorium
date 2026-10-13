@@ -2149,6 +2149,19 @@ Issue #49, `docs/decisions/0011-notices-beside-the-executable.md`. **Mark this O
 6. Rate limit: provoke it only if that is practical without hammering GitHub. Otherwise record it as not provoked. The message names the releases page and the exit code is 4.
 7. Re-hash the real config.
 
+### C149: the panel's update notice, its off switch and its channel, in the real win-x64 exe
+
+`docs/decisions/0028-installer-and-first-run.md` (addendum "The update notice"), `docs/privacy.md`. **Mark this OPEN: Linux tests drive the check with an injected stand-in and prove the timing, the console silence and the off switch from source; only the real exe shows what it sends and that the launch console stays silent.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after the last step; the two must match. Use a lower-version scratch build of this code so that a newer release exists.
+
+1. Delete `<scratch>\panel\update-check.json`. With a campaign registered, start the exe by double-click while capturing its connections (`netstat -b`, or Process Monitor filtered to the exe). The browser opens as usual, the console shows exactly the usual launch lines and then nothing, and only `api.github.com` appears in the capture (host names only).
+2. The Overview shows "GM-Scriptorium <version> is available", "You have <scratch version>", a What's new link that opens the release page on github.com, and Not now. Press Not now: the banner stays gone after a reload and after a restart. The Updates card says "Last checked today at ...".
+3. Close it and start again within 24 hours: the capture shows no GitHub connection.
+4. Switch "Check for updates once a day" off: the banner goes, the card says "Update checks are off.", and the scratch config holds `check = false` under `[update]`. Delete `update-check.json` and restart: no GitHub connection at all.
+5. Switch it back on and choose Beta: one request to `api.github.com`. Restart: Beta is kept and the config holds `channel = "beta"`.
+6. Offline: with checks on and `update-check.json` deleted, turn the network off and start. The console is byte-identical to step 1, the browser opens without delay, and the card says "Couldn't check for updates just now. GM-Scriptorium will try again tomorrow." No banner and no warning colour.
+7. Set `check = "yes"` under `[update]` and restart: the switch and the channel are locked, the card explains why and names the config path, and the capture shows no GitHub connection.
+8. Re-hash the real config.
+
 ### C152: the 0.2.3 > bridge > 0.5.0 chain
 
 `docs/decisions/0030-public-repo-and-update-source.md` (addendum). **Mark this OPEN: it needs the private archive, a lower-version build and a VM; it is the only check that an old install, which still uses `gh`, reaches the new code.** Isolate config as in C135.

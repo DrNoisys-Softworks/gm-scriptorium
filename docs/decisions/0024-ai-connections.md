@@ -27,8 +27,9 @@ requires that `egress.js` loads only `http`, `https` and its own error file, tha
 a fetch-style client, a socket-based browser API or an event-source client, so the same words
 cannot slip past the older network scans once the module is reachable.
 
-The AI features are not built yet. The first feature to reach the module is `update` (and, from the
-next change, the panel's update check). In the same change that made `update` reach it, the
+The AI features are not built yet. The first feature to reach the module is `update`, and the
+panel's update check reaches it too, through `src/update/notice.js` (ADR 0028, addendum "The update
+notice"). In the same change that made `update` reach it, the
 generator-graph test got one named entry for `egress.js` in its allowlist, and the network line in
 the README was amended to say that Scriptorium makes outgoing connections only to GitHub, for
 `update`, with no account needed. The update scan (`test/update-module-graph.test.js`) now says the
@@ -163,6 +164,9 @@ Will not catch:
 ## What a consumer must do
 
 - Pass the job's `AbortSignal`, so cancelling the job closes the connection.
+- A background check, such as the panel's update check, passes an `AbortSignal` tied to the
+  process's stop, and swallows its own failures: nothing it does may reach the console or end the
+  panel.
 - Name the destination for the configured provider, and never build a URL from user text alone.
 - Check `status`: 4xx and 5xx replies resolve, they are not errors.
 - Feed `onChunk` to a parser rather than buffering a long stream.

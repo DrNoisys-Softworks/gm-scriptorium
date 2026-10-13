@@ -162,3 +162,34 @@ The setup page draws the new path (see [ADR 0048](0048-new-campaign-vault.md), "
 ## Addendum: adding a campaign from the panel
 
 [ADR 0052](0052-add-a-campaign.md) serves the setup screens at a second address, `/campaigns/add`, so a GM can add another campaign to a running panel. The setup routes are unchanged: they are still loopback only, still answer 409 once setup is over, and section 1's list of routes that answer while setup is active is the same. The add page asks its own routes, in the campaigns handler. The check dispatcher, the answer rules and the commit pipeline are shared with setup, so the same input gets the same answer in both, and the commit differs only in its gate: setup refuses when any campaign exists, an add refuses when the settings file is not the one the page saw or when the new campaign clashes with a registered one.
+
+## Addendum: the update notice
+
+A packaged panel now tells a GM when a newer version is out. This addendum records what the GM sees, when the check runs, where the setting and the state live, and what was turned down.
+
+**What the GM sees.** The Overview shows a banner above the hero when a newer version exists: "GM-Scriptorium 1.0.1 is available", the version the GM has, a "What's new" link to the release page, the line "To update, run the new installer, or `gm-scriptorium update`", and a Not now button. Not now hides the banner until a newer version comes out. On the Beta channel the banner adds "(beta)" when the release it found is a prerelease. The Updates card at the bottom of the Overview holds the off switch ("Check for updates once a day"), the Stable and Beta choice, a plain statement that GM-Scriptorium never installs anything by itself, and one status line. A failed check is only a calm line in that card ("Couldn't check for updates just now. GM-Scriptorium will try again tomorrow."), never a banner, never a warning colour and never a line on the launch console. The card carries the anchor `#updates` so a later tray entry can point at it.
+
+**When it checks.** Only a process that is all of these: run from the program file (not from source), not started in first-time setup, with the `[update]` setting on, and due. Plain `serve`, the other commands and source runs never check. Setup is left out on purpose: the first check ever happens on the second start, after the GM has seen the off switch. The check starts on the turn of the event loop after both listeners are up and after the launch lines and the browser opener have run, and nothing waits for it. It is bounded to 30 seconds, and stopping the panel aborts it. A check that works is due again after a day. A check that fails writes nothing, so the next start tries again, and a panel that stays open tries again a day after the last attempt (an hourly timer looks at the clock). Changing the channel forgets the remembered result and checks once straight away. Turning checks on does not check at once, so "the next check is tomorrow" is true.
+
+**The setting.** `[update]` in `config.toml` has two keys: `check` (true or false, absent means on) and `channel` ("stable" or "beta", absent means the build decides: Beta on a prerelease build, Stable otherwise). Any other value in either key, or an `[update]` that is not a table, is unreadable, and unreadable means off with the channel locked: nothing is sent, the card says why and names the file, and the config loader does not stop any command over it. Other keys inside `[update]` are ignored and kept. The setting is per config, so it follows the GM's settings file, not the port or the campaign. A per-machine file for the switch was rejected because the settings file is already the one place a GM looks.
+
+**The state.** `update-check.json` in the panel folder beside the config, written like `welcome.json`: a private temp file (0600 in a 0700 folder) and a rename. It holds the time of the last good check, the channel it was for, the version found, whether that was a prerelease, and the version the GM dismissed. Reads never throw, and every field is checked on the way out, so a hand-edited file cannot put anything on the screen. The notes link is built from the version tag in this program, never taken from GitHub's reply.
+
+**The write route.** One more route writes the setting: `POST /api/update/setting`, through `register.setUpdateFromPanel`, behind the same sha256 compare as set-default. It is the fourth write on the chain in section 2, with `src/admin/handlers/updates.js` as the third handler that requires `src/setup/register.js`. `register.js` is still the only panel-side importer of `src/config/write.js`. `GET /api/update` and `POST /api/update/dismiss` write nothing to the config. The routes work over remote access like the campaign routes, the two POSTs are audited, and all three answer 409 while setup is active.
+
+**Turned down.**
+
+- An opt-in notice (issue 5). A GM who never opens the card would never be told, and the off switch is the honest control.
+- A per-machine file for the switch, as above.
+- Checking during first-time setup, as above.
+- Making `update` follow the channel. `update` stays as it was: `--pre` includes prereleases and nothing else changes.
+- A Settings screen. One card on the Overview is enough for two settings.
+
+**Limits a user will hit.**
+
+- An older version warns that `update` is an unrecognised top-level key, and keeps it.
+- A failed check is retried at the next start, or a day later in a panel that stays open, so the "once a day" in the card's text holds after a check that worked, not after one that failed.
+- Beta also shows releases that are still being checked before they become the latest.
+- The check needs the program file's own network access to `api.github.com`, and ignores proxy settings like `update`.
+
+Windows verification is `.agents/windows-verification.md` criterion C149, which is **OPEN**: Linux tests drive the check with an injected stand-in and prove the timing, the console silence and the off switch from source, and nothing on Windows has run it.
