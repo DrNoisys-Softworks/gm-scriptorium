@@ -66,7 +66,7 @@ function starterTemplateAssets() {
   return ['manifest.json', ...stored].map((rel) => `assets/vault-template/${rel}`);
 }
 
-test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templates-scaffold/, plus lunr.js, THIRD-PARTY-NOTICES.txt and FIRST_PARTY_SITE_ASSETS (130 total including the starter, 87 before it, ADR 0050 adding assets/admin/campaigns.js to the 86, ADR 0049 adding assets/admin/picker.js to the 85, ADR 0028 adding assets/admin/alive.js, launch-locked.html, launch.html and launch.js to the 81, Lantern branding adding assets/admin/favicon-32.png to the 80, and before that setup.html, setup.js and welcome.js to the 77; V1.5a adding assets/admin/remote.js, signin.html and signin.js to the 74 on main; publish-v1.14.0 added js/dnd-live.js and js/dnd-party.js; issue #84 added 6 haze font/NOTICE files and its follow-up removed them again, haze now shares gloam\'s via fontsFrom: the base theme slice adds the gloam theme\'s 5 vendored font files (C2) plus its theme.json/theme.css/NOTICE.txt (C3) to the 61 panel v2 V1b total, then V1e-3 adds assets/admin/sitepane.js, then V1e-9 adds assets/admin/vaultcfg.js, then V1e-7 adds assets/admin/variants.js)', () => {
+test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templates-scaffold/, plus lunr.js, THIRD-PARTY-NOTICES.txt and FIRST_PARTY_SITE_ASSETS (131 total including the starter, the update notice adding assets/admin/updates.js to the 130, 87 before it, ADR 0050 adding assets/admin/campaigns.js to the 86, ADR 0049 adding assets/admin/picker.js to the 85, ADR 0028 adding assets/admin/alive.js, launch-locked.html, launch.html and launch.js to the 81, Lantern branding adding assets/admin/favicon-32.png to the 80, and before that setup.html, setup.js and welcome.js to the 77; V1.5a adding assets/admin/remote.js, signin.html and signin.js to the 74 on main; publish-v1.14.0 added js/dnd-live.js and js/dnd-party.js; issue #84 added 6 haze font/NOTICE files and its follow-up removed them again, haze now shares gloam\'s via fontsFrom: the base theme slice adds the gloam theme\'s 5 vendored font files (C2) plus its theme.json/theme.css/NOTICE.txt (C3) to the 61 panel v2 V1b total, then V1e-3 adds assets/admin/sitepane.js, then V1e-9 adds assets/admin/vaultcfg.js, then V1e-7 adds assets/admin/variants.js)', () => {
   const pin = JSON.parse(fs.readFileSync(path.join(ROOT, 'vendor', 'gm-apprentice-publish', 'PIN.json'), 'utf8'));
   const pinPaths = Object.keys(pin.files);
   const cssRel = pinPaths.filter((rel) => rel.startsWith('css/'));
@@ -83,7 +83,8 @@ test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templat
 
   assert.deepEqual(expectedAssets(ROOT), expected);
   // 87 before the new-campaign starter (ADR 0050 added campaigns.js), plus its manifest and 42 stored files (ADR 0048).
-  assert.equal(expectedAssets(ROOT).length, 130);
+  // The update notice adds assets/admin/updates.js (130 -> 131), same literal, same reasoning.
+  assert.equal(expectedAssets(ROOT).length, 131);
 
   assert.equal(cssRel.length, 6);
   assert.equal(jsRel.length, 14);
@@ -157,6 +158,7 @@ test('expectedAssets() is exactly the 32 PIN.json paths under css/, js/, templat
     'assets/admin/slip.js',
     'assets/admin/store.js',
     'assets/admin/tokens.css',
+    'assets/admin/updates.js',
     'assets/admin/variants.js',
     'assets/admin/vaultcfg.js',
     'assets/admin/views.js',

@@ -95,6 +95,7 @@ const FIRST_PARTY_SITE_ASSETS = [
   'assets/admin/slip.js',
   'assets/admin/store.js',
   'assets/admin/tokens.css',
+  'assets/admin/updates.js',
   'assets/admin/variants.js',
   'assets/admin/vaultcfg.js',
   'assets/admin/views.js',

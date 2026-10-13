@@ -354,19 +354,23 @@ const API_ROUTE_PATHS = [
   '/api/campaigns/add/state',
   '/api/campaigns/add/check',
   '/api/campaigns/add',
+  // The update notice (ADR 0028 addendum).
+  '/api/update',
+  '/api/update/dismiss',
+  '/api/update/setting',
 ];
 
 function findApiLiterals(src) {
   return [...src.matchAll(/\/api\/[a-zA-Z0-9/_-]*/g)].map((m) => m[0]);
 }
 
-test('every /api/... string literal in the admin JS assets is one of the 40 route paths', () => {
+test('every /api/... string literal in the admin JS assets is one of the 43 route paths', () => {
   const found = new Set();
   for (const name of jsAssetNames()) {
     const src = fs.readFileSync(path.join(ADMIN_ASSETS_DIR, name), 'utf8');
     for (const literal of findApiLiterals(src)) {
       found.add(literal);
-      assert.ok(API_ROUTE_PATHS.includes(literal), `${name}: "${literal}" is not one of the 40 route paths`);
+      assert.ok(API_ROUTE_PATHS.includes(literal), `${name}: "${literal}" is not one of the 43 route paths`);
     }
   }
   // Positive control: the scan actually finds something (not vacuously true).

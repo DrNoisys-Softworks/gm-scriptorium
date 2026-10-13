@@ -9270,3 +9270,38 @@ dialog.cs-dialog::backdrop {
   opacity: 0.7;
   cursor: not-allowed;
 }
+
+/* The update notice (assets/admin/updates.js): the Overview banner, the Updates card and the channel choice. */
+.upd{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding:13px 16px;border:1px solid var(--line-note);background:var(--wash-note);border-radius:3px;margin-bottom:18px}
+.upd>.ico{width:20px;height:20px;color:var(--focus);flex:none;align-self:flex-start;margin-top:2px}
+.upd .grow{flex:1;min-width:240px;display:grid;gap:3px}
+.upd .grow b{font-weight:500;font-size:16px}
+.upd .grow span{font-size:14.5px;color:var(--text-muted)}
+.upd .grow .upd-fine{font-size:13px;color:var(--text-faint)}
+.upd .grow code{font-size:.92em}
+.upd .upd-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.upd[hidden]{display:none}
+.upd-card{display:grid;gap:12px;margin-top:26px;max-width:760px}
+.upd-row{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+.upd-row .a1-switch{cursor:pointer;background:none;border:0;padding:0;font-family:inherit;text-align:left}
+.upd-row .a1-switch:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.upd-status{display:flex;gap:8px;align-items:flex-start;font-size:14px;color:var(--text-muted)}
+.upd-status .ico{width:16px;height:16px;flex:none;margin-top:3px}
+.upd-card .cs-msg{max-width:none}
+.upd-card .cs-msg p{margin:0}
+.upd-card .cs-msg p + p{margin-top:6px}
+.upd-card code{font-size:.92em}
+.upd-saved{font-size:13px;color:var(--text-faint)}
+.upd-priv{margin:0;max-width:70ch}
+.upd-chan{border:0;margin:0;padding:0;display:grid;gap:8px}
+.upd-chan legend{padding:0;margin:0 0 4px;font:500 15px var(--font-body);color:var(--text)}
+.upd-opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (max-width:699px){.upd-opts{grid-template-columns:1fr}}
+.upd-opt{display:grid;grid-template-columns:20px minmax(0,1fr);gap:2px 10px;align-items:start;padding:11px 13px;border:1px solid var(--line-control);border-radius:3px;background:var(--surface-input);cursor:pointer}
+.upd-opt input{margin:3px 0 0;accent-color:var(--accent);width:16px;height:16px}
+.upd-opt b{font-weight:500;font-size:15px}
+.upd-opt small{grid-column:2;font-size:13px;color:var(--text-muted);line-height:1.4}
+.upd-opt:has(input:checked){border-color:var(--accent);background:var(--wash-current)}
+.upd-opt:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
+.upd-opt:has(input:disabled){opacity:.6;cursor:not-allowed}
+.upd-chan .a1-fine{margin:0;max-width:72ch}

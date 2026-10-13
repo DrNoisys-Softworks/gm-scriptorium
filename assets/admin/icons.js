@@ -119,6 +119,15 @@
     ],
     swap: [['path', { d: 'M7 7h11l-3-3M17 17H6l3 3' }]],
     trash: [['path', { d: 'M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12' }]],
+    // The update notice (assets/admin/updates.js): the status line and the quiet "couldn't check" line.
+    clock: [
+      ['circle', { cx: '12', cy: '12', r: '8.5' }],
+      ['path', { d: 'M12 7.5V12l3 2' }],
+    ],
+    cloudoff: [
+      ['path', { d: 'M7 18.5h10.2a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.2 9.7 4.4 4.4 0 0 0 7 18.5Z' }],
+      ['path', { d: 'm4 4 16 16' }],
+    ],
     refresh: [
       ['path', { d: 'M19.5 12a7.5 7.5 0 1 1-2.2-5.3' }],
       ['path', { d: 'M19.5 4.5v4h-4' }],
