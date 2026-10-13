@@ -16,7 +16,7 @@ const HELP = `gm-scriptorium <command> [campaign] [flags]
 Commands:
   init     [--name <name>] [--vault <path>] [--out <path>] [--title <text>] [--theme <name>] [--yes]
            init --new-vault <path> --system <id|none> [--name <name>] [--title <text>] [--out <path>] [--theme <name>] [--yes]
-  check    [campaign] [--graph] [--json] [--quiet] [--no-color]
+  check    [campaign] [--graph] [--json] [--no-color]
   build    [campaign] [--no-check] [--force-check] [--force-out] [--out <path>] [--json]
   serve    [campaign] [--build] [--port N] [--host ADDR] | [campaign] --admin [--port N] [--preview-port N]
   remote   show | set [--mode local|ssh|tailscale|proxy] [--admin-url URL] [--preview-url URL] [--bind ADDR]
@@ -26,7 +26,7 @@ Commands:
   config   list | add <name> --vault <path> [--out <path>] [--site-config <path>] | remove <name> | set-default <name> | path | edit
   update   [--check] [--pre] [--version TAG]
 
-Global flags: --campaign <name>, --config <path>, --json, --quiet, --no-color, --version, --help,
+Global flags: --campaign <name>, --config <path>, --json, --no-color, --version, --help,
   --notices, --vault <path>, --out <path>, --site-config <path>
   (--vault/--out/--site-config override the registered campaign's paths for that one run only,
   never persisted. check/build/status read all three; serve only reads --vault/--out (it never

@@ -69,3 +69,25 @@ test('F08: --help on an unknown command falls back to the global block', () => {
 test('F08: help text has no em dashes', () => {
   for (const cmd of Object.keys(EXPECT)) assert.ok(!help([cmd, '--help']).out.includes('—'));
 });
+
+test('remote help lists exit code 3, which remote commands return', () => {
+  const lines = [['remote', '--help']];
+  for (const s of ['show', 'set', 'account', 'password', 'signout-all', 'off']) lines.push(['remote', s, '--help']);
+  for (const args of lines) {
+    const r = help(args);
+    assert.equal(r.code, 0, args.join(' '));
+    assert.ok(r.out.includes('\n  3  the campaign, its config or its vault cannot be used'), `${args.join(' ')}\n${r.out}`);
+  }
+});
+
+test('--quiet is still accepted everywhere but advertised nowhere', () => {
+  const { validateFlags, parseArgv } = require('../src/cli/args');
+  const { commandHelp } = require('../src/cli/help');
+  assert.ok(!help(['--help']).out.includes('--quiet'));
+  for (const cmd of ['init', 'check', 'build', 'serve', 'status', 'config', 'update', 'remote']) {
+    assert.doesNotThrow(() => validateFlags(cmd, { quiet: true }), `${cmd} --quiet`);
+    // Residual: this passes before the change too, so on its own it proves nothing.
+    assert.ok(!commandHelp(cmd).includes('--quiet'), `${cmd} help`);
+  }
+  assert.deepEqual(parseArgv(['check', '--quiet', 'lease'])._, ['check', 'lease']);
+});

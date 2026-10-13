@@ -89,6 +89,7 @@ const CASES = [
   ['init --new-vault into a file', (r) => (fs.writeFileSync(path.join(r, 'afile'), 'x'), ['init', '--yes', '--name', 'x', '--new-vault', path.join(r, 'afile'), '--system', 'none']), 3, /refusing to create a vault in .*afile: it is a file/],
   ['init --new-vault inside an existing vault', (r) => ['init', '--yes', '--name', 'x', '--new-vault', path.join(SAMPLE, 'zz-new'), '--system', 'none'], 3, /it is inside the vault at /],
   ['init aborted by closed stdin', (r) => ({ args: ['init', '--name', 'x', '--vault', SAMPLE], input: '' }), 1, /init aborted; nothing written/],
+  ['remote show with a malformed config', (r) => (writeCfg(r, 'config_version = [[[\n'), ['remote', 'show']), 3, /config is not valid TOML/],
   ['config add with no name', () => ['config', 'add'], 1, /usage: gm-scriptorium config add/],
   ['unknown config subcommand', () => ['config', 'frob'], 1, /unknown config subcommand: frob/],
 ];

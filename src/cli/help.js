@@ -132,7 +132,7 @@ const HELP_BY_COMMAND = {
     'gm-scriptorium remote <command>',
     '',
     ...REMOTE_SUBS.flatMap((s) => [...REMOTE_SUB_HELP[s].split('\n'), '']),
-    exits([0, 1]),
+    exits([0, 1, 3]),
   ],
   status: [
     'gm-scriptorium status [campaign] [--json]',
@@ -184,7 +184,7 @@ const HELP_BY_COMMAND = {
  */
 function commandHelp(command, sub) {
   if (command === 'remote' && typeof sub === 'string' && Object.prototype.hasOwnProperty.call(REMOTE_SUB_HELP, sub)) {
-    return `${REMOTE_SUB_HELP[sub]}\n\n${exits([0, 1])}\n`;
+    return `${REMOTE_SUB_HELP[sub]}\n\n${exits([0, 1, 3])}\n`;
   }
   const lines = HELP_BY_COMMAND[command];
   return lines ? lines.join('\n') + '\n' : null;
