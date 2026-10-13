@@ -36,7 +36,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A tracked file\'s opening frontmatter fence declares a language other than YAML (docs/decisions/0034-executable-frontmatter-guard.md). Scriptorium refuses to read or build this file; the refusal cannot be overridden by --force or --no-check.',
+      'A tracked file\'s opening frontmatter fence declares a language other than YAML (docs/decisions/0034-executable-frontmatter-guard.md). Scriptorium refuses to read or build this file; the refusal cannot be overridden by --force-check or --no-check.',
   },
   {
     id: 'frontmatter/parse-error',

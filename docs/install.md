@@ -39,8 +39,8 @@ are, so the build can prove they are exactly the files it was given. Releases be
 warn the first time Setup runs (**More info**, then **Run anyway**).
 
 **If you used the single file before:** Setup does not touch the old copy. Your settings and campaign
-list live in `%APPDATA%\Scriptorium`, so they carry over to the installed program unchanged. This
-holds for the first release candidate (rc.1) and for 0.2.3 as well. When you are happy with the
+list live in `%APPDATA%\Scriptorium`, so they carry over to the installed program unchanged. Every
+earlier version, back to 0.2.3, keeps them in the same place. When you are happy with the
 installed program, delete the old portable copy yourself, so there is only one `gm-scriptorium.exe`
 on your machine and the Start menu shortcut is the one you run.
 
@@ -122,8 +122,8 @@ a proxy it cannot work. If you can't use `update`, or it can't reach GitHub, it 
 line and points at the Releases page. You can always download the new release from there and replace
 the program yourself, or run the new installer.
 
-Older versions of GM-Scriptorium (before this change) fetched releases through the GitHub CLI
-(`gh`) and needed it signed in. They still do, until they have updated once.
+Versions of GM-Scriptorium before 0.5.0 fetch releases through the GitHub CLI (`gh`) and need it
+signed in. They still do, until they have updated once.
 
 ## Building from source
 

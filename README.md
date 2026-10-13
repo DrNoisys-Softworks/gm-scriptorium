@@ -63,7 +63,7 @@ Preview the site on your own computer before it goes anywhere.
 ```
 gm-scriptorium serve my-campaign --admin
 ```
-Open the local admin panel for themes, image slots and your tagline.
+Open the local admin panel to change the theme, images, vocabulary, title and tagline, run the checks, edit your vault's settings page and manage your campaigns.
 
 ## Learn more
 
