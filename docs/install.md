@@ -35,7 +35,8 @@ default.
 
 The installer lists GM-Scriptorium under **Installed apps**, with `DrNoisys Softworks` as the
 publisher. It is larger than the program itself, because the files inside it are stored as they
-are, so the build can prove they are the signed ones.
+are, so the build can prove they are exactly the files it was given. Releases before 1.0 are unsigned, so Windows may
+warn the first time Setup runs (**More info**, then **Run anyway**).
 
 **If you used the single file before:** Setup does not touch the old copy. Your settings and campaign
 list live in `%APPDATA%\Scriptorium`, so they carry over to the installed program unchanged. This

@@ -2,7 +2,7 @@
 
 ## Summary
 
-GM-Scriptorium now has a Windows installer and a matching uninstaller. Setup installs for the signed-in user only, so it never asks for administrator permission and never writes outside the user's own folders and registry. The uninstaller removes a short, named list of files and nothing else, and it never touches settings, campaigns or built sites. The installer is built on the Linux release machine with NSIS and is about the size of the executable it carries, because it stores the signed files uncompressed so the build can prove it packed exactly those bytes. The main alternative, a different installer maker that needs Wine on the build machine, is rejected below. The limits a GM will meet are a larger download, an optional PATH entry that is skipped when the PATH list is too long, and old portable copies that Setup does not remove.
+GM-Scriptorium now has a Windows installer and a matching uninstaller. Setup installs for the signed-in user only, so it never asks for administrator permission and never writes outside the user's own folders and registry. The uninstaller removes a short, named list of files and nothing else, and it never touches settings, campaigns or built sites. The installer is built on the Linux release machine with NSIS and is about the size of the executable it carries, because it stores its files uncompressed so the build can prove it packed exactly those bytes. The main alternative, a different installer maker that needs Wine on the build machine, is rejected below. The limits a GM will meet are a larger download, an optional PATH entry that is skipped when the PATH list is too long, and old portable copies that Setup does not remove.
 
 Status: accepted.
 
@@ -26,11 +26,13 @@ The uninstaller has to be signed before it is packed into the installer, and NSI
 
 So there are two signing passes in one sitting: the executable and the uninstaller first, the installer second. The release tooling runs them; this decision only sets the sequence the build needs.
 
+Signing starts at 1.0 (ADR 0051, "Amended: releases are signed from 1.0"). Before 1.0 both signing passes are skipped: the executable, the uninstaller and the installer ship unsigned. The build order is unchanged, and stage B packs the unsigned executable and uninstaller.
+
 Between the stages the build changes nothing in the uninstaller. Stage B packs whatever file it is given, byte for byte.
 
 ## 4. `SetCompress off`, and the cost
 
-Every file is stored uncompressed, and the script never selects a compressor. The reason is the proof. After stage B the build searches the installer for the exact bytes of the signed executable and of the signed uninstaller, and fails with no output if either is missing. With compression on, the machine would have no way to look inside the installer (there is no archive tool on the build machine) and the check would be a hope. A hand-written extractor was the other way to get the proof, and it is far more code to trust than one setting.
+Every file is stored uncompressed, and the script never selects a compressor. The reason is the proof. After stage B the build searches the installer for the exact bytes of the executable and of the uninstaller it was given, and fails with no output if either is missing. With compression on, the machine would have no way to look inside the installer (there is no archive tool on the build machine) and the check would be a hope. A hand-written extractor was the other way to get the proof, and it is far more code to trust than one setting.
 
 The cost is size: the installer is about as large as the executable plus the uninstaller. The download is bigger than it could be. The same build also checks that both outputs ask for `asInvoker` and fails closed if makensis is not on the machine.
 
@@ -81,8 +83,8 @@ NSIS and its plug-ins are in both outputs, so the notices gain Section 9 with th
 - **Inno Setup.** It is a good installer maker, but it needs Wine on the Linux release machine, and every release would then depend on a Windows emulator.
 - **An MSI built with `wixl`.** It builds on Linux, but its user interface is too thin for the wizard the GM was shown, and the plain-language messages would not fit.
 - **An "Also remove my settings" box on the uninstaller.** A GM who ticks it by reflex loses the campaign list. Settings are never removed, so there is nothing to ask.
-- **An unsigned uninstaller.** It would be the one program in the install that Windows trusts less than the rest, and a reputation system would count it against the signed files.
-- **An installer that carries an unsigned executable.** The signature check on the installed executable (criterion C141) would fail on every installed copy.
+- **An unsigned uninstaller.** It would be the one program in the install that Windows trusts less than the rest, and a reputation system would count it against the signed files. This applies from 1.0; before 1.0 nothing in the install is signed.
+- **An installer that carries an unsigned executable.** The signature check on the installed executable (criterion C141) would fail on every installed copy. This applies from 1.0; before 1.0 the executable is unsigned on purpose and C141 does not apply.
 - **Running an inner installer to write the uninstaller.** It needs Windows or Wine at build time.
 - **Compressing the files with LZMA.** The build could not then prove which bytes it packed.
 
