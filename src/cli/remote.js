@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const { loadConfig } = require('./args');
 const { writeConfigFile } = require('./config');
 const { createSecretReader } = require('./secretprompt');
@@ -9,7 +10,9 @@ const { validatePanelPassword } = require('../setup/validate');
 const settingsLib = require('../remote/settings');
 const { remotePaths, assertNotInsideAnyVault } = require('../remote/paths');
 const { hashPassword, verifyPassword, readPasswordRecord } = require('../remote/password');
-const { writePasswordRecord, clearPasswordRecord } = require('../remote/passwordwrite');
+const { MAX_ACCOUNTS, canonicalUsername, readAccounts } = require('../remote/accounts');
+// Called through the module object so a test can fail one write to prove the two-step migration is safe.
+const passwordwrite = require('../remote/passwordwrite');
 const { createSessionStore } = require('../remote/sessions');
 const { createAuditLog } = require('../remote/audit');
 const { commandHelp } = require('./help');
@@ -17,16 +20,25 @@ const { commandHelp } = require('./help');
 /*
  * V1.5a (docs/decisions/0029-remote-access.md section 9; SD-doc section 13): `gm-scriptorium remote
  * show | set | password | signout-all | off`. Every remote-access change is made here, and it all
- * works over SSH on a machine with no screen. This is the ONLY module that writes the password and
+ * works over SSH on a machine with no screen. This is the ONLY module that writes the passwords and
  * the remote settings; the panel's own module graph never reaches it (test/remote-structure.test.js).
  *
- * Secrets: the password is read only from a hidden terminal prompt or from stdin, never from argv
- * or the environment. `show` prints no secret, ever.
+ * ADR 0054: named accounts. `remote account add | change | reset | remove | rename | list` manages
+ * panel/accounts.json, and the older `remote password` stays as an alias for the account "gm".
+ * Migration writes nothing on read. The first write here materialises an earlier password.json as
+ * the account "gm" in accounts.json and then clears password.json; accounts.json always wins, so a
+ * failure between the two steps is harmless.
+ *
+ * Secrets: a password is read only from a hidden terminal prompt or from stdin, never from argv
+ * or the environment. `show` and `account list` print no secret, ever.
  */
 
-const SUBCOMMANDS = ['show', 'set', 'password', 'signout-all', 'off'];
+const SUBCOMMANDS = ['show', 'set', 'account', 'password', 'signout-all', 'off'];
+const ACCOUNT_VERBS = ['add', 'change', 'reset', 'remove', 'rename', 'list'];
+const NAME_RULE = 'account names are 1 to 32 letters, digits, dots, hyphens or underscores, starting with a letter or digit';
+const NEVER_AS_ARGUMENT = 'passwords are asked for, never given as arguments';
 const SET_FLAGS = ['mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy', 'port', 'preview-port'];
-const ALLOWED_FLAGS = { show: ['config'], set: ['config', ...SET_FLAGS], password: ['config'], 'signout-all': ['config'], off: ['config'] };
+const ALLOWED_FLAGS = { show: ['config'], set: ['config', ...SET_FLAGS], account: ['config'], password: ['config'], 'signout-all': ['config', 'account'], off: ['config'] };
 
 const MODE_LABEL = {
   local: 'This computer only',
@@ -40,7 +52,7 @@ function checkFlags(sub, flags, args) {
   for (const key of Object.keys(flags)) {
     if (!ALLOWED_FLAGS[sub].includes(key)) throw new ConfigError(`remote ${sub} does not accept --${key}`);
   }
-  if (args.length > 0) throw new ConfigError(`remote ${sub} takes no arguments`);
+  if (sub !== 'account' && args.length > 0) throw new ConfigError(`remote ${sub} takes no arguments`);
 }
 
 function loadSettings(flags) {
@@ -116,36 +128,173 @@ function summary(settings, paths, now) {
   }
   if (settings.mode === 'proxy') lines.push(`trusted proxy: ${(settings.trusted_proxies || []).join(', ') || 'not set'}`);
   lines.push(httpsLine(settings));
-  const pwd = readPasswordRecord(paths.passwordFile);
-  lines.push(`password: ${pwd.state === 'set' ? `set ${humanDate(pwd.record.setAt)}` : 'not set'}`);
+  const accts = readAccounts(paths);
+  if (accts.state === 'set') lines.push(`accounts: ${accts.accounts.length} (${accts.accounts.map((a) => a.name).join(', ')})`);
+  else if (accts.state === 'invalid') lines.push(`accounts: not usable (${accts.message})`);
+  else lines.push('accounts: none');
   lines.push(`remote sessions: ${sessionsOf(paths, now).activeCount()} signed in`);
-  const problems = settingsLib.readiness(settings, { password: pwd.state, tlsSupported: false });
+  const problems = settingsLib.readiness(settings, { accounts: accts.state, tlsSupported: false });
   lines.push(problems.length === 0 ? 'ready: yes' : `not ready: ${problems[0]}`);
   lines.push(`files: ${paths.panelDir}`);
   return lines.join('\n');
 }
 
-async function readNewPassword(reader, paths, config, now) {
-  const state = readPasswordRecord(paths.passwordFile);
-  if (state.state === 'invalid') {
-    throw new ConfigError(`the panel password file cannot be used (${state.message}); run "gm-scriptorium remote off" and set a new password`);
-  }
-  if (state.state === 'set') {
-    const current = await reader.read('Current panel password: ');
-    if (current === null) throw new ConfigError('cancelled; nothing changed');
-    if (!(await verifyPassword(current, state.record))) {
-      throw new ConfigError('that is not the current panel password; nothing changed');
-    }
-  }
-  const first = await reader.read('New panel password: ');
-  if (first === null) throw new ConfigError('cancelled; nothing changed');
+function cancelled() {
+  return new ConfigError('cancelled; nothing changed');
+}
+
+/** One new password, asked for twice on a terminal. @returns {Promise<string>} the validated (NFC) password */
+async function askNewPassword(reader, prompt) {
+  const first = await reader.read(prompt);
+  if (first === null) throw cancelled();
   if (reader.isTTY) {
     const again = await reader.read('Type it again: ');
-    if (again === null) throw new ConfigError('cancelled; nothing changed');
+    if (again === null) throw cancelled();
     if (again !== first) throw new ConfigError('the two passwords do not match; nothing changed');
   }
-  const validated = validatePanelPassword(first);
-  return { validated, wasSet: state.state === 'set' };
+  return validatePanelPassword(first);
+}
+
+/** The current password of `entry`, asked for and checked. */
+async function confirmCurrent(reader, prompt, entry, refusal) {
+  const current = await reader.read(prompt);
+  if (current === null) throw cancelled();
+  if (!(await verifyPassword(current, entry.record))) throw new ConfigError(refusal);
+}
+
+/**
+ * The accounts to change: an empty list when none are set (or after `remote off`), the list when
+ * there are some (an earlier password.json reads as the one account "gm"), and a refusal with a
+ * way out when the saved file cannot be used.
+ *
+ * @returns {{ list: { name: string, record: object, fromEarlierPassword: boolean }[] }}
+ */
+function loadAccountsForWrite(paths) {
+  const state = readAccounts(paths);
+  if (state.state === 'invalid') {
+    // A broken accounts.json is reported as accounts; a broken password.json (no accounts.json yet) keeps its older wording.
+    if (!fs.existsSync(paths.accountsFile)) {
+      throw new ConfigError(`the panel password file cannot be used (${state.message}); run "gm-scriptorium remote off" and set a new password`);
+    }
+    throw new ConfigError(`the saved accounts cannot be used (${state.message}); run "gm-scriptorium remote off" and add the accounts again`);
+  }
+  return { list: state.state === 'set' ? state.accounts.map((a) => ({ ...a })) : [] };
+}
+
+/**
+ * Writes accounts.json, then (migration) clears an earlier password.json that still holds a hash.
+ * The second step is best effort: accounts.json already wins, so a failure there leaves a stale but
+ * inert file, and the change itself has still happened.
+ *
+ * @returns {string} a warning line (with its newline), or ''
+ */
+function saveAccounts(paths, list, now) {
+  passwordwrite.writeAccounts(paths.accountsFile, list);
+  try {
+    if (readPasswordRecord(paths.passwordFile).state === 'set') passwordwrite.clearPasswordRecord(paths.passwordFile, { now });
+  } catch {
+    return `\nwarning: could not clear the earlier password file at ${paths.passwordFile}`;
+  }
+  return '';
+}
+
+function requireName(raw) {
+  const name = canonicalUsername(raw);
+  if (name === null) throw new ConfigError(NAME_RULE);
+  return name;
+}
+
+function requireExisting(list, name) {
+  const found = list.find((a) => a.name === name);
+  if (!found) throw new ConfigError(`no account named "${name}"`);
+  return found;
+}
+
+function accountArity(verb, args) {
+  const rest = args.slice(1);
+  if (verb === 'list') {
+    if (rest.length > 0) throw new ConfigError('remote account list takes no arguments');
+  } else if (verb === 'rename') {
+    if (rest.length < 2) throw new ConfigError('remote account rename needs the old name and the new name');
+    if (rest.length > 2) throw new ConfigError(`remote account rename takes just two names; ${NEVER_AS_ARGUMENT}`);
+  } else {
+    if (rest.length < 1) throw new ConfigError(`remote account ${verb} needs an account name`);
+    if (rest.length > 1) throw new ConfigError(`remote account ${verb} takes just an account name; ${NEVER_AS_ARGUMENT}`);
+  }
+  return rest;
+}
+
+async function runAccount(args, paths, config, { stdin, stdout, now }) {
+  const [verb] = args;
+  if (!ACCOUNT_VERBS.includes(verb)) {
+    throw new ConfigError('usage: gm-scriptorium remote account add <name> | change <name> | reset <name> | remove <name> | rename <old> <new> | list');
+  }
+  const rest = accountArity(verb, args);
+
+  if (verb === 'list') {
+    const state = readAccounts(paths);
+    if (state.state === 'invalid') {
+      throw new ConfigError(`the saved accounts cannot be used (${state.message}); run "gm-scriptorium remote off" and add the accounts again`);
+    }
+    if (state.state !== 'set') return { exitCode: EXIT_CODES.OK, human: 'no accounts' };
+    const lines = state.accounts.map((a) => `${a.name}  set ${humanDate(a.record.setAt)}${a.fromEarlierPassword ? '  (from your earlier password)' : ''}`);
+    return { exitCode: EXIT_CODES.OK, human: lines.join('\n') };
+  }
+
+  assertPanelOutsideVaults(paths.panelDir, config);
+  const name = requireName(rest[0]);
+  const { list } = loadAccountsForWrite(paths);
+  const sessions = () => sessionsOf(paths, now);
+
+  if (verb === 'add') {
+    if (list.some((a) => a.name === name)) throw new ConfigError(`an account named "${name}" already exists`);
+    if (list.length >= MAX_ACCOUNTS) throw new ConfigError(`there can be at most ${MAX_ACCOUNTS} accounts`);
+    const reader = createSecretReader({ input: stdin, output: stdout });
+    let chosen;
+    try {
+      chosen = await askNewPassword(reader, `New password for ${name}: `);
+    } finally {
+      reader.close();
+    }
+    const record = await hashPassword(chosen, { now });
+    const warning = saveAccounts(paths, [...list, { name, record, fromEarlierPassword: false }], now);
+    const audit = auditCli(paths, now, { event: 'account-add', account: name });
+    return { exitCode: EXIT_CODES.OK, human: `account "${name}" added.${warning}${audit}` };
+  }
+
+  if (verb === 'change' || verb === 'reset') {
+    const entry = requireExisting(list, name);
+    const reader = createSecretReader({ input: stdin, output: stdout });
+    let chosen;
+    try {
+      if (verb === 'change') await confirmCurrent(reader, `Current password for ${name}: `, entry, `that is not the current password for "${name}"; nothing changed`);
+      chosen = await askNewPassword(reader, `New password for ${name}: `);
+    } finally {
+      reader.close();
+    }
+    const record = await hashPassword(chosen, { now });
+    const warning = saveAccounts(paths, list.map((a) => (a.name === name ? { name, record, fromEarlierPassword: false } : a)), now);
+    sessions().revokeAccount(name);
+    const audit = auditCli(paths, now, { event: `account-${verb}`, account: name });
+    return { exitCode: EXIT_CODES.OK, human: `password for "${name}" ${verb === 'change' ? 'changed' : 'reset'}. Its remote devices are signed out.${warning}${audit}` };
+  }
+
+  if (verb === 'remove') {
+    requireExisting(list, name);
+    const warning = saveAccounts(paths, list.filter((a) => a.name !== name), now);
+    sessions().revokeAccount(name);
+    const audit = auditCli(paths, now, { event: 'account-remove', account: name });
+    return { exitCode: EXIT_CODES.OK, human: `account "${name}" removed. Its remote devices are signed out.${warning}${audit}` };
+  }
+
+  // rename
+  requireExisting(list, name);
+  const next = requireName(rest[1]);
+  if (list.some((a) => a.name === next)) throw new ConfigError(`an account named "${next}" already exists`);
+  const warning = saveAccounts(paths, list.map((a) => (a.name === name ? { ...a, name: next } : a)), now);
+  sessions().revokeAccount(name);
+  const audit = auditCli(paths, now, { event: 'account-rename', account: next, affected: name });
+  return { exitCode: EXIT_CODES.OK, human: `account "${name}" renamed to "${next}". Its remote devices are signed out.${warning}${audit}` };
 }
 
 /**
@@ -180,24 +329,42 @@ async function runRemoteCommand(flags, subcommand, args = [], { stdin = process.
       };
     }
 
+    case 'account':
+      return runAccount(args, paths, config, { stdin, stdout, now });
+
     case 'password': {
+      // The compatibility alias: it sets the password of the account "gm" (adding it when it is not
+      // there), with the prompts and the message it always had, and it signs EVERY device out.
       assertPanelOutsideVaults(paths.panelDir, config);
+      const { list } = loadAccountsForWrite(paths);
+      const gm = list.find((a) => a.name === 'gm');
+      if (!gm && list.length >= MAX_ACCOUNTS) throw new ConfigError(`there can be at most ${MAX_ACCOUNTS} accounts`);
       const reader = createSecretReader({ input: stdin, output: stdout });
       let chosen;
       try {
-        chosen = await readNewPassword(reader, paths, config, now);
+        if (gm) await confirmCurrent(reader, 'Current panel password: ', gm, 'that is not the current panel password; nothing changed');
+        chosen = await askNewPassword(reader, 'New panel password: ');
       } finally {
         reader.close();
       }
-      const record = await hashPassword(chosen.validated, { now });
-      writePasswordRecord(paths.passwordFile, record);
+      const record = await hashPassword(chosen, { now });
+      const entry = { name: 'gm', record, fromEarlierPassword: false };
+      const saved = saveAccounts(paths, gm ? list.map((a) => (a.name === 'gm' ? entry : a)) : [...list, entry], now);
       sessionsOf(paths, now).revokeAll();
-      const warning = auditCli(paths, now, { event: chosen.wasSet ? 'password-change' : 'password-set' });
-      return { exitCode: EXIT_CODES.OK, human: `panel password set. Every remote device is signed out.${warning}` };
+      const warning = auditCli(paths, now, { event: gm ? 'password-change' : 'password-set', account: 'gm' });
+      return { exitCode: EXIT_CODES.OK, human: `panel password set. Every remote device is signed out.${saved}${warning}` };
     }
 
     case 'signout-all': {
       assertPanelOutsideVaults(paths.panelDir, config);
+      if (flags.account !== undefined) {
+        const name = requireName(flags.account);
+        const state = readAccounts(paths);
+        requireExisting(state.state === 'set' ? state.accounts : [], name);
+        const { count } = sessionsOf(paths, now).revokeAccount(name);
+        const warning = auditCli(paths, now, { event: 'signout-all', count, account: name });
+        return { exitCode: EXIT_CODES.OK, human: `signed out ${count} remote session(s) for "${name}"${warning}` };
+      }
       const { count } = sessionsOf(paths, now).revokeAll();
       const warning = auditCli(paths, now, { event: 'signout-all', count });
       return { exitCode: EXIT_CODES.OK, human: `signed out ${count} remote session(s)${warning}` };
@@ -207,7 +374,8 @@ async function runRemoteCommand(flags, subcommand, args = [], { stdin = process.
       assertPanelOutsideVaults(paths.panelDir, config);
       if (config.remote !== undefined) writeConfigFile(configPath, { ...config, remote: { ...config.remote, mode: 'local' } });
       sessionsOf(paths, now).revokeAll();
-      if (readPasswordRecord(paths.passwordFile).state !== 'unset') clearPasswordRecord(paths.passwordFile, { now });
+      if (fs.existsSync(paths.accountsFile)) passwordwrite.clearAccounts(paths.accountsFile, { now });
+      if (readPasswordRecord(paths.passwordFile).state !== 'unset') passwordwrite.clearPasswordRecord(paths.passwordFile, { now });
       const warning = auditCli(paths, now, { event: 'remote-off' });
       return {
         exitCode: EXIT_CODES.OK,

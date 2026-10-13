@@ -57,7 +57,7 @@ comes in through a pin bump (see "Pin bump procedure" in
 | `npm run verify-generator` | The installed generator tree still matches `PIN.json`. |
 | `npm run package` | Builds both the win-x64 and linux-x64 targets into `dist/v<version>/`, with one combined `SHA256SUMS` covering both binaries and the notices file (see ADR 0001). |
 
-`npm run package` runs six gates for each target before it writes anything:
+`npm run package` runs seven gates for each target before it writes anything (the seventh applies to the Windows target only):
 
 1. Generator-pin verification. It re-verifies the pin itself, not just through the script above.
 2. Notices freshness.
@@ -65,13 +65,14 @@ comes in through a pin bump (see "Pin bump procedure" in
 4. Rules-content markers.
 5. A startup self-test of the packaged build.
 6. Starter template verification: every file under `assets/vault-template/` must match its manifest's sha256 and token counts, with no unlisted file on disk. It fails closed, before the build starts.
+7. Windows branding (win-x64 only). Before the build, `scripts/winres.js` checks the pkg base binary against the hash pkg-fetch expects and writes a copy with the Lantern icon and the version strings; only the Windows build uses that copy. After the build, `node scripts/winres.js check` reads the exe back: one icon group with the eight sizes, exactly the eight version strings, and no Node.js value. This gate does not prove that Windows draws the icon or starts the exe; that is criterion C142. The startup self-test still proves nothing about win-x64.
 
 If any target's gate fails, the run removes every binary it already produced and exits 1, so
 `dist/v<version>/` never holds a binary that `SHA256SUMS` doesn't cover. `--target` and `--out`
 still override to a single target.
 
 A change that touches packaging, notices or embedded assets is not shown to work by `npm test`
-alone. Run `npm run package`: five of its six gates exist nowhere else.
+alone. Run `npm run package`: five of its seven gates exist nowhere else.
 
 ## Constraints that are tests, not preferences
 
@@ -80,18 +81,18 @@ inverts the guarantee it gives.** If a fix needs one changed, raise it with the 
 than deciding alone.
 
 - `test/update-module-graph.test.js`: nothing in `src/update/*` or `src/cli/update.js` may
-  acquire a relative require that resolves into `src/vault/` or `src/build/`, and `src/update/*`
-  may not gain a direct network call. The network assertion is a `/\bfetch\(/` regex over raw
-  source, so an injected dependency named `fetch`, or one called as `.fetch(`, breaks the build
+  acquire a relative require that resolves into `src/vault/` or `src/build/`. `src/update/*` loads
+  no network or process module and has no `fetch(` call, and the update graph reaches a network
+  module only in `src/net/egress.js`, which it must reach. The `fetch(` assertion is a regex over
+  raw source, so an injected dependency named `fetch`, or one called as `.fetch(`, breaks the build
   with a confusing message.
 - `test/generator-module-graph.test.js`: no network builtin may appear anywhere in the module
-  graph from `bin/scriptorium.js`, except the allowlisted `src/serve/server.js`, and every
-  specifier must resolve.
-- `test/proc-structure.test.js`: only `src/proc/run.js` (plus the two older spawners, `src/cli/config.js`
-  and `src/update/gh.js`) may start a program, and every test that uses the spawner must go through
+  graph from `bin/scriptorium.js`, except the allowlisted `src/serve/server.js` and
+  `src/net/egress.js`, and every specifier must resolve.
+- `test/proc-structure.test.js`: only `src/proc/run.js` (plus the one older spawner, `src/cli/config.js`) may start a program, and every test that uses the spawner must go through
   `test/helpers/proc-fakebin.js`, so no test can start a real program. See
   [ADR 0046](decisions/0046-one-process-spawner.md).
-- `test/net-structure.test.js`: only `src/net/egress.js` (and the listener in `src/serve/server.js`) may load a network module, nothing under `src/net` names a fetch-style network token, and every test that uses egress goes through `test/helpers/net-stubs.js`, so no test can reach anything but this computer. See ADR 0024.
+- `test/net-structure.test.js`: only `src/net/egress.js` (and the listener in `src/serve/server.js`) may load a network module, nothing under `src/net` names a fetch-style network token, `egress.js` reads the location header in exactly one place, and every test that uses egress goes through `test/helpers/net-stubs.js`, so no test can reach anything but this computer. See ADR 0024.
 - `test/setup-structure.test.js`: the admin panel reaches the config writer only through `src/setup/register.js`, from the setup commit route and the campaign add, set-default and remove routes, and setup code writes to the vault only through `src/vault/packwrite.js` and, when it creates a new vault, `src/vault/vaultcreate.js`. See [ADR 0028](decisions/0028-installer-and-first-run.md), [ADR 0050](decisions/0050-several-campaigns.md) and [ADR 0052](decisions/0052-add-a-campaign.md).
 - `test/vault-create-structure.test.js`: `src/vault/vaultcreate.js` never deletes, renames, appends, truncates or uses a recursive `mkdirSync`, every `writeFileSync` in it is `flag: 'wx'`, it requires only `fs`, `path`, the error classes and the exclusions module, and `createVault` is named only in that file, `src/setup/register.js` and `src/cli/init.js`. See [ADR 0048](decisions/0048-new-campaign-vault.md).
 - `test/admin-campaign-fields.test.js`: every field the panel context carries is classified as belonging to the process or to one campaign, so a switch can never carry one campaign's state into another. See [ADR 0050](decisions/0050-several-campaigns.md).
@@ -130,7 +131,8 @@ prerequisite) for a user mistake. The table-driven test is `test/exit-codes-user
 | unusable campaign pack: pack folder missing, no `vault.config.json`, malformed `pack.toml`, unknown theme, missing or oversize image slot file | 1 | 3 | the pack message, e.g. `campaign "x": pack directory does not exist: <path>` |
 | campaign entry with no `vault` key | 1 | 3 | `campaign "x" has no vault configured. Set one with: gm-scriptorium config add x --vault <vault folder> --out <output folder>` |
 | vault with no `site_config`, no `pack` and no `_meta/scriptorium` (what a plain `config add` makes) | 1 | 3 | `campaign "x" has no site config: ... does not exist. Run "gm-scriptorium init" to create one, or set site_config or pack on the campaign.` |
-| `remote password`, `signout-all` or `off` with the config folder inside a vault (registered or not) | 1 | 3 | `remote access keeps its files beside the config, never inside a vault, but <path> is inside the vault at <vault>` |
+| `remote password`, `remote account add`, `change`, `reset`, `remove` or `rename`, `signout-all` or `off` with the config folder inside a vault (registered or not) | 1 | 3 | `remote access keeps its files beside the config, never inside a vault, but <path> is inside the vault at <vault>` |
+| `remote account` with a name that breaks the rule, an account that does not exist or already exists, a ninth account, a wrong current password, a cancelled prompt, an extra argument, or a saved accounts file that cannot be read | 1 | 1 | `account names are 1 to 32 letters, digits, dots, hyphens or underscores, starting with a letter or digit` / `no account named "x"` / `an account named "x" already exists` / `there can be at most 8 accounts` / `that is not the current password for "x"; nothing changed` / `cancelled; nothing changed` |
 | `status` with no campaigns | 0 | 0 | `no campaigns registered; run "gm-scriptorium config add" first` (informational) |
 | unknown command | 1 | 1 | `unknown command: chek` plus the usage block |
 | unknown flag, or a flag with no value | 1 | 1 | `unknown flag --prot for "build"` / `--vault needs a value` |
@@ -203,6 +205,9 @@ someone.
    anything.
 10. Have the Windows checks run on the release, using the Windows verification runbook at
     `.agents/windows-verification.md`. Promote the release to latest only when they pass.
+    On every push to main, CI packages both targets and runs the Linux binary through
+    `scripts/packaged-smoke.js`. That proves nothing about Windows: the Windows executable stays a release
+    gate on the test machine (C1 and C141 part A step 4, and C184).
 11. Run the release-time `update` check, which is still **open**. Build a lower-version
     `scriptorium-linux-x64` in a scratch folder as a stand-in for an old install. Point it at the
     new release's tag and run `update --pre`. It should download, verify against `SHA256SUMS`, and

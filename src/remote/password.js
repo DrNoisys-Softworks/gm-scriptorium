@@ -129,4 +129,4 @@ function readPasswordRecord(file) {
   return { state: 'set', record: rec };
 }
 
-module.exports = { SCRYPT, hashPassword, verifyPassword, readPasswordRecord };
+module.exports = { SCRYPT, hashPassword, verifyPassword, readPasswordRecord, recordShapeOk };

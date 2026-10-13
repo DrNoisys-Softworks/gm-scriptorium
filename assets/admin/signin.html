@@ -3,24 +3,35 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Scriptorium admin panel</title>
+<title>Sign in to the GM console</title>
 <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
 <link rel="stylesheet" href="/assets/tokens.css">
 <link rel="stylesheet" href="/assets/admin.css">
 </head>
 <body data-page="signin">
-<main class="locked-main">
-  <h1>Scriptorium admin panel</h1>
-  <form data-role="signin-form" class="signin-form">
-    <label for="signin-password">Panel password</label>
-    <input type="password" id="signin-password" name="password" autocomplete="current-password" required>
-    <button type="submit">Sign in</button>
-    <p role="alert" data-role="signin-status" class="signin-status"></p>
-  </form>
-  <p>The password is set on the machine running GM-Scriptorium, with <code>gm-scriptorium remote password</code>.</p>
-  <p>Five wrong passwords in ten minutes pause remote sign-in for fifteen minutes. On the machine running GM-Scriptorium, the one-time link still works.</p>
-</main>
+<div class="gs-screen">
+  <main class="gs-stage">
+    <div class="gs-brand">
+      <svg class="gs-lantern" viewBox="0 0 120 150" width="84" height="105" aria-hidden="true" focusable="false"><line x1="60" y1="0" x2="60" y2="14" stroke="#5b6275" stroke-width="3"/><circle cx="60" cy="20" r="6" fill="none" stroke="#E6A858" stroke-width="3"/><path d="M35 50 60 30l25 20Z" fill="#E6A858"/><rect x="31" y="48" width="58" height="9" rx="3" fill="#C98A3C"/><rect x="38" y="57" width="44" height="64" rx="10" fill="#E6A858"/><rect x="44" y="63" width="32" height="52" rx="6" fill="#3a3326"/><rect x="52" y="63" width="2.5" height="52" fill="#E6A858"/><rect x="65.5" y="63" width="2.5" height="52" fill="#E6A858"/><path d="M60 74c11 14 12 26 0 38-12-12-11-24 0-38Z" fill="#F4D49B"/><path d="M60 92c4 6 4 12 0 17-4-5-4-11 0-17Z" fill="#FFF3D6"/><path d="M33 128h54l-6 11H39Z" fill="#E6A858"/></svg>
+      <div class="gs-word">GM-Scriptorium</div>
+      <p class="gs-tag">Light up what your players should see.</p>
+    </div>
+    <div class="gs-card">
+      <h1 class="gs-h">Sign in to the GM console</h1>
+      <form data-role="signin-form" class="signin-form gs-form" action="/auth/password" method="post" autocomplete="on">
+        <label for="signin-username">Username</label>
+        <input type="text" id="signin-username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        <label for="signin-password">Password</label>
+        <input type="password" id="signin-password" name="password" autocomplete="current-password" required>
+        <button type="submit">Sign in</button>
+        <p role="alert" id="signin-status" data-role="signin-status" class="signin-status gs-fail"><svg class="ico" data-role="signin-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M6 6l12 12M18 6 6 18"/></svg><span data-role="signin-message"></span></p>
+      </form>
+      <p class="gs-rule"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 11v5M12 8v.3"/></svg><span>Five wrong tries for one username in ten minutes pause that username for fifteen minutes. A much higher number of wrong tries across every username pauses sign-in for everyone. On the machine running GM-Scriptorium, the one-time link still works.</span></p>
+    </div>
+  </main>
+  <footer class="gs-foot">Admin console. No campaign content is shown before you sign in.</footer>
+</div>
 <script defer src="/assets/app.js"></script>
 <script defer src="/assets/signin.js"></script>
 </body>

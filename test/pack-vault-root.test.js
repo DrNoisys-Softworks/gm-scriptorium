@@ -16,9 +16,9 @@ const { ConfigError } = require('../src/util/errors');
  * the vault root, so pack writes could land at <vault>/pack.toml. Each refusal test below is paired
  * with a positive control that builds the same shape with an ordinary pack. Synthetic names only.
  *
- * Deliberately NOT changed (PW8 is a frozen constraint test that accepts a pack dir symlinked to an
- * arbitrary directory inside the vault): the pack dir is not required to sit under the real _meta.
- * A pack dir that resolves to _meta itself therefore remains accepted; recorded in the report.
+ * Issue #24 supersedes the earlier carve-out: a pack folder must resolve strictly inside the real
+ * _meta, so a pack folder linked to another vault folder, or to _meta itself, is now refused
+ * (test/pack-inside-meta.test.js).
  */
 
 const ENTRIES = [
@@ -103,10 +103,10 @@ test('#80 create (positive control): an ordinary _meta/scriptorium and a symlink
   scratch((root) => {
     const vault = path.join(root, 'vault');
     fs.mkdirSync(path.join(vault, '_meta'), { recursive: true });
-    fs.mkdirSync(path.join(vault, 'real-pack'));
-    if (!symlinkOrSkip(t, '../real-pack', packDirFor(vault))) return;
+    fs.mkdirSync(path.join(vault, '_meta', 'packs', 'real'), { recursive: true });
+    if (!symlinkOrSkip(t, 'packs/real', packDirFor(vault))) return;
     createPackEntries(vault, ENTRIES);
-    assert.equal(fs.readFileSync(path.join(vault, 'real-pack', 'pack.toml'), 'utf8'), 'theme = "plain"\n');
+    assert.equal(fs.readFileSync(path.join(vault, '_meta', 'packs', 'real', 'pack.toml'), 'utf8'), 'theme = "plain"\n');
   });
 });
 

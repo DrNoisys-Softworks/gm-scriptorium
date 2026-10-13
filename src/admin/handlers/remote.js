@@ -8,6 +8,7 @@ const gate = require('../gate');
 // patch one deterministically, e.g. to count hashes.
 const password = require('../../remote/password');
 const lockoutLib = require('../../remote/lockout');
+const accountsLib = require('../../remote/accounts');
 const settingsLib = require('../../remote/settings');
 const { ADMIN_COOKIE, PREVIEW_COOKIE, SESSION_TTL_MS } = require('../../remote/sessions');
 const { browserFamily } = require('../../remote/audit');
@@ -19,7 +20,7 @@ const { findLooseModes } = require('../../remote/paths');
  * (src/admin/gate.js), which has already decided the request's `kind` and, for a remote request,
  * its trusted client address; the router passes both in the options object.
  *
- *   POST /auth/password          sign in with the panel password (remote requests only)
+ *   POST /auth/password          sign in with a username and password (remote requests only)
  *   GET  /open-preview           the preview hand-off, from the admin origin
  *   GET  /:enter (preview)       consume a ticket, start (or reuse) a preview session
  *   GET  /api/remote             the read-only Remote access screen's data (never a secret)
@@ -27,12 +28,15 @@ const { findLooseModes } = require('../../remote/paths');
  *   POST /api/remote/signout-all sign every device out
  */
 
-const GENERIC_BODY = JSON.stringify({ error: 'signin', message: 'Sign-in failed. Check the password and try again.' });
+// ADR 0054 section 3: ONE message for every failure (unknown name, wrong password, paused, busy), so the
+// page never says whether a username exists or is paused. The words follow the approved sign-in mock.
+const GENERIC_BODY = JSON.stringify({ error: 'signin', message: "That didn't work. Check your username and password." });
 const AUDIT_REFUSAL_BODY = JSON.stringify({
   error: 'audit',
   message: 'The panel could not write its audit log, so changes from other devices are paused. Use the panel on this machine, or fix the disk and try again.',
 });
 const LOGIN_BODY_CAP = 1024;
+const USERNAME_MAX_UNITS = 64;
 const JSON_TYPE = 'application/json; charset=utf-8';
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -78,17 +82,26 @@ function auditSafe(ctx, entry, opts) {
   }
 }
 
-function auditLockoutEvents(ctx, events) {
+/**
+ * The name a lockout key is audited under: an account that exists, else "unknown". The key itself (what
+ * a visitor typed) is never written anywhere.
+ */
+function accountLabel(accounts, key) {
+  return accounts.state === 'set' && accountsLib.findAccount(accounts.accounts, key) ? key : 'unknown';
+}
+
+function auditLockoutEvents(ctx, events, accounts) {
   for (const ev of events) {
-    if (ev.type === 'lockout-start') auditSafe(ctx, { event: 'lockout-start', until: ev.until });
-    else if (ev.type === 'lockout-end') auditSafe(ctx, { event: 'lockout-end', refused: ev.refused }, { at: ev.at });
+    const who = ev.scope === 'name' ? { account: accountLabel(accounts, ev.key) } : {};
+    if (ev.type === 'lockout-start') auditSafe(ctx, { event: 'lockout-start', scope: ev.scope, ...who, until: ev.until });
+    else if (ev.type === 'lockout-end') auditSafe(ctx, { event: 'lockout-end', scope: ev.scope, ...who, refused: ev.refused }, { at: ev.at });
   }
 }
 
 /** The one place lockout events are audited, whoever observed them first. */
-function lockoutGate(ctx, now) {
-  const result = lockoutLib.check(ctx.lockout, now);
-  auditLockoutEvents(ctx, result.events);
+function lockoutGate(ctx, key, now, accounts) {
+  const result = lockoutLib.check(ctx.lockout, key, now);
+  auditLockoutEvents(ctx, result.events, accounts);
   return result;
 }
 
@@ -128,7 +141,7 @@ function validatePreviewTarget(to) {
 
 // --- POST /auth/password -----------------------------------------------------------------
 
-function signinEntry(req, ctx, kind, clientAddress, result) {
+function signinEntry(req, ctx, kind, clientAddress, result, account) {
   return {
     event: 'signin',
     method: 'password',
@@ -137,7 +150,18 @@ function signinEntry(req, ctx, kind, clientAddress, result) {
     from: clientAddress,
     browser: browserFamily(req.headers && req.headers['user-agent']),
     campaign: ctx.campaign,
+    account,
   };
+}
+
+/** The sign-in body is exactly {username, password}; @returns {{ username: string, password: string }|null} */
+function readCredentials(parsed) {
+  const keys = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? Object.keys(parsed) : null;
+  if (keys === null || keys.length !== 2 || !keys.includes('username') || !keys.includes('password')) return null;
+  const { username, password: typed } = parsed;
+  if (typeof username !== 'string' || username.length < 1 || username.length > USERNAME_MAX_UNITS) return null;
+  if (typeof typed !== 'string' || typed.length < 1 || typed.length > 1024) return null;
+  return { username, password: typed };
 }
 
 async function passwordSignin(req, res, ctx, { kind, clientAddress }) {
@@ -153,19 +177,27 @@ async function passwordSignin(req, res, ctx, { kind, clientAddress }) {
     sendJson(res, 400, GENERIC_BODY);
     return;
   }
-  const keys = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? Object.keys(parsed) : null;
-  if (keys === null || keys.length !== 1 || keys[0] !== 'password' || typeof parsed.password !== 'string' || parsed.password.length < 1 || parsed.password.length > 1024) {
+  const credentials = readCredentials(parsed);
+  if (credentials === null) {
     sendJson(res, 400, GENERIC_BODY);
     return;
   }
-  const entry = (result) => signinEntry(req, ctx, kind, clientAddress, result);
 
-  // Paused, or another check already running: refused before any hash, and counted. The first
-  // refusal is audited (so the pause has a visible first attempt), the rest are only counted.
+  // What was typed becomes a lockout key in memory and nothing else: a canonical name, or the one
+  // shared key for any text that is not a valid name. It is never audited, logged or answered.
+  const key = accountsLib.canonicalUsername(credentials.username) ?? lockoutLib.INVALID_KEY;
+  // A file read, no hashing: the same for a known and an unknown name.
+  const accounts = accountsLib.readAccounts(ctx.remote.paths);
+  const label = accountLabel(accounts, key);
+  const entry = (result) => signinEntry(req, ctx, kind, clientAddress, result, label);
+
+  // Paused (this name, or everyone), or another check already running: refused before any hash, and
+  // counted. The first refusal is audited (so the pause has a visible first attempt), the rest are
+  // only counted.
   const t = nowOf(ctx);
-  const gateResult = lockoutGate(ctx, t);
+  const gateResult = lockoutGate(ctx, key, t, accounts);
   if (!gateResult.allowed) {
-    if (ctx.lockout.refused === 1) auditSafe(ctx, entry('refused'));
+    if (gateResult.refused === 1) auditSafe(ctx, entry('refused'));
     await refuseSlowly(ctx, res);
     return;
   }
@@ -175,8 +207,7 @@ async function passwordSignin(req, res, ctx, { kind, clientAddress }) {
     return;
   }
 
-  const record = require('../../remote/password').readPasswordRecord(ctx.remote.paths.passwordFile);
-  if (record.state !== 'set') {
+  if (accounts.state !== 'set') {
     auditSafe(ctx, entry('error'));
     await refuseSlowly(ctx, res);
     return;
@@ -187,30 +218,35 @@ async function passwordSignin(req, res, ctx, { kind, clientAddress }) {
     return;
   }
 
+  // Exactly one scrypt run with the real parameters, whether or not the name exists: an unknown or
+  // malformed name is checked against DUMMY_RECORD, which is never a valid password.
+  const account = accountsLib.findAccount(accounts.accounts, key);
+  const record = account ? account.record : accountsLib.DUMMY_RECORD;
   ctx.signinBusy = true;
-  let ok;
+  let verified;
   const hashStarted = process.hrtime.bigint();
   try {
-    ok = await password.verifyPassword(parsed.password, record.record);
+    verified = await password.verifyPassword(credentials.password, record);
   } finally {
     ctx.signinBusy = false;
     ctx.lastHashMs = Number((process.hrtime.bigint() - hashStarted) / 1000000n);
   }
+  const ok = verified === true && account !== null;
 
   if (!ok) {
-    const failure = lockoutLib.recordFailure(ctx.lockout, nowOf(ctx));
-    auditLockoutEvents(ctx, failure.events);
+    const failure = lockoutLib.recordFailure(ctx.lockout, key, nowOf(ctx));
+    auditLockoutEvents(ctx, failure.events, accounts);
     auditSafe(ctx, entry('refused'));
     sendJson(res, 403, GENERIC_BODY);
     return;
   }
 
-  lockoutLib.recordSuccess(ctx.lockout);
+  lockoutLib.recordSuccess(ctx.lockout, key);
   let created;
   try {
     const old = presentedSession(req, ctx, ADMIN_COOKIE, 'admin');
     if (old) ctx.sessions.revoke(old.id);
-    created = ctx.sessions.create('admin');
+    created = ctx.sessions.create('admin', { account: account.name });
   } catch {
     auditSafe(ctx, entry('error'));
     sendJson(res, 403, GENERIC_BODY);
@@ -320,19 +356,30 @@ function httpsFor(settings) {
   }
 }
 
+/** The newest password sign-in that worked for `name` in the (90-day) log, as its ISO time, or null. */
+function lastSignin(entries, name) {
+  let newest = null;
+  for (const e of entries) {
+    if (e.event === 'signin' && e.method === 'password' && e.result === 'ok' && e.account === name && typeof e.t === 'string' && (newest === null || e.t > newest)) newest = e.t;
+  }
+  return newest;
+}
+
 function apiRemote(req, res, ctx, { kind }) {
   const t = nowOf(ctx);
   const settings = ctx.remote.settings;
   const paths = ctx.remote.paths;
   const plan = settingsLib.listenPlan(settings);
+  const accounts = accountsLib.readAccounts(paths);
   const lockout = lockoutLib.status(ctx.lockout, t);
-  auditLockoutEvents(ctx, lockout.events);
-  const record = require('../../remote/password').readPasswordRecord(paths.passwordFile);
+  auditLockoutEvents(ctx, lockout.events, accounts);
   const scheme = (ctx.access && ctx.access.loopbackScheme) || 'http';
   const recent = ctx.audit.read({ sinceMs: t - SEVEN_DAYS_MS });
   const full = ctx.audit.read({});
   const remoteMode = settings.mode === 'tailscale' || settings.mode === 'proxy' || settings.mode === 'direct';
   const health = ctx.audit.health();
+  const names = accounts.state === 'set' ? accounts.accounts.map((a) => a.name) : [];
+  const pausedNames = lockout.pausedKeys.filter((k) => names.includes(k));
   const payload = {
     requestKind: kind,
     mode: settings.mode,
@@ -345,8 +392,19 @@ function apiRemote(req, res, ctx, { kind }) {
     },
     listening: { hosts: plan.admin.hosts, adminPort: ctx.adminPort, previewPort: ctx.previewPort, answers: answersFor(settings, plan) },
     https: httpsFor(settings),
-    password: { set: record.state === 'set', setAt: record.state === 'set' ? record.record.setAt : null },
-    lockout: { active: lockout.active, until: lockout.until, recentFailures: lockout.recentFailures, refused: lockout.refused },
+    // ADR 0054: names, when each password was set and the last sign-in. Never a salt, a hash or typed text.
+    accounts: {
+      state: accounts.state,
+      list: accounts.state === 'set' ? accounts.accounts.map((a) => ({ name: a.name, setAt: a.record.setAt, fromEarlierPassword: a.fromEarlierPassword, lastSignin: lastSignin(full.entries, a.name) })) : [],
+    },
+    lockout: {
+      active: lockout.active,
+      until: lockout.until,
+      recentFailures: lockout.recentFailures,
+      refused: lockout.refused,
+      pausedAccounts: pausedNames,
+      pausedOther: lockout.pausedKeys.length - pausedNames.length,
+    },
     sessions: { active: ctx.sessions.activeCount() },
     audit: { file: paths.auditFile, ok: health.ok, lastError: health.lastError },
     files: { looseModes: findLooseModes(paths) },

@@ -81,13 +81,20 @@ test('src/update/ module graph never reaches src/vault or src/build', () => {
   );
 });
 
-test('src/update/ files import no fs-writing network client other than child_process (gh subprocess only)', () => {
-  const files = listJsFiles(path.join(ROOT, 'src', 'update'));
-  for (const file of files) {
+const NET_REQUIRE_RE = /require\(\s*['"](?:node:)?(?:https?|http2|net|tls|dgram|dns|child_process|node-fetch|undici)['"]\s*\)/;
+test('src/update/ files load no network or process module and make no direct network call; the network is reached only through src/net/egress.js', () => {
+  for (const file of listJsFiles(path.join(ROOT, 'src', 'update'))) {
     const source = fs.readFileSync(file, 'utf8');
-    assert.ok(
-      !/require\(['"]https?['"]\)/.test(source) && !/require\(['"]node-fetch['"]\)/.test(source) && !/\bfetch\(/.test(source),
-      `${file} must not make a direct network call; update goes through the gh subprocess only`,
-    );
+    assert.ok(!NET_REQUIRE_RE.test(source) && !/\bfetch\(/.test(source), `${file} must not load a network or process module or call fetch; update reaches the network only through src/net/egress.js`);
   }
+});
+test('positive: the update graph loads a network module only in src/net/egress.js, and does reach it', () => {
+  const startFiles = [...listJsFiles(path.join(ROOT, 'src', 'update')), path.join(ROOT, 'src', 'cli', 'update.js')];
+  const graph = walkModuleGraph(startFiles);
+  const loaders = [...graph].filter((f) => fs.existsSync(f) && f.endsWith('.js') && /require\(\s*['"](?:node:)?(?:https?|http2|net|tls|dgram|dns)['"]\s*\)/.test(fs.readFileSync(f, 'utf8')))
+    .map((f) => path.relative(ROOT, f).split(path.sep).join('/'));
+  assert.deepEqual(loaders, ['src/net/egress.js']);
+});
+test('positive control: NET_REQUIRE_RE catches each planted form', () => {
+  for (const p of ["require('https')", 'require("node:http")', "require('child_process')", "require('undici')"]) assert.match(p, NET_REQUIRE_RE, p);
 });

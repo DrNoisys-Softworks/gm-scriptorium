@@ -1,6 +1,6 @@
 # 0004. `update` authenticates via the `gh` CLI subprocess only
 
-Status: accepted (orchestrator ruling G1, implemented phase 2, 2026-09-10).
+Status: superseded. `update` no longer uses `gh` or a token; it reaches GitHub through its own connection module and needs no account. See the addendum in [ADR 0030](0030-public-repo-and-update-source.md) and the amendment in [ADR 0024](0024-ai-connections.md). Kept as a record of why `gh` was chosen at the time.
 
 ## Summary
 

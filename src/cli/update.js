@@ -3,8 +3,13 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { requireGh: requireGhImpl } = require('../update/gh');
-const { REPO, fetchLatestRelease: fetchLatestReleaseImpl, downloadAsset: downloadAssetImpl } = require('../update/release');
+const {
+  REPO,
+  isSafeTag,
+  releaseNotesUrl,
+  lookupRelease: lookupReleaseImpl,
+  downloadAsset: downloadAssetImpl,
+} = require('../update/release');
 const { verifyDownload: verifyDownloadImpl, isWindowsExecutable, isLinuxExecutable } = require('../update/verify');
 const { compareVersions } = require('../update/semver');
 const {
@@ -37,13 +42,13 @@ function assetPatternForPlatform(platform = process.platform, arch = process.arc
  * @param {object} flags
  * @param {{
  *   execPath?: string, platform?: string, arch?: string, tmpRoot?: string, isPkg?: boolean,
- *   requireGh?: Function, fetchLatestRelease?: Function, downloadAsset?: Function,
+ *   lookupRelease?: Function, downloadAsset?: Function,
  *   verifyDownload?: Function, replaceExecutable?: Function,
  * }} [deps] injectable for tests; all filesystem effects are confined to `execPath`'s
  *   directory and `tmpRoot` when both are overridden with scratch paths.
- * @returns {{ exitCode: number, human: string }}
+ * @returns {Promise<{ exitCode: number, human: string }>}
  */
-function runUpdateCommand(
+async function runUpdateCommand(
   flags,
   {
     execPath = process.execPath,
@@ -51,8 +56,7 @@ function runUpdateCommand(
     arch = process.arch,
     tmpRoot = os.tmpdir(),
     isPkg = typeof process.pkg !== 'undefined',
-    requireGh = requireGhImpl,
-    fetchLatestRelease = fetchLatestReleaseImpl,
+    lookupRelease = lookupReleaseImpl,
     downloadAsset = downloadAssetImpl,
     verifyDownload = verifyDownloadImpl,
     replaceExecutable = replaceExecutableImpl,
@@ -90,10 +94,12 @@ function runUpdateCommand(
 
   try {
     if (flags.version === true) {
-      throw new ScriptoriumError('--version needs a release tag, e.g. update --version v0.2.3');
+      throw new ScriptoriumError('--version needs a release tag like v0.4.0');
     }
-    const ghPath = requireGh();
-    const release = fetchLatestRelease(ghPath, { pre: Boolean(flags.pre), version: flags.version || null });
+    if (flags.version !== undefined && flags.version !== false && !isSafeTag(flags.version)) {
+      throw new ScriptoriumError('--version needs a release tag like v0.4.0');
+    }
+    const release = await lookupRelease({ pre: Boolean(flags.pre), version: flags.version || null });
     const tag = release.tag_name;
 
     // Defect fix: compare by real semver precedence (src/update/semver.js), not by string
@@ -113,7 +119,7 @@ function runUpdateCommand(
     }
 
     if (cmp > 0) {
-      // The only thing gh returned is lower than (or, impossible given cmp===0 above, equal
+      // The only thing the lookup returned is lower than (or, impossible given cmp===0 above, equal
       // to) what is already running. Never call this "updated" (required behaviour 1): no
       // download, no replace, exit 0, nothing written.
       const displayTag = tag.replace(/^v(?=\d)/, '');
@@ -128,7 +134,7 @@ function runUpdateCommand(
     if (flags.check) {
       return {
         exitCode: EXIT_CODES.OK,
-        human: `update available: ${currentVersion} -> ${tag}. Release notes: ${release.html_url}\n(--check: nothing changed)`,
+        human: `update available: ${currentVersion} -> ${tag}. Release notes: ${releaseNotesUrl(tag)}\n(--check: nothing changed)`,
       };
     }
 
@@ -150,7 +156,7 @@ function runUpdateCommand(
     try {
       fs.writeFileSync(path.join(tmpDir, OWNER_MARKER_FILENAME), String(process.pid));
 
-      downloadAsset(ghPath, tag, pattern, tmpDir);
+      await downloadAsset(tag, pattern, tmpDir);
 
       const downloadedAsset = path.join(tmpDir, pattern);
       const sumsPath = path.join(tmpDir, 'SHA256SUMS');
@@ -204,7 +210,7 @@ function runUpdateCommand(
         `updated ${currentVersion} -> ${tag}. Previous binary kept at ${oldPath}. ` +
         "Any third-party notices file beside the executable described the OLD version and has been " +
         'cleared; run --notices to print the new one. ' +
-        `Release notes: ${release.html_url}`,
+        `Release notes: ${releaseNotesUrl(tag)}`,
     };
   } catch (err) {
     if (err instanceof UpdatePrerequisiteError) {

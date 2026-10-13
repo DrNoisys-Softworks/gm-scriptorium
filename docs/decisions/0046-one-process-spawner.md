@@ -93,7 +93,7 @@ in-process. What changes is the rule for the rest of the admin code. `child_proc
 the admin path only through this module. `test/admin-variants.test.js` still forbids
 `child_process`, `worker_threads` and `cluster` under `src/admin` and is not edited. The new
 `test/proc-structure.test.js` pins that the only files under `src/` naming `child_process` are
-`src/proc/run.js`, `src/cli/config.js` and `src/update/gh.js`.
+`src/proc/run.js`, `src/cli/config.js` and `src/update/gh.js` (see the addendum at the end: `gh.js` is gone).
 
 ## 3. Rejected alternatives
 
@@ -171,3 +171,9 @@ how Windows treats them.
 It is deliberately outside the rules above that suit a program the panel waits for. It is not on the allowlist, and `openFile` takes a file path, never a command name. It is never added to the live-run set, so `killAll` never reaches it, and nothing times it out: the browser it starts has to outlive the panel. It runs with ignored stdio, in a session of its own (so closing the terminal never reaches it), unref-ed, with the same scrubbed environment as any other call plus a short list of display variables on POSIX. It never uses a shell.
 
 `bin` now reaches this module, through launch mode (`src/cli/launch.js`), where before nothing in `bin` did. The file and the one function are still the only places a program is started on the panel path.
+
+## Addendum: the `gh` lookup is gone
+
+`src/update/gh.js` was deleted when `update` moved onto the egress module (see
+[ADR 0024](0024-ai-connections.md)). The only files under `src/` that name `child_process` are now
+`src/proc/run.js` and `src/cli/config.js`, and `test/proc-structure.test.js` says so.

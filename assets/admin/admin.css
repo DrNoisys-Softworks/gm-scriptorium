@@ -6562,6 +6562,197 @@ body[data-page="signin"] {
   background: var(--surface-ground);
 }
 
+/* ADR 0054 (approved mock frame G2): the GM console sign-in. Lantern product branding only: nothing
+   from a campaign, a theme or the vault reaches a visitor who has not signed in. */
+.gs-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: var(--lan-night);
+  color: var(--lan-paper);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.gs-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 34px 18px;
+  background: radial-gradient(ellipse 360px 280px at 50% 16%, var(--lan-glow), transparent 72%), var(--lan-night);
+}
+
+.gs-brand {
+  text-align: center;
+}
+
+.gs-lantern {
+  display: block;
+  margin: 0 auto;
+  filter: drop-shadow(0 0 22px var(--lan-glow-soft));
+}
+
+.gs-word {
+  margin-top: 8px;
+  font: 700 31px/1.1 var(--font-body);
+  letter-spacing: -0.005em;
+  color: var(--lan-paper);
+}
+
+.gs-tag {
+  margin: 6px 0 0;
+  font: italic 17px/1.3 var(--font-body);
+  color: var(--lan-lamp);
+}
+
+.gs-card {
+  width: 100%;
+  max-width: 25rem;
+  box-sizing: border-box;
+  padding: 24px 22px;
+  border: 1px solid var(--lan-edge);
+  border-radius: 8px;
+  background: var(--lan-card);
+  box-shadow: 0 22px 50px -26px var(--shadow);
+}
+
+.gs-h {
+  margin: 0 0 14px;
+  font: 400 25px/1.2 var(--font-display);
+  color: var(--lan-paper);
+}
+
+.gs-form.signin-form {
+  max-width: none;
+  margin: 0;
+}
+
+.gs-form input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gs-fail {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.gs-fail .ico {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.gs-fail .ico[hidden] {
+  display: none;
+}
+
+.gs-rule {
+  display: flex;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--lan-edge);
+  color: var(--lan-slate);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.gs-rule .ico {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.gs-foot {
+  margin: 0;
+  padding: 10px 14px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--lan-slate);
+  background: var(--lan-bar);
+  border-top: 1px solid var(--lan-bar-edge);
+}
+
+/* ADR 0054 (approved mock frame G5): the read-only accounts list on Setup > Remote access. */
+.ga-acc {
+  display: grid;
+  gap: 10px;
+}
+
+.ga-acc .rm-note {
+  margin: 0;
+}
+
+.ga-name {
+  white-space: nowrap;
+}
+
+.ga-name .a1-pill {
+  margin-left: 8px;
+}
+
+.ga-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line-crease);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+}
+
+.ga-hint-l {
+  color: var(--text-muted);
+}
+
+.ga-hint .rm-cmd {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .ga-acc .a1-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .ga-acc .a1-table,
+  .ga-acc .a1-table tbody,
+  .ga-acc .a1-table tr,
+  .ga-acc .a1-table td {
+    display: block;
+    width: auto;
+  }
+
+  .ga-acc .a1-table tr {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line-row);
+  }
+
+  .ga-acc .a1-table td {
+    border: 0;
+    padding: 2px 0;
+  }
+
+  .ga-acc .a1-table td[data-h]::before {
+    content: attr(data-h) ": ";
+    color: var(--text-faint);
+  }
+}
+
 .signin-form {
   display: grid;
   gap: 0.75rem;
