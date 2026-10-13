@@ -98,6 +98,7 @@ than deciding alone.
 - `test/admin-campaign-fields.test.js`: every field the panel context carries is classified as belonging to the process or to one campaign, so a switch can never carry one campaign's state into another. See [ADR 0050](decisions/0050-several-campaigns.md).
 - `test/launch-structure.test.js`: the browser opener is named only in `src/proc/run.js` and `src/cli/launch.js`, launch code requires no other spawner, and every test that loads the launcher injects its opener, so no test opens a real browser. See [ADR 0028](decisions/0028-installer-and-first-run.md).
 - `test/folders-structure.test.js`: the folder picker's listing lives in `src/setup` (so it is write-free), its one folder write is a single non-recursive create in `src/admin/foldercreate.js`, reached only from its own route, and every filesystem call goes through the shared bounded probe. See [ADR 0049](decisions/0049-folder-picker.md).
+- `test/test-ports-structure.test.js`: no test binds a fixed port outside that helper, and no two test files share one.
 - `src/util/exitcodes.js`: the exit-code table is frozen. 0 is OK, 1 is a Scriptorium bug, 2 is
   a failed check, 3 is an unreachable vault and 4 is an update prerequisite. **No new exit
   codes.** User mistakes are mapped onto these (see "Exit codes for user errors" below). A cleanup or delete failure must never change the code a user sees. Copy the pattern in
@@ -168,6 +169,7 @@ raised while resolving a pack becomes exit 3 (`asPackProblem` in `src/cli/check.
   residual in a comment.
 - **Name the tests that pass today and so prove nothing**, so a reviewer can refuse them as
   evidence. This has caught real weak evidence.
+- **A test that needs a fixed port takes it from `testPort(<default>)` in `test/helpers/ports.js`.** Set `SCRIPTORIUM_TEST_PORT_BASE` (a whole number from 1024 to 29768; default 7000) to move all of them by the same amount, so two copies of the suite can run at once.
 - **Write residual gaps down** rather than leaving them for the next person to rediscover. The
   house style is the limits block at the top of `src/build/plan.js`, and the "Will catch / Will
   not catch, deliberately" section of [ADR 0009](decisions/0009-output-leak-scan.md).

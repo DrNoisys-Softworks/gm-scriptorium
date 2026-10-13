@@ -7,7 +7,7 @@
  *
  * Real browser test: node --test cannot drive the DOM. Needs Playwright + a Chromium; resolved
  * via PLAYWRIGHT_MODULE (a path to the playwright package) or plain require('playwright').
- * Skips, loudly, when Playwright is unavailable. Port range 7780-7799 (own ports only).
+ * Skips, loudly, when Playwright is unavailable. Port 7781 (through testPort).
  */
 
 const test = require('node:test');
@@ -17,9 +17,10 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { startAdminServer, stopChild } = require('./helpers/admin-server');
+const { testPort } = require('./helpers/ports');
 
 const REPO = path.join(__dirname, '..');
-const PORT = String(process.env.V1E8_TEST_PORT || 7781);
+const PORT = String(testPort(7781));
 
 function loadPlaywright() {
   const cands = [process.env.PLAYWRIGHT_MODULE, 'playwright'].filter(Boolean);

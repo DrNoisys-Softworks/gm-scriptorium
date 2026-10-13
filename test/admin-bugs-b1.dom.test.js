@@ -5,7 +5,7 @@
  * it): #88 theme radiogroup arrow keys keep focus, #89 forced-colors mode, #90 phone top bar
  * contrast behind a modal dialog, #99 the V1e-9 phone/laptop rules actually apply. The axe checks
  * also need axe-core, found next to PLAYWRIGHT_MODULE or via AXE_CORE_PATH. Port 7902 (7900-7919
- * are this batch's; override with B1_TEST_PORT).
+ * are this batch's; the port comes from testPort).
  */
 
 const test = require('node:test');
@@ -14,9 +14,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { startAdminServer, stopChild } = require('./helpers/admin-server');
+const { testPort } = require('./helpers/ports');
 
 const REPO = path.join(__dirname, '..');
-const PORT = String(process.env.B1_TEST_PORT || 7902);
+const PORT = String(testPort(7902));
 
 function loadPlaywright() {
   for (const c of [process.env.PLAYWRIGHT_MODULE, 'playwright'].filter(Boolean)) {

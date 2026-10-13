@@ -12,7 +12,7 @@
  *
  * Two tests. The first needs no browser (a change detector on the built markup). The second drives
  * Chromium at desktop width and skips, loudly, without Playwright (PLAYWRIGHT_MODULE). Own port 8681
- * (range 8680-8699, override STORYNAV_TEST_PORT).
+ * (through testPort).
  */
 
 const test = require('node:test');
@@ -23,9 +23,10 @@ const os = require('os');
 const path = require('path');
 
 const { runAtomicBuild } = require('../src/build/run');
+const { testPort } = require('./helpers/ports');
 
 const FIXTURES = path.join(__dirname, 'fixtures');
-const PORT = Number(process.env.STORYNAV_TEST_PORT || 8681);
+const PORT = testPort(8681);
 
 function loadPlaywright() {
   for (const c of [process.env.PLAYWRIGHT_MODULE, 'playwright'].filter(Boolean)) {

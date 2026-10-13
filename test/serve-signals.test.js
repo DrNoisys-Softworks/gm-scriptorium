@@ -9,6 +9,7 @@ const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
+const { testPort } = require('./helpers/ports');
 
 const { onStopSignal, stopSignalNames } = require('../src/util/stop-signals');
 
@@ -107,7 +108,10 @@ function post(port, p, headers) {
   });
 }
 
-const PORT_PLAIN = 8381;
+const PORT_PLAIN = testPort(8381);
+const PORT_QUIET = testPort(8382);
+const PORT_ADMIN = testPort(8383);
+const PORT_RESTART = testPort(8384);
 
 for (const signal of ['SIGTERM', 'SIGINT']) {
   test(`#27: plain serve --json: ${signal} closes the port, exits 0, JSON lines parse`, { skip }, async (t) => {
@@ -133,35 +137,35 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
 test('#27: plain serve without --json prints human lines and a final "stopped." on SIGTERM', { skip }, async (t) => {
   const s = scratch();
   t.after(() => fs.rmSync(s.root, { recursive: true, force: true }));
-  const run = start(t, ['serve', 'alpha', '--port', '8382', '--config', s.configPath], s);
+  const run = start(t, ['serve', 'alpha', '--port', String(PORT_QUIET), '--config', s.configPath], s);
   const [line] = await run.waitLines(1);
-  assert.match(line, /^serving .* at http:\/\/127\.0\.0\.1:8382 \(Ctrl-C to stop\)$/);
+  assert.match(line, new RegExp(`^serving .* at http:\\/\\/127\\.0\\.0\\.1:${PORT_QUIET} \\(Ctrl-C to stop\\)$`));
   run.child.kill('SIGTERM');
   const { code, signal: sig } = await run.exit;
   assert.equal(sig, null, run.stdout + run.stderr);
   assert.equal(code, 0);
   assert.match(run.stdout, /stopped\.\n$/);
-  assert.equal(await canConnect(8382), false);
+  assert.equal(await canConnect(PORT_QUIET), false);
 });
 
 for (const signal of ['SIGTERM', 'SIGINT']) {
   test(`#27: serve --admin --json: ${signal} closes both ports, removes the preview temp dir, exits 0`, { skip }, async (t) => {
     const s = scratch();
     t.after(() => fs.rmSync(s.root, { recursive: true, force: true }));
-    const run = start(t, ['serve', '--admin', 'alpha', '--json', '--port', '8383', '--config', s.configPath], s);
+    const run = start(t, ['serve', '--admin', 'alpha', '--json', '--port', String(PORT_ADMIN), '--config', s.configPath], s);
     const [ready] = await run.waitLines(1);
     const obj = JSON.parse(ready);
     assert.equal(obj.event, 'ready');
     assert.equal(obj.mode, 'admin');
-    assert.equal(obj.adminPort, 8383);
-    assert.match(obj.adminUrl, /^http:\/\/127\.0\.0\.1:8383\/auth\?token=[A-Za-z0-9_-]{43}$/);
+    assert.equal(obj.adminPort, PORT_ADMIN);
+    assert.match(obj.adminUrl, new RegExp(`^http:\\/\\/127\\.0\\.0\\.1:${PORT_ADMIN}\\/auth\\?token=[A-Za-z0-9_-]{43}$`));
     assert.match(obj.previewUrl, /^http:\/\/127\.0\.0\.1:\d+\/$/);
     assert.ok(Number.isInteger(obj.previewPort) && obj.previewPort > 0);
     assert.equal(await canConnect(obj.previewPort), true);
     // The preview temp dir is created lazily by the first preview build: trigger one so the
     // "cleaned up" assertion below is not vacuous.
     const token = obj.adminUrl.match(/token=([A-Za-z0-9_-]{43})$/)[1];
-    await post(8383, '/api/preview', { Cookie: `scriptorium_admin_8383=${token}` });
+    await post(PORT_ADMIN, '/api/preview', { Cookie: `scriptorium_admin_${PORT_ADMIN}=${token}` });
     assert.ok(fs.readdirSync(s.tmp).some((n) => n.startsWith('scriptorium-preview-')), 'preview temp dir exists before the signal');
     run.child.kill(signal);
     const { code, signal: sig } = await run.exit;
@@ -169,7 +173,7 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
     assert.equal(code, 0);
     const lines = run.stdout.split('\n').filter(Boolean).map((l) => JSON.parse(l));
     assert.deepEqual(lines[lines.length - 1], { event: 'stopped', signal, exitCode: 0 });
-    assert.equal(await canConnect(8383), false);
+    assert.equal(await canConnect(PORT_ADMIN), false);
     assert.equal(await canConnect(obj.previewPort), false);
     assert.deepEqual(fs.readdirSync(s.tmp), [], 'no temp dirs left behind');
   });
@@ -224,7 +228,7 @@ test('#27: serve --json with no build prints one parseable error line and exits 
   const s = scratch();
   t.after(() => fs.rmSync(s.root, { recursive: true, force: true }));
   fs.rmSync(path.join(s.root, 'out'), { recursive: true });
-  const run = start(t, ['serve', 'alpha', '--json', '--port', '8384', '--config', s.configPath], s);
+  const run = start(t, ['serve', 'alpha', '--json', '--port', String(PORT_RESTART), '--config', s.configPath], s);
   const { code } = await run.exit;
   assert.equal(code, 3); // #108: a campaign problem
   const lines = run.stdout.split('\n').filter(Boolean).map((l) => JSON.parse(l));

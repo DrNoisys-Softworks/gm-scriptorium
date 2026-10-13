@@ -24,13 +24,16 @@ const pwWrite = require('../src/remote/passwordwrite');
 const { createSessionStore } = require('../src/remote/sessions');
 const accounts = require('../src/remote/accounts');
 const { remotePaths } = require('../src/remote/paths');
+const { testPort } = require('./helpers/ports');
 
 /*
  * V1.5a (SD-a13). `gm-scriptorium remote`: set / show / password / signout-all / off, readSecret, and
- * the CLI-driven sign-out-all against a RUNNING panel (fixed ports 7928-7929). Passwords here are
+ * the CLI-driven sign-out-all against a RUNNING panel (fixed ports 7928-7929, through testPort). Passwords here are
  * test fixtures only.
  */
 
+const PANEL_PORT = testPort(7928);
+const PREVIEW_PORT = testPort(7929);
 const BIN = path.join(__dirname, '..', 'bin', 'scriptorium.js');
 const PASSWORD = 'correct horse battery';
 const NEW_PASSWORD = 'a brand new passphrase';
@@ -51,8 +54,8 @@ function fixture(t, remoteToml = '') {
 const PROXY_TOML = `
 [remote]
 mode = "proxy"
-port = 7928
-preview_port = 7929
+port = ${PANEL_PORT}
+preview_port = ${PREVIEW_PORT}
 admin_url = "https://scriptorium.home.arpa"
 preview_url = "https://preview.scriptorium.home.arpa"
 bind = "192.0.2.42"
@@ -151,7 +154,7 @@ test('show for a proxy configuration lists only what applies, and says what is m
       'mode: proxy (Behind your reverse proxy)',
       'admin address: https://scriptorium.home.arpa',
       'preview address: https://preview.scriptorium.home.arpa',
-      'listening: 192.0.2.42 and 127.0.0.1, ports 7928 (panel) and 7929 (preview)',
+      `listening: 192.0.2.42 and 127.0.0.1, ports ${PANEL_PORT} (panel) and ${PREVIEW_PORT} (preview)`,
       'trusted proxy: 198.51.100.20',
       'https: by your proxy (the hop to GM-Scriptorium is plain HTTP)',
       'accounts: none',
@@ -178,17 +181,17 @@ test('show: with an earlier password (read as the account gm) and sessions it na
 });
 
 test('show for tailscale and ssh', async (t) => {
-  const fx = fixture(t, '\n[remote]\nmode = "ssh"\nport = 7928\npreview_port = 7929\n');
+  const fx = fixture(t, `\n[remote]\nmode = "ssh"\nport = ${PANEL_PORT}\npreview_port = ${PREVIEW_PORT}\n`);
   const ssh = await run(fx, 'show');
   assert.match(ssh.human, /^mode: ssh \(SSH tunnel\)$/m);
-  assert.match(ssh.human, /^listening: 127\.0\.0\.1, ports 7928 \(panel\) and 7929 \(preview\)$/m);
+  assert.match(ssh.human, new RegExp(`^listening: 127\\.0\\.0\\.1, ports ${PANEL_PORT} \\(panel\\) and ${PREVIEW_PORT} \\(preview\\)$`, 'm'));
   assert.match(ssh.human, /^https: by SSH/m);
   assert.match(ssh.human, /^ready: yes$/m);
   assert.ok(!/admin address/.test(ssh.human));
 });
 
 test('an unrecognised [remote] key is a hard error for remote (and for show)', async (t) => {
-  const fx = fixture(t, '\n[remote]\nmode = "ssh"\nport = 7928\npreview_port = 7929\npasword = "x"\n');
+  const fx = fixture(t, `\n[remote]\nmode = "ssh"\nport = ${PANEL_PORT}\npreview_port = ${PREVIEW_PORT}\npasword = "x"\n`);
   await refuses(run(fx, 'show'), 'remote: unrecognised key "pasword"');
   await refuses(run(fx, 'set', { port: '7930' }), 'remote: unrecognised key "pasword"');
 });
@@ -198,15 +201,15 @@ test('an unrecognised [remote] key is a hard error for remote (and for show)', a
 test('set writes [remote] to config.toml and preserves the campaigns, prints the show summary and the restart note', async (t) => {
   const fx = fixture(t);
   const before = parseConfig(fs.readFileSync(fx.configPath, 'utf8')).config;
-  const r = await run(fx, 'set', { mode: 'proxy', 'admin-url': 'https://Scriptorium.Home.Arpa', 'preview-url': 'https://preview.scriptorium.home.arpa', bind: '192.0.2.42', 'trusted-proxy': '198.51.100.20', port: '7928', 'preview-port': '7929' });
+  const r = await run(fx, 'set', { mode: 'proxy', 'admin-url': 'https://Scriptorium.Home.Arpa', 'preview-url': 'https://preview.scriptorium.home.arpa', bind: '192.0.2.42', 'trusted-proxy': '198.51.100.20', port: String(PANEL_PORT), 'preview-port': String(PREVIEW_PORT) });
   assert.equal(r.exitCode, 0);
   const after = parseConfig(fs.readFileSync(fx.configPath, 'utf8')).config;
   assert.deepEqual(after.campaigns, before.campaigns);
   assert.equal(after.default_campaign, 'alpha');
   assert.deepEqual(plain(after.remote), {
     mode: 'proxy',
-    port: 7928,
-    preview_port: 7929,
+    port: PANEL_PORT,
+    preview_port: PREVIEW_PORT,
     admin_url: 'https://scriptorium.home.arpa',
     preview_url: 'https://preview.scriptorium.home.arpa',
     bind: '192.0.2.42',
@@ -223,7 +226,7 @@ test('set changes only what is given: a second set keeps every other key', async
   const remote = parseConfig(fs.readFileSync(fx.configPath, 'utf8')).config.remote;
   assert.deepEqual(remote.trusted_proxies, ['198.51.100.21', '198.51.100.22']);
   assert.equal(remote.admin_url, 'https://scriptorium.home.arpa');
-  assert.equal(remote.port, 7928);
+  assert.equal(remote.port, PANEL_PORT);
 });
 
 test('set --admin-url http://... is refused with the exact HTTPS message and config.toml is byte-unchanged', async (t) => {
@@ -250,7 +253,7 @@ test('set on a machine with no config creates one (config_version 1, no campaign
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-rcli-')));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const configPath = path.join(root, 'cfg', 'config.toml');
-  const result = await runRemoteCommand({ config: configPath, mode: 'ssh', port: '7928', 'preview-port': '7929' }, 'set', [], { stdin: new PassThrough(), stdout: new PassThrough() });
+  const result = await runRemoteCommand({ config: configPath, mode: 'ssh', port: String(PANEL_PORT), 'preview-port': String(PREVIEW_PORT) }, 'set', [], { stdin: new PassThrough(), stdout: new PassThrough() });
   assert.equal(result.exitCode, 0);
   const parsed = parseConfig(fs.readFileSync(configPath, 'utf8')).config;
   assert.equal(parsed.config_version, 1);
@@ -600,8 +603,8 @@ function panelRequest(port, { method = 'GET', pathname = '/', host, headers = {}
   });
 }
 
-test('Ma11: `remote signout-all` run as a separate process revokes a RUNNING panel\'s session at once (tailscale shape, fixed ports 7928-7929)', { skip: process.platform !== 'linux' }, async (t) => {
-  const fx = fixture(t, '\n[remote]\nmode = "tailscale"\nport = 7928\npreview_port = 7929\nadmin_url = "https://panel-host.example-tailnet.ts.net"\npreview_url = "https://panel-host.example-tailnet.ts.net:8443"\n');
+test('Ma11: `remote signout-all` run as a separate process revokes a RUNNING panel\'s session at once (tailscale shape, fixed ports 7928-7929 through testPort)', { skip: process.platform !== 'linux' }, async (t) => {
+  const fx = fixture(t, `\n[remote]\nmode = "tailscale"\nport = ${PANEL_PORT}\npreview_port = ${PREVIEW_PORT}\nadmin_url = "https://panel-host.example-tailnet.ts.net"\npreview_url = "https://panel-host.example-tailnet.ts.net:8443"\n`);
   const set = await spawnBin(['remote', 'password', '--config', fx.configPath], { input: `${PASSWORD}\n` });
   assert.equal(set.code, 0, set.stderr);
   const signals = new EventEmitter();
@@ -613,25 +616,25 @@ test('Ma11: `remote signout-all` run as a separate process revokes a RUNNING pan
   });
   while (!emitted.some((l) => /Press Ctrl-C/.test(l))) await new Promise((r) => setTimeout(r, 10));
   const host = 'panel-host.example-tailnet.ts.net';
-  const signin = await panelRequest(7928, { method: 'POST', pathname: '/auth/password', host, headers: { Origin: `https://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'gm', password: PASSWORD }) });
+  const signin = await panelRequest(PANEL_PORT, { method: 'POST', pathname: '/auth/password', host, headers: { Origin: `https://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'gm', password: PASSWORD }) });
   assert.equal(signin.status, 200, signin.text);
   const cookie = /__Host-scriptorium_session=([^;]+)/.exec(signin.headers['set-cookie'][0])[1];
-  const ok = await panelRequest(7928, { pathname: '/api/session', host, headers: { Cookie: `__Host-scriptorium_session=${cookie}` } });
+  const ok = await panelRequest(PANEL_PORT, { pathname: '/api/session', host, headers: { Cookie: `__Host-scriptorium_session=${cookie}` } });
   assert.equal(ok.status, 200);
 
   const out = await spawnBin(['remote', 'signout-all', '--config', fx.configPath]);
   assert.equal(out.code, 0, out.stderr);
   assert.equal(out.stdout.trim(), 'signed out 1 remote session(s)');
 
-  const after = await panelRequest(7928, { pathname: '/api/session', host, headers: { Cookie: `__Host-scriptorium_session=${cookie}` } });
+  const after = await panelRequest(PANEL_PORT, { pathname: '/api/session', host, headers: { Cookie: `__Host-scriptorium_session=${cookie}` } });
   assert.equal(after.status, 403);
   assert.equal(after.text, 'refused: session');
   // and a password change from the CLI applies at once to the next sign-in attempt
   const change = await spawnBin(['remote', 'password', '--config', fx.configPath], { input: `${PASSWORD}\n${NEW_PASSWORD}\n` });
   assert.equal(change.code, 0, change.stderr);
-  const stale = await panelRequest(7928, { method: 'POST', pathname: '/auth/password', host, headers: { Origin: `https://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'gm', password: PASSWORD }) });
+  const stale = await panelRequest(PANEL_PORT, { method: 'POST', pathname: '/auth/password', host, headers: { Origin: `https://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'gm', password: PASSWORD }) });
   assert.equal(stale.status, 403);
-  const fresh = await panelRequest(7928, { method: 'POST', pathname: '/auth/password', host, headers: { Origin: `https://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'GM', password: NEW_PASSWORD }) });
+  const fresh = await panelRequest(PANEL_PORT, { method: 'POST', pathname: '/auth/password', host, headers: { Origin: `https://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'GM', password: NEW_PASSWORD }) });
   assert.equal(fresh.status, 200);
 });
 
