@@ -34,11 +34,11 @@ const COMMAND_FLAGS = Object.freeze({
   update: [...COMMON_FLAGS, 'check', 'pre'],
   // V1.5a (ADR 0029): the remote-access command; each subcommand narrows this further itself
   // (src/cli/remote.js), so a flag meant for `set` is refused by `show`.
-  remote: [...COMMON_FLAGS, 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy', 'port', 'preview-port'],
+  remote: [...COMMON_FLAGS, 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy', 'port', 'preview-port', 'account'],
 });
 // Of the accepted flags, the ones that need a value after them (`update --version <tag>` is the one
 // place --version takes a value; elsewhere it is the boolean that prints the version).
-const VALUE_FLAGS = new Set(['campaign', 'config', 'vault', 'out', 'site-config', 'port', 'host', 'name', 'title', 'theme', 'new-vault', 'system', 'preview-port', 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy']);
+const VALUE_FLAGS = new Set(['campaign', 'config', 'vault', 'out', 'site-config', 'port', 'host', 'name', 'title', 'theme', 'new-vault', 'system', 'preview-port', 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy', 'account']);
 
 function editDistance(a, b) {
   const prev = Array.from({ length: b.length + 1 }, (_, j) => j);

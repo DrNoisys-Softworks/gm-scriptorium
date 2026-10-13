@@ -52,16 +52,80 @@
     return 'Listening on ' + l.hosts.join(' and ') + ', ports ' + l.adminPort + ' (panel) and ' + l.previewPort + ' (preview).';
   }
 
-  /** @param {{ active?: boolean, until?: number|null, recentFailures?: number, refused?: number }} lockout @returns {string} */
+  /**
+   * ADR 0054 section 4: a name is paused after five wrong tries, everyone after fifty across all names.
+   *
+   * @param {{ active?: boolean, until?: number|null, recentFailures?: number, refused?: number, pausedAccounts?: string[], pausedOther?: number }} lockout
+   * @returns {string}
+   */
   function lockoutLine(lockout) {
-    if (lockout && lockout.active) {
-      var n = lockout.refused || 0;
-      return 'Remote sign-in is paused until ' + utc(lockout.until) + ' after five wrong passwords. ' + n + (n === 1 ? ' attempt has' : ' attempts have') + ' been turned away. The one-time link on this machine still works.';
+    var l = lockout || {};
+    if (l.active) {
+      var n = l.refused || 0;
+      return 'Remote sign-in is paused for everyone until ' + utc(l.until) + ', after too many wrong tries across all usernames. ' + n + (n === 1 ? ' attempt has' : ' attempts have') + ' been turned away. The one-time link on this machine still works.';
     }
-    var f = (lockout && lockout.recentFailures) || 0;
-    return f === 0
-      ? 'Remote sign-in is open. Five wrong passwords in ten minutes would pause it for fifteen.'
-      : 'Remote sign-in is open. ' + f + (f === 1 ? ' wrong password' : ' wrong passwords') + ' in the last ten minutes; five would pause it for fifteen.';
+    var line = 'Remote sign-in is open. Five wrong tries for one username in ten minutes would pause that username for fifteen.';
+    var f = l.recentFailures || 0;
+    if (f > 0) line += ' ' + f + (f === 1 ? ' wrong try' : ' wrong tries') + ' in the last ten minutes.';
+    var names = l.pausedAccounts || [];
+    var other = l.pausedOther || 0;
+    if (names.length > 0 || other > 0) {
+      var parts = names.slice();
+      if (other > 0) parts.push(other + ' other username' + (other === 1 ? '' : 's'));
+      line += ' Paused now: ' + (names.length > 0 && other > 0 ? names.join(', ') + ', and ' + parts[parts.length - 1] : parts.join(', ')) + '.';
+    }
+    return line;
+  }
+
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  function two(n) {
+    return (n < 10 ? '0' : '') + n;
+  }
+
+  /** "12 Sep 2026, 21:40 UTC", or 'unknown' for anything that is not a time. */
+  function dateTime(iso) {
+    var ms = typeof iso === 'string' ? Date.parse(iso) : NaN;
+    if (!isFinite(ms)) return 'unknown';
+    var d = new Date(ms);
+    return two(d.getUTCDate()) + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear() + ', ' + two(d.getUTCHours()) + ':' + two(d.getUTCMinutes()) + ' UTC';
+  }
+
+  /** "Today, 18:05 UTC", "Yesterday, 22:31 UTC", a full date, or "Never". Days are UTC days. */
+  function lastSigninText(iso, now) {
+    if (iso === null || iso === undefined) return 'Never';
+    var ms = Date.parse(iso);
+    if (!isFinite(ms)) return 'unknown';
+    var day = 86400000;
+    var today = Math.floor(now / day);
+    var then = Math.floor(ms / day);
+    var d = new Date(ms);
+    var time = two(d.getUTCHours()) + ':' + two(d.getUTCMinutes()) + ' UTC';
+    if (then === today) return 'Today, ' + time;
+    if (then === today - 1) return 'Yesterday, ' + time;
+    return dateTime(iso);
+  }
+
+  /**
+   * ADR 0054: the read-only accounts list (mock frame G5). Names and dates, nothing secret.
+   *
+   * @param {{ accounts?: { list?: object[] } }|null} view
+   * @param {number} now
+   * @returns {{ name: string, fromEarlier: boolean, setAt: string, lastSignin: string }[]}
+   */
+  function accountRows(view, now) {
+    var list = view && view.accounts && Array.isArray(view.accounts.list) ? view.accounts.list : [];
+    return list.map(function (a) {
+      return { name: String(a.name), fromEarlier: a.fromEarlierPassword === true, setAt: dateTime(a.setAt), lastSignin: lastSigninText(a.lastSignin, now) };
+    });
+  }
+
+  /** @returns {string} the line above the accounts list */
+  function accountsNote(view) {
+    var state = view && view.accounts ? view.accounts.state : 'unset';
+    if (state === 'set') return 'These people can sign in to the console. Every account has the same rights. This list is read-only.';
+    if (state === 'invalid') return 'The saved accounts cannot be read, so nobody can sign in remotely. Run "gm-scriptorium remote off" and add the accounts again.';
+    return 'No account can sign in remotely yet. Add one with the command below.';
   }
 
   /**
@@ -102,7 +166,6 @@
     return [
       { label: 'Turn on or change', command: set },
       { label: 'Turn off', command: 'gm-scriptorium remote off' },
-      { label: 'Set or change the password', command: 'gm-scriptorium remote password' },
       { label: 'Sign out every device', command: 'gm-scriptorium remote signout-all' },
     ];
   }
@@ -140,13 +203,15 @@
   function healthItems(view) {
     var v = view || {};
     var items = [{ label: 'HTTPS', text: httpsShort(v), state: 'ok', bad: false }];
-    var pw = v.password || {};
-    var noPw = v.mode === 'local' || v.mode === 'ssh';
+    var acc = v.accounts || { state: 'unset', list: [] };
+    var count = Array.isArray(acc.list) ? acc.list.length : 0;
+    var noAcc = v.mode === 'local' || v.mode === 'ssh';
+    var accOk = acc.state === 'set' && count > 0;
     items.push({
-      label: 'Password',
-      text: pw.set ? 'set ' + String(pw.setAt || '').slice(0, 10) : noPw ? 'not needed in this mode' : 'not set',
-      state: pw.set || noPw ? 'ok' : 'bad',
-      bad: !pw.set && !noPw,
+      label: 'Accounts',
+      text: accOk ? count + ' set' : noAcc ? 'not needed in this mode' : acc.state === 'invalid' ? 'the saved accounts cannot be read' : 'none set',
+      state: accOk || noAcc ? 'ok' : 'bad',
+      bad: !accOk && !noAcc,
     });
     items.push({ label: 'Listening', text: listeningShort(v), state: 'ok', bad: false });
     var audit = v.audit || { ok: true };
@@ -196,7 +261,7 @@
     }
     if (a.admin) code('Address', a.admin);
     if (a.preview) code('Preview', a.preview);
-    plain('Sign in', 'Your panel password. The one-time link still works on this machine.');
+    plain('Sign in', 'Your username and password. The one-time link still works on this machine.');
     var answers = (v.listening && v.listening.answers) || [];
     plain('Listens on', v.mode === 'tailscale' ? 'This machine only; tailscale serve connects to it. Your tailnet rules decide who can reach the address.' : 'Ports ' + listeningShort(v) + (answers.length ? ', answering ' + answers.join(', ') : ''));
     return rows;
@@ -216,6 +281,8 @@
     httpsShort: httpsShort,
     listeningShort: listeningShort,
     summaryRows: summaryRows,
+    accountRows: accountRows,
+    accountsNote: accountsNote,
   };
 
   if (typeof module === 'object' && module.exports) {
@@ -375,6 +442,59 @@
       mode.appendChild(text('p', 'rm-note', RA.lockoutLine(view.lockout) + ' ' + view.sessions.active + (view.sessions.active === 1 ? ' remote device is signed in.' : ' remote devices are signed in.')));
       root.appendChild(mode);
 
+      // ADR 0054 (mock G5): the accounts that can sign in. Read-only, names and dates, never a secret.
+      var acct = el('section', 'ga-acc');
+      acct.setAttribute('aria-labelledby', 'ga-acc-h');
+      var acctHead = text('h2', 'a1-rule', 'Accounts');
+      acctHead.id = 'ga-acc-h';
+      acct.appendChild(acctHead);
+      acct.appendChild(text('p', 'rm-note', RA.accountsNote(view)));
+      var acctRows = RA.accountRows(view, Date.now());
+      if (acctRows.length > 0) {
+        var acctWrap = el('div', 'a1-tw');
+        acctWrap.tabIndex = 0;
+        acctWrap.setAttribute('role', 'region');
+        acctWrap.setAttribute('aria-label', 'Accounts that can sign in');
+        var acctTable = el('table', 'a1-table');
+        acctTable.appendChild(text('caption', 'rm-sr', 'Accounts that can sign in'));
+        var acctHeadRow = el('tr');
+        ['Name', 'Password set', 'Last sign-in'].forEach(function (h) {
+          var th = text('th', '', h);
+          th.scope = 'col';
+          acctHeadRow.appendChild(th);
+        });
+        var acctThead = el('thead');
+        acctThead.appendChild(acctHeadRow);
+        acctTable.appendChild(acctThead);
+        var acctBody = el('tbody');
+        acctRows.forEach(function (r) {
+          var tr = el('tr');
+          var nameCell = el('td', 'ga-name');
+          nameCell.appendChild(text('code', '', r.name));
+          if (r.fromEarlier) {
+            nameCell.appendChild(document.createTextNode(' '));
+            nameCell.appendChild(text('span', 'a1-pill muted', 'from your earlier password'));
+          }
+          tr.appendChild(nameCell);
+          var setCell = text('td', '', r.setAt);
+          setCell.setAttribute('data-h', 'Password set');
+          tr.appendChild(setCell);
+          var lastCell = text('td', '', r.lastSignin);
+          lastCell.setAttribute('data-h', 'Last sign-in');
+          tr.appendChild(lastCell);
+          acctBody.appendChild(tr);
+        });
+        acctTable.appendChild(acctBody);
+        acctWrap.appendChild(acctTable);
+        acct.appendChild(acctWrap);
+      }
+      var hint = el('div', 'ga-hint');
+      hint.appendChild(text('span', 'ga-hint-l', 'Manage accounts with:'));
+      hint.appendChild(document.createTextNode(' '));
+      hint.appendChild(text('code', 'rm-cmd', 'gm-scriptorium remote ...'));
+      acct.appendChild(hint);
+      root.appendChild(acct);
+
       var recent = el('section', 'rm-recent');
       recent.setAttribute('aria-labelledby', 'rm-recent-h');
       var recentHead = el('h2', 'a1-rule');
@@ -384,7 +504,7 @@
       recent.appendChild(recentHead);
       recent.appendChild(table(RA.signinRows(view.recentSignins), 'Sign-ins in the last 7 days'));
       var bar = el('div', 'a1-bar rm-bar');
-      bar.appendChild(text('span', 'grow', 'Every sign-in attempt is kept for 90 days beside your config. Never passwords, one-time links or cookies.' + (on ? ' Five wrong passwords in ten minutes pauses remote sign-in for fifteen.' : '')));
+      bar.appendChild(text('span', 'grow', 'Every sign-in attempt is kept for 90 days beside your config. Never passwords, one-time links or cookies.' + (on ? ' Five wrong tries for one username in ten minutes pauses that username for fifteen.' : '')));
       var fullBtn = button('Full log', 'a1-btn ghost small', 'file');
       fullBtn.setAttribute('aria-expanded', showLog ? 'true' : 'false');
       fullBtn.addEventListener('click', function () {

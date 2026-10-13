@@ -276,3 +276,27 @@ test('package.js verifies the starter template tree before it builds any target 
   assert.ok(gate > 0 && build > gate, 'the template check comes before the pkg build');
   assert.match(source.slice(gate, build), /return \{ ok: false \}/);
 });
+
+test('package.js brands the win base after the template gate and before the pkg build (I2a-1)', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'scripts', 'package.js'), 'utf8');
+  const gate6 = source.indexOf('verifyTemplateTree(path.join(ROOT');
+  const brand = source.indexOf("WINRES_PATH, 'brand'");
+  const build = source.indexOf('debugText = execFileSync(');
+  assert.ok(gate6 > 0 && brand > gate6 && build > brand, 'branding sits between gate 6 and the build');
+});
+
+test('package.js runs the Windows branding check (gate 7) after the self-test and before hashing (I2a-1)', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'scripts', 'package.js'), 'utf8');
+  const probe = source.indexOf('execVersionProbe(');
+  const check = source.indexOf("WINRES_PATH, 'check'");
+  const hash = source.indexOf("createHash('sha256')");
+  assert.ok(probe > 0 && check > probe && hash > check, 'gate 7 sits between the self-test and the hash');
+  assert.match(source, /refusing to ship \$\{target\}, the Windows branding check failed/);
+});
+
+test('package.js never assigns to process.env and never requires resedit (I2a-1)', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'scripts', 'package.js'), 'utf8');
+  assert.doesNotMatch(source, /process\.env(\.[A-Za-z_]+|\[[^\]]+\])\s*=[^=]/);
+  assert.doesNotMatch(source, /Object\.assign\(\s*process\.env/);
+  assert.doesNotMatch(source, /require\(['"](resedit|pe-library)['"]\)/);
+});

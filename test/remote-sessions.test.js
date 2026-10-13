@@ -284,3 +284,97 @@ test('a randomBytes injection fixes the credential (the digest oracle)', (t) => 
   assert.equal(out.credential, Buffer.alloc(32, 0xab).toString('base64url'));
   assert.equal(out.id, sha(out.credential));
 });
+
+// --- ADR 0054 section 3: a session records its account ---------------------------------------------
+
+test('create admin with an account stores it; verify returns it; a preview child has no account of its own', (t) => {
+  const { make, file } = setup(t);
+  const store = make();
+  const rook = store.create('admin', { account: 'rook' });
+  assert.equal(store.verify('admin', rook.credential).account, 'rook');
+  const preview = store.create('preview', { parentId: rook.id });
+  assert.equal(store.verify('preview', preview.credential).account, undefined);
+  const disk = JSON.parse(fs.readFileSync(file, 'utf8')).sessions;
+  assert.equal(disk.find((r) => r.id === rook.id).account, 'rook');
+  assert.equal('account' in disk.find((r) => r.id === preview.id), false);
+});
+
+test('the account survives a reload from disk (a SECOND store sees it)', (t) => {
+  const { make } = setup(t);
+  const first = make();
+  const { credential } = first.create('admin', { account: 'saffron' });
+  assert.equal(make().verify('admin', credential).account, 'saffron');
+});
+
+test('a record with no account (created before accounts existed) still verifies and counts as gm for revokeAccount', (t) => {
+  const { make } = setup(t);
+  const store = make();
+  const { credential } = store.create('admin');
+  assert.equal(store.verify('admin', credential).account, undefined);
+  const other = store.create('admin', { account: 'rook' });
+  const out = make().revokeAccount('gm');
+  assert.deepEqual(out, { count: 1 });
+  const again = make();
+  assert.equal(again.verify('admin', credential), null, 'the legacy session is gone');
+  assert.ok(again.verify('admin', other.credential), 'rook is untouched');
+});
+
+test('revokeAccount signs out that account only, with its preview children, and returns the count of admin sessions', (t) => {
+  const { make } = setup(t);
+  const store = make();
+  const a1 = store.create('admin', { account: 'rook' });
+  const a2 = store.create('admin', { account: 'rook' });
+  const b = store.create('admin', { account: 'saffron' });
+  const p1 = store.create('preview', { parentId: a1.id });
+  const pb = store.create('preview', { parentId: b.id });
+  assert.deepEqual(store.revokeAccount('rook'), { count: 2 });
+  assert.equal(store.verify('admin', a1.credential), null);
+  assert.equal(store.verify('admin', a2.credential), null);
+  assert.equal(store.verify('preview', p1.credential), null, 'the preview child goes with its parent');
+  assert.ok(store.verify('admin', b.credential));
+  assert.ok(store.verify('preview', pb.credential));
+  // persisted
+  const reloaded = make();
+  assert.equal(reloaded.verify('admin', a1.credential), null);
+  assert.ok(reloaded.verify('admin', b.credential));
+});
+
+test('revokeAccount for an account with no sessions returns 0 and writes nothing', (t) => {
+  const { make, file } = setup(t);
+  const store = make();
+  assert.deepEqual(store.revokeAccount('rook'), { count: 0 });
+  assert.equal(fs.existsSync(file), false);
+  const b = store.create('admin', { account: 'saffron' });
+  const mtime = fs.statSync(file).mtimeMs;
+  assert.deepEqual(store.revokeAccount('rook'), { count: 0 });
+  assert.equal(fs.statSync(file).mtimeMs, mtime);
+  assert.ok(store.verify('admin', b.credential));
+});
+
+test('revokeAccount notices a change another process made (the running panel and the CLI share the file)', (t) => {
+  const { make } = setup(t);
+  const running = make();
+  const rook = running.create('admin', { account: 'rook' });
+  const cli = make();
+  cli.revokeAccount('rook');
+  assert.equal(running.verify('admin', rook.credential), null);
+});
+
+test('load drops a record whose account is present but not a valid name, and keeps the ones that are', (t) => {
+  const { make, file } = setup(t);
+  const good = make().create('admin', { account: 'rook' });
+  const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const base = doc.sessions[0];
+  const mk = (n, account) => ({ ...base, id: crypto.createHash('sha256').update(`x${n}`).digest('hex'), account });
+  doc.sessions.push(mk(1, 'Rook'), mk(2, 'ro ok'), mk(3, 5), mk(4, ''), mk(5, 'a'.repeat(33)), mk(6, '.x'), mk(7, null));
+  fs.writeFileSync(file, JSON.stringify(doc));
+  const store = make();
+  assert.ok(store.verify('admin', good.credential));
+  assert.equal(store.activeCount(), 1, 'only the valid record loaded');
+});
+
+test('create validates the account it is given: a name that is not canonical is refused', (t) => {
+  const { make } = setup(t);
+  const store = make();
+  for (const bad of ['Rook', 'ro ok', '', 5, '.x']) assert.throws(() => store.create('admin', { account: bad }), /account/, String(bad));
+});

@@ -56,6 +56,10 @@ function isStrictlyInside(realBase, realTarget) {
 const VAULT_ROOT_REFUSAL = (p, real) =>
   `refusing to write the campaign pack: ${p} resolves to the vault root, not inside it (${real})`;
 
+/** Issue #24: the shared refusal for a pack folder whose real path is not strictly inside the real _meta. */
+const outsideMetaRefusal = (p, real) =>
+  `refusing to write the campaign pack: ${p} resolves outside the vault's _meta folder (${real})`;
+
 /** A plain relative POSIX rel: no empty/backslash/leading-slash/drive-letter path, no empty/"."/".." segment. */
 function isPlainRel(rel) {
   if (typeof rel !== 'string' || rel.length === 0) return false;
@@ -171,6 +175,10 @@ function createPackEntries(vaultPath, entries, { campaign = null } = {}) {
   }
 
   const realPackDir = fs.realpathSync(packDir);
+  // Issue #24 (ADR 0021): the pack folder must sit strictly inside the real _meta.
+  if (!isStrictlyInside(realMeta, realPackDir)) {
+    throw new ConfigError(outsideMetaRefusal(packDir, realPackDir), { path: packDir, campaign });
+  }
 
   // 4. Write each entry, in the given order.
   const created = [];
@@ -241,4 +249,4 @@ function createPackEntries(vaultPath, entries, { campaign = null } = {}) {
   return { packDir, createdPackDir, created };
 }
 
-module.exports = { packDirFor, isInsideOrEqual, isStrictlyInside, createPackEntries };
+module.exports = { packDirFor, isInsideOrEqual, isStrictlyInside, createPackEntries, outsideMetaRefusal };

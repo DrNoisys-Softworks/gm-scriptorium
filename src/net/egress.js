@@ -5,8 +5,7 @@ const https = require('https');
 const { NetError } = require('./errors');
 
 /*
- * The one module that makes outgoing connections (ADR 0024). Nothing in the command-line tool
- * reaches it yet.
+ * The one module that makes outgoing connections (ADR 0024). `update` reaches GitHub through it.
  *
  * What it does:
  *  - Reaches only the entries of DESTINATIONS, a list written in this file. Nothing in a config
@@ -16,7 +15,9 @@ const { NetError } = require('./errors');
  *    when a URL is matched.
  *  - Verifies TLS on every https request and gives a request no way to change that. The shipped
  *    client sets no trust list of its own.
- *  - Treats every redirect as an error and never reads where it pointed.
+ *  - Treats every redirect as an error and never reads where it pointed, unless a request opts in
+ *    with `redirectTo`: then one GET hop to another listed destination is followed, with none of
+ *    the caller's headers, and the Location header is read in exactly one place (ADR 0024 amendment).
  *  - Never reads proxy settings: each client owns a private agent.
  *  - Limits connect time, idle time and total time, honours an abort signal, and cuts a reply at a
  *    byte cap.
@@ -44,8 +45,10 @@ const REAL_LOCAL_PORTS = Object.freeze([11434, 1234]);
 const OPTION_KEYS = new Set([
   'destination', 'url', 'method', 'headers', 'body', 'signal',
   'connectTimeoutMs', 'idleTimeoutMs', 'totalTimeoutMs', 'maxResponseBytes',
-  'onResponse', 'onChunk',
+  'onResponse', 'onChunk', 'redirectTo',
 ]);
+const FOLLOWED_STATUSES = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECT_IDS = 4;
 const LIMIT_KEYS = ['connectTimeoutMs', 'idleTimeoutMs', 'totalTimeoutMs', 'maxResponseBytes'];
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
 const REFUSED_HEADERS = new Set([
@@ -100,6 +103,9 @@ function validateDestinations(list) {
 const DESTINATIONS = validateDestinations([
   { id: 'ollama', scheme: 'http', host: '127.0.0.1', port: 11434 },
   { id: 'lmstudio', scheme: 'http', host: '127.0.0.1', port: 1234 },
+  { id: 'github-api', scheme: 'https', host: 'api.github.com', port: 443 },
+  { id: 'github', scheme: 'https', host: 'github.com', port: 443 },
+  { id: 'github-release-assets', scheme: 'https', host: 'release-assets.githubusercontent.com', port: 443 },
 ]);
 
 function matchDestination(urlString, destinations, id) {
@@ -138,7 +144,7 @@ function checkHeaders(headers) {
   return out;
 }
 
-function checkOptions(opts) {
+function checkOptions(opts, destinations) {
   if (opts === null || typeof opts !== 'object' || Array.isArray(opts)) throw badOptions('options');
   for (const key of Object.keys(opts)) if (!OPTION_KEYS.has(key)) throw badOptions('unknown-option');
   if (typeof opts.destination !== 'string') throw badOptions('destination');
@@ -162,7 +168,19 @@ function checkOptions(opts) {
   for (const key of ['onResponse', 'onChunk']) {
     if (opts[key] !== undefined && typeof opts[key] !== 'function') throw badOptions('callback');
   }
-  return { method, headers, body, limits };
+  let redirectTo;
+  if (opts.redirectTo !== undefined) {
+    const list = opts.redirectTo;
+    if (method !== 'GET' || body !== undefined) throw badOptions('redirect');
+    if (!Array.isArray(list) || list.length < 1 || list.length > MAX_REDIRECT_IDS) throw badOptions('redirect');
+    const ids = new Set();
+    for (const id of list) {
+      if (typeof id !== 'string' || ids.has(id) || !destinations.some((d) => d.id === id)) throw badOptions('redirect');
+      ids.add(id);
+    }
+    redirectTo = [...ids];
+  }
+  return { method, headers, body, limits, redirectTo };
 }
 
 function codeOf(err) {
@@ -174,22 +192,26 @@ function createClient(destinations, testCa) {
   const httpsAgent = new https.Agent({ keepAlive: false, maxSockets: 4 });
 
   async function request(opts) {
-    const { method, headers, body, limits } = checkOptions(opts);
-    const { entry, url } = matchDestination(opts.url, destinations, opts.destination);
+    const { method, headers, body, limits, redirectTo } = checkOptions(opts, destinations);
+    const first = matchDestination(opts.url, destinations, opts.destination);
     if (opts.signal && opts.signal.aborted) throw new NetError('E_NET_ABORTED');
-    const secure = entry.scheme === 'https';
-    const nodeOptions = {
-      protocol: url.protocol,
-      hostname: url.hostname,
-      port: entry.port,
-      path: url.pathname + url.search,
-      method,
-      headers: body || method === 'POST' ? { ...headers, 'content-length': String(body ? body.length : 0) } : headers,
-      agent: secure ? httpsAgent : httpAgent,
-      rejectUnauthorized: true,
-      insecureHTTPParser: false,
-    };
-    if (testCa !== undefined) nodeOptions.ca = testCa;
+
+    function nodeOptionsFor({ entry, url }, hopMethod, hopHeaders, hopBody) {
+      const isSecure = entry.scheme === 'https';
+      const o = {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: entry.port,
+        path: url.pathname + url.search,
+        method: hopMethod,
+        headers: hopBody || hopMethod === 'POST' ? { ...hopHeaders, 'content-length': String(hopBody ? hopBody.length : 0) } : hopHeaders,
+        agent: isSecure ? httpsAgent : httpAgent,
+        rejectUnauthorized: true,
+        insecureHTTPParser: false,
+      };
+      if (testCa !== undefined) o.ca = testCa;
+      return o;
+    }
 
     return new Promise((resolve, reject) => {
       const started = Date.now();
@@ -200,6 +222,9 @@ function createClient(destinations, testCa) {
       let res = null;
       let tcpConnected = false;
       let secured = false;
+      let secure = first.entry.scheme === 'https';
+      let current = first;
+      let hop = 0;
       let bytes = 0;
 
       function arm(phase, ms) {
@@ -234,90 +259,143 @@ function createClient(destinations, testCa) {
         arm('idle', limits.idleTimeoutMs);
       }
 
+      // The one hop (ADR 0024 amendment). The checks run in this order, all before any name lookup
+      // or socket for the hop. The hop is a bare GET: none of the caller's headers go with it.
+      function followRedirect(r, status) {
+        const refuse = (reason) => settle(new NetError('E_NET_REDIRECT', { status, reason }));
+        if (hop > 0) return refuse('second-hop');
+        if (!FOLLOWED_STATUSES.has(status)) return refuse('not-followed');
+        const where = r.headers.location;
+        if (typeof where !== 'string' || where === '') return refuse('no-location');
+        let target;
+        try {
+          target = new URL(where, current.url);
+        } catch (_) {
+          return refuse('bad-location');
+        }
+        let matched = null;
+        for (const id of redirectTo) {
+          try {
+            matched = matchDestination(target.href, destinations, id);
+            break;
+          } catch (_) {
+            // not this id; the next one may match
+          }
+        }
+        if (!matched) return refuse('off-list');
+        if (secure && matched.entry.scheme !== 'https') return refuse('downgrade');
+        hop = 1;
+        r.destroy();
+        disarm('connect');
+        disarm('idle');
+        arm('connect', limits.connectTimeoutMs);
+        current = matched;
+        secure = matched.entry.scheme === 'https';
+        send(nodeOptionsFor(matched, 'GET', {}, undefined), undefined);
+      }
+
+      function send(nodeOptions, sendBody) {
+        tcpConnected = false;
+        secured = false;
+        res = null;
+        let mine;
+        try {
+          mine = (secure ? https : http).request(nodeOptions);
+        } catch (_) {
+          settle(badOptions('request'));
+          return;
+        }
+        req = mine;
+        const stale = () => req !== mine;
+
+        mine.on('socket', (socket) => {
+          socket.once('connect', () => {
+            if (stale()) return;
+            tcpConnected = true;
+            if (!secure) connected();
+          });
+          if (secure) {
+            socket.once('secureConnect', () => {
+              if (stale()) return;
+              secured = true;
+              connected();
+            });
+          }
+        });
+
+        mine.on('error', (err) => {
+          if (stale()) return;
+          if (res) settle(new NetError('E_NET_INCOMPLETE', { syscallCode: codeOf(err) }));
+          else if (secure && tcpConnected && !secured) settle(new NetError('E_NET_TLS', { tlsCode: codeOf(err) }));
+          else settle(new NetError('E_NET_CONNECT', { syscallCode: codeOf(err) }));
+        });
+
+        mine.on('response', (r) => {
+          if (stale()) return;
+          res = r;
+          const status = r.statusCode;
+          if (status >= 300 && status <= 399) {
+            if (redirectTo === undefined) settle(new NetError('E_NET_REDIRECT', { status }));
+            else followRedirect(r, status);
+            return;
+          }
+          r.on('error', (err) => {
+            if (!stale()) settle(new NetError('E_NET_INCOMPLETE', { syscallCode: codeOf(err) }));
+          });
+          try {
+            if (opts.onResponse) opts.onResponse({ status, headers: { ...r.headers } });
+          } catch (_) {
+            settle(new NetError('E_NET_CALLBACK'));
+            return;
+          }
+          r.on('data', (chunk) => {
+            if (settled || stale()) return;
+            let take = chunk;
+            const over = bytes + chunk.length > limits.maxResponseBytes;
+            if (over) take = chunk.subarray(0, limits.maxResponseBytes - bytes);
+            bytes += take.length;
+            if (take.length > 0) {
+              if (opts.onChunk) {
+                try {
+                  opts.onChunk(take);
+                } catch (_) {
+                  settle(new NetError('E_NET_CALLBACK'));
+                  return;
+                }
+              } else {
+                chunks.push(take);
+              }
+            }
+            if (over) {
+              settle(new NetError('E_NET_RESPONSE_CAP', { limit: limits.maxResponseBytes }));
+              return;
+            }
+            disarm('idle');
+            arm('idle', limits.idleTimeoutMs);
+          });
+          r.on('end', () => {
+            if (stale()) return;
+            settle(null, {
+              status,
+              headers: { ...r.headers },
+              body: opts.onChunk ? null : Buffer.concat(chunks),
+              bytes,
+              durationMs: Date.now() - started,
+            });
+          });
+          r.on('close', () => {
+            if (!stale() && !r.complete) settle(new NetError('E_NET_INCOMPLETE'));
+          });
+        });
+
+        mine.end(sendBody);
+      }
+
       arm('connect', limits.connectTimeoutMs);
       arm('total', limits.totalTimeoutMs);
       if (opts.signal) opts.signal.addEventListener('abort', onAbort, { once: true });
 
-      try {
-        req = (secure ? https : http).request(nodeOptions);
-      } catch (_) {
-        settle(badOptions('request'));
-        return;
-      }
-
-      req.on('socket', (socket) => {
-        socket.once('connect', () => {
-          tcpConnected = true;
-          if (!secure) connected();
-        });
-        if (secure) {
-          socket.once('secureConnect', () => {
-            secured = true;
-            connected();
-          });
-        }
-      });
-
-      req.on('error', (err) => {
-        if (res) settle(new NetError('E_NET_INCOMPLETE', { syscallCode: codeOf(err) }));
-        else if (secure && tcpConnected && !secured) settle(new NetError('E_NET_TLS', { tlsCode: codeOf(err) }));
-        else settle(new NetError('E_NET_CONNECT', { syscallCode: codeOf(err) }));
-      });
-
-      req.on('response', (r) => {
-        res = r;
-        const status = r.statusCode;
-        if (status >= 300 && status <= 399) {
-          settle(new NetError('E_NET_REDIRECT', { status }));
-          return;
-        }
-        r.on('error', (err) => settle(new NetError('E_NET_INCOMPLETE', { syscallCode: codeOf(err) })));
-        try {
-          if (opts.onResponse) opts.onResponse({ status, headers: { ...r.headers } });
-        } catch (_) {
-          settle(new NetError('E_NET_CALLBACK'));
-          return;
-        }
-        r.on('data', (chunk) => {
-          if (settled) return;
-          let take = chunk;
-          const over = bytes + chunk.length > limits.maxResponseBytes;
-          if (over) take = chunk.subarray(0, limits.maxResponseBytes - bytes);
-          bytes += take.length;
-          if (take.length > 0) {
-            if (opts.onChunk) {
-              try {
-                opts.onChunk(take);
-              } catch (_) {
-                settle(new NetError('E_NET_CALLBACK'));
-                return;
-              }
-            } else {
-              chunks.push(take);
-            }
-          }
-          if (over) {
-            settle(new NetError('E_NET_RESPONSE_CAP', { limit: limits.maxResponseBytes }));
-            return;
-          }
-          disarm('idle');
-          arm('idle', limits.idleTimeoutMs);
-        });
-        r.on('end', () => {
-          settle(null, {
-            status,
-            headers: { ...r.headers },
-            body: opts.onChunk ? null : Buffer.concat(chunks),
-            bytes,
-            durationMs: Date.now() - started,
-          });
-        });
-        r.on('close', () => {
-          if (!r.complete) settle(new NetError('E_NET_INCOMPLETE'));
-        });
-      });
-
-      req.end(body);
+      send(nodeOptionsFor(first, method, headers, body), body);
     });
   }
 

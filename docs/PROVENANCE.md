@@ -1169,3 +1169,32 @@ scaffold's own sha256 for two sample runs per system, and a test renders both ba
 Attribution travels three ways: every new vault holds `_meta/NOTICE.txt`, Section 8 of
 `THIRD-PARTY-NOTICES.txt` carries the licence text and the file list, and the manifest names the
 source. The starter holds no binary file, so the public-guard residual classes are unchanged.
+
+## Windows icon and version strings, 2026-10-12
+
+The Windows executable carries the Lantern icon and a version table that names GM-Scriptorium
+(criterion C142 in the Windows verification runbook). `scripts/winres.js` writes both onto a copy
+of the packager's Windows base binary before the packager appends the program to it. The base binary
+is checked against the hash the packager ships for it first.
+
+Two build-time packages do the editing. Both are development dependencies, pinned to an exact
+version, used only by `scripts/winres.js`, and neither is shipped inside the executable, so the
+runtime dependencies and `THIRD-PARTY-NOTICES.txt` are unchanged.
+
+| Package | Version | Licence | Author | Source |
+|---|---|---|---|---|
+| `resedit` | 3.1.0 | MIT | jet2jet | https://github.com/jet2jet/resedit-js |
+| `pe-library` | 2.0.1 | MIT | jet2jet | https://github.com/jet2jet/pe-library |
+
+The icon and its drawings are original artwork made for this project, covered by the project's MIT
+licence. The `.ico` was built from the two SVG files: rendered to PNG with `rsvg-convert` at eight sizes
+(16, 20, 24, 32, 40, 48, 64 and 256) and packed by a short script. All eight entries are PNG-compressed.
+
+| File | sha256 |
+|---|---|
+| `packaging/windows/gm-scriptorium.ico` | `601a53500f56c6a76171254a9ebe18ad2fc7f8cf3a8e8c8d9aff44eb3b922278` |
+| `packaging/windows/art/A-lantern-tile.svg` | `999e7bfc16a7aa2910b2b7e25af266d0b134013dcd87bfc684772656759a1372` |
+| `packaging/windows/art/A-lantern-tile-small.svg` | `79de01649e7cdf012780a49c2a9d4f6ee57feec2bf2a268bbf00a354b4d8b404` |
+
+The `.ico` is a binary file, so the public-guard residual classes now include one committed binary
+art file. It holds no text a guard list could match beyond the image data.

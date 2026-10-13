@@ -31,7 +31,7 @@ Only the release process and the documents. No program code changes.
 
 ## Limits
 
-- **Self-updated programs carry no Mark-of-the-Web.** Windows tags files that arrive through a browser, and SmartScreen only prompts for tagged files. `update` downloads through `gh`, so the new program is not tagged and SmartScreen does not prompt on that path. That is expected, and it means the checksum list, not SmartScreen, is what protects an update.
+- **Self-updated programs carry no Mark-of-the-Web.** Windows tags files that arrive through a browser, and SmartScreen only prompts for tagged files. `update` downloads through its own connection, not a browser, so the new program is not tagged and SmartScreen does not prompt on that path. That is expected, and it means the checksum list, not SmartScreen, is what protects an update.
 - **A new certificate draws reputation warnings.** SmartScreen trusts a certificate more as more people run programs signed with it. Until then, a first run of a downloaded executable may still show "Windows protected your PC", even though the signature is valid. The install guide says to click More info, then Run anyway. If Smart App Control is on and does not trust the certificate yet, it may block the program.
 - **Signatures stay valid after the certificate expires.** Every signature is timestamped, so Windows judges it as of the time of signing. A release signed in time stays valid. Releases are never changed after publishing, so they are never re-signed. Signing a new release after the certificate expires needs a renewed certificate.
 

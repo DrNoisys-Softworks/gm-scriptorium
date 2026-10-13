@@ -37,6 +37,10 @@ const AUDIT_KEYS = Object.freeze([
   'source',
   'path',
   'affected',
+  // ADR 0054: the account a sign-in or an account change concerns (an existing name, or "unknown"),
+  // and which lockout ("all" or "name") a pause belongs to. Never the text a visitor typed.
+  'account',
+  'scope',
 ]);
 
 const MAX_STRING = 256;

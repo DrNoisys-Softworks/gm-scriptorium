@@ -415,7 +415,7 @@ async function startRemote(t, { probe } = {}) {
       req.end();
     });
 
-  const signin = await send('POST', '/auth/password', { password: PASSWORD });
+  const signin = await send('POST', '/auth/password', { username: 'gm', password: PASSWORD });
   assert.equal(signin.status, 200, signin.text);
   const cookie = `__Host-scriptorium_session=${/__Host-scriptorium_session=([A-Za-z0-9_-]+)/.exec([].concat(signin.headers['set-cookie']).join(';'))[1]}`;
   return { fx, ctx, send: (m, p, b, extra) => send(m, p, b, { Cookie: cookie, ...extra }) };

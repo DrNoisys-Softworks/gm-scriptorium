@@ -22,6 +22,8 @@ const { ConfigError, VaultUnreachableError } = require('../src/util/errors');
 const pw = require('../src/remote/password');
 const pwWrite = require('../src/remote/passwordwrite');
 const { createSessionStore } = require('../src/remote/sessions');
+const accounts = require('../src/remote/accounts');
+const { remotePaths } = require('../src/remote/paths');
 
 /*
  * V1.5a (SD-a13). `gm-scriptorium remote`: set / show / password / signout-all / off, readSecret, and
@@ -59,6 +61,9 @@ trusted_proxies = ["198.51.100.20"]
 
 const sha = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const pwFile = (fx) => path.join(fx.panelDir, 'password.json');
+const accFile = (fx) => path.join(fx.panelDir, 'accounts.json');
+const accountsOf = (fx) => accounts.readAccounts(remotePaths(fx.configPath));
+const gmRecord = (fx) => accountsOf(fx).accounts.find((a) => a.name === 'gm').record;
 
 /** A stdin/stdout pair for a non-TTY run: lines go in, the output is collected. */
 function pipes(lines) {
@@ -110,8 +115,8 @@ function spawnBin(args, { input, env = {} } = {}) {
 
 test('an unknown or missing subcommand is a usage error', async (t) => {
   const fx = fixture(t);
-  await refuses(runRemoteCommand({ config: fx.configPath }, undefined, []), 'usage: gm-scriptorium remote show | set | password | signout-all | off');
-  await refuses(runRemoteCommand({ config: fx.configPath }, 'bogus', []), 'usage: gm-scriptorium remote show | set | password | signout-all | off');
+  await refuses(runRemoteCommand({ config: fx.configPath }, undefined, []), 'usage: gm-scriptorium remote show | set | account | password | signout-all | off');
+  await refuses(runRemoteCommand({ config: fx.configPath }, 'bogus', []), 'usage: gm-scriptorium remote show | set | account | password | signout-all | off');
 });
 
 test('each subcommand has a flag allowlist (config is always allowed), and takes no positional arguments', async (t) => {
@@ -120,6 +125,7 @@ test('each subcommand has a flag allowlist (config is always allowed), and takes
   await refuses(run(fx, 'set', { host: '0.0.0.0', port: '7400' }), 'remote set does not accept --host');
   await refuses(run(fx, 'password', { mode: 'proxy' }), 'remote password does not accept --mode');
   await refuses(run(fx, 'signout-all', { bind: '1.2.3.4' }), 'remote signout-all does not accept --bind');
+  await refuses(run(fx, 'show', { account: 'rook' }), 'remote show does not accept --account');
   await refuses(run(fx, 'off', { yes: true }), 'remote off does not accept --yes');
   await refuses(run(fx, 'show', {}, ['extra']), 'remote show takes no arguments');
   await refuses(run(fx, 'set', { port: '7400' }, ['extra']), 'remote set takes no arguments');
@@ -132,7 +138,7 @@ test('show on a fresh config: mode local, nothing configured, ready, and no pane
   const fx = fixture(t);
   const r = await run(fx, 'show');
   assert.equal(r.exitCode, 0);
-  assert.equal(r.human, ['mode: local (This computer only)', 'https: not needed on this computer', 'password: not set', 'remote sessions: 0 signed in', 'ready: yes', `files: ${fx.panelDir}`].join('\n'));
+  assert.equal(r.human, ['mode: local (This computer only)', 'https: not needed on this computer', 'accounts: none', 'remote sessions: 0 signed in', 'ready: yes', `files: ${fx.panelDir}`].join('\n'));
   assert.equal(fs.existsSync(fx.panelDir), false);
 });
 
@@ -148,15 +154,15 @@ test('show for a proxy configuration lists only what applies, and says what is m
       'listening: 192.0.2.42 and 127.0.0.1, ports 7928 (panel) and 7929 (preview)',
       'trusted proxy: 198.51.100.20',
       'https: by your proxy (the hop to GM-Scriptorium is plain HTTP)',
-      'password: not set',
+      'accounts: none',
       'remote sessions: 0 signed in',
-      'not ready: remote access (mode proxy) needs a password: run "gm-scriptorium remote password"',
+      'not ready: remote access (mode proxy) needs an account: run "gm-scriptorium remote account add <name>"',
       `files: ${fx.panelDir}`,
     ].join('\n'),
   );
 });
 
-test('show: with a password and sessions it says "set <date>", counts sessions and is ready, and prints NO secret', async (t) => {
+test('show: with an earlier password (read as the account gm) and sessions it names the account, counts sessions and is ready, and prints NO secret', async (t) => {
   const fx = fixture(t, PROXY_TOML);
   const record = await pw.hashPassword(PASSWORD, { now: () => Date.UTC(2026, 9, 1, 12) });
   pwWrite.writePasswordRecord(pwFile(fx), record);
@@ -165,7 +171,7 @@ test('show: with a password and sessions it says "set <date>", counts sessions a
   const a = store.create('admin');
   store.create('admin');
   const r = await run(fx, 'show');
-  assert.match(r.human, /^password: set 2026-10-01 12:00 UTC$/m);
+  assert.match(r.human, /^accounts: 1 \(gm\)$/m);
   assert.match(r.human, /^remote sessions: 2 signed in$/m);
   assert.match(r.human, /^ready: yes$/m);
   for (const secret of [record.hash, record.salt, a.id, a.credential, PASSWORD]) assert.ok(!r.human.includes(secret), 'show leaked a secret');
@@ -207,7 +213,7 @@ test('set writes [remote] to config.toml and preserves the campaigns, prints the
     trusted_proxies: ['198.51.100.20'],
   });
   assert.match(r.human, /^mode: proxy \(Behind your reverse proxy\)$/m);
-  assert.match(r.human, /^not ready: remote access \(mode proxy\) needs a password/m);
+  assert.match(r.human, /^not ready: remote access \(mode proxy\) needs an account/m);
   assert.ok(r.human.endsWith('changes take effect the next time serve --admin starts'));
 });
 
@@ -274,9 +280,10 @@ test('password over piped stdin: set (first time: one line), then change (two li
   const first = await run(fx, 'password', {}, [], [PASSWORD]);
   assert.equal(first.exitCode, 0);
   assert.equal(first.human, 'panel password set. Every remote device is signed out.');
-  const set = pw.readPasswordRecord(pwFile(fx));
+  const set = accountsOf(fx);
   assert.equal(set.state, 'set');
-  assert.equal(await pw.verifyPassword(PASSWORD, set.record), true);
+  assert.deepEqual(set.accounts.map((a) => [a.name, a.fromEarlierPassword]), [['gm', false]]);
+  assert.equal(await pw.verifyPassword(PASSWORD, gmRecord(fx)), true);
 
   const store = createSessionStore({ file: path.join(fx.panelDir, 'sessions.json') });
   store.load();
@@ -284,9 +291,9 @@ test('password over piped stdin: set (first time: one line), then change (two li
 
   const changed = await run(fx, 'password', {}, [], [PASSWORD, NEW_PASSWORD]);
   assert.equal(changed.exitCode, 0);
-  const now = pw.readPasswordRecord(pwFile(fx));
-  assert.equal(await pw.verifyPassword(NEW_PASSWORD, now.record), true);
-  assert.equal(await pw.verifyPassword(PASSWORD, now.record), false);
+  const now = gmRecord(fx);
+  assert.equal(await pw.verifyPassword(NEW_PASSWORD, now), true);
+  assert.equal(await pw.verifyPassword(PASSWORD, now), false);
   const reread = createSessionStore({ file: path.join(fx.panelDir, 'sessions.json') });
   reread.load();
   assert.equal(reread.verify('admin', session.credential), null, 'the change signed every remote session out');
@@ -296,12 +303,12 @@ test('password over piped stdin: set (first time: one line), then change (two li
 test('password: a wrong current password is refused and nothing changes (record bytes and sessions intact)', async (t) => {
   const fx = fixture(t, PROXY_TOML);
   await run(fx, 'password', {}, [], [PASSWORD]);
-  const before = sha(pwFile(fx));
+  const before = sha(accFile(fx));
   const store = createSessionStore({ file: path.join(fx.panelDir, 'sessions.json') });
   store.load();
   const session = store.create('admin');
   await refuses(run(fx, 'password', {}, [], ['not the current one', NEW_PASSWORD]), 'that is not the current panel password; nothing changed');
-  assert.equal(sha(pwFile(fx)), before);
+  assert.equal(sha(accFile(fx)), before);
   const reread = createSessionStore({ file: path.join(fx.panelDir, 'sessions.json') });
   reread.load();
   assert.ok(reread.verify('admin', session.credential));
@@ -310,6 +317,7 @@ test('password: a wrong current password is refused and nothing changes (record 
 test('password: too short is refused (12 characters), and end of input is "cancelled"', async (t) => {
   const fx = fixture(t, PROXY_TOML);
   await refuses(run(fx, 'password', {}, [], ['short']), 'the panel password must be at least 12 characters');
+  assert.equal(fs.existsSync(accFile(fx)), false);
   assert.equal(fs.existsSync(pwFile(fx)), false);
   await refuses(run(fx, 'password', {}, [], []), 'cancelled; nothing changed');
   await run(fx, 'password', {}, [], [PASSWORD]);
@@ -334,6 +342,7 @@ test('password never reads argv or the environment (real process: piped stdin wi
   assert.equal(viaArgv.stderr.trim().split('\n').length, 1);
   assert.equal(viaArgv.stderr.trim(), 'remote password takes no arguments');
   assert.ok(!viaArgv.stderr.includes('hunter2hunter2hunter'));
+  assert.equal(fs.existsSync(accFile(fx)), false);
   assert.equal(fs.existsSync(pwFile(fx)), false);
 
   const piped = await spawnBin(['remote', 'password', '--config', fx.configPath], {
@@ -341,7 +350,7 @@ test('password never reads argv or the environment (real process: piped stdin wi
     env: { SCRIPTORIUM_PANEL_PASSWORD: 'from the environment!', SCRIPTORIUM_PASSWORD: 'from the environment!', PASSWORD: 'from the environment!' },
   });
   assert.equal(piped.code, 0, piped.stderr);
-  const record = pw.readPasswordRecord(pwFile(fx)).record;
+  const record = gmRecord(fx);
   assert.equal(await pw.verifyPassword(PASSWORD, record), true);
   assert.equal(await pw.verifyPassword('from the environment!', record), false);
   assert.ok(!piped.stdout.includes(PASSWORD));
@@ -357,7 +366,7 @@ test('the real bin: set --admin-url http://... exits 1 with one stderr line and 
   assert.equal(sha(fx.configPath), before);
   const help = await spawnBin(['--help']);
   assert.ok(help.stdout.includes('  remote   show | set [--mode local|ssh|tailscale|proxy] [--admin-url URL] [--preview-url URL] [--bind ADDR]'));
-  assert.ok(help.stdout.includes('           [--trusted-proxy ADDR,...] [--port N] [--preview-port N] | password | signout-all | off'));
+  assert.ok(help.stdout.includes('           [--trusted-proxy ADDR,...] [--port N] [--preview-port N] | account add|change|reset|remove|rename|list'));
 });
 
 test('the real bin: show exits 0 and prints the summary', async (t) => {
@@ -396,7 +405,7 @@ test('off: mode goes to local (other keys kept), every session is revoked, the p
   const remote = parseConfig(fs.readFileSync(fx.configPath, 'utf8')).config.remote;
   assert.equal(remote.mode, 'local');
   assert.equal(remote.admin_url, 'https://scriptorium.home.arpa', 'the other keys are kept so turning it back on is easy');
-  assert.deepEqual(pw.readPasswordRecord(pwFile(fx)), { state: 'cleared' });
+  assert.deepEqual(accountsOf(fx), { state: 'cleared' });
   const reread = createSessionStore({ file: path.join(fx.panelDir, 'sessions.json') });
   reread.load();
   assert.equal(reread.verify('admin', session.credential), null);
@@ -404,7 +413,7 @@ test('off: mode goes to local (other keys kept), every session is revoked, the p
   // a forgotten password: off, then a new one
   const again = await run(fx, 'password', {}, [], [NEW_PASSWORD]);
   assert.equal(again.exitCode, 0);
-  assert.equal(pw.readPasswordRecord(pwFile(fx)).state, 'set');
+  assert.equal(accountsOf(fx).state, 'set');
 });
 
 test('off on a machine that never configured remote access creates nothing', async (t) => {
@@ -413,8 +422,9 @@ test('off on a machine that never configured remote access creates nothing', asy
   const r = await run(fx, 'off');
   assert.equal(r.exitCode, 0);
   assert.equal(sha(fx.configPath), before);
-  assert.equal(pw.readPasswordRecord(pwFile(fx)).state, 'unset');
+  assert.equal(accountsOf(fx).state, 'unset');
   assert.equal(fs.existsSync(path.join(fx.panelDir, 'password.json')), false);
+  assert.equal(fs.existsSync(accFile(fx)), false);
 });
 
 test('the CLI refuses to write its files inside a vault (the config folder inside the vault)', async (t) => {
@@ -603,7 +613,7 @@ test('Ma11: `remote signout-all` run as a separate process revokes a RUNNING pan
   });
   while (!emitted.some((l) => /Press Ctrl-C/.test(l))) await new Promise((r) => setTimeout(r, 10));
   const host = 'panel-host.example-tailnet.ts.net';
-  const signin = await panelRequest(7928, { method: 'POST', pathname: '/auth/password', host, headers: { Origin: `https://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ password: PASSWORD }) });
+  const signin = await panelRequest(7928, { method: 'POST', pathname: '/auth/password', host, headers: { Origin: `https://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'gm', password: PASSWORD }) });
   assert.equal(signin.status, 200, signin.text);
   const cookie = /__Host-scriptorium_session=([^;]+)/.exec(signin.headers['set-cookie'][0])[1];
   const ok = await panelRequest(7928, { pathname: '/api/session', host, headers: { Cookie: `__Host-scriptorium_session=${cookie}` } });
@@ -619,9 +629,9 @@ test('Ma11: `remote signout-all` run as a separate process revokes a RUNNING pan
   // and a password change from the CLI applies at once to the next sign-in attempt
   const change = await spawnBin(['remote', 'password', '--config', fx.configPath], { input: `${PASSWORD}\n${NEW_PASSWORD}\n` });
   assert.equal(change.code, 0, change.stderr);
-  const stale = await panelRequest(7928, { method: 'POST', pathname: '/auth/password', host, headers: { Origin: `https://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ password: PASSWORD }) });
+  const stale = await panelRequest(7928, { method: 'POST', pathname: '/auth/password', host, headers: { Origin: `https://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'gm', password: PASSWORD }) });
   assert.equal(stale.status, 403);
-  const fresh = await panelRequest(7928, { method: 'POST', pathname: '/auth/password', host, headers: { Origin: `https://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ password: NEW_PASSWORD }) });
+  const fresh = await panelRequest(7928, { method: 'POST', pathname: '/auth/password', host, headers: { Origin: `https://${host}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'GM', password: NEW_PASSWORD }) });
   assert.equal(fresh.status, 200);
 });
 
@@ -643,7 +653,7 @@ test('U4: switching the mode drops the old admin and preview addresses unless th
 });
 
 test('U4: remote <sub> --help prints that subcommand\'s help (and exits 0); remote --help lists them all', async () => {
-  for (const sub of ['show', 'set', 'password', 'signout-all', 'off']) {
+  for (const sub of ['show', 'set', 'account', 'password', 'signout-all', 'off']) {
     const res = await spawnBin(['remote', sub, '--help']);
     assert.equal(res.code, 0, sub);
     assert.ok(res.stdout.startsWith(`gm-scriptorium remote ${sub}`), `${sub}: ${res.stdout.slice(0, 60)}`);
@@ -651,7 +661,7 @@ test('U4: remote <sub> --help prints that subcommand\'s help (and exits 0); remo
   }
   const all = await spawnBin(['remote', '--help']);
   assert.equal(all.code, 0);
-  for (const sub of ['show', 'set', 'password', 'signout-all', 'off']) assert.ok(all.stdout.includes(`gm-scriptorium remote ${sub}`));
+  for (const sub of ['show', 'set', 'account', 'password', 'signout-all', 'off']) assert.ok(all.stdout.includes(`gm-scriptorium remote ${sub}`));
 });
 
 test('the real bin accepts `serve --admin --preview-port` (the per-command flag check knows it) and reports its own message for a bad value', async (t) => {
@@ -671,4 +681,484 @@ test('B4/B5: `remote` is registered with the strict per-command flag check (did-
   const valueless = await spawnBin(['remote', 'set', '--bind', '--config', fx.configPath]);
   assert.equal(valueless.code, 1);
   assert.equal(valueless.stderr.trim(), '--bind needs a value: remote --bind <value>');
+});
+
+// --- ADR 0054: `remote account add | change | reset | remove | rename | list` -------------------------------
+
+const NAME_RULE = 'account names are 1 to 32 letters, digits, dots, hyphens or underscores, starting with a letter or digit';
+const THIRD = 'a third passphrase here';
+
+/** Several accounts written straight to accounts.json with one real record (hashing 8 times would only slow the test). */
+async function seedAccounts(fx, names, { password = PASSWORD, fromEarlier = [] } = {}) {
+  const { writeAccounts } = require('../src/remote/passwordwrite');
+  const record = await pw.hashPassword(password, { now: () => Date.UTC(2026, 9, 1, 12) });
+  writeAccounts(accFile(fx), names.map((name) => ({ name, record, fromEarlierPassword: fromEarlier.includes(name) })));
+  return record;
+}
+
+/** Admin sessions for named accounts in the CLI's shared sessions file. */
+function sessionsFor(fx, ...names) {
+  const file = path.join(fx.panelDir, 'sessions.json');
+  const store = createSessionStore({ file });
+  store.load();
+  const made = Object.fromEntries(names.map((n) => [n, store.create('admin', { account: n })]));
+  const alive = (n) => {
+    const re = createSessionStore({ file });
+    re.load();
+    return re.verify('admin', made[n].credential) !== null;
+  };
+  return { made, alive };
+}
+
+async function runAt(fx, now, sub, args, lines, flags = {}) {
+  const p = pipes(lines);
+  const result = await runRemoteCommand({ config: fx.configPath, ...flags }, sub, args, { stdin: p.input, stdout: p.output, now: () => now });
+  return { ...result, out: p.out() };
+}
+
+/** Drives a fake terminal: types each secret when its prompt has been written. Returns the prompts and the outcome. */
+async function ttyRun(fx, args, secrets, { sub = 'account', flags = {} } = {}) {
+  const tty = fakeTty();
+  const promise = runRemoteCommand({ config: fx.configPath, ...flags }, sub, args, { stdin: tty.input, stdout: tty.output }).then(
+    (value) => ({ value }),
+    (error) => ({ error }),
+  );
+  let seen = 0;
+  for (const secret of secrets) {
+    // a prompt can come after a scrypt check (about a tenth of a second), so wait on the clock, not on ticks
+    for (let waited = 0; tty.written.length === seen && waited < 10000; waited += 5) await new Promise((r) => setTimeout(r, 5));
+    tty.type(`${secret}\r`);
+    seen = tty.written.length;
+  }
+  const outcome = await promise;
+  return { ...outcome, prompts: tty.written.filter((w) => w !== '\n'), tty };
+}
+
+test('account add (piped stdin): one line is the password; the exact success line; accounts.json is private; the audit names the account and nothing else', { skip: process.platform === 'win32' }, async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  const r = await run(fx, 'account', {}, ['add', 'rook'], [PASSWORD]);
+  assert.equal(r.exitCode, 0);
+  assert.equal(r.human, 'account "rook" added.');
+  const out = accountsOf(fx);
+  assert.equal(out.state, 'set');
+  assert.equal(out.source, 'accounts');
+  assert.deepEqual(out.accounts.map((a) => [a.name, a.fromEarlierPassword]), [['rook', false]]);
+  assert.equal(await pw.verifyPassword(PASSWORD, out.accounts[0].record), true);
+  assert.equal(fs.statSync(accFile(fx)).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(fx.panelDir).mode & 0o777, 0o700);
+  const audit = readAudit(fx).filter((e) => e.event.startsWith('account'));
+  assert.deepEqual(audit.map((e) => [e.event, e.by, e.account]), [['account-add', 'cli', 'rook']]);
+  const logText = fs.readFileSync(path.join(fx.panelDir, 'audit.log'), 'utf8');
+  for (const secret of [PASSWORD, out.accounts[0].record.hash, out.accounts[0].record.salt]) assert.ok(!logText.includes(secret) && !r.out.includes(secret));
+});
+
+test('account add folds the name to lower case; a repeat in any case says it exists; the password file is not touched', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  const first = await run(fx, 'account', {}, ['add', 'Rook'], [PASSWORD]);
+  assert.equal(first.human, 'account "rook" added.');
+  const before = sha(accFile(fx));
+  for (const again of ['Rook', 'rook', 'ROOK']) await refuses(run(fx, 'account', {}, ['add', again], [PASSWORD]), 'an account named "rook" already exists');
+  assert.equal(sha(accFile(fx)), before);
+});
+
+test('account add refuses a name that breaks the rule, with the one rule line, before it asks for anything', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  for (const bad of ['bad name', '.rook', '-rook', '', 'a'.repeat(33), 'röok', 'ro/ok']) {
+    const p = pipes([PASSWORD]);
+    await assert.rejects(runRemoteCommand({ config: fx.configPath }, 'account', ['add', bad], { stdin: p.input, stdout: p.output }), (err) => {
+      assert.ok(err instanceof ConfigError);
+      assert.equal(err.message, NAME_RULE, JSON.stringify(bad));
+      return true;
+    });
+    assert.equal(p.out(), '', 'nothing was printed or asked');
+  }
+  assert.equal(fs.existsSync(accFile(fx)), false);
+});
+
+test('account add: a ninth account is refused with the cap line, and the file is byte-unchanged', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7']);
+  const eighth = await run(fx, 'account', {}, ['add', 'a8'], [PASSWORD]);
+  assert.equal(eighth.human, 'account "a8" added.');
+  const before = sha(accFile(fx));
+  await refuses(run(fx, 'account', {}, ['add', 'a9'], [PASSWORD]), 'there can be at most 8 accounts');
+  assert.equal(sha(accFile(fx)), before);
+  assert.equal(accountsOf(fx).accounts.length, 8);
+});
+
+test('account add: a password under 12 characters is refused, end of input is "cancelled", and nothing is written either way', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await refuses(run(fx, 'account', {}, ['add', 'rook'], ['short']), 'the panel password must be at least 12 characters');
+  await refuses(run(fx, 'account', {}, ['add', 'rook'], []), 'cancelled; nothing changed');
+  assert.equal(fs.existsSync(accFile(fx)), false);
+});
+
+test('account change asks for THIS account\'s current password, then the new one, and signs only that account out', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['rook', 'saffron']);
+  const s = sessionsFor(fx, 'rook', 'saffron');
+  const r = await run(fx, 'account', {}, ['change', 'rook'], [PASSWORD, NEW_PASSWORD]);
+  assert.equal(r.human, 'password for "rook" changed. Its remote devices are signed out.');
+  const list = accountsOf(fx).accounts;
+  assert.equal(await pw.verifyPassword(NEW_PASSWORD, list.find((a) => a.name === 'rook').record), true);
+  assert.equal(await pw.verifyPassword(PASSWORD, list.find((a) => a.name === 'rook').record), false);
+  assert.equal(await pw.verifyPassword(PASSWORD, list.find((a) => a.name === 'saffron').record), true, 'the other account is untouched');
+  assert.equal(s.alive('rook'), false);
+  assert.equal(s.alive('saffron'), true);
+  assert.deepEqual(readAudit(fx).filter((e) => e.event === 'account-change').map((e) => [e.by, e.account]), [['cli', 'rook']]);
+});
+
+test('account change: a wrong current password is refused with the exact line, and nothing changes (file bytes and sessions)', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['rook']);
+  const s = sessionsFor(fx, 'rook');
+  const before = sha(accFile(fx));
+  await refuses(run(fx, 'account', {}, ['change', 'rook'], ['not the current one', NEW_PASSWORD]), 'that is not the current password for "rook"; nothing changed');
+  assert.equal(sha(accFile(fx)), before);
+  assert.equal(s.alive('rook'), true);
+});
+
+test('account change of an account that does not exist, and of a name that breaks the rule', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['rook']);
+  await refuses(run(fx, 'account', {}, ['change', 'nobody'], [PASSWORD, NEW_PASSWORD]), 'no account named "nobody"');
+  await refuses(run(fx, 'account', {}, ['change', 'bad name'], [PASSWORD, NEW_PASSWORD]), NAME_RULE);
+});
+
+test('account reset asks for NO current password (one line only), replaces the password, signs only that account out', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['rook', 'saffron']);
+  const s = sessionsFor(fx, 'rook', 'saffron');
+  const r = await run(fx, 'account', {}, ['reset', 'rook'], [NEW_PASSWORD]);
+  assert.equal(r.human, 'password for "rook" reset. Its remote devices are signed out.');
+  const rook = accountsOf(fx).accounts.find((a) => a.name === 'rook');
+  assert.equal(await pw.verifyPassword(NEW_PASSWORD, rook.record), true);
+  assert.equal(await pw.verifyPassword(PASSWORD, rook.record), false);
+  assert.equal(s.alive('rook'), false);
+  assert.equal(s.alive('saffron'), true);
+  assert.deepEqual(readAudit(fx).filter((e) => e.event === 'account-reset').map((e) => [e.by, e.account]), [['cli', 'rook']]);
+  await refuses(run(fx, 'account', {}, ['reset', 'nobody'], [NEW_PASSWORD]), 'no account named "nobody"');
+});
+
+test('account reset clears the "from your earlier password" mark (the password is new)', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  pwWrite.writePasswordRecord(pwFile(fx), await pw.hashPassword(PASSWORD));
+  await run(fx, 'account', {}, ['reset', 'gm'], [NEW_PASSWORD]);
+  assert.deepEqual(accountsOf(fx).accounts.map((a) => [a.name, a.fromEarlierPassword]), [['gm', false]]);
+});
+
+test('account remove deletes that account, signs it out (and only it), and the last removal leaves "no accounts"', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['rook', 'saffron']);
+  const s = sessionsFor(fx, 'rook', 'saffron');
+  const r = await run(fx, 'account', {}, ['remove', 'rook']);
+  assert.equal(r.human, 'account "rook" removed. Its remote devices are signed out.');
+  assert.deepEqual(accountsOf(fx).accounts.map((a) => a.name), ['saffron']);
+  assert.equal(s.alive('rook'), false);
+  assert.equal(s.alive('saffron'), true);
+  assert.deepEqual(readAudit(fx).filter((e) => e.event === 'account-remove').map((e) => [e.by, e.account]), [['cli', 'rook']]);
+  await refuses(run(fx, 'account', {}, ['remove', 'rook']), 'no account named "rook"');
+  await run(fx, 'account', {}, ['remove', 'saffron']);
+  assert.equal((await run(fx, 'account', {}, ['list'])).human, 'no accounts');
+});
+
+test('account rename moves the account to a new name, keeps its password, signs the old name out, and audits both names', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['rook', 'saffron']);
+  const s = sessionsFor(fx, 'rook', 'saffron');
+  const r = await run(fx, 'account', {}, ['rename', 'rook', 'Castle']);
+  assert.equal(r.human, 'account "rook" renamed to "castle". Its remote devices are signed out.');
+  const list = accountsOf(fx).accounts;
+  assert.deepEqual(list.map((a) => a.name), ['castle', 'saffron'], 'same place in the list');
+  assert.equal(await pw.verifyPassword(PASSWORD, list[0].record), true, 'the password is unchanged');
+  assert.equal(s.alive('rook'), false);
+  assert.equal(s.alive('saffron'), true);
+  const entry = readAudit(fx).find((e) => e.event === 'account-rename');
+  assert.deepEqual([entry.by, entry.account, entry.affected], ['cli', 'castle', 'rook']);
+});
+
+test('account rename: to a name already used, from one that does not exist, to one that breaks the rule, and to itself', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['rook', 'saffron']);
+  const before = sha(accFile(fx));
+  await refuses(run(fx, 'account', {}, ['rename', 'rook', 'SAFFRON']), 'an account named "saffron" already exists');
+  await refuses(run(fx, 'account', {}, ['rename', 'rook', 'rook']), 'an account named "rook" already exists');
+  await refuses(run(fx, 'account', {}, ['rename', 'nobody', 'castle']), 'no account named "nobody"');
+  await refuses(run(fx, 'account', {}, ['rename', 'rook', 'bad name']), NAME_RULE);
+  assert.equal(sha(accFile(fx)), before);
+});
+
+test('renaming the account gm keeps its "from your earlier password" mark (the password itself did not change)', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  pwWrite.writePasswordRecord(pwFile(fx), await pw.hashPassword(PASSWORD));
+  await run(fx, 'account', {}, ['rename', 'gm', 'rook']);
+  assert.deepEqual(accountsOf(fx).accounts.map((a) => [a.name, a.fromEarlierPassword]), [['rook', true]]);
+});
+
+test('account list: names and the date each password was set, never a secret; "(from your earlier password)" for the carried-over one; "no accounts" when empty', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  assert.equal((await run(fx, 'account', {}, ['list'])).human, 'no accounts');
+  const record = await seedAccounts(fx, ['rook', 'gm'], { fromEarlier: ['gm'] });
+  const r = await run(fx, 'account', {}, ['list']);
+  assert.equal(r.human, ['rook  set 2026-10-01 12:00 UTC', 'gm  set 2026-10-01 12:00 UTC  (from your earlier password)'].join('\n'));
+  for (const secret of [record.hash, record.salt, PASSWORD]) assert.ok(!r.human.includes(secret));
+  assert.equal(readAudit(fx).length, 0, 'listing is not an event');
+});
+
+test('every account verb refuses extra arguments, a missing name, an unknown verb and a foreign flag, without echoing what was typed', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  const SECRET_ARG = 'hunter2hunter2hunter';
+  const just = 'passwords are asked for, never given as arguments';
+  for (const verb of ['add', 'change', 'reset', 'remove']) {
+    await refuses(run(fx, 'account', {}, [verb, 'rook', SECRET_ARG]), `remote account ${verb} takes just an account name; ${just}`);
+    await refuses(run(fx, 'account', {}, [verb]), `remote account ${verb} needs an account name`);
+  }
+  await refuses(run(fx, 'account', {}, ['rename', 'rook']), 'remote account rename needs the old name and the new name');
+  await refuses(run(fx, 'account', {}, ['rename', 'rook', 'castle', SECRET_ARG]), `remote account rename takes just two names; ${just}`);
+  await refuses(run(fx, 'account', {}, ['list', 'rook']), 'remote account list takes no arguments');
+  const usage = 'usage: gm-scriptorium remote account add <name> | change <name> | reset <name> | remove <name> | rename <old> <new> | list';
+  await refuses(run(fx, 'account', {}, []), usage);
+  await refuses(run(fx, 'account', {}, ['promote', 'rook']), usage);
+  await refuses(run(fx, 'account', { mode: 'proxy' }, ['list']), 'remote account does not accept --mode');
+  await refuses(run(fx, 'account', { account: 'rook' }, ['list']), 'remote account does not accept --account');
+  assert.equal(fs.existsSync(accFile(fx)), false);
+});
+
+test('the real bin: a password given as an argument exits 1 with one stderr line that does not contain it; the environment is ignored; piped stdin works', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  const viaArgv = await spawnBin(['remote', 'account', 'add', 'rook', 'hunter2hunter2hunter', '--config', fx.configPath]);
+  assert.equal(viaArgv.code, 1);
+  assert.equal(viaArgv.stderr.trim().split('\n').length, 1);
+  assert.ok(!viaArgv.stderr.includes('hunter2hunter2hunter'));
+  assert.equal(fs.existsSync(accFile(fx)), false);
+
+  const piped = await spawnBin(['remote', 'account', 'add', 'rook', '--config', fx.configPath], {
+    input: `${PASSWORD}\n`,
+    env: { SCRIPTORIUM_PANEL_PASSWORD: 'from the environment!', SCRIPTORIUM_PASSWORD: 'from the environment!', PASSWORD: 'from the environment!' },
+  });
+  assert.equal(piped.code, 0, piped.stderr);
+  assert.equal(piped.stdout.trim(), 'account "rook" added.');
+  const record = accountsOf(fx).accounts[0].record;
+  assert.equal(await pw.verifyPassword(PASSWORD, record), true);
+  assert.equal(await pw.verifyPassword('from the environment!', record), false);
+  assert.ok(!piped.stdout.includes(PASSWORD));
+
+  const dup = await spawnBin(['remote', 'account', 'add', 'Rook', '--config', fx.configPath], { input: `${PASSWORD}\n` });
+  assert.equal(dup.code, 1);
+  assert.equal(dup.stderr.trim(), 'an account named "rook" already exists');
+});
+
+test('on a terminal the prompts are the exact strings, nothing is echoed, and a mismatch cancels', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  const add = await ttyRun(fx, ['add', 'rook'], [PASSWORD, PASSWORD]);
+  assert.deepEqual(add.prompts, ['New password for rook: ', 'Type it again: ']);
+  assert.equal(add.value.human, 'account "rook" added.');
+  assert.deepEqual(add.tty.calls.filter((c) => c.startsWith('raw:')), ['raw:true', 'raw:false', 'raw:true', 'raw:false']);
+
+  const change = await ttyRun(fx, ['change', 'rook'], [PASSWORD, NEW_PASSWORD, NEW_PASSWORD]);
+  assert.deepEqual(change.prompts, ['Current password for rook: ', 'New password for rook: ', 'Type it again: ']);
+  assert.equal(change.value.human, 'password for "rook" changed. Its remote devices are signed out.');
+
+  const reset = await ttyRun(fx, ['reset', 'rook'], [THIRD, THIRD]);
+  assert.deepEqual(reset.prompts, ['New password for rook: ', 'Type it again: ']);
+
+  const before = sha(accFile(fx));
+  const mismatch = await ttyRun(fx, ['reset', 'rook'], ['one passphrase here', 'another passphrase']);
+  assert.ok(mismatch.error instanceof ConfigError);
+  assert.equal(mismatch.error.message, 'the two passwords do not match; nothing changed');
+  assert.equal(sha(accFile(fx)), before);
+  for (const secret of [PASSWORD, NEW_PASSWORD, THIRD]) assert.ok(!add.tty.written.concat(change.tty.written, reset.tty.written).join('').includes(secret), 'nothing typed is ever echoed');
+});
+
+test('a terminal cancel (Ctrl-C) at any prompt is "cancelled; nothing changed"', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['rook']);
+  const before = sha(accFile(fx));
+  const cancelled = await ttyRun(fx, ['change', 'rook'], ['\u0003']);
+  assert.ok(cancelled.error instanceof ConfigError);
+  assert.equal(cancelled.error.message, 'cancelled; nothing changed');
+  assert.equal(sha(accFile(fx)), before);
+});
+
+// --- migration ------------------------------------------------------------------------------------------
+
+test('migration: the first write materialises the earlier password as the account gm, then clears password.json; list alone writes nothing', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  pwWrite.writePasswordRecord(pwFile(fx), await pw.hashPassword(PASSWORD, { now: () => Date.UTC(2026, 8, 12, 21, 40) }));
+  const legacyBytes = sha(pwFile(fx));
+
+  const list = await run(fx, 'account', {}, ['list']);
+  assert.equal(list.human, 'gm  set 2026-09-12 21:40 UTC  (from your earlier password)');
+  assert.equal(fs.existsSync(accFile(fx)), false, 'list writes nothing');
+  assert.equal(sha(pwFile(fx)), legacyBytes);
+  const shown = await run(fx, 'show');
+  assert.match(shown.human, /^accounts: 1 \(gm\)$/m);
+  assert.equal(fs.existsSync(accFile(fx)), false, 'show writes nothing');
+
+  await run(fx, 'account', {}, ['add', 'rook'], [PASSWORD]);
+  const out = accountsOf(fx);
+  assert.equal(out.source, 'accounts');
+  assert.deepEqual(out.accounts.map((a) => [a.name, a.fromEarlierPassword]), [['gm', true], ['rook', false]]);
+  assert.equal(await pw.verifyPassword(PASSWORD, out.accounts[0].record), true, 'the earlier password still opens gm');
+  assert.deepEqual(pw.readPasswordRecord(pwFile(fx)), { state: 'cleared' }, 'the old file no longer holds a hash');
+  assert.match((await run(fx, 'account', {}, ['list'])).human, /^gm {2}set .* UTC {2}\(from your earlier password\)\nrook {2}set /);
+});
+
+test('migration: a failure BETWEEN the two writes leaves a consistent state (accounts.json wins), the command still succeeds with a warning, and sessions are still signed out', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  pwWrite.writePasswordRecord(pwFile(fx), await pw.hashPassword(PASSWORD));
+  const s = sessionsFor(fx, 'gm');
+  const original = pwWrite.clearPasswordRecord;
+  pwWrite.clearPasswordRecord = () => {
+    throw new Error('injected: the disk went away');
+  };
+  let r;
+  try {
+    r = await run(fx, 'account', {}, ['reset', 'gm'], [NEW_PASSWORD]);
+  } finally {
+    pwWrite.clearPasswordRecord = original;
+  }
+  assert.equal(r.exitCode, 0);
+  assert.match(r.human, /^password for "gm" reset\. Its remote devices are signed out\.\nwarning: could not clear the earlier password file at /);
+  assert.equal(pw.readPasswordRecord(pwFile(fx)).state, 'set', 'the old file is still there');
+  const out = accountsOf(fx);
+  assert.equal(out.source, 'accounts', 'accounts.json wins');
+  assert.equal(await pw.verifyPassword(NEW_PASSWORD, out.accounts[0].record), true, 'the new password is the one that works');
+  assert.equal(s.alive('gm'), false);
+});
+
+test('migration: a failure of the FIRST write (accounts.json) changes nothing at all', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  pwWrite.writePasswordRecord(pwFile(fx), await pw.hashPassword(PASSWORD));
+  const before = sha(pwFile(fx));
+  const original = pwWrite.writeAccounts;
+  pwWrite.writeAccounts = () => {
+    throw new Error('injected: cannot write');
+  };
+  try {
+    await assert.rejects(run(fx, 'account', {}, ['add', 'rook'], [PASSWORD]), /injected: cannot write/);
+  } finally {
+    pwWrite.writeAccounts = original;
+  }
+  assert.equal(sha(pwFile(fx)), before);
+  assert.equal(fs.existsSync(accFile(fx)), false);
+  assert.deepEqual(accountsOf(fx).accounts.map((a) => a.name), ['gm']);
+});
+
+test('an unreadable accounts.json is refused by every verb with a way out; nothing is overwritten', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  fs.mkdirSync(fx.panelDir, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(accFile(fx), '{broken', { mode: 0o600 });
+  for (const args of [['add', 'rook'], ['change', 'rook'], ['reset', 'rook'], ['remove', 'rook'], ['rename', 'rook', 'castle'], ['list']]) {
+    await assert.rejects(run(fx, 'account', {}, args, [PASSWORD, NEW_PASSWORD]), (err) => {
+      assert.ok(err instanceof ConfigError);
+      assert.match(err.message, /^the saved accounts cannot be used \(.*\); run "gm-scriptorium remote off" and add the accounts again$/, args.join(' '));
+      return true;
+    });
+  }
+  assert.equal(fs.readFileSync(accFile(fx), 'utf8'), '{broken');
+});
+
+// --- the password alias, signout-all --account, off ------------------------------------------------------------
+
+test('the password alias sets the account gm: it ADDS gm when other accounts exist but gm does not (no current-password prompt), and keeps C69\'s exact message', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['rook']);
+  const r = await run(fx, 'password', {}, [], [PASSWORD]);
+  assert.equal(r.human, 'panel password set. Every remote device is signed out.');
+  assert.deepEqual(accountsOf(fx).accounts.map((a) => a.name), ['rook', 'gm']);
+  assert.deepEqual(readAudit(fx).filter((e) => e.event.startsWith('password')).map((e) => [e.event, e.by, e.account]), [['password-set', 'cli', 'gm']]);
+});
+
+test('the password alias on an existing gm asks for the current password first (wrong one: the old exact line), and still signs EVERY account out', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['gm', 'rook']);
+  const s = sessionsFor(fx, 'gm', 'rook');
+  await refuses(run(fx, 'password', {}, [], ['not the current one', NEW_PASSWORD]), 'that is not the current panel password; nothing changed');
+  assert.equal(s.alive('gm'), true);
+  const r = await run(fx, 'password', {}, [], [PASSWORD, NEW_PASSWORD]);
+  assert.equal(r.human, 'panel password set. Every remote device is signed out.');
+  assert.equal(s.alive('gm'), false);
+  assert.equal(s.alive('rook'), false, 'the alias keeps calling revokeAll');
+  assert.deepEqual(readAudit(fx).filter((e) => e.event.startsWith('password')).map((e) => e.event), ['password-change']);
+});
+
+test('the password alias on an earlier password.json materialises it first: it asks for the current password, and the result is account gm', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  pwWrite.writePasswordRecord(pwFile(fx), await pw.hashPassword(PASSWORD));
+  await refuses(run(fx, 'password', {}, [], ['wrong one here', NEW_PASSWORD]), 'that is not the current panel password; nothing changed');
+  assert.equal(fs.existsSync(accFile(fx)), false, 'a refused change writes nothing');
+  await run(fx, 'password', {}, [], [PASSWORD, NEW_PASSWORD]);
+  const out = accountsOf(fx);
+  assert.equal(out.source, 'accounts');
+  assert.deepEqual(out.accounts.map((a) => [a.name, a.fromEarlierPassword]), [['gm', false]]);
+});
+
+test('signout-all --account signs that account out only, says how many, audits count and account; an unknown account is refused; without the flag it is unchanged', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['rook', 'saffron']);
+  const s = sessionsFor(fx, 'rook', 'saffron');
+  const r = await run(fx, 'signout-all', { account: 'Rook' });
+  assert.equal(r.human, 'signed out 1 remote session(s) for "rook"');
+  assert.equal(s.alive('rook'), false);
+  assert.equal(s.alive('saffron'), true);
+  const entry = readAudit(fx).find((e) => e.event === 'signout-all');
+  assert.deepEqual([entry.by, entry.count, entry.account], ['cli', 1, 'rook']);
+  await refuses(run(fx, 'signout-all', { account: 'nobody' }), 'no account named "nobody"');
+  await refuses(run(fx, 'signout-all', { account: 'bad name' }), NAME_RULE);
+  const all = await run(fx, 'signout-all');
+  assert.equal(all.human, 'signed out 1 remote session(s)');
+  assert.equal(s.alive('saffron'), false);
+});
+
+test('remote off clears BOTH files, revokes every session, and leaves "no accounts"; an earlier password.json left over is cleared too', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['rook', 'saffron']);
+  pwWrite.writePasswordRecord(pwFile(fx), await pw.hashPassword(PASSWORD)); // as a crash between the two migration writes would leave it
+  const s = sessionsFor(fx, 'rook', 'saffron');
+  await run(fx, 'off');
+  assert.deepEqual(accountsOf(fx), { state: 'cleared' });
+  assert.deepEqual(pw.readPasswordRecord(pwFile(fx)), { state: 'cleared' });
+  assert.equal(s.alive('rook'), false);
+  assert.equal(s.alive('saffron'), false);
+  assert.equal((await run(fx, 'account', {}, ['list'])).human, 'no accounts');
+  const text = fs.readFileSync(accFile(fx), 'utf8');
+  assert.ok(!/"hash"|"salt"/.test(text), 'no hash or salt remains in accounts.json');
+  assert.ok(!/"hash"|"salt"/.test(fs.readFileSync(pwFile(fx), 'utf8')), 'none remains in password.json');
+  // and a new account can be added afterwards
+  await run(fx, 'account', {}, ['add', 'rook'], [PASSWORD]);
+  assert.deepEqual(accountsOf(fx).accounts.map((a) => a.name), ['rook']);
+});
+
+test('remote off with only an earlier password.json (never migrated) clears it and creates no accounts.json', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  pwWrite.writePasswordRecord(pwFile(fx), await pw.hashPassword(PASSWORD));
+  await run(fx, 'off');
+  assert.deepEqual(pw.readPasswordRecord(pwFile(fx)), { state: 'cleared' });
+  assert.equal(fs.existsSync(accFile(fx)), false);
+  assert.equal(accountsOf(fx).state, 'cleared');
+});
+
+test('every account write refuses a config folder inside a vault (exit 3 class) and creates no panel folder; list and show are not writes', async (t) => {
+  const fx = fixture(t);
+  const inVault = path.join(fx.vault, 'config.toml');
+  fs.copyFileSync(fx.configPath, inVault);
+  for (const args of [['add', 'rook'], ['change', 'rook'], ['reset', 'rook'], ['remove', 'rook'], ['rename', 'rook', 'castle']]) {
+    await assert.rejects(runRemoteCommand({ config: inVault }, 'account', args, { stdin: pipes([PASSWORD, NEW_PASSWORD]).input, stdout: pipes().output }), (err) => {
+      assert.ok(err instanceof VaultUnreachableError, `${args[0]}: a config problem, so exit 3`);
+      assert.match(err.message, /inside the vault of campaign "alpha"/);
+      return true;
+    });
+  }
+  assert.equal(fs.existsSync(path.join(fx.vault, 'panel')), false);
+});
+
+test('show lists the account names (never more), in file order', async (t) => {
+  const fx = fixture(t, PROXY_TOML);
+  await seedAccounts(fx, ['rook', 'gm', 'saffron']);
+  const r = await run(fx, 'show');
+  assert.match(r.human, /^accounts: 3 \(rook, gm, saffron\)$/m);
+  assert.match(r.human, /^ready: yes$/m);
+  const none = fixture(t, PROXY_TOML);
+  assert.match((await run(none, 'show')).human, /^not ready: remote access \(mode proxy\) needs an account: run "gm-scriptorium remote account add <name>"$/m);
 });

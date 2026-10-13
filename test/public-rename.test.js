@@ -7,16 +7,21 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const { REPO, fetchLatestRelease, downloadAsset } = require('../src/update/release');
+const { REPO, lookupRelease, downloadAsset } = require('../src/update/release');
 const { runUpdateCommand } = require('../src/cli/update');
 const { UpdatePrerequisiteError } = require('../src/util/errors');
 const { EXIT_CODES } = require('../src/util/exitcodes');
+const { installLoopbackGuard } = require('./helpers/net-stubs');
+const { fakeRequest, json } = require('./helpers/fake-request');
+
+const guard = installLoopbackGuard();
+test.after(() => guard.assertClean({ minConnects: 0 }));
 
 /*
  * S3: the public repository is the update source. These tests exercise src/update/release.js's
- * fetchLatestRelease() and downloadAsset() against a real child process (a fake `gh`), which is
- * the only way to see the real gh argument vector -- every pre-existing update-*.test.js injects
- * both functions directly and never sees REPO or the argv gh is actually called with.
+ * lookupRelease() and downloadAsset() with a fake request, which records the exact URLs the code
+ * asks for -- every pre-existing update-*.test.js injects both functions directly and never sees
+ * REPO or the requests actually made.
  */
 
 const PUBLIC_REPO = 'DrNoisys-Softworks/gm-scriptorium';
@@ -24,58 +29,6 @@ const PUBLIC_RELEASES_URL = `https://github.com/${PUBLIC_REPO}/releases`;
 
 function makeScratch(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-}
-
-/**
- * A temp-dir "gh" executable. It appends `JSON.stringify(process.argv.slice(2))` (one line per
- * invocation) to the file named by FAKE_GH_ARGS_FILE, then either prints a release JSON body or
- * fails like a real 404, depending on FAKE_GH_MODE. runGh() (src/update/gh.js) copies
- * process.env into the child, so setting these on process.env before calling release.js's
- * functions directly is enough; t.after restores them.
- */
-function createFakeGh(dir) {
-  const ghPath = path.join(dir, 'fake-gh.js');
-  const script = [
-    '#!/usr/bin/env node',
-    "'use strict';",
-    'const fs = require("fs");',
-    'const argsFile = process.env.FAKE_GH_ARGS_FILE;',
-    'if (argsFile) {',
-    '  fs.appendFileSync(argsFile, JSON.stringify(process.argv.slice(2)) + "\\n");',
-    '}',
-    'if (process.env.FAKE_GH_MODE === "404") {',
-    '  process.stderr.write("HTTP 404: Not Found\\n");',
-    '  process.exit(1);',
-    '}',
-    'process.stdout.write(JSON.stringify({ tag_name: "v9.9.9", html_url: "x" }));',
-    'process.exit(0);',
-    '',
-  ].join('\n');
-  fs.writeFileSync(ghPath, script, { mode: 0o755 });
-  return ghPath;
-}
-
-function readArgvCalls(argsFile) {
-  if (!fs.existsSync(argsFile)) return [];
-  return fs
-    .readFileSync(argsFile, 'utf8')
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => JSON.parse(line));
-}
-
-function withFakeGhEnv(t, { mode, argsFile }) {
-  const savedArgsFile = process.env.FAKE_GH_ARGS_FILE;
-  const savedMode = process.env.FAKE_GH_MODE;
-  process.env.FAKE_GH_ARGS_FILE = argsFile;
-  if (mode) process.env.FAKE_GH_MODE = mode;
-  else delete process.env.FAKE_GH_MODE;
-  t.after(() => {
-    if (savedArgsFile === undefined) delete process.env.FAKE_GH_ARGS_FILE;
-    else process.env.FAKE_GH_ARGS_FILE = savedArgsFile;
-    if (savedMode === undefined) delete process.env.FAKE_GH_MODE;
-    else process.env.FAKE_GH_MODE = savedMode;
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -87,75 +40,45 @@ test('REPO is the public repository, exactly', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AC-01: the fake-gh argument vectors match exactly
+// AC-01: the requests name the public repository, exactly
 // ---------------------------------------------------------------------------
 
-test('fetchLatestRelease() calls gh with exactly ["api", "repos/DrNoisys-Softworks/gm-scriptorium/releases/latest"]', (t) => {
-  const dir = makeScratch('scriptorium-public-rename-argv-');
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const ghPath = createFakeGh(dir);
-  const argsFile = path.join(dir, 'args.log');
-  withFakeGhEnv(t, { argsFile });
+test('lookupRelease() asks for exactly https://api.github.com/repos/DrNoisys-Softworks/gm-scriptorium/releases/latest', async () => {
+  const fake = fakeRequest(() => json({ tag_name: 'v9.9.9' }));
+  const release = await lookupRelease({}, { request: fake.request });
 
-  const release = fetchLatestRelease(ghPath);
-
-  assert.deepEqual(readArgvCalls(argsFile), [
-    ['api', 'repos/DrNoisys-Softworks/gm-scriptorium/releases/latest'],
-  ]);
+  assert.deepEqual(
+    fake.calls.map((c) => c.url),
+    ['https://api.github.com/repos/DrNoisys-Softworks/gm-scriptorium/releases/latest'],
+  );
   assert.equal(release.tag_name, 'v9.9.9');
 });
 
-test('downloadAsset() calls gh with exactly ["release","download","v9.9.9","--repo","DrNoisys-Softworks/gm-scriptorium","--pattern","gm-scriptorium-linux-x64","--dir",<dir>,"--clobber"]', (t) => {
-  const dir = makeScratch('scriptorium-public-rename-argv-dl-');
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const ghPath = createFakeGh(dir);
+test('downloadAsset() asks for exactly the asset URL then the SHA256SUMS URL under the public repository', async (t) => {
   const destDir = makeScratch('scriptorium-public-rename-dest-');
   t.after(() => fs.rmSync(destDir, { recursive: true, force: true }));
-  const argsFile = path.join(dir, 'args.log');
-  withFakeGhEnv(t, { argsFile });
+  const fake = fakeRequest((opts) => ({ status: 200, body: opts.url.endsWith('SHA256SUMS') ? 'sums' : 'MZ' }));
 
-  downloadAsset(ghPath, 'v9.9.9', 'gm-scriptorium-linux-x64', destDir);
+  await downloadAsset('v9.9.9', 'gm-scriptorium-linux-x64', destDir, { request: fake.request });
 
-  const calls = readArgvCalls(argsFile);
-  assert.deepEqual(calls[0], [
-    'release',
-    'download',
-    'v9.9.9',
-    '--repo',
-    'DrNoisys-Softworks/gm-scriptorium',
-    '--pattern',
-    'gm-scriptorium-linux-x64',
-    '--dir',
-    destDir,
-    '--clobber',
-  ]);
-  assert.deepEqual(calls[1], [
-    'release',
-    'download',
-    'v9.9.9',
-    '--repo',
-    'DrNoisys-Softworks/gm-scriptorium',
-    '--pattern',
-    'SHA256SUMS',
-    '--dir',
-    destDir,
-    '--clobber',
-  ]);
+  assert.deepEqual(
+    fake.calls.map((c) => c.url),
+    [
+      'https://github.com/DrNoisys-Softworks/gm-scriptorium/releases/download/v9.9.9/gm-scriptorium-linux-x64',
+      'https://github.com/DrNoisys-Softworks/gm-scriptorium/releases/download/v9.9.9/SHA256SUMS',
+    ],
+  );
 });
 
 // ---------------------------------------------------------------------------
 // AC-01: the 404 message contains no "private", names the releases URL, still exits 4
 // ---------------------------------------------------------------------------
 
-test('fetchLatestRelease() on a 404: no "private", names the public releases URL, throws UpdatePrerequisiteError', (t) => {
-  const dir = makeScratch('scriptorium-public-rename-404-');
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const ghPath = createFakeGh(dir);
-  const argsFile = path.join(dir, 'args.log');
-  withFakeGhEnv(t, { mode: '404', argsFile });
+test('lookupRelease() on a 404: no "private", names the public releases URL, throws UpdatePrerequisiteError', async () => {
+  const fake = fakeRequest(() => ({ status: 404, body: '{"message":"Not Found"}' }));
 
-  assert.throws(
-    () => fetchLatestRelease(ghPath),
+  await assert.rejects(
+    () => lookupRelease({}, { request: fake.request }),
     (err) => {
       assert.ok(err instanceof UpdatePrerequisiteError, 'must be UpdatePrerequisiteError (exit 4)');
       assert.doesNotMatch(err.message, /private/i);
@@ -165,12 +88,10 @@ test('fetchLatestRelease() on a 404: no "private", names the public releases URL
   );
 });
 
-test('end-to-end: a 404 from the release lookup still exits 4, with the new wording', (t) => {
+test('end-to-end: a 404 from the release lookup still exits 4, with the new wording', async (t) => {
   const root = makeScratch('scriptorium-public-rename-e2e-404-');
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const ghPath = createFakeGh(root);
-  const argsFile = path.join(root, 'args.log');
-  withFakeGhEnv(t, { mode: '404', argsFile });
+  const fake = fakeRequest(() => ({ status: 404, body: '{"message":"Not Found"}' }));
 
   const exeDir = path.join(root, 'exe');
   fs.mkdirSync(exeDir);
@@ -179,14 +100,14 @@ test('end-to-end: a 404 from the release lookup still exits 4, with the new word
   const tmpRoot = path.join(root, 'tmp');
   fs.mkdirSync(tmpRoot);
 
-  const result = runUpdateCommand(
+  const result = await runUpdateCommand(
     {},
     {
       execPath,
       platform: 'linux',
       tmpRoot,
       isPkg: true,
-      requireGh: () => ghPath,
+      lookupRelease: (flags) => lookupRelease(flags, { request: fake.request }),
     },
   );
 
@@ -199,8 +120,8 @@ test('end-to-end: a 404 from the release lookup still exits 4, with the new word
 // AC-01: the source-mode guard message contains the public releases URL as a literal
 // ---------------------------------------------------------------------------
 
-test('the source-mode guard message names the public releases URL as a literal', () => {
-  const result = runUpdateCommand({}, { isPkg: false });
+test('the source-mode guard message names the public releases URL as a literal', async () => {
+  const result = await runUpdateCommand({}, { isPkg: false });
   assert.equal(result.exitCode, EXIT_CODES.UPDATE_PREREQUISITE);
   assert.ok(result.human.includes(PUBLIC_RELEASES_URL), 'must contain the public releases URL as a literal');
   assert.doesNotMatch(result.human, /Noisyink/);
