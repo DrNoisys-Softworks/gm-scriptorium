@@ -4,7 +4,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const http = require('http');
-const net = require('net');
 const os = require('os');
 const path = require('path');
 const { EventEmitter } = require('events');
@@ -16,14 +15,17 @@ const pw = require('../src/remote/password');
 const pwWrite = require('../src/remote/passwordwrite');
 const { createSessionStore } = require('../src/remote/sessions');
 const { createTestProxy } = require('./helpers/remote-test-proxy');
+const { testPort } = require('./helpers/ports');
 const remoteHandlers = require('../src/admin/handlers/remote');
 
 /*
  * ADR 0054 sections 3 and 4: sign-in by username, over real sockets. The panel runs through
  * runServeCommand with the real listeners, stores and handlers, behind the repo's test proxy
- * (copied in shape from test/remote-http.test.js, not required). The ports are free ones found at
- * run time (the older suite's fixed ports collide across worktrees); remote mode needs fixed ports in
- * its settings, so they are found first and written into the config. Time is an injected clock.
+ * (copied in shape from test/remote-http.test.js, not required). The two ports are fixed, 7938 and
+ * 7939 through testPort, below the range the operating system hands out for ephemeral ports. So
+ * nothing else on the machine can be given one between one test's panel stopping and the next one
+ * starting. SCRIPTORIUM_TEST_PORT_BASE moves them for a second copy of the suite. Remote mode needs
+ * fixed ports in its settings and refuses port 0. Time is an injected clock.
  * Passwords and names here are test fixtures only.
  */
 
@@ -34,27 +36,10 @@ const GM_PW = 'the earlier passphrase';
 const ADMIN_HOST = 'panel-host.example-tailnet.ts.net';
 const PREVIEW_HOST = 'panel-host.example-tailnet.ts.net:8443';
 const GENERIC = '{"error":"signin","message":"That didn\'t work. Check your username and password."}';
+const ADMIN_PORT = testPort(7938);
+const PREVIEW_PORT = testPort(7939);
 
 // --- harness -------------------------------------------------------------------------------------
-
-function freePorts(count) {
-  const servers = [];
-  return new Promise((resolve, reject) => {
-    let left = count;
-    const ports = [];
-    for (let i = 0; i < count; i++) {
-      const s = net.createServer();
-      servers.push(s);
-      s.on('error', reject);
-      s.listen(0, '127.0.0.1', () => {
-        ports.push(s.address().port);
-        if (--left === 0) {
-          Promise.all(servers.map((x) => new Promise((r) => x.close(r)))).then(() => resolve(ports));
-        }
-      });
-    }
-  });
-}
 
 function makeFixture(t, ports) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-sa-')));
@@ -98,7 +83,7 @@ async function seed(fx, { accounts = [], legacy = null } = {}) {
 }
 
 async function startPanel(t, { accounts = [['rook', ROOK_PW], ['saffron', SAFFRON_PW]], legacy = null } = {}) {
-  const ports = await freePorts(2);
+  const ports = [ADMIN_PORT, PREVIEW_PORT];
   const fx = makeFixture(t, ports);
   await seed(fx, { accounts, legacy });
   const clk = { t: Date.UTC(2026, 9, 12, 0, 0, 0), now: () => clk.t };
