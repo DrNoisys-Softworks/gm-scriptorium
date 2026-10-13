@@ -492,7 +492,7 @@ test('SD-a1: build and status ignore [remote] entirely, even a broken table (bui
   const fx = fixture(t, '\n[remote]\nmode = "banana"\nport = 0\nnonsense = true\n');
   const status = runStatusCommand({ config: fx.configPath }, 'alpha');
   assert.equal(status.exitCode, 0);
-  const build = runBuildCommand({ config: fx.configPath, 'no-check': true, force: true }, 'alpha');
+  const build = runBuildCommand({ config: fx.configPath, 'no-check': true }, 'alpha');
   assert.equal(build.exitCode, 0, build.human);
   // while serve --admin and remote refuse the same table
   await refuses(run(fx, 'show'), 'remote: unrecognised key "nonsense"');

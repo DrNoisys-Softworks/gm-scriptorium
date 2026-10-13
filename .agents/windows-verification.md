@@ -128,6 +128,8 @@ proof only; this is exactly what C1 confirms on Windows):
   scriptorium-win-x64.exe build grapheme-check --force --config <config>.toml
   ```
 
+  *Note (2026-10-12, ADR 0055): from this version `--force` exits 1 with a one-line message. In the command above use `--force-check`, because the fixture's one check error (a missing publish manifest) is a check finding. `--force-out` is needed only if the output folder is the site config's own `outputDir`. The same change applies to the `build <campaign> --force` line in the Linux-side proof below.*
+
   then hash every file (PowerShell: `Get-ChildItem -Recurse -File <out-dir> | Get-FileHash -Algorithm
   SHA256 | Sort-Object Path`) and diff against the C1 manifest for this pin, delivered over
   the Windows verification channel: `c1-manifest-node.txt` (the Linux plain-node reference). **Stale as of the `publish-v1.11.44` repin (2026-10-01), again at `publish-v1.12.0` (2026-10-02), at `publish-v1.12.3` (2026-10-03) and again at `publish-v1.14.0` (2026-10-06), not yet regenerated (OPEN):** the pin's own `css/style.css` changed at the first two and is copied into every built site, at `publish-v1.12.3` the pin's page templates and link reading changed, and at `publish-v1.14.0` the pin's grouped Story toggle, the D&D sheet templates and `css/style.css` changed, so the manifest below no longer matches a build at the current pin. Regenerate it on the Linux build host before using this criterion. **Regenerated at `publish-v1.11.40`
@@ -354,6 +356,8 @@ seed depending on `fs.readFileSync` of a `/snapshot/...` path) no longer exists.
    required: the fixture ships no `_meta/publish-manifest.md` and its `publish.mode` is `player`, so a plain
    `build` fails closed at exit 2 before ever reaching the patch under test (`test/section-filter-build.test.js`
    itself calls `runBuildCommand({ config, force: true })`, which is what this step now matches).
+
+   *Note (2026-10-12, ADR 0055): from this version `--force` exits 1 with a one-line message. Use `--force-check` in step 2; the fixture's missing publish manifest is a check finding.*
 3. Confirm the built page's HTML carries `Public Bio` and its body (so the build really ran) and
    carries **neither** `Rumours In Play` nor `NESTEDLEAKSENTINEL`.
 4. Search `<scratch-dir>\search-index.json` for `nestedleaksentinel` (it is lowercased there) and
@@ -438,6 +442,7 @@ packaged artefact. **Mark this OPEN: Linux-verified from source only.**
      directory, by registering the campaign with no override at all. **Re-verify on Windows against the
      real campaign vault: confirm a plain `build` refuses instead of writing there, and that
      `build --force` still proceeds and says so.**
+     *Note (2026-10-12, ADR 0055): from this version the flag for this case is `--force-out`; `build --force-out` still proceeds and says `--force-out: building into the site config's own outputDir`. A bare `--force` exits 1 with a one-line message.*
   3. A campaign registered with no `site_config` now fails with one clean line
      (`campaign has no site_config configured`) and exit 3 (issue #108; was 1, now **OPEN** again), not a ten-frame stack trace. **Re-verify on
      Windows:** `scriptorium-win-x64.exe config add no-site-config-check --vault <any reachable
@@ -882,6 +887,8 @@ Setup as in C40, with campaign `c42` and output `S\out`.
    published prose from a real fixture, and separately proves a marker in a `type: pc` note's non-publishing body
    never reaches the staged tree -- pinning this exact fixture assumption so it cannot silently drift back.
 
+   *Note (2026-10-12, ADR 0055): from this version `--force` exits 1 with a one-line message, so step 6 runs `build c42 --force-out --force-check` (both flags, to show that neither overrides the refusal). The expected exit 2, the `build/gm-link-marker` lines and the unchanged hashes are as written.*
+
 ### C43: `assertSafeOutputDir`'s containment (prefix) checks catch a case-different or symlinked output dir on real Windows, not just a `process.platform`-forced Linux test
 
 Issue #23 closed the containment half of the fail-open gap `5d8dfb5` closed for equality: `finalOut` (or
@@ -1240,6 +1247,8 @@ itself; never plant one of these files in the real campaign vault.
    from before this change against the same three planted files DOES create their marker files,
    confirming the scratch harness itself is live and the refusal above is real rather than
    coincidental.
+
+*Note (2026-10-12, ADR 0055): from this version `--force` exits 1 with a one-line message, so step 3 runs `build c54 --force-check --no-check`. The expected exit 2 and the phrase "neither --force nor --no-check" (still printed, still true) are as written. `--force-check` cannot override this refusal.*
 
 ### C55: Title views and the campaign-id warning, from the real win-x64 exe
 
@@ -1732,6 +1741,8 @@ Bug batch B4, issue 106. **Verified on Windows (2026-10-07, rc.4, Windows 11 tes
 3. `serve lease --out=C:\x`: exit 1, the message says to write the value after a space.
 4. `build lease --no-check --force --json` and `update --check` still run as before.
 
+   *Note (2026-10-12, ADR 0055): from this version a bare `--force` is refused with exit 1 and one line (`--force has been split ...`), so step 4 runs `build lease --no-check --force-check --json`. `update --check` is unchanged.*
+
 ### C94: the first-run errors say what to do next, in the real win-x64 exe
 
 Bug batch B4, issue 107. **Verified on Windows (2026-10-07, rc.4, Windows 11 test VM).**
@@ -2178,6 +2189,38 @@ rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on eve
 3. Run `check smoke --json`. The exit code and the `counts` equal `EXPECTED.clean`, and there is no `leak/` error finding.
 4. Append the planted name (`PLANTED_NAME`) in a paragraph to `out\index.html`. Run `check smoke --json`. It exits 2, the `counts` equal `EXPECTED.planted`, and there is exactly one `leak/l4-output-name` finding, naming `index.html`.
 5. Re-hash the real config.
+
+### C170: a bare `--force` is refused with one line, in the real win-x64 exe
+
+Issue #15, [ADR 0055](../docs/decisions/0055-force-split.md). **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match. Use a scratch copy of the-long-lease example vault, registered as campaign `c170` with an output folder `S\out` that does not exist.
+
+1. `build c170 --force --config "S\config.toml"` exits 1 and prints exactly one line, `--force has been split: use --force-check to build despite check errors, or --force-out to build into the site config's own outputDir. Nothing overrides the output-leak scan.` No stack trace.
+2. `S\out` still does not exist, and `S\config.toml` has the same hash as before.
+3. `build c170 --force --no-check --json --config "S\config.toml"` exits 1 with the same line and still writes nothing. Re-hash the real config.
+
+### C171: `--force-check` builds despite a check error, in the real win-x64 exe
+
+Issue #15, ADR 0055. **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of the-long-lease example vault with one extra page whose link points at nothing (a check ERROR), registered as campaign `c171`.
+
+1. `build c171 --config "S\config.toml"` exits 2 and writes nothing.
+2. `build c171 --force-check --json --config "S\config.toml"` exits 0, the human output (run once without `--json`) has a `--force-check: overriding N error finding(s):` line and `OVERRIDDEN` lines, and the JSON has `forceCheck` true, `forceOut` false and `siteOutputDirCollision` null.
+3. `build c171 --force-out --config "S\config.toml"` exits 2: `--force-out` alone does not override a check error. Re-hash the real config.
+
+### C172: no flag overrides an output-leak scan hit, in the real win-x64 exe
+
+Issue #15, ADR 0055. **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch vault of the gate shape: one published page that embeds an attachment named after a withheld entity (for example `![[secret-witness.png]]` with a withheld page `Secret Witness.md`), registered as campaign `c172` with a convention pack. Build it once into `S\out` first by a route that is allowed (for example with the attachment reference removed), and record `Get-ChildItem -Recurse -File S\out | Get-FileHash` as the baseline.
+
+1. Put the attachment reference back. `build c172 --force-out --force-check --no-check --config "S\config.toml"` exits 2 and names the scan finding for `images\secret-witness.png`.
+2. The hashes of every file in `S\out` equal the baseline, and no `.scriptorium-build-*` or `.scriptorium-old-*` folder is left beside `S\out`.
+3. Repeat step 1 with `--force-check` alone, `--force-out` alone and `--json` (`refusedByScan` true). Each exits 2 with the same unchanged hashes. Re-hash the real config.
+
+### C173: `--force-out` builds into the site config's own outputDir, in the real win-x64 exe
+
+Issue #15, ADR 0055. **Mark this OPEN: Linux tests prove the logic only; NTFS folds case, so the collision guard must see a differently cased path as the same folder.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of a vault whose pack `vault.config.json` sets `"outputDir": "../../../out"` (the folder `S\out` beside the vault), registered as campaign `c173` with `--out` typed as `S\OUT` (different case).
+
+1. `build c173 --no-check --config "S\config.toml"` exits 2, says it refuses to build because the output is the site config's own `outputDir`, tells you to rerun with `--force-out`, and writes nothing.
+2. `build c173 --force-check --no-check --config "S\config.toml"` exits 2 with the same refusal: `--force-check` does not override the collision guard.
+3. `build c173 --force-out --no-check --json --config "S\config.toml"` exits 0, the human output (run once without `--json`) has the line `--force-out: building into the site config's own outputDir`, and the JSON has `forceOut` true and `siteOutputDirCollision` set to the path. Re-hash the real config.
 
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 

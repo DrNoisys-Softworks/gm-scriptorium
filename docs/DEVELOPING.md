@@ -136,6 +136,7 @@ prerequisite) for a user mistake. The table-driven test is `test/exit-codes-user
 | `status` with no campaigns | 0 | 0 | `no campaigns registered; run "gm-scriptorium config add" first` (informational) |
 | unknown command | 1 | 1 | `unknown command: chek` plus the usage block |
 | unknown flag, or a flag with no value | 1 | 1 | `unknown flag --prot for "build"` / `--vault needs a value` |
+| `build --force` (split into `--force-check` and `--force-out`) | accepted | 1 | `--force has been split: use --force-check ...` |
 | `--port abc`, `99999`, `-5` (plain or `--admin`) | 1 | 1 | `--port must be a whole number from 0 to 65535 ...` |
 | port in use | 1 | 1 | `failed to start server: port 8080 is already in use on 127.0.0.1` |
 | privileged port without rights (EACCES) | 1 | 1 | `failed to start server: port 80 needs administrator rights ...` |

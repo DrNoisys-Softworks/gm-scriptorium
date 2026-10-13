@@ -55,7 +55,7 @@ test('F08: help flag position does not matter', () => {
 test('F08: global --help keeps its command lines and gains the pointer line', () => {
   const r = help(['--help']);
   assert.equal(r.code, 0);
-  assert.ok(r.out.includes('  build    [campaign] [--no-check] [--force] [--out <path>] [--json]'));
+  assert.ok(r.out.includes('  build    [campaign] [--no-check] [--force-check] [--force-out] [--out <path>] [--json]'));
   assert.ok(r.out.includes(GLOBAL_MARKER));
   assert.ok(r.out.includes('Run "gm-scriptorium <command> --help"'));
 });

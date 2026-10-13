@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('path');
-const { resolveCampaignContext } = require('./args');
+const { resolveCampaignContext, FORCE_SPLIT_MESSAGE } = require('./args');
 const { resolveVaultContext, runCheckForContext, asPackProblem } = require('./check');
 const { siteVaultPathMismatchMessage, packShadowedMessage } = require('../checks/configdiv');
 const { NON_YAML_LANGUAGE_ID } = require('../checks/frontmatter');
@@ -9,7 +9,7 @@ const { runAtomicBuild } = require('../build/run');
 const { siteConfigOutputDirCollision } = require('../build/plan');
 const { planThemeAssets } = require('../build/themeassets');
 const { computePublishedSet } = require('../vault/publishset');
-const { VaultUnreachableError } = require('../util/errors');
+const { VaultUnreachableError, ConfigError } = require('../util/errors');
 const { suggestedSlug } = require('../setup/foldermap');
 const { EXIT_CODES } = require('../util/exitcodes');
 const { SCHEMA_VERSION } = require('../report/json');
@@ -121,7 +121,9 @@ function baseEnvelope(campaign, vaultPath, outputPath, vaultMismatch, generatedA
 /**
  * `build`: runs `check` first by default and refuses on any ERROR (exit 2,
  * writes nothing). `--no-check` skips checking entirely and says so.
- * `--force` builds anyway and prints every overridden finding.
+ * `--force-check` builds anyway and prints every overridden check finding; `--force-out` builds into
+ * the site config's own outputDir despite the collision guard. Nothing on the command line
+ * overrides the output-leak scan (ADR 0055), and a bare `--force` is refused.
  *
  * Returns `{ exitCode, human, envelope }`. `envelope` follows the same
  * schemaVersion/tool/campaign/vaultPath/outputPath/generatedAt shape as
@@ -163,7 +165,10 @@ function runBuildForContext(ctxInfo, flags) {
     ctxInfo.campaign,
   );
   const finalOut = path.resolve(requireOutputFolder(ctxInfo, 'build'));
-  const forced = Boolean(flags.force);
+  // ADR 0055: two independent overrides, and neither reaches the output-leak scan.
+  const forceOut = Boolean(flags['force-out']);
+  const forceCheck = Boolean(flags['force-check']);
+  const forced = forceOut || forceCheck;
   const checkSkipped = Boolean(flags['no-check']);
 
   const lines = [];
@@ -177,7 +182,7 @@ function runBuildForContext(ctxInfo, flags) {
   // JSON envelope.
   for (const w of [...packToml.warnings, ...themePlan.warnings]) lines.push(`warning: ${w}`);
 
-  // Issue #21, defect 1: refuse (overridable by --force) a build whose
+  // Issue #21, defect 1: refuse (overridable by --force-out) a build whose
   // resolved output equals the site config's own outputDir, so a campaign
   // registered to publish there by accident cannot silently clobber
   // whatever already lives there. See src/build/plan.js for the full
@@ -185,20 +190,22 @@ function runBuildForContext(ctxInfo, flags) {
   // absolute refusal, because that exact directory is a legitimate publish
   // target for plenty of real setups.
   const siteOutputCollision = siteConfigOutputDirCollision(finalOut, siteDir, jsonConfig.outputDir);
-  if (siteOutputCollision && !forced) {
+  if (siteOutputCollision && !forceOut) {
     return {
       exitCode: EXIT_CODES.CHECK_FAILED,
       human: [
         ...lines,
         `refusing to build: the resolved output directory is the same directory the site config's own "outputDir" points at (${siteOutputCollision}).`,
         'That can be exactly where you want to publish, so this is not a hard block, but GM-Scriptorium will not write there without confirmation.',
-        'If this is genuinely where you want to publish, rerun with --force. Nothing was written.',
+        'If this is genuinely where you want to publish, rerun with --force-out. Nothing was written.',
       ].join('\n'),
       envelope: {
         ...baseEnvelope(ctxInfo.campaign, vaultPath, finalOut, vaultMismatch, generatedAt),
         ok: false,
         checkSkipped,
         forced,
+        forceOut,
+        forceCheck,
         check: null,
         refused: true,
         siteOutputDirCollision: siteOutputCollision,
@@ -207,14 +214,14 @@ function runBuildForContext(ctxInfo, flags) {
         elapsedMs: null,
         notice: null,
         staleOldDir: null,
-        error: `resolved output directory matches the site config's own outputDir (${siteOutputCollision}); refusing without --force`,
+        error: `resolved output directory matches the site config's own outputDir (${siteOutputCollision}); refusing without --force-out`,
         renderErrors: [],
         stagingRoot: null,
       },
     };
   }
   if (siteOutputCollision) {
-    lines.push(`--force: building into the site config's own outputDir (${siteOutputCollision}) despite the collision guard.`);
+    lines.push(`--force-out: building into the site config's own outputDir (${siteOutputCollision}) despite the collision guard.`);
   }
 
   let checkEnvelope = null;
@@ -229,7 +236,7 @@ function runBuildForContext(ctxInfo, flags) {
     const checkResult = runCheckForContext(ctxInfo, flags, { deferOutputScan: true });
     checkEnvelope = checkResult.envelope;
     if (checkEnvelope.counts.error > 0) {
-      if (!forced) {
+      if (!forceCheck) {
         return {
           exitCode: EXIT_CODES.CHECK_FAILED,
           human: [
@@ -242,6 +249,9 @@ function runBuildForContext(ctxInfo, flags) {
             ok: false,
             checkSkipped,
             forced,
+            forceOut,
+            forceCheck,
+            siteOutputDirCollision: siteOutputCollision || null,
             check: checkEnvelope,
             refused: true,
             pagesWritten: null,
@@ -255,11 +265,11 @@ function runBuildForContext(ctxInfo, flags) {
         };
       }
       // ADR 0034: frontmatter/non-yaml-language is never forceable, so it is excluded from what
-      // --force can claim to override here. For a vault with no tagged fences this filter is a
+      // --force-check can claim to override here. For a vault with no tagged fences this filter is a
       // no-op and the output is byte-identical to before this slice.
       overriddenFindings = checkEnvelope.findings.filter((f) => f.severity === 'error' && f.id !== NON_YAML_LANGUAGE_ID);
       if (overriddenFindings.length > 0) {
-        lines.push(`--force: overriding ${overriddenFindings.length} error finding(s):`);
+        lines.push(`--force-check: overriding ${overriddenFindings.length} error finding(s):`);
         for (const f of overriddenFindings) lines.push(`  OVERRIDDEN ${f.id} ${f.path || ''} ${f.message}`);
       }
     }
@@ -277,7 +287,9 @@ function runBuildForContext(ctxInfo, flags) {
     finalOut,
     siteDir,
     campaign: ctxInfo.campaign,
-    force: forced,
+    // ADR 0055: the literal false. No command-line flag reaches the output-leak scan override;
+    // test/force-split-structure.test.js proves it.
+    force: false,
     themePlan,
     vocab: packToml.vocab,
   });
@@ -296,6 +308,9 @@ function runBuildForContext(ctxInfo, flags) {
         ok: false,
         checkSkipped,
         forced,
+        forceOut,
+        forceCheck,
+        siteOutputDirCollision: siteOutputCollision || null,
         check: checkEnvelope,
         refused: true,
         refusedByFrontmatter: true,
@@ -323,6 +338,9 @@ function runBuildForContext(ctxInfo, flags) {
         ok: false,
         checkSkipped,
         forced,
+        forceOut,
+        forceCheck,
+        siteOutputDirCollision: siteOutputCollision || null,
         check: checkEnvelope,
         refused: true,
         refusedByScan: true,
@@ -351,9 +369,12 @@ function runBuildForContext(ctxInfo, flags) {
         ok: false,
         checkSkipped,
         forced,
+        forceOut,
+        forceCheck,
+        siteOutputDirCollision: siteOutputCollision || null,
         check: checkEnvelope,
         refused: false,
-        overriddenFindings: forced ? overriddenFindings : [],
+        overriddenFindings: forceCheck ? overriddenFindings : [],
         pagesWritten: null,
         elapsedMs: null,
         notice: null,
@@ -363,16 +384,6 @@ function runBuildForContext(ctxInfo, flags) {
         stagingRoot: result.stagingRoot,
       },
     };
-  }
-
-  // Track D2: `force` overrides both the pre-build check's ERROR findings
-  // AND a staging-scan hit; the staging-scan findings join the SAME
-  // overriddenFindings array, so it stays the complete record of what was
-  // overridden (Structural decision 5, file map note on src/cli/build.js).
-  if (result.outputScan && result.outputScan.overridden) {
-    overriddenFindings = [...overriddenFindings, ...result.outputScan.findings];
-    lines.push(`--force: overriding ${result.outputScan.findings.length} output-leak scan finding(s):`);
-    for (const f of result.outputScan.findings) lines.push(`  OVERRIDDEN ${f.id} ${f.outputPath || f.path || ''} ${f.message}`);
   }
 
   lines.push(`built ${result.pagesWritten} file(s) in ${result.elapsedMs.toFixed(1)}ms -> ${result.finalOut}`);
@@ -438,10 +449,13 @@ function runBuildForContext(ctxInfo, flags) {
       ok: true,
       checkSkipped,
       forced,
+      forceOut,
+      forceCheck,
+      siteOutputDirCollision: siteOutputCollision || null,
       check: checkEnvelope,
       refused: false,
       refusedByScan: false,
-      overriddenFindings: forced ? overriddenFindings : [],
+      overriddenFindings: forceCheck ? overriddenFindings : [],
       pagesWritten: result.pagesWritten,
       elapsedMs: result.elapsedMs,
       notice: result.notice || null,
@@ -461,6 +475,8 @@ function runBuildForContext(ctxInfo, flags) {
  * @param {string} [campaignArg]
  */
 function runBuildCommand(flags, campaignArg) {
+  // ADR 0055: refuse the retired flag before anything is resolved, so a direct caller fails loudly too.
+  if (flags.force !== undefined) throw new ConfigError(FORCE_SPLIT_MESSAGE);
   const ctxInfo = resolveCampaignContext(flags, campaignArg);
   return runBuildForContext(ctxInfo, flags);
 }

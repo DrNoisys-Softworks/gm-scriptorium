@@ -17,7 +17,7 @@ Commands:
   init     [--name <name>] [--vault <path>] [--out <path>] [--title <text>] [--theme <name>] [--yes]
            init --new-vault <path> --system <id|none> [--name <name>] [--title <text>] [--out <path>] [--theme <name>] [--yes]
   check    [campaign] [--graph] [--json] [--quiet] [--no-color]
-  build    [campaign] [--no-check] [--force] [--out <path>] [--json]
+  build    [campaign] [--no-check] [--force-check] [--force-out] [--out <path>] [--json]
   serve    [campaign] [--build] [--port N] [--host ADDR] | [campaign] --admin [--port N] [--preview-port N]
   remote   show | set [--mode local|ssh|tailscale|proxy] [--admin-url URL] [--preview-url URL] [--bind ADDR]
            [--trusted-proxy ADDR,...] [--port N] [--preview-port N] | account add|change|reset|remove|rename|list
