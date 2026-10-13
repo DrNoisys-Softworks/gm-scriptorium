@@ -18,6 +18,7 @@ const { applyConnections } = require('./connections');
 const { writeSiteScript } = require('./sitescript');
 const { applyStoryFocus } = require('./storyfocus');
 const { applyPageTurn } = require('./pageturn');
+const { injectGmAccessLink } = require('./gmaccess');
 const { captureWithheldHubs, compareSessionPairs } = require('./sessionmodel');
 const { scanStagingOutput, scanGmLinkMarker, scanCommentSurvivors } = require('./outputgate');
 const { ScriptoriumError } = require('../util/errors');
@@ -55,6 +56,9 @@ const sessionpairs = require('../vault/sessionpairs');
  *   src/build/themeassets.js's planThemeAssets, or null/omitted for a build with no pack.toml
  *   (byte-identical to a build before ADR 0019 -- writeThemeAssets touches nothing for a null
  *   or empty plan).
+ * @param {{ url: string }|null} [opts.gmLink] ADR 0054: the opt-in published GM link from pack.toml's
+ *   [gm_link], or null/omitted for off (the build is then byte-identical to one without this
+ *   option). It only switches the link on: no parameter can skip or override any output gate.
  * @param {object} [opts.vocab] ADR 0020: the resolved [labels]/[timeline]/[recaps] object
  *   (src/build/labels.js), or omitted for the default vocabulary.
  * @returns {{ ok: true, finalOut: string, pagesWritten: number, elapsedMs: number, staleOldDir: string|null, redactions: { id: string, calls: number }[], outputScan: { findings: object[], overridden: boolean } } |
@@ -79,7 +83,7 @@ function generatorWarningLines(detail, { stagingRoot, stagingOut, finalOut }) {
     .map((entry) => swap(swap(entry.text, stagingOut, finalOut), stagingRoot, '<staging>').replace(/^\s+/, ''));
 }
 
-function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign, force = false, themePlan = null, vocab }) {
+function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign, force = false, themePlan = null, vocab, gmLink = null }) {
   if (typeof siteDir !== 'string' || siteDir.length === 0 || !path.isAbsolute(siteDir)) {
     throw new ScriptoriumError(`siteDir must be an absolute path, got: ${siteDir}`);
   }
@@ -207,6 +211,11 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
   const siteScript = writeSiteScript(stagingOut, { linkedPages: timeline.pagesPatched + connections.lanes + connections.hubOnly });
 
   const pageTurn = applyPageTurn(stagingOut);
+
+  // ADR 0054: the opt-in published GM link. After the last page transform and BEFORE the three gates
+  // below, so each of them scans the tree that is actually published. Off (null/undefined) touches
+  // nothing. The gates are untouched and still unconditional.
+  injectGmAccessLink(stagingOut, gmLink, campaign);
 
   // FR34(b), ADR 0022 section 8: unconditional. Runs before, and entirely outside, the leak
   // scan's force handling below; no parameter or flag of runAtomicBuild can skip or override it.
