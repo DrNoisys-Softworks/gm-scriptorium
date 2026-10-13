@@ -407,7 +407,7 @@ function apiRemote(req, res, ctx, { kind }) {
     },
     sessions: { active: ctx.sessions.activeCount() },
     audit: { file: paths.auditFile, ok: health.ok, lastError: health.lastError },
-    files: { looseModes: findLooseModes(paths) },
+    files: { looseModes: findLooseModes(paths, { panelAccess: ctx.remote.panelAccess }) },
     recentSignins: recent.entries.filter((e) => e.event === 'signin'),
     log: full.entries,
     truncated: full.truncated,

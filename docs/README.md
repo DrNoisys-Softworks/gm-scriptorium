@@ -81,6 +81,7 @@ the way.
 - [0052. Adding a campaign from the panel](decisions/0052-add-a-campaign.md): A GM can add another campaign from the running panel, on this computer or over remote access, with the same questions and checks as first-run setup, then switch to it.
 - [0054. Getting into the GM console from the player site](decisions/0054-gm-access-from-the-player-site.md): Remote sign-in takes a username and a password against up to eight named accounts managed from the command line, wrong tries are counted per username with a global ceiling, and a published site can carry one opt-in "Game master" link.
 - [0055. `--force` is split, and no flag overrides the output-leak scan](decisions/0055-force-split.md): `build --force-check` builds despite check errors, `build --force-out` builds into the site config's own output folder, nothing overrides the output-leak scan, and a bare `--force` exits 1 with one line.
+- [0056. An owner-only access list on the panel folder on Windows](decisions/0056-windows-panel-access-list.md): On Windows the program sets the `panel` folder's access list to your account, SYSTEM and Administrators on every panel start and before any `remote` command writes there, using `icacls` from System32 through the one process spawner, and the remote modes refuse to start if it cannot.
 
 ## Licensing
 

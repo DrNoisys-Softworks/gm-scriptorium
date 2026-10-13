@@ -1789,6 +1789,8 @@ Isolate config as in C35. Use a scratch folder S inside the profile (under `%USE
 3. Record the result for S (inside the profile) and T (outside it). A broader access list outside the profile is recorded here, not fixed.
 4. Confirm `panel` is a real folder (`dir /AL` shows nothing for it), and that placing a config folder inside a registered vault is refused with a message naming the campaign.
 
+> rc.4 (issue 46, ADR 0056): the program now sets this list itself. Run steps 2 and 3 with the rc.4 exe; T (outside the profile) must now show only the owner, SYSTEM and Administrators, and a broader list is a failure. See C180 to C183.
+
 ### C71: proxy mode on a LAN address, in the real win-x64 exe
 
 `docs/decisions/0029-remote-access.md`: `proxy` mode listens on a chosen address plus 127.0.0.1, and drops every peer but the trusted proxy and this machine before any HTTP. Verified on Linux with real sockets (`test/remote-listener.test.js`, `test/remote-http.test.js`), which is Linux-only because Linux accepts every 127/8 address. **Mark this OPEN: Linux-verified only.**
@@ -2130,6 +2132,8 @@ Isolate config exactly as in C35 and as in C69: a scratch TOML via `SCRIPTORIUM_
 
 Repeat C70 steps 2 and 3 for the accounts file: for each of a scratch folder inside the profile and one outside it, add an account with `remote account add`, then record `icacls <folder>\panel` and `icacls <folder>\panel\accounts.json`. Expect no user or group beyond the owner, SYSTEM and Administrators. A broader access list outside the profile is recorded here, not fixed. Confirm `panel` is a real folder (`dir /AL` shows nothing for it).
 
+> rc.4 (issue 46, ADR 0056): the program now sets this list itself. Run steps 2 and 3 with the rc.4 exe; T (outside the profile) must now show only the owner, SYSTEM and Administrators, and a broader list is a failure. See C180 to C183.
+
 ### C159: Edge through a proxy with usernames: sign-in, the lockout per name and the password manager
 
 `docs/decisions/0054-gm-access-from-the-player-site.md`: sign-in takes a username and a password, a name is paused after five wrong tries and everyone after fifty, and the sign-in page is built so a browser's password manager can save and fill it. Verified in Chromium and Firefox through the repo's test proxy (what the page does, not what the browser's password manager offers). **Mark this OPEN: Edge is unverified, and so is every claim that a password manager saves and fills.**
@@ -2221,6 +2225,40 @@ Issue #15, ADR 0055. **Mark this OPEN: Linux tests prove the logic only; NTFS fo
 1. `build c173 --no-check --config "S\config.toml"` exits 2, says it refuses to build because the output is the site config's own `outputDir`, tells you to rerun with `--force-out`, and writes nothing.
 2. `build c173 --force-check --no-check --config "S\config.toml"` exits 2 with the same refusal: `--force-check` does not override the collision guard.
 3. `build c173 --force-out --no-check --json --config "S\config.toml"` exits 0, the human output (run once without `--json`) has the line `--force-out: building into the site config's own outputDir`, and the JSON has `forceOut` true and `siteOutputDirCollision` set to the path. Re-hash the real config.
+
+### C180: a new panel folder outside the profile is owner-only, in the real win-x64 exe
+
+Issue #46, [ADR 0056](../docs/decisions/0056-windows-panel-access-list.md). **Mark this OPEN: Linux tests prove the command text and the sequence of steps only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Scratch folders only.
+
+1. T = `C:\scriptorium-scratch\c180`. Record `icacls C:\scriptorium-scratch`; expect broad entries such as Authenticated Users.
+2. Pipe a password into `remote account add c180 --config T\config.toml`. `icacls` on `T\panel`, `T\panel\accounts.json` and `T\panel\audit.log` shows exactly the user, `NT AUTHORITY\SYSTEM` and `BUILTIN\Administrators`. The folder entries carry `(OI)(CI)`, the file entries are `(I)`, and there is no Users, Authenticated Users or Everyone entry.
+3. Start launch mode with `--config T\config.toml`. Within 60 seconds, `icacls T\panel\launch-<pid>.html` shows the same three. Re-hash the real config.
+
+### C181: an existing loose folder from an older build is tightened, in the real win-x64 exe
+
+Issue #46, ADR 0056. **Mark this OPEN: Linux tests prove the command text and the sequence of steps only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3.
+
+1. With the rc.3 exe, run `remote password` in `C:\scriptorium-scratch\c181` and record the broad list on `panel` and `panel\accounts.json`.
+2. Run rc.4 `remote account list`; the list is unchanged (it is read-only).
+3. Run rc.4 `serve --admin` (local mode), then stop it. The folder and every existing file in it show only the owner, SYSTEM and Administrators. Re-hash the real config.
+
+### C182: when the list cannot be set, in the real win-x64 exe
+
+Issue #46, ADR 0056. **Mark this OPEN: Linux tests prove the command text and the sequence of steps only.** Isolate config as in C135, and re-hash the real config before step 1 and after the last step. Scratch folders only.
+
+1. From an administrator prompt, create `C:\scriptorium-scratch\c182\panel` and run `icacls C:\scriptorium-scratch\c182\panel /setowner *S-1-5-32-544`. Then run `icacls C:\scriptorium-scratch\c182\panel /inheritance:r /grant *S-1-5-32-544:(OI)(CI)F *S-1-5-18:(OI)(CI)F %USERDOMAIN%\%USERNAME%:(OI)(CI)M`.
+2. As the standard user: `remote account add c182` exits 1 with the one refusal line (`remote access needs <panel> limited to your account, SYSTEM and Administrators before a password is saved there, ...; no password was saved`) and no `accounts.json` exists. `remote set --mode proxy ...` still exits 0 and prints the warning line as its last line.
+3. `serve --admin` exits 1 with the one refusal line naming the folder, and `netstat -ano | findstr :<port>` shows no listener.
+4. `remote set --mode local`, then `serve --admin`: it starts, prints the warning before the panel line, and the Remote access screen's File permissions row warns, naming the folder.
+5. Clean up as administrator. Re-hash the real config.
+
+### C183: a program named icacls on PATH is never used, in the real win-x64 exe
+
+Issue #46, ADR 0056. **Mark this OPEN: Linux tests prove the command text and the sequence of steps only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3.
+
+1. T = `C:\scriptorium-scratch\c183`. Copy `%SystemRoot%\System32\whoami.exe` to `T\bin\icacls.exe` and put `T\bin` first on PATH in that console.
+2. Run `remote account add c183`.
+3. `%SystemRoot%\System32\icacls.exe T\panel` shows only the owner, SYSTEM and Administrators, with `(OI)(CI)`. Re-hash the real config.
 
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 

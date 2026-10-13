@@ -177,3 +177,11 @@ It is deliberately outside the rules above that suit a program the panel waits f
 `src/update/gh.js` was deleted when `update` moved onto the egress module (see
 [ADR 0024](0024-ai-connections.md)). The only files under `src/` that name `child_process` are now
 `src/proc/run.js` and `src/cli/config.js`, and `test/proc-structure.test.js` says so.
+
+## Addendum: a Windows system tool
+
+[ADR 0056](0056-windows-panel-access-list.md) adds a second, separate list to `src/proc/run.js`, `SYSTEM_COMMANDS`, which holds `icacls` only. A program on it is run only on Windows, only as `<SystemRoot>\System32\<name>.exe` (SystemRoot is validated like the `taskkill` and `cmd.exe` paths), and is never looked up through `PATH`, so a planted copy earlier on `PATH` is never chosen. Off Windows it is refused with the reason `windows-only`, and a near miss such as `icacls.exe`, `ICACLS` or a full path is refused as not on the list. Everything else about a run is unchanged: no shell, the scratch environment, the empty working folder, the caps and the timeout.
+
+`ALLOWED_COMMANDS` and its pinned test are unchanged. `test/proc-system-commands.test.js` pins the new list. It grows only with a decision record, as the first list does.
+
+`bin` now reaches `run()` through `serve --admin` and `remote` as well as launch mode, where the panel start and the writing `remote` commands set the access list of the `panel` folder.

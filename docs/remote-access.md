@@ -94,6 +94,8 @@ panel notices straight away. Every account change is recorded in the audit log b
 `remote account` command that writes moves it into the accounts file. `remote password` still
 works: it sets the password of the account `gm`, adding it if it is missing.
 
+The account `gm` is a name anyone can guess, and someone who knows a name can keep it paused (section 11). `gm-scriptorium remote account rename gm <new name>` gives it one only you know.
+
 ## Other commands
 
 | Command | What it does |
@@ -297,8 +299,10 @@ name and a salted scrypt hash, never a password; an older `password.json` is rea
 `gm` until the first account command moves it), `sessions.json` (digests of session credentials), `audit.log`. On Linux
 and macOS the folder is created readable only by you (`0700`) and each file `0600`, at creation; if
 you loosen them the panel prints a warning at start and the Remote access screen shows it. On
-Windows they inherit the access list of the folder they are in (the profile folder, unless you put
-your config elsewhere), which is worth checking with `icacls`. The folder must be a real folder
+Windows the program sets the folder's access list itself, on every start and before any `remote`
+command writes there (your account, SYSTEM and Administrators, passed down to every file); if it
+cannot, the panel warns, the Remote access screen shows it, and the remote modes refuse to start
+([ADR 0056](decisions/0056-windows-panel-access-list.md)). The folder must be a real folder
 (not a link) and is never created inside a campaign vault.
 
 A backup of that folder, or a roaming profile that copies it, carries the password hashes and the

@@ -170,3 +170,5 @@ Two other amendments do not relax anything: ADR 0029 section 4 gains `accounts.j
 | From a phone, follow the "Game master" link on the real site, through Caddy and through Tailscale, to the console's sign-in page | OPEN (Pending, needs the published link) |
 | Chrome and Firefox offer to save the login after sign-in, and fill it on the next visit | OPEN |
 | A paused `rook` signing in from the phone does not block `gm` on the desktop | OPEN |
+
+`accounts.json` gets its access list from the panel folder (ADR 0056).

@@ -12,6 +12,9 @@ const { ScriptoriumError } = require('../util/errors');
  * environment from scratch, runs the child in an empty temp folder, and kills the whole process
  * tree on timeout, cancel, output cap or shutdown.
  *
+ * SYSTEM_COMMANDS (icacls only) is a second, Windows-only list, run from <SystemRoot>\System32 and
+ * never found through PATH (ADR 0046 addendum, ADR 0056).
+ *
  * One deliberate exception sits at the end of this file: openFile, the launch-only browser opener
  * (ADR 0028, section 8; ADR 0046 addendum). It hands one local file to the operating system's own
  * opener and lets go. It is not on the list, is never registered in the live-run set and is never
@@ -38,6 +41,12 @@ const { ScriptoriumError } = require('../util/errors');
  */
 
 const ALLOWED_COMMANDS = Object.freeze(['claude', 'codex', 'gemini', 'git', 'rsync', 'ssh', 'whisper-cli']);
+
+// Windows system tools (ADR 0046 addendum, "a Windows system tool"; ADR 0056). Kept apart from
+// ALLOWED_COMMANDS on purpose: these are run only on Windows, only from <SystemRoot>\System32, and
+// are never looked up through PATH, so a planted copy earlier on PATH cannot be chosen. The list
+// grows only with a decision record.
+const SYSTEM_COMMANDS = Object.freeze(['icacls']);
 
 const BASE_ENV_POSIX = Object.freeze([
   'PATH', 'HOME', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR',
@@ -248,6 +257,10 @@ function findOnPosixPath(command, pathValue, exists) {
  * @returns {{ resolvedPath: string, kind: 'direct' | 'cmd-shim' }}
  */
 function resolveCommand(command, { env, platform }, deps = {}) {
+  if (typeof command === 'string' && SYSTEM_COMMANDS.includes(command)) {
+    if (platform !== 'win32') throw fail('E_PROC_NOT_ALLOWED', 'that program is only run on Windows', { reason: 'windows-only' });
+    return { resolvedPath: systemRootOf(env) + '\\System32\\' + command + '.exe', kind: 'direct' };
+  }
   if (typeof command !== 'string' || !ALLOWED_COMMANDS.includes(command)) {
     throw fail('E_PROC_NOT_ALLOWED', 'that program is not on the allowed list', { reason: 'not-allowed' });
   }
@@ -377,7 +390,7 @@ async function killAll() {
 async function run(opts, deps = {}) {
   validateOptions(opts);
   const command = opts.command;
-  if (typeof command !== 'string' || !ALLOWED_COMMANDS.includes(command)) {
+  if (typeof command !== 'string' || !(ALLOWED_COMMANDS.includes(command) || SYSTEM_COMMANDS.includes(command))) {
     throw fail('E_PROC_NOT_ALLOWED', 'that program is not on the allowed list', { reason: 'not-allowed' });
   }
   const args = opts.args === undefined ? [] : opts.args;
@@ -752,6 +765,7 @@ function removeDir(dir) {
 
 module.exports = {
   ALLOWED_COMMANDS,
+  SYSTEM_COMMANDS,
   BASE_ENV_POSIX,
   BASE_ENV_WIN32,
   STRIPPED_ENV_NAMES,

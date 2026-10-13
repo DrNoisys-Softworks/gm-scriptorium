@@ -15,6 +15,7 @@ const { MAX_ACCOUNTS, canonicalUsername, readAccounts } = require('../remote/acc
 const passwordwrite = require('../remote/passwordwrite');
 const { createSessionStore } = require('../remote/sessions');
 const { createAuditLog } = require('../remote/audit');
+const { applyPanelAccess, accessWarning, accessSecretRefusal } = require('../remote/panelaccess');
 const { commandHelp } = require('./help');
 
 /*
@@ -78,6 +79,33 @@ function sessionsOf(paths, now) {
   const store = createSessionStore({ file: paths.sessionsFile, now });
   store.load();
   return store;
+}
+
+/**
+ * ADR 0056: before the first write into the panel folder, set its access list (Windows only; a
+ * no-op elsewhere and inside a vault). Called after prompts and hashing, so a cancelled prompt
+ * creates nothing. A command that is about to save a password or its hash refuses when the list
+ * cannot be set (nothing is written); every other writing command warns and carries on, so
+ * `remote off` stays a way out.
+ *
+ * @param {{ refuse?: boolean }} [opts]
+ * @returns {Promise<string>} a warning line (with its newline) to append to the output, or ''
+ */
+async function securePanel(paths, config, panelAccess, { refuse = false } = {}) {
+  let insideVault = false;
+  try {
+    assertNotInsideAnyVault(paths.panelDir, config);
+  } catch {
+    insideVault = true;
+  }
+  const access = await applyPanelAccess(
+    paths,
+    { insideVault, platform: panelAccess.platform || process.platform, env: panelAccess.env || {} },
+    { run: panelAccess.run },
+  );
+  if (access.state !== 'failed') return '';
+  if (refuse) throw new ConfigError(accessSecretRefusal(paths.panelDir, access.reason));
+  return '\n' + accessWarning(paths.panelDir, access.reason);
 }
 
 /** Best-effort audit entry; returns a warning line when the log could not be written. */
@@ -224,7 +252,7 @@ function accountArity(verb, args) {
   return rest;
 }
 
-async function runAccount(args, paths, config, { stdin, stdout, now }) {
+async function runAccount(args, paths, config, { stdin, stdout, now, panelAccess }) {
   const [verb] = args;
   if (!ACCOUNT_VERBS.includes(verb)) {
     throw new ConfigError('usage: gm-scriptorium remote account add <name> | change <name> | reset <name> | remove <name> | rename <old> <new> | list');
@@ -257,6 +285,7 @@ async function runAccount(args, paths, config, { stdin, stdout, now }) {
       reader.close();
     }
     const record = await hashPassword(chosen, { now });
+    await securePanel(paths, config, panelAccess, { refuse: true });
     const warning = saveAccounts(paths, [...list, { name, record, fromEarlierPassword: false }], now);
     const audit = auditCli(paths, now, { event: 'account-add', account: name });
     return { exitCode: EXIT_CODES.OK, human: `account "${name}" added.${warning}${audit}` };
@@ -273,6 +302,7 @@ async function runAccount(args, paths, config, { stdin, stdout, now }) {
       reader.close();
     }
     const record = await hashPassword(chosen, { now });
+    await securePanel(paths, config, panelAccess, { refuse: true });
     const warning = saveAccounts(paths, list.map((a) => (a.name === name ? { name, record, fromEarlierPassword: false } : a)), now);
     sessions().revokeAccount(name);
     const audit = auditCli(paths, now, { event: `account-${verb}`, account: name });
@@ -281,30 +311,37 @@ async function runAccount(args, paths, config, { stdin, stdout, now }) {
 
   if (verb === 'remove') {
     requireExisting(list, name);
+    const loose = await securePanel(paths, config, panelAccess);
     const warning = saveAccounts(paths, list.filter((a) => a.name !== name), now);
     sessions().revokeAccount(name);
     const audit = auditCli(paths, now, { event: 'account-remove', account: name });
-    return { exitCode: EXIT_CODES.OK, human: `account "${name}" removed. Its remote devices are signed out.${warning}${audit}` };
+    return { exitCode: EXIT_CODES.OK, human: `account "${name}" removed. Its remote devices are signed out.${warning}${audit}${loose}` };
   }
 
   // rename
   requireExisting(list, name);
   const next = requireName(rest[1]);
   if (list.some((a) => a.name === next)) throw new ConfigError(`an account named "${next}" already exists`);
+  const loose = await securePanel(paths, config, panelAccess);
   const warning = saveAccounts(paths, list.map((a) => (a.name === name ? { ...a, name: next } : a)), now);
   sessions().revokeAccount(name);
   const audit = auditCli(paths, now, { event: 'account-rename', account: next, affected: name });
-  return { exitCode: EXIT_CODES.OK, human: `account "${name}" renamed to "${next}". Its remote devices are signed out.${warning}${audit}` };
+  return { exitCode: EXIT_CODES.OK, human: `account "${name}" renamed to "${next}". Its remote devices are signed out.${warning}${audit}${loose}` };
 }
 
 /**
  * @param {object} flags parsed argv flags
  * @param {string|undefined} subcommand
  * @param {string[]} args positional arguments after the subcommand
- * @param {{ stdin?: NodeJS.ReadStream, stdout?: NodeJS.WriteStream, now?: () => number }} [deps]
+ * @param {{ stdin?: NodeJS.ReadStream, stdout?: NodeJS.WriteStream, now?: () => number, panelAccess?: { platform?: string, env?: object, run?: Function } }} [deps]
  * @returns {Promise<{ exitCode: number, human: string }>}
  */
-async function runRemoteCommand(flags, subcommand, args = [], { stdin = process.stdin, stdout = process.stdout, now = Date.now } = {}) {
+async function runRemoteCommand(
+  flags,
+  subcommand,
+  args = [],
+  { stdin = process.stdin, stdout = process.stdout, now = Date.now, panelAccess = {} } = {},
+) {
   if (!SUBCOMMANDS.includes(subcommand)) {
     throw new ConfigError(`usage: gm-scriptorium remote ${SUBCOMMANDS.join(' | ')}`);
   }
@@ -322,15 +359,16 @@ async function runRemoteCommand(flags, subcommand, args = [], { stdin = process.
       const { next, changed } = settingsLib.applyRemoteChange(config.remote, flags);
       const parsed = settingsLib.parseRemoteTable(next);
       writeConfigFile(configPath, { ...config, remote: next });
+      const loose = changed.length > 0 ? await securePanel(paths, config, panelAccess) : '';
       const warning = changed.length > 0 ? auditCli(paths, now, { event: 'settings-change', changed, mode: parsed.mode }) : '';
       return {
         exitCode: EXIT_CODES.OK,
-        human: `${summary(parsed, paths, now)}\nchanges take effect the next time serve --admin starts${warning}`,
+        human: `${summary(parsed, paths, now)}\nchanges take effect the next time serve --admin starts${warning}${loose}`,
       };
     }
 
     case 'account':
-      return runAccount(args, paths, config, { stdin, stdout, now });
+      return runAccount(args, paths, config, { stdin, stdout, now, panelAccess });
 
     case 'password': {
       // The compatibility alias: it sets the password of the account "gm" (adding it when it is not
@@ -348,6 +386,7 @@ async function runRemoteCommand(flags, subcommand, args = [], { stdin = process.
         reader.close();
       }
       const record = await hashPassword(chosen, { now });
+      await securePanel(paths, config, panelAccess, { refuse: true });
       const entry = { name: 'gm', record, fromEarlierPassword: false };
       const saved = saveAccounts(paths, gm ? list.map((a) => (a.name === 'gm' ? entry : a)) : [...list, entry], now);
       sessionsOf(paths, now).revokeAll();
@@ -361,25 +400,28 @@ async function runRemoteCommand(flags, subcommand, args = [], { stdin = process.
         const name = requireName(flags.account);
         const state = readAccounts(paths);
         requireExisting(state.state === 'set' ? state.accounts : [], name);
+        const loose = await securePanel(paths, config, panelAccess);
         const { count } = sessionsOf(paths, now).revokeAccount(name);
         const warning = auditCli(paths, now, { event: 'signout-all', count, account: name });
-        return { exitCode: EXIT_CODES.OK, human: `signed out ${count} remote session(s) for "${name}"${warning}` };
+        return { exitCode: EXIT_CODES.OK, human: `signed out ${count} remote session(s) for "${name}"${warning}${loose}` };
       }
+      const loose = await securePanel(paths, config, panelAccess);
       const { count } = sessionsOf(paths, now).revokeAll();
       const warning = auditCli(paths, now, { event: 'signout-all', count });
-      return { exitCode: EXIT_CODES.OK, human: `signed out ${count} remote session(s)${warning}` };
+      return { exitCode: EXIT_CODES.OK, human: `signed out ${count} remote session(s)${warning}${loose}` };
     }
 
     case 'off': {
       assertPanelOutsideVaults(paths.panelDir, config);
       if (config.remote !== undefined) writeConfigFile(configPath, { ...config, remote: { ...config.remote, mode: 'local' } });
+      const loose = await securePanel(paths, config, panelAccess);
       sessionsOf(paths, now).revokeAll();
       if (fs.existsSync(paths.accountsFile)) passwordwrite.clearAccounts(paths.accountsFile, { now });
       if (readPasswordRecord(paths.passwordFile).state !== 'unset') passwordwrite.clearPasswordRecord(paths.passwordFile, { now });
       const warning = auditCli(paths, now, { event: 'remote-off' });
       return {
         exitCode: EXIT_CODES.OK,
-        human: `remote access is off. A running serve --admin refuses remote sign-in now and stops listening remotely when restarted.${warning}`,
+        human: `remote access is off. A running serve --admin refuses remote sign-in now and stops listening remotely when restarted.${warning}${loose}`,
       };
     }
 

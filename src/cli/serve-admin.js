@@ -14,6 +14,7 @@ const { onStopSignal } = require('../util/stop-signals');
 const { ConfigError } = require('../util/errors');
 const settingsLib = require('../remote/settings');
 const { remotePaths, assertNotInsideAnyVault, findLooseModes } = require('../remote/paths');
+const { applyPanelAccess, accessWarning, accessRefusal } = require('../remote/panelaccess');
 const { makePeerPredicate } = require('../remote/addr');
 const { readAccounts } = require('../remote/accounts');
 const { createSessionStore } = require('../remote/sessions');
@@ -126,7 +127,7 @@ function savedRemoteMode(config) {
  *
  * @param {object} flags
  * @param {string} [campaignArg]
- * @param {{ emit?: Function, startLocalListener?: Function, startPanelListener?: Function, createToken?: () => string, now?: () => number, identity?: { user: string, host: string } }} [opts]
+ * @param {{ emit?: Function, startLocalListener?: Function, startPanelListener?: Function, createToken?: () => string, now?: () => number, identity?: { user: string, host: string }, panelAccess?: { platform?: string, env?: object, run?: Function } }} [opts]
  * @returns {Promise<{ ok: true, ctx: object, token: string, settings: object, plan: object, planned: object, setup: boolean, stop: () => Promise<void> } | { ok: false, exitCode: number, human: string }>}
  */
 async function startAdminPanel(
@@ -139,6 +140,7 @@ async function startAdminPanel(
     createToken = createTokenImpl,
     now = Date.now,
     identity,
+    panelAccess = {},
   } = {},
 ) {
   checkAllowlist(flags);
@@ -174,6 +176,23 @@ async function startAdminPanel(
     if (problems.length > 0) throw new ConfigError(problems[0]);
   }
 
+  // ADR 0056: set the panel folder's access list (Windows only) after the readiness checks and
+  // before the session store, the audit log or any listener. A failure refuses every non-local mode.
+  let panelInsideVault = false;
+  try {
+    assertNotInsideAnyVault(paths.panelDir, ctxInfo.config);
+  } catch {
+    panelInsideVault = true;
+  }
+  const access = await applyPanelAccess(
+    paths,
+    { insideVault: panelInsideVault, platform: panelAccess.platform || process.platform, env: panelAccess.env || process.env },
+    { run: panelAccess.run },
+  );
+  if (access.state === 'failed' && settings.mode !== 'local') {
+    throw new ConfigError(accessRefusal(settings.mode, paths.panelDir, access.reason));
+  }
+
   const plan = settingsLib.listenPlan(settings, { flagPort: port, flagPreviewPort: previewPortFlag });
 
   const token = createToken();
@@ -199,7 +218,7 @@ async function startAdminPanel(
 
   // Dynamic fields, not part of createAdminContext's literal (test/admin-context.test.js is frozen).
   ctx.access = settingsLib.gateProfile(settings, { tls: plan.tls });
-  ctx.remote = { settings, paths };
+  ctx.remote = { settings, paths, panelAccess: access };
   ctx.sessions = sessions;
   ctx.audit = audit;
   ctx.lockout = lockout;
@@ -227,6 +246,7 @@ async function startAdminPanel(
   if (settings.mode === 'tailscale' || settings.mode === 'proxy' || settings.mode === 'direct') {
     for (const loose of findLooseModes(paths)) emitWarning(`warning: ${loose} can be read by other users on this machine`);
   }
+  if (access.state === 'failed') emitWarning(accessWarning(paths.panelDir, access.reason));
 
   const allowPeer = plan.allowPeers ? makePeerPredicate(plan.allowPeers) : undefined;
   const listen = (handler, which) =>

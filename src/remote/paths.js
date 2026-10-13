@@ -119,13 +119,18 @@ function assertNotInsideAnyVault(dir, config) {
  * The remote-access paths (the folder and each file in it) that already exist and that group or
  * others can read on POSIX. Read-only: it never changes a mode (a mode is set at creation and
  * never touched afterwards), it only reports, so the console and the Remote access screen can warn.
- * On Windows modes mean nothing here, so the answer is always empty (C70 covers the ACLs).
+ * On Windows modes mean nothing here: the answer is empty unless the program tried to set the
+ * folder's access list and failed (ADR 0056), in which case it is the folder.
  *
  * @param {ReturnType<typeof remotePaths>} paths
+ * @param {{ platform?: string, panelAccess?: { state: string } | null }} [opts]
  * @returns {string[]}
  */
-function findLooseModes(paths) {
-  if (process.platform === 'win32') return [];
+function findLooseModes(paths, { platform = process.platform, panelAccess = null } = {}) {
+  // A failed access list can only be reported by a Windows run (elsewhere the step is 'posix'), so
+  // it is answered first, which also lets a test simulate Windows without changing the real platform.
+  if (panelAccess && panelAccess.state === 'failed') return [paths.panelDir];
+  if (platform === 'win32') return [];
   const loose = [];
   for (const candidate of [paths.panelDir, paths.passwordFile, paths.accountsFile, paths.sessionsFile, paths.auditFile]) {
     try {

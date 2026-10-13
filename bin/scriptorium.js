@@ -135,7 +135,7 @@ async function main() {
       case 'remote': {
         const { runRemoteCommand } = require('../src/cli/remote');
         const [subcommand, ...subArgs] = rest;
-        const result = await runRemoteCommand(flags, subcommand, subArgs);
+        const result = await runRemoteCommand(flags, subcommand, subArgs, { panelAccess: { env: process.env } });
         if (result.human) console.log(result.human);
         return result.exitCode;
       }

@@ -619,3 +619,7 @@ owner's own infrastructure. Agents never change the owner's proxy or tailnet con
 - **Section 7 (the preview, the GM link, and URLs from the server).** A published build may carry the configured `https://` console address, only when the campaign's `pack.toml` switches the footer link on, never a loopback address, and byte for byte unchanged when it is off.
 - **Section 4 (settings and files).** The `panel` folder also holds `accounts.json`, created and written like the other files in it.
 - **Section 9 (the CLI).** `remote account add | change | reset | remove | rename | list` and `remote signout-all --account NAME` are added. The panel's module graph still never reaches the writer.
+
+## 18. Amended by ADR 0056
+
+[ADR 0056](0056-windows-panel-access-list.md) changes where Windows gets its access list for the `panel` folder. From this version Windows no longer relies on the access list inherited from the profile folder (section 4, and the Windows line in section 15): the program sets the list itself, on every panel start and before any `remote` command writes there. It removes the inherited entries and grants the account running the program, SYSTEM and Administrators, passed down to every file. If it cannot, the remote modes refuse to start, local mode warns, and the Remote access screen shows it. The POSIX modes (`0700` and `0600`) are unchanged.
