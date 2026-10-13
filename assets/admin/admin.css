@@ -9293,6 +9293,8 @@ dialog.cs-dialog::backdrop {
 .upd-card code{font-size:.92em}
 .upd-saved{font-size:13px;color:var(--text-faint)}
 .upd-priv{margin:0;max-width:70ch}
+/* In the approved mock the card is a direct child of main, where the 1180px content cap outranks the 760px above, so it fills the column. Here it sits one level deeper, so say so. */
+.upd-card{max-width:none}
 .upd-chan{border:0;margin:0;padding:0;display:grid;gap:8px}
 .upd-chan legend{padding:0;margin:0 0 4px;font:500 15px var(--font-body);color:var(--text)}
 .upd-opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
