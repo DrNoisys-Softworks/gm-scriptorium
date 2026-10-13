@@ -15,6 +15,7 @@ const { createTestProxy } = require('./helpers/remote-test-proxy');
 const { FIXTURE_DIR } = require('./helpers/vault-template-fixture');
 const { makeCampaigns, startPanel, call, get, post, scratchRoot, copySample, configPathIn } = require('./helpers/campaigns-panel');
 const { treeSnapshot } = require('./helpers/setup-fixtures');
+const { testPort } = require('./helpers/ports');
 
 /*
  * ADR 0052 sections 1, 2 and 6: the add page, its state, its live checks and its commit over real
@@ -366,8 +367,8 @@ const linuxOnly = { skip: process.platform !== 'linux' ? 'Linux accepts every 12
 const PASSWORD = 'correct horse battery';
 const ADMIN_HOST = 'scriptorium.home.arpa';
 const ADMIN_ORIGIN = `https://${ADMIN_HOST}`;
-// Fixed ports for the one remote-access panel per test in this file: 9466 admin, 9467 preview.
-const REMOTE_PORTS = [9466, 9467];
+// Fixed ports for the one remote-access panel per test in this file: 9466 admin, 9467 preview (through testPort).
+const REMOTE_PORTS = [testPort(9466), testPort(9467)];
 
 async function startRemote(t, { probe } = {}) {
   const fx = fixture(t);

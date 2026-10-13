@@ -13,6 +13,7 @@ const pwWrite = require('../src/remote/passwordwrite');
 const { startAdminPanel } = require('../src/cli/serve-admin');
 const { createTestProxy } = require('./helpers/remote-test-proxy');
 const { makeCampaigns, startPanel, get, post, snapshotFields } = require('./helpers/campaigns-panel');
+const { testPort } = require('./helpers/ports');
 
 /*
  * ADR 0050 sections 1, 7, 8 and 9: the campaign list and the switch over real sockets. Expected
@@ -342,8 +343,8 @@ const linuxOnly = { skip: process.platform !== 'linux' ? 'Linux accepts every 12
 const PASSWORD = 'correct horse battery';
 const ADMIN_HOST = 'scriptorium.home.arpa';
 const ADMIN_ORIGIN = `https://${ADMIN_HOST}`;
-// Fixed ports for the one remote-access panel in this file: 9460 admin, 9461 preview.
-const REMOTE_PORTS = [9460, 9461];
+// Fixed ports for the one remote-access panel in this file: 9460 admin, 9461 preview (through testPort).
+const REMOTE_PORTS = [testPort(9460), testPort(9461)];
 
 /** A two-campaign config in proxy mode, a password, a real panel and a test proxy in front of it. */
 async function startRemote(t) {

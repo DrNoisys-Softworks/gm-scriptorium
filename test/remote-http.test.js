@@ -16,13 +16,14 @@ const pwWrite = require('../src/remote/passwordwrite');
 const { createSessionStore } = require('../src/remote/sessions');
 const { ADMIN_ROUTES } = require('../src/admin/router');
 const { createTestProxy } = require('./helpers/remote-test-proxy');
+const { testPort } = require('./helpers/ports');
 const remoteHandlers = require('../src/admin/handlers/remote');
 
 /*
  * V1.5a (SD-a6 to SD-a11, SD-a17). The real pipeline over real sockets: runServeCommand with the
  * real listeners, the real stores and handlers, fronted by the repo's test proxy (which forwards
  * Host and Origin byte for byte, appends X-Forwarded-For and sets X-Forwarded-Proto). Fixed ports
- * 7924-7927 (proxy shape 7924/7925, tailscale shape 7926/7927); the peer tests use 127.0.0.2 as the
+ * 7924-7927 through testPort (proxy shape 7924/7925, tailscale shape 7926/7927); the peer tests use 127.0.0.2 as the
  * trusted proxy and are Linux-only (Linux accepts every 127/8 address). Time is an injected clock.
  * Passwords here are test fixtures only.
  */
@@ -38,18 +39,23 @@ const TS_PREVIEW_HOST = 'panel-host.example-tailnet.ts.net:8443';
 const GENERIC = '{"error":"signin","message":"That didn\'t work. Check your username and password."}';
 const AUDIT_503 = '{"error":"audit","message":"The panel could not write its audit log, so changes from other devices are paused. Use the panel on this machine, or fix the disk and try again."}';
 
+const PROXY_ADMIN_PORT = testPort(7924);
+const PROXY_PREVIEW_PORT = testPort(7925);
+const TAILSCALE_ADMIN_PORT = testPort(7926);
+const TAILSCALE_PREVIEW_PORT = testPort(7927);
+
 const SHAPES = {
   proxy: {
-    ports: [7924, 7925],
+    ports: [PROXY_ADMIN_PORT, PROXY_PREVIEW_PORT],
     trustedPeer: '127.0.0.2',
-    remote: { mode: 'proxy', port: 7924, preview_port: 7925, admin_url: ADMIN_ORIGIN, preview_url: PREVIEW_ORIGIN, bind: '127.0.0.1', trusted_proxies: ['127.0.0.2'] },
+    remote: { mode: 'proxy', port: PROXY_ADMIN_PORT, preview_port: PROXY_PREVIEW_PORT, admin_url: ADMIN_ORIGIN, preview_url: PREVIEW_ORIGIN, bind: '127.0.0.1', trusted_proxies: ['127.0.0.2'] },
     adminHost: ADMIN_HOST,
     previewHost: PREVIEW_HOST,
   },
   tailscale: {
-    ports: [7926, 7927],
+    ports: [TAILSCALE_ADMIN_PORT, TAILSCALE_PREVIEW_PORT],
     trustedPeer: '127.0.0.1',
-    remote: { mode: 'tailscale', port: 7926, preview_port: 7927, admin_url: `https://${TS_ADMIN_HOST}`, preview_url: `https://${TS_PREVIEW_HOST}` },
+    remote: { mode: 'tailscale', port: TAILSCALE_ADMIN_PORT, preview_port: TAILSCALE_PREVIEW_PORT, admin_url: `https://${TS_ADMIN_HOST}`, preview_url: `https://${TS_PREVIEW_HOST}` },
     adminHost: TS_ADMIN_HOST,
     previewHost: TS_PREVIEW_HOST,
   },
@@ -644,8 +650,8 @@ const HOST_CASES = [
   ['a trailing dot', `${ADMIN_HOST}.`],
   ['a prefix', `evil.${ADMIN_HOST}`],
   ['Ma13: a suffix', `${ADMIN_HOST}.evil.example`],
-  ['a wrong port', `${ADMIN_HOST}:7924`],
-  ['the raw LAN address', '192.0.2.42:7924'],
+  ['a wrong port', `${ADMIN_HOST}:${PROXY_ADMIN_PORT}`],
+  ['the raw LAN address', `192.0.2.42:${PROXY_ADMIN_PORT}`],
   ['the raw LAN address without a port', '192.0.2.42'],
   ['localhost on the wrong port', 'localhost:1'],
   ['the preview name on the admin listener', PREVIEW_HOST],
@@ -1046,8 +1052,8 @@ test('GET /api/remote: the full shape for a remote request, and NOTHING secret (
   assert.equal(body.configPath, env.fx.configPath);
   assert.deepEqual(body.addresses, { admin: ADMIN_ORIGIN, preview: PREVIEW_ORIGIN, adminLoopback: `http://127.0.0.1:${env.adminPort}`, previewLoopback: `http://127.0.0.1:${env.previewPort}` });
   assert.deepEqual(body.listening.hosts, ['127.0.0.1']);
-  assert.equal(body.listening.adminPort, 7924);
-  assert.equal(body.listening.previewPort, 7925);
+  assert.equal(body.listening.adminPort, PROXY_ADMIN_PORT);
+  assert.equal(body.listening.previewPort, PROXY_PREVIEW_PORT);
   assert.deepEqual(body.listening.answers, ['127.0.0.2', '127.0.0.1', '::1']);
   assert.deepEqual(body.https, { by: 'proxy', hop: 'plain' });
   assert.equal(body.password, undefined, 'ADR 0054: the single password field is replaced by accounts');
@@ -1183,9 +1189,9 @@ test('a changed password file applies at once: the panel re-reads it on every at
 
 test('the GM link in a preview page points at the external admin address in remote modes, with no token', linuxOnly, async (t) => {
   const { gmLinkHrefFor } = require('../src/admin/gmlink');
-  assert.equal(gmLinkHrefFor({ access: { remote: true, admin: { origin: ADMIN_ORIGIN } }, adminPort: 7924 }), `${ADMIN_ORIGIN}/`);
-  assert.equal(gmLinkHrefFor({ access: null, adminPort: 7924 }), 'http://127.0.0.1:7924/');
-  assert.equal(gmLinkHrefFor({ adminPort: 7924 }), 'http://127.0.0.1:7924/');
+  assert.equal(gmLinkHrefFor({ access: { remote: true, admin: { origin: ADMIN_ORIGIN } }, adminPort: PROXY_ADMIN_PORT }), `${ADMIN_ORIGIN}/`);
+  assert.equal(gmLinkHrefFor({ access: null, adminPort: PROXY_ADMIN_PORT }), `http://127.0.0.1:${PROXY_ADMIN_PORT}/`);
+  assert.equal(gmLinkHrefFor({ adminPort: PROXY_ADMIN_PORT }), `http://127.0.0.1:${PROXY_ADMIN_PORT}/`);
   void t;
 });
 

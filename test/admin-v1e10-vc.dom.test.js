@@ -3,7 +3,7 @@
 /*
  * V1e-10 real-browser checks (Playwright via PLAYWRIGHT_MODULE; skips, loudly, without it):
  * the vc2 typed-name unlock gate, a layout switch never discarding edits (Q16), the vc3 chip
- * flow and the field save landing only the changed line. Port 7822 (7820-7839 are this slice's).
+ * flow and the field save landing only the changed line. Port 7822 (through testPort).
  */
 
 const test = require('node:test');
@@ -12,9 +12,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { startAdminServer, stopChild } = require('./helpers/admin-server');
+const { testPort } = require('./helpers/ports');
 
 const REPO = path.join(__dirname, '..');
-const PORT = String(process.env.V1E10_TEST_PORT || 7822);
+const PORT = String(testPort(7822));
 
 function loadPlaywright() {
   for (const c of [process.env.PLAYWRIGHT_MODULE, 'playwright'].filter(Boolean)) {

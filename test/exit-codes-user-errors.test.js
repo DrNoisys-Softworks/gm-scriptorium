@@ -114,16 +114,18 @@ for (const [label, setup, expected, pattern] of CASES) {
 }
 
 test('#108: port already in use exits 1 with a plain message', async () => {
+  const { testPort } = require('./helpers/ports');
+  const port = testPort(8721);
   const blocker = net.createServer();
-  await new Promise((resolve) => blocker.listen(8721, '127.0.0.1', resolve));
+  await new Promise((resolve) => blocker.listen(port, '127.0.0.1', resolve));
   try {
     withScratch((root) => {
       goodCfg(root);
       fs.mkdirSync(path.join(root, 'site'));
       fs.writeFileSync(path.join(root, 'site', 'index.html'), 'x');
-      const res = run(root, ['serve', '--port', '8721']);
+      const res = run(root, ['serve', '--port', String(port)]);
       assert.equal(res.code, 1, res.all);
-      assert.match(res.all, /port 8721 is already in use on 127\.0\.0\.1/);
+      assert.match(res.all, new RegExp(`port ${port} is already in use on 127\\.0\\.0\\.1`));
       assert.doesNotMatch(res.all, /EADDRINUSE|\n\s+at /);
     });
   } finally {

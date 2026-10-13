@@ -8,7 +8,7 @@
  * opener that only records the file it is handed: openFile: below never starts a program), and the
  * test browser opens it as a file: page, exactly as the operating system's default browser would.
  * The "stopped" page is also checked against a real `serve --admin` process that receives SIGTERM
- * (ports 9443 for Chromium and 9444 for Firefox; override the first with LAUNCH_UI_TEST_PORT).
+ * (ports 9443 for Chromium and 9444 for Firefox; both through testPort).
  */
 
 const test = require('node:test');
@@ -23,9 +23,10 @@ const { SAMPLE } = require('./helpers/setup-fixtures');
 
 const { runLaunch } = require('../src/cli/launch');
 const { startAdminPanel } = require('../src/cli/serve-admin');
+const { testPort } = require('./helpers/ports');
 
 const REPO = path.join(__dirname, '..');
-const BASE_PORT = Number(process.env.LAUNCH_UI_TEST_PORT || 9443);
+const PORTS = { chromium: testPort(9443), firefox: testPort(9444) };
 
 function loadPlaywright() {
   for (const c of [process.env.PLAYWRIGHT_MODULE, 'playwright'].filter(Boolean)) {
@@ -252,7 +253,7 @@ for (const browserName of ['chromium', 'firefox']) {
     });
 
     await t.test('SIGTERM to a real serve --admin process: the neutral stopped page appears within 10 seconds, and the poll touches only the public asset', async () => {
-      const port = BASE_PORT + (browserName === 'firefox' ? 1 : 0);
+      const port = PORTS[browserName];
       const H = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'launch-ui-serve-')));
       const env = { ...process.env, XDG_CONFIG_HOME: path.join(H, 'xdg'), APPDATA: path.join(H, 'ad'), SCRIPTORIUM_CONFIG: path.join(H, 'unused.toml') };
       const srv = await startAdminServer(['serve', '--admin', '--port', String(port), '--config', path.join(H, 'cfg', 'config.toml')], { bin: path.join(REPO, 'bin', 'scriptorium.js'), env });

@@ -4,7 +4,7 @@
  * Launch mode's console, keys, pause, signals and remote-mode behaviour, with injected streams
  * (isTTY and setRawMode stubs), an EventEmitter for signals and a recording opener (openFile:
  * below never opens anything). Expected console text is written out by hand; ports for the remote
- * cases are fixed in the 9460s and bound under the shared test lock.
+ * cases are fixed (9463, 9464, 9468, 9469) through testPort and bound under the shared test lock.
  */
 
 const test = require('node:test');
@@ -26,7 +26,12 @@ const { remoteAddressLines, parseRemoteTable, listenPlan } = require('../src/rem
 const { VaultUnreachableError } = require('../src/util/errors');
 const pw = require('../src/remote/password');
 const pwWrite = require('../src/remote/passwordwrite');
+const { testPort } = require('./helpers/ports');
 
+const SSH_PANEL_PORT = testPort(9468);
+const SSH_PREVIEW_PORT = testPort(9469);
+const TS_PANEL_PORT = testPort(9463);
+const TS_PREVIEW_PORT = testPort(9464);
 const REPO = path.join(__dirname, '..');
 const PRESS_ENTER = 'Press Enter to close this window.';
 const APOS = '\u2019';
@@ -483,7 +488,7 @@ function remoteConfig(root, remote) {
 
 test('ssh mode: the warning is emitted before the first listener opens, the console lists the tunnel line, the launcher targets loopback, no token anywhere', async (t) => {
   const root = scratchRoot(t);
-  const configPath = remoteConfig(root, { mode: 'ssh', port: 9461, preview_port: 9462 });
+  const configPath = remoteConfig(root, { mode: 'ssh', port: SSH_PANEL_PORT, preview_port: SSH_PREVIEW_PORT });
   const seen = [];
   const h = await launch(t, {
     root,
@@ -509,15 +514,15 @@ test('ssh mode: the warning is emitted before the first listener opens, the cons
   assert.ok(warning !== -1 && firstListen !== -1 && warning < firstListen, `the warning comes before the first listener: ${JSON.stringify(h.order)}`);
   const lines = h.state.text.split('\n');
   assert.ok(lines[0].startsWith('remote access: ssh tunnel'), 'the warning is the first thing printed');
-  assert.ok(lines.includes('  Panel    http://127.0.0.1:9461   on this machine'));
-  assert.ok(lines.includes('  tunnel from your desktop: ssh -L 9461:127.0.0.1:9461 -L 9462:127.0.0.1:9462 gm@box'));
-  assert.ok(h.opened[0].html.includes('action="http://127.0.0.1:9461/auth/launch"'), 'auto-open targets the loopback address');
+  assert.ok(lines.includes(`  Panel    http://127.0.0.1:${SSH_PANEL_PORT}   on this machine`));
+  assert.ok(lines.includes(`  tunnel from your desktop: ssh -L ${SSH_PANEL_PORT}:127.0.0.1:${SSH_PANEL_PORT} -L ${SSH_PREVIEW_PORT}:127.0.0.1:${SSH_PREVIEW_PORT} gm@box`));
+  assert.ok(h.opened[0].html.includes(`action="http://127.0.0.1:${SSH_PANEL_PORT}/auth/launch"`), 'auto-open targets the loopback address');
   assert.ok(!h.state.text.includes(h.panel.token));
 });
 
 test('tailscale mode: the warning first, the remote addresses without a token, the launcher exchange works over loopback and a remote-kind request is refused', async (t) => {
   const root = scratchRoot(t);
-  const remote = { mode: 'tailscale', port: 9463, preview_port: 9464, admin_url: 'https://panel-host.example-tailnet.ts.net', preview_url: 'https://panel-host.example-tailnet.ts.net:8443' };
+  const remote = { mode: 'tailscale', port: TS_PANEL_PORT, preview_port: TS_PREVIEW_PORT, admin_url: 'https://panel-host.example-tailnet.ts.net', preview_url: 'https://panel-host.example-tailnet.ts.net:8443' };
   const configPath = remoteConfig(root, remote);
   await pwWrite.writePasswordRecord(path.join(root, 'cfg', 'panel', 'password.json'), await pw.hashPassword('correct horse battery staple'));
   const panelCalls = [];
@@ -545,16 +550,16 @@ test('tailscale mode: the warning first, the remote addresses without a token, t
   assert.ok(warningIdx !== -1 && warningIdx < listenIdx, JSON.stringify(h.order));
   const lines = h.state.text.split('\n');
   assert.ok(lines[0].startsWith('WARNING: remote access is on (mode tailscale)'));
-  assert.ok(lines.includes('  Panel    http://127.0.0.1:9463   on this machine'));
+  assert.ok(lines.includes(`  Panel    http://127.0.0.1:${TS_PANEL_PORT}   on this machine`));
   assert.ok(lines.includes('  remote admin panel: https://panel-host.example-tailnet.ts.net/ (sign in with your username and password)'));
   assert.ok(lines.includes('  remote preview: https://panel-host.example-tailnet.ts.net:8443/'));
-  assert.ok(lines.includes('  listening on 127.0.0.1 port 9463 (panel) and 9464 (preview)'));
+  assert.ok(lines.includes(`  listening on 127.0.0.1 port ${TS_PANEL_PORT} (panel) and ${TS_PREVIEW_PORT} (preview)`));
   assert.ok(!h.state.text.includes(h.panel.token));
   assert.ok(!h.state.text.includes('token='));
 
   const post = (headers, body) =>
     new Promise((resolve, reject) => {
-      const req = http.request({ host: '127.0.0.1', port: 9463, method: 'POST', path: '/auth/launch', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body), ...headers }, agent: false }, (res) => {
+      const req = http.request({ host: '127.0.0.1', port: TS_PANEL_PORT, method: 'POST', path: '/auth/launch', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body), ...headers }, agent: false }, (res) => {
         const chunks = [];
         res.on('data', (c) => chunks.push(c));
         res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, text: Buffer.concat(chunks).toString('utf8') }));
@@ -574,13 +579,13 @@ test('tailscale mode: the warning first, the remote addresses without a token, t
   // The same code, over loopback, still works (neither refusal spent it).
   const ok = await post({ Origin: 'null' }, `code=${code}`);
   assert.equal(ok.status, 200);
-  assert.match([].concat(ok.headers['set-cookie'])[0], /^scriptorium_admin_9463=/);
+  assert.match([].concat(ok.headers['set-cookie'])[0], new RegExp(`^scriptorium_admin_${TS_PANEL_PORT}=`));
 
   // The open tab's liveness poll is a public asset. A signed-in remote session is neither read nor
   // extended by it: the sessions file is byte-for-byte the same after several polls.
   const send = (method, pathname, headers, body) =>
     new Promise((resolve, reject) => {
-      const req = http.request({ host: '127.0.0.1', port: 9463, method, path: pathname, headers, agent: false }, (res) => {
+      const req = http.request({ host: '127.0.0.1', port: TS_PANEL_PORT, method, path: pathname, headers, agent: false }, (res) => {
         const chunks = [];
         res.on('data', (c) => chunks.push(c));
         res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, text: Buffer.concat(chunks).toString('utf8') }));

@@ -4,7 +4,7 @@
  * Issue #109 real-browser checks (Playwright via PLAYWRIGHT_MODULE; axe via AXE_CORE_PATH): the
  * five unbuilt screens sit in a "Coming later" nav group, each says what it will do and that it
  * is not built yet, and an unknown #/route shows a "Page not found" state with a way home. Port
- * 8741 (override with R109_TEST_PORT).
+ * 8741 (through testPort).
  */
 
 const test = require('node:test');
@@ -13,9 +13,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { startAdminServer, stopChild } = require('./helpers/admin-server');
+const { testPort } = require('./helpers/ports');
 
 const REPO = path.join(__dirname, '..');
-const PORT = String(process.env.R109_TEST_PORT || 8741);
+const PORT = String(testPort(8741));
 const LATER = ['memory', 'publish', 'sessions', 'ai', 'storage'];
 
 function loadPlaywright() {

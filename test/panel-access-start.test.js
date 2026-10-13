@@ -23,13 +23,17 @@ const pwWrite = require('../src/remote/passwordwrite');
  * Synthetic identity: EXAMPLEPC / examplegm.
  */
 
+const { testPort } = require('./helpers/ports');
+
+const ADMIN_PORT = testPort(7940);
+const PREVIEW_PORT = testPort(7941);
 const LAUNCH_CODE = 'ABCD'.repeat(11);
 const ENV = { USERDOMAIN: 'EXAMPLEPC', USERNAME: 'examplegm', SystemRoot: 'C:\\Windows', PATH: 'C:\\x' };
 
 const MODES = {
-  proxy: { mode: 'proxy', port: 7000, preview_port: 7001, admin_url: 'https://scriptorium.home.arpa', preview_url: 'https://preview.scriptorium.home.arpa', bind: '192.0.2.42', trusted_proxies: ['127.0.0.2'] },
-  tailscale: { mode: 'tailscale', port: 7000, preview_port: 7001, admin_url: 'https://panel-host.example-tailnet.ts.net', preview_url: 'https://panel-host.example-tailnet.ts.net:8443' },
-  ssh: { mode: 'ssh', port: 7000, preview_port: 7001 },
+  proxy: { mode: 'proxy', port: ADMIN_PORT, preview_port: PREVIEW_PORT, admin_url: 'https://scriptorium.home.arpa', preview_url: 'https://preview.scriptorium.home.arpa', bind: '192.0.2.42', trusted_proxies: ['127.0.0.2'] },
+  tailscale: { mode: 'tailscale', port: ADMIN_PORT, preview_port: PREVIEW_PORT, admin_url: 'https://panel-host.example-tailnet.ts.net', preview_url: 'https://panel-host.example-tailnet.ts.net:8443' },
+  ssh: { mode: 'ssh', port: ADMIN_PORT, preview_port: PREVIEW_PORT },
 };
 
 function tomlOf(remote) {
@@ -148,7 +152,7 @@ for (const mode of ['ssh', 'tailscale', 'proxy']) {
 }
 
 test('direct mode: refused on readiness (no certificate support yet) before icacls is reached, no listener; the access-list refusal for it is the same branch as the other modes', async (t) => {
-  const fx = fixture(t, { mode: 'direct', port: 7000, preview_port: 7001, admin_url: 'https://scriptorium.home.arpa', preview_url: 'https://preview.scriptorium.home.arpa', bind: '192.0.2.42' });
+  const fx = fixture(t, { mode: 'direct', port: ADMIN_PORT, preview_port: PREVIEW_PORT, admin_url: 'https://scriptorium.home.arpa', preview_url: 'https://preview.scriptorium.home.arpa', bind: '192.0.2.42' });
   await seedAccount(fx.panelDir);
   const h = harness(fx.panelDir);
   const run = icacls(fx.panelDir, h, 5);
