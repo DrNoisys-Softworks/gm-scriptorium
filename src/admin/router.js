@@ -16,6 +16,7 @@ const variantHandlers = require('./handlers/variants');
 const remoteHandlers = require('./handlers/remote');
 const setupHandlers = require('./handlers/setup');
 const campaignHandlers = require('./handlers/campaigns');
+const updateHandlers = require('./handlers/updates');
 const launchHandlers = require('./handlers/launch');
 const folderHandlers = require('./handlers/folders');
 const setupmode = require('./setupmode');
@@ -107,6 +108,10 @@ const ADMIN_ROUTES = Object.freeze([
   { method: 'GET', path: '/api/campaigns/add/state', auth: true, handler: campaignHandlers.addState },
   { method: 'GET', path: '/api/campaigns/add/check', auth: true, handler: campaignHandlers.addCheck },
   { method: 'POST', path: '/api/campaigns/add', auth: true, audit: true, handler: campaignHandlers.addOne },
+  // The panel's update notice (ADR 0028 addendum): its state, Not now, and the off switch and channel.
+  { method: 'GET', path: '/api/update', auth: true, handler: updateHandlers.state },
+  { method: 'POST', path: '/api/update/dismiss', auth: true, audit: true, handler: updateHandlers.dismiss },
+  { method: 'POST', path: '/api/update/setting', auth: true, audit: true, handler: updateHandlers.setting },
 ]);
 
 /**

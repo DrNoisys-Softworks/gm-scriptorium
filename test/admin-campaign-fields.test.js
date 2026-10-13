@@ -23,7 +23,7 @@ const KEPT = ['previewRoot', 'previewDir', 'previewStamp', 'previewPages', 'vari
 const RESET = ['vaultArt', 'vaultConfigReview'];
 const PROCESS = [
   'token', 'adminPort', 'previewPort', 'busy', 'access', 'remote', 'sessions', 'audit', 'lockout', 'tickets', 'clock', 'signinBusy',
-  'lastHashMs', 'setup', 'launchCodes', 'campaigns', 'folderDrives',
+  'lastHashMs', 'setup', 'launchCodes', 'campaigns', 'folderDrives', 'updateNotice',
 ];
 const UNION = [...RESOLVED, ...KEPT, ...RESET, ...PROCESS].sort();
 // Names only a test ever sets on the context (test/folders-structure.test.js allows the name in one

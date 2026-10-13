@@ -288,6 +288,68 @@ test('after startup the console is silent: other keys, Enter and arrows write no
   assert.equal(h.opened.length, 1, 'no key but O opens anything');
 });
 
+// --- the update notice never touches the console or which comes first (ADR 0028 addendum "The update notice") ----------------------
+
+/** A scratch config with one campaign, optionally followed by an [update] table. */
+function campaignConfig(t, updateText) {
+  const root = scratchRoot(t);
+  const vault = copySample(root, 'vault', { withPack: true });
+  const configPath = configPathIn(root);
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  const lines = ['config_version = 1', 'default_campaign = "lease"', '', '[campaigns.lease]', `vault = '${vault}'`, `output = '${path.join(root, 'site')}'`, ''];
+  fs.writeFileSync(configPath, lines.join('\n') + (updateText ? `\n${updateText}\n` : ''));
+  return { root, configPath };
+}
+
+function packagedPanel(check) {
+  return (f, c, o) => startAdminPanel(f, c, { ...o, updateDeps: { isPkg: true, check, currentVersion: '1.0.0' } });
+}
+
+async function consoleBytes(t, { reply, updateText }) {
+  const { root, configPath } = campaignConfig(t, updateText);
+  const calls = [];
+  const check = (args) => {
+    calls.push(args);
+    if (reply === 'never') return new Promise(() => {});
+    if (reply instanceof Error) return Promise.reject(reply);
+    return Promise.resolve(reply);
+  };
+  const h = await launch(t, { root, configPath, startPanelWrap: packagedPanel(check) });
+  await until(() => h.opened.length === 1, 'startup');
+  if (updateText === undefined) await until(() => calls.length === 1, 'the check');
+  for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+  const port = h.panel.ctx.adminPort;
+  return { text: h.state.text.split(String(port)).join('PORT'), calls, h };
+}
+
+test('the console bytes are identical whether the check finds an update, rejects, never settles, or is switched off', async (t) => {
+  const available = await consoleBytes(t, { reply: { state: 'available', tag: 'v1.0.1', prerelease: false, notesUrl: 'x' } });
+  assert.match(available.text, /Campaign lease/);
+  assert.equal(available.calls.length, 1);
+  const rejecting = await consoleBytes(t, { reply: new Error('down') });
+  const never = await consoleBytes(t, { reply: 'never' });
+  const off = await consoleBytes(t, { reply: { state: 'available', tag: 'v1.0.1', prerelease: false, notesUrl: 'x' }, updateText: '[update]\ncheck = false' });
+  assert.equal(off.calls.length, 0, 'switched off: the check is never called');
+  assert.equal(rejecting.text, available.text);
+  assert.equal(never.text, available.text);
+  assert.equal(off.text, available.text);
+});
+
+test('when the check is first called, the launch lines are already written and the opener already called', async (t) => {
+  const { root, configPath } = campaignConfig(t);
+  let h;
+  let seen = null;
+  const check = () => {
+    seen = { text: h.state.text, opened: h.opened.length };
+    return Promise.resolve({ state: 'current' });
+  };
+  h = await launch(t, { root, configPath, startPanelWrap: packagedPanel(check) });
+  await until(() => seen !== null, 'the first check');
+  assert.equal(seen.opened, 1, 'the opener had been called');
+  assert.ok(seen.text.endsWith(`Browser didn${APOS}t open? Press O to open it again.\n`), 'the last launch line had been written');
+  assert.match(seen.text, /Campaign lease/);
+});
+
 // --- O -----------------------------------------------------------------------------------------------------------------
 
 test('O mints a fresh code and opens again; the opener is given the file and the environment only', async (t) => {

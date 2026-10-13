@@ -13,7 +13,7 @@ const { scratchRoot, copySample, configPathIn } = require('./helpers/setup-fixtu
  * ADR 0028 section 2: the panel's one write to config.toml is fenced. Structurally: the config
  * writer is reachable from the admin panel through ONE chain (handlers/setup.js > setup/register.js >
  * config/write.js; ADR 0050 adds handlers/campaigns.js as a second handler on the same chain, for
- * the campaign set-default and remove routes, and ADR 0052 adds the add-a-campaign route to that same module), setup code is write-free except through
+ * the campaign set-default and remove routes, and ADR 0052 adds the add-a-campaign route to that same module, and the update setting route in handlers/updates.js on the same chain), setup code is write-free except through
  * src/vault/packwrite.js, and no module
  * under src/admin or src/setup names the writer except register.js. Behaviourally: with the writer
  * spied, every route of the table is hit in normal mode and in setup mode, and the writer is called
@@ -99,13 +99,14 @@ const PANEL_ENTRY = at('cli', 'serve-admin.js');
 
 // --- the fence (graph importers) ------------------------------------------------------------------
 
-test('the panel graph reaches the config writer only through setup/register.js, and only handlers/setup.js and handlers/campaigns.js require register.js', () => {
+test('the panel graph reaches the config writer only through setup/register.js, and only handlers/setup.js, handlers/campaigns.js and handlers/updates.js require register.js', () => {
   const graph = walkGraph(PANEL_ENTRY);
   assert.ok(graph.has(WRITE_JS));
   assert.deepEqual(importersOf(graph, WRITE_JS), ['src/setup/register.js']);
-  assert.deepEqual(importersOf(graph, REGISTER_JS), ['src/admin/handlers/campaigns.js', 'src/admin/handlers/setup.js']);
+  assert.deepEqual(importersOf(graph, REGISTER_JS), ['src/admin/handlers/campaigns.js', 'src/admin/handlers/setup.js', 'src/admin/handlers/updates.js']);
   assert.deepEqual(importersOf(graph, SETUP_HANDLER), ['src/admin/router.js']);
   assert.deepEqual(importersOf(graph, at('admin', 'handlers', 'campaigns.js')), ['src/admin/router.js']);
+  assert.deepEqual(importersOf(graph, at('admin', 'handlers', 'updates.js')), ['src/admin/router.js']);
 });
 
 test('the panel graph never reaches src/cli/config.js, src/cli/init.js, child_process or the password writer', () => {
@@ -326,6 +327,32 @@ test('behavioural sweep, normal mode with two campaigns: one valid set-default a
 
   await sweep(h);
   assert.deepEqual(calls, [configPath, configPath], 'a {} sweep adds no write');
+});
+
+test('behavioural sweep, normal mode: one valid update setting calls the writer exactly once, and a {} sweep adds none', async (t) => {
+  const root = scratchRoot(t);
+  const vault = copySample(root, 'vault', { withPack: true });
+  const configPath = configPathIn(root);
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  writeConfigFile(configPath, { config_version: 1, default_campaign: 'x', campaigns: { x: { vault, output: path.join(root, 'o') } } });
+  const calls = installSpy(t);
+  const h = await startPanel(t, { config: configPath });
+  await sweep(h);
+  assert.deepEqual(calls, []);
+
+  const state = await request(h.port, { pathname: '/api/update', headers: { Cookie: h.cookie } });
+  assert.equal(state.status, 200, state.body.toString());
+  const res = await request(h.port, {
+    method: 'POST',
+    pathname: '/api/update/setting',
+    headers: { Cookie: h.cookie, Origin: h.origin, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ check: false, configSha256: JSON.parse(state.body.toString()).configSha256 }),
+  });
+  assert.equal(res.status, 200, res.body.toString());
+  assert.deepEqual(calls, [configPath]);
+
+  await sweep(h);
+  assert.deepEqual(calls, [configPath], 'a {} sweep adds no write');
 });
 
 test('behavioural sweep, normal mode: one valid add calls the writer exactly once, and a {} sweep adds none (ADR 0052)', async (t) => {

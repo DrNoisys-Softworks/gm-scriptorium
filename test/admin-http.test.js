@@ -435,7 +435,7 @@ test('real-pipeline auth: two same-named cookies that are BOTH wrong is the nega
 
 // --- Route sweep --------------------------------------------------------
 
-test('route sweep: the table equals a literal list of 47 METHOD path entries plus the asset prefix (V1.5a: 26 -> 31; ADR 0028 setup: 31 -> 36, launch code exchange: 36 -> 37; ADR 0049 folder picker: 37 -> 39; ADR 0050: 39 -> 43; ADR 0052: 43 -> 47)', () => {
+test('route sweep: the table equals a literal list of 50 METHOD path entries plus the asset prefix (the update notice: 47 -> 50; V1.5a: 26 -> 31; ADR 0028 setup: 31 -> 36, launch code exchange: 36 -> 37; ADR 0049 folder picker: 37 -> 39; ADR 0050: 39 -> 43; ADR 0052: 43 -> 47)', () => {
   const nonAsset = ADMIN_ROUTES.filter((r) => r.path !== undefined).map((r) => `${r.method} ${r.path}`);
   assert.deepEqual(nonAsset, [
     'GET /auth',
@@ -499,6 +499,10 @@ test('route sweep: the table equals a literal list of 47 METHOD path entries plu
     'GET /api/campaigns/add/state',
     'GET /api/campaigns/add/check',
     'POST /api/campaigns/add',
+    // The panel's update notice (ADR 0028 addendum): its state, Not now, and the off switch and channel.
+    'GET /api/update',
+    'POST /api/update/dismiss',
+    'POST /api/update/setting',
   ]);
   const assetRoutes = ADMIN_ROUTES.filter((r) => r.prefix !== undefined);
   assert.deepEqual(assetRoutes.map((r) => `${r.method} ${r.prefix}`), ['GET /assets/']);

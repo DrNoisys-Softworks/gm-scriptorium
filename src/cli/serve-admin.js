@@ -21,6 +21,8 @@ const { createSessionStore } = require('../remote/sessions');
 const { createAuditLog } = require('../remote/audit');
 const { createLockoutState } = require('../remote/lockout');
 const { createTicketStore } = require('../remote/tickets');
+const { createUpdateNotice } = require('../admin/updatenotice');
+const pkg = require('../../package.json');
 
 /*
  * Phase 8 slice S1 (docs/agent-runs/admin-s1-engineering-brief-2026-09-28.md, "Interfaces and
@@ -127,7 +129,7 @@ function savedRemoteMode(config) {
  *
  * @param {object} flags
  * @param {string} [campaignArg]
- * @param {{ emit?: Function, startLocalListener?: Function, startPanelListener?: Function, createToken?: () => string, now?: () => number, identity?: { user: string, host: string }, panelAccess?: { platform?: string, env?: object, run?: Function } }} [opts]
+ * @param {{ emit?: Function, startLocalListener?: Function, startPanelListener?: Function, createToken?: () => string, now?: () => number, identity?: { user: string, host: string }, panelAccess?: { platform?: string, env?: object, run?: Function }, updateDeps?: { isPkg?: boolean, check?: Function, currentVersion?: string } }} [opts]
  * @returns {Promise<{ ok: true, ctx: object, token: string, settings: object, plan: object, planned: object, setup: boolean, stop: () => Promise<void> } | { ok: false, exitCode: number, human: string }>}
  */
 async function startAdminPanel(
@@ -141,6 +143,7 @@ async function startAdminPanel(
     now = Date.now,
     identity,
     panelAccess = {},
+    updateDeps = {},
   } = {},
 ) {
   checkAllowlist(flags);
@@ -225,6 +228,17 @@ async function startAdminPanel(
   ctx.tickets = tickets;
   ctx.clock = now;
   ctx.signinBusy = false;
+  // The update notice (ADR 0028 addendum): built here with no I/O. It starts after both listeners are up
+  // (below), and `updateDeps` lets a test inject the check, the version and whether this is a packaged run.
+  ctx.updateNotice = createUpdateNotice({
+    panelDir: paths.panelDir,
+    config: ctxInfo.config,
+    currentVersion: updateDeps.currentVersion === undefined ? pkg.version : updateDeps.currentVersion,
+    setupMode,
+    isPkg: updateDeps.isPkg === undefined ? typeof process.pkg !== 'undefined' : updateDeps.isPkg,
+    check: updateDeps.check,
+    now,
+  });
   // ADR 0050: switching is off when --vault overrides the launched campaign's folder (outside setup mode).
   ctx.campaigns = campaignstate.createCampaignsState({
     lockedReason: !setupMode && flags.vault !== undefined ? campaignstate.vaultFlagReason(ctx.campaign) : null,
@@ -271,7 +285,20 @@ async function startAdminPanel(
   }
   ctx.previewPort = previewHandle.port;
 
+  // After both listeners, on the next turn of the event loop, and never awaited: the launch lines and the
+  // browser opener (which run as soon as this function's caller gets the result) come first. start() does
+  // not throw, but a throw here must not end the panel either.
+  const startUpdates = setImmediate(() => {
+    try {
+      void ctx.updateNotice.start();
+    } catch {
+      // swallowed deliberately: the update notice is a courtesy and never stops the panel.
+    }
+  });
+
   const stop = async () => {
+    clearImmediate(startUpdates);
+    ctx.updateNotice.stop();
     await adminHandle.close();
     await previewHandle.close();
     // Phase 8 slice S2 (NFR07): best-effort, swallowed inside removePreviewRoot itself --
@@ -285,7 +312,7 @@ async function startAdminPanel(
 /**
  * @param {object} flags
  * @param {string} [campaignArg]
- * @param {{ emit?: (line: string) => void, signals?: NodeJS.EventEmitter, startLocalListener?: typeof startLocalListenerImpl, startPanelListener?: typeof startPanelListenerImpl, createToken?: () => string, now?: () => number, identity?: { user: string, host: string } }} [opts]
+ * @param {{ emit?: (line: string) => void, signals?: NodeJS.EventEmitter, startLocalListener?: typeof startLocalListenerImpl, startPanelListener?: typeof startPanelListenerImpl, createToken?: () => string, now?: () => number, identity?: { user: string, host: string }, updateDeps?: object }} [opts]
  * @returns {Promise<{ exitCode: number, human: string }>}
  */
 async function runAdminServe(
@@ -299,9 +326,10 @@ async function runAdminServe(
     createToken = createTokenImpl,
     now = Date.now,
     identity,
+    updateDeps = {},
   } = {},
 ) {
-  const started = await startAdminPanel(flags, campaignArg, { emit, startLocalListener, startPanelListener, createToken, now, identity });
+  const started = await startAdminPanel(flags, campaignArg, { emit, startLocalListener, startPanelListener, createToken, now, identity, updateDeps });
   if (!started.ok) return { exitCode: started.exitCode, human: started.human };
   const { ctx, token, settings, plan, planned, setup, stop } = started;
 
