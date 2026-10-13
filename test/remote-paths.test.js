@@ -32,6 +32,7 @@ test('remotePaths: every path is derived from the directory of the resolved conf
       configDir: '/srv/gm/.config/scriptorium',
       panelDir: '/srv/gm/.config/scriptorium/panel',
       passwordFile: '/srv/gm/.config/scriptorium/panel/password.json',
+      accountsFile: '/srv/gm/.config/scriptorium/panel/accounts.json',
       sessionsFile: '/srv/gm/.config/scriptorium/panel/sessions.json',
       auditFile: '/srv/gm/.config/scriptorium/panel/audit.log',
       tlsDir: '/srv/gm/.config/scriptorium/tls',
@@ -293,6 +294,7 @@ test('findLooseModes reports an existing folder or file that group or others can
   assert.deepEqual(findLooseModes(paths), [], 'nothing exists yet');
   fs.mkdirSync(paths.panelDir, { mode: 0o700 });
   fs.writeFileSync(paths.passwordFile, '{}', { mode: 0o600 });
+  fs.writeFileSync(paths.accountsFile, '{}', { mode: 0o600 });
   fs.writeFileSync(paths.auditFile, '', { mode: 0o600 });
   assert.deepEqual(findLooseModes(paths), []);
   fs.chmodSync(paths.auditFile, 0o644);
@@ -300,6 +302,8 @@ test('findLooseModes reports an existing folder or file that group or others can
   assert.deepEqual(findLooseModes(paths), [paths.panelDir, paths.auditFile]);
   fs.chmodSync(paths.passwordFile, 0o640);
   assert.deepEqual(findLooseModes(paths), [paths.panelDir, paths.passwordFile, paths.auditFile]);
+  fs.chmodSync(paths.accountsFile, 0o644);
+  assert.deepEqual(findLooseModes(paths), [paths.panelDir, paths.passwordFile, paths.accountsFile, paths.auditFile]);
   // it only reports: nothing was changed
   assert.equal(fs.statSync(paths.auditFile).mode & 0o777, 0o644);
 });
@@ -323,4 +327,32 @@ test('A5: readBackup can never reach panel/password.json (or anything outside th
       return true;
     }, JSON.stringify(id));
   }
+});
+
+test('assertNotInsideAnyVault refuses a folder inside a vault found only by _meta/vault-config.md, even with no campaigns registered', (t) => {
+  const dir = scratch(t);
+  const unlisted = path.join(dir, 'unlisted');
+  fs.mkdirSync(path.join(unlisted, '_meta'), { recursive: true });
+  fs.writeFileSync(path.join(unlisted, '_meta', 'vault-config.md'), '# settings\n');
+  // Not yet created, and two levels down: judged by where it will land.
+  assert.throws(() => assertNotInsideAnyVault(path.join(unlisted, 'a', 'b', 'panel'), { campaigns: {} }), (err) => {
+    assert.ok(err instanceof ConfigError);
+    assert.ok(err.message.includes(`inside the vault at ${unlisted}`), err.message);
+    return true;
+  });
+  assert.throws(() => assertNotInsideAnyVault(unlisted, {}), ConfigError);
+  // A sibling folder with no marker above it is fine.
+  assert.doesNotThrow(() => assertNotInsideAnyVault(path.join(dir, 'elsewhere', 'panel'), { campaigns: {} }));
+  // A folder that only holds a _meta folder without the settings page is not a vault.
+  fs.mkdirSync(path.join(dir, 'plain', '_meta'), { recursive: true });
+  assert.doesNotThrow(() => assertNotInsideAnyVault(path.join(dir, 'plain', 'panel'), {}));
+});
+
+test('assertNotInsideAnyVault follows a symlink into an unlisted vault', posix, (t) => {
+  const dir = scratch(t);
+  const unlisted = path.join(dir, 'unlisted');
+  fs.mkdirSync(path.join(unlisted, '_meta'), { recursive: true });
+  fs.writeFileSync(path.join(unlisted, '_meta', 'vault-config.md'), '# settings\n');
+  fs.symlinkSync(unlisted, path.join(dir, 'link'));
+  assert.throws(() => assertNotInsideAnyVault(path.join(dir, 'link', 'panel'), {}), ConfigError);
 });

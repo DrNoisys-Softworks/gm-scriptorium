@@ -631,9 +631,30 @@
     return ['bad', spec[0], d];
   }
 
-  function vaultDraw(status, input, r, extraBtn) {
+  /**
+   * Pressing a button under a box blurs it, and leaving the box commits the field, so the same
+   * answer can arrive again while the mouse is still down. Drawing it again would replace the
+   * pressed button and the click would never land. Returns false, and leaves the status as it is,
+   * when this answer is the one already drawn; otherwise clears the status and returns true.
+   * `ui` names any state outside the answer that the message shows (the output question's confirm
+   * box), so a change in it always redraws.
+   */
+  function answerSig(r, ui) {
+    return r ? JSON.stringify(r) + '\u0000' + (ui || '') : '';
+  }
+
+  function freshAnswer(status, r, ui) {
+    var sig = answerSig(r, ui);
+    if (r && status.firstChild && status.getAttribute('data-drawn') === sig) return false;
+    if (r) status.setAttribute('data-drawn', sig);
+    else status.removeAttribute('data-drawn');
     status.textContent = '';
+    return true;
+  }
+
+  function vaultDraw(status, input, r, extraBtn) {
     markInput(input, r ? r.state : null);
+    if (!freshAnswer(status, r)) return;
     if (!r) return;
     var f = r.facts || {};
     if (r.state === 'deferred') {
@@ -711,7 +732,7 @@
     };
     var run = function () {
       ask('vault', input.value, commit).then(function (r) {
-        if (!r) return;
+        if (!r || !document.body.contains(input)) return; // answered after the GM moved on: the next screen owns Continue
         S.res.output = null;
         vaultDraw(status, input, r, recheck);
         setNext(r.state === 'ok' || r.state === 'warn', r.state === 'warn' ? 'Continue works; the warning stays on the review.' : '');
@@ -771,8 +792,8 @@
   }
 
   function newFolderDraw(status, input, r) {
-    status.textContent = '';
     markInput(input, r ? r.state : null);
+    if (!freshAnswer(status, r)) return;
     if (!r) return;
     var f = r.facts || {};
     if (r.state === 'deferred') {
@@ -882,7 +903,7 @@
     var status = document.getElementById('su-newvault-st');
     var run = function () {
       ask('newVault', input.value, commit).then(function (r) {
-        if (!r) return;
+        if (!r || !document.body.contains(input)) return; // answered after the GM moved on: the next screen owns Continue
         S.res.output = null;
         newFolderDraw(status, input, r);
         setNext(newFolderReady(r) || r.state === 'deferred', r.state === 'warn' ? 'Continue works; the warning stays on the review.' : '');
@@ -929,11 +950,15 @@
     return wrap;
   }
 
+  function confirmState() {
+    return S.outputConfirmed ? 'confirmed' : 'unconfirmed';
+  }
+
   function outputDraw(status, input, r) {
-    status.textContent = '';
     var sug = document.getElementById('su-out-hint');
     if (sug) sug.hidden = !(r && r.state === 'ok');
     markInput(input, r ? r.state : null);
+    if (!freshAnswer(status, r, confirmState())) return;
     if (!r) return;
     var f = r.facts || {};
     if (r.state === 'deferred') {
@@ -982,6 +1007,7 @@
       cb.checked = S.outputConfirmed;
       cb.addEventListener('change', function () {
         S.outputConfirmed = cb.checked;
+        status.setAttribute('data-drawn', answerSig(r, confirmState())); // the box is already showing this, so the next unchanged answer leaves it alone
         setNext(cb.checked, cb.checked ? '' : 'Tick the box, or pick another folder.');
       });
       lab.appendChild(cb);
@@ -1023,7 +1049,7 @@
     var status = document.getElementById('su-out-st');
     var run = function () {
       ask('output', input.value, commit).then(function (r) {
-        if (!r) return;
+        if (!r || !document.body.contains(input)) return; // answered after the GM moved on: the next screen owns Continue
         outputDraw(status, input, r);
         setNext(outputReady(r), r.state === 'warn' && !S.outputConfirmed ? 'Tick the box, or pick another folder.' : '');
       });

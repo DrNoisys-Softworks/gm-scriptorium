@@ -14,17 +14,7 @@
   var FAILURES_TO_STOP = 2;
   var failures = 0;
   var stopped = false;
-  var launch = false;
   var timer = null;
-
-  // Which words to use is learned once, while the panel is still up; a panel that is already gone
-  // when this fails gets the neutral words.
-  A.api('/api/session').then(
-    function (res) {
-      launch = !!(res.ok && res.body && res.body.launch === true);
-    },
-    function () {},
-  );
 
   function showStopped() {
     stopped = true;
@@ -48,13 +38,10 @@
     var why = A.el('p');
     var fine = A.el('p');
     fine.className = 'a1-fine';
-    if (launch) {
-      A.setText(why, 'You closed its window, so the panel and your preview are off. Everything you saved is on disk.');
-      A.setText(fine, 'To carry on, start GM-Scriptorium from the Start menu. It opens a new tab by itself, so you can close this one.');
-    } else {
-      A.setText(why, 'The panel and your preview are off. Everything you saved is on disk.');
-      A.setText(fine, 'Start it again to carry on.');
-    }
+    // One wording for every way the panel can stop (window closed, Ctrl+C, a signal, a service
+    // manager): it names none of them. Mention a Start menu entry only once an installer adds one.
+    A.setText(why, 'The panel and your preview are off. Everything you saved is on disk.');
+    A.setText(fine, 'Start it again to carry on.');
     [crest, eyebrow, title, why, fine].forEach(function (n) {
       main.appendChild(n);
     });

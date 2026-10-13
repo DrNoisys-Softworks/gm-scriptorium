@@ -122,10 +122,10 @@ function effectiveTls(settings) {
 
 /**
  * @param {ReturnType<typeof parseRemoteTable>} settings
- * @param {{ password: 'set'|'unset'|'cleared'|'invalid', tlsSupported?: boolean }} ctx
+ * @param {{ accounts: 'set'|'unset'|'cleared'|'invalid', tlsSupported?: boolean }} ctx
  * @returns {string[]} the problems, in the sequence startup reports them (empty when ready)
  */
-function readiness(settings, { password, tlsSupported = false }) {
+function readiness(settings, { accounts, tlsSupported = false }) {
   const m = settings.mode;
   if (m === 'local') return [];
   const problems = [];
@@ -155,7 +155,7 @@ function readiness(settings, { password, tlsSupported = false }) {
       problems.push(`remote access (mode direct): the preview address must use port ${settings.preview_port}, the port the preview listens on`);
     }
   }
-  if (m !== 'ssh' && password !== 'set') problems.push(`${label} needs a password: run "gm-scriptorium remote password"`);
+  if (m !== 'ssh' && accounts !== 'set') problems.push(`${label} needs an account: run "gm-scriptorium remote account add <name>"`);
   if (!tlsSupported && (m === 'direct' || (m === 'proxy' && effectiveTls(settings) !== 'off'))) {
     problems.push(`${label} needs certificate support, which this version of GM-Scriptorium does not have`);
   }
@@ -233,7 +233,7 @@ function reachLine(settings) {
 function warningSentence(settings, plan) {
   const ports = `${plan.admin.port} and ${plan.preview.port}`;
   if (settings.mode === 'tailscale') return "Any device your tailnet's access rules allow can reach its sign-in page through tailscale serve.";
-  if (settings.mode === 'proxy') return `It answers ${settings.trusted_proxies.join(', ')} (your proxy) and this machine, on ${settings.bind} ports ${ports}.`;
+  if (settings.mode === 'proxy') return `It answers ${settings.trusted_proxies.join(', ')} (your proxy) and this computer (127.0.0.1), on ${settings.bind} ports ${ports}.`;
   const where = WILDCARD_BINDS.includes(settings.bind) ? 'every address of this machine' : settings.bind;
   return `Anything that can reach ${where} on ports ${ports} can reach its sign-in page.`;
 }
@@ -256,7 +256,7 @@ function remoteAddressLines(settings, plan, { adminPort, previewPort, user = 'US
     return [`tunnel from your desktop: ssh -L ${adminPort}:127.0.0.1:${adminPort} -L ${previewPort}:127.0.0.1:${previewPort} ${user}@${host}`];
   }
   return [
-    `remote admin panel: ${settings.admin_url}/ (sign in with the panel password)`,
+    `remote admin panel: ${settings.admin_url}/ (sign in with your username and password)`,
     `remote preview: ${settings.preview_url}/`,
     `listening on ${plan.admin.hosts.join(' and ')} port ${adminPort} (panel) and ${previewPort} (preview)`,
   ];

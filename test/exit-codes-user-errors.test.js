@@ -57,6 +57,7 @@ const CASES = [
   ['malformed config (no config_version)', (r) => (writeCfg(r, '[campaigns.t]\nvault = "x"\n'), ['status']), 3, /config_version/],
   ['config entry points at a missing vault', (r) => (writeCfg(r, `config_version = 1\n[campaigns.t]\nvault = '${r}/nowhere'\noutput = '${r}/site'\n`), ['check']), 3, /nowhere/],
   ['campaign has no output folder (build)', (r) => (writeCfg(r, `config_version = 1\n[campaigns.t]\nvault = '${SAMPLE}'\n`), ['build']), 3, /has no output folder/],
+  ['remote password with the config folder inside a vault (an unlisted one, found by its settings page)', (r) => (fs.mkdirSync(path.join(r, '_meta'), { recursive: true }), fs.writeFileSync(path.join(r, '_meta', 'vault-config.md'), '# settings\n'), goodCfg(r), { args: ['remote', 'password'], input: 'a long enough passphrase\n' }), 3, /never inside a vault/],
   ['--out inside the vault', (r) => (goodCfg(r), ['build', '--no-check', '--out', path.join(SAMPLE, 'zz-out')]), 3, /refusing to build inside the vault/],
   ['--out contains the vault', (r) => (goodCfg(r), ['build', '--no-check', '--out', path.dirname(SAMPLE)]), 3, /contains the vault/],
   ['serve before any build', (r) => (goodCfg(r), ['serve', '--port', '0']), 3, /no build exists/],
@@ -74,6 +75,7 @@ const CASES = [
 
   ['unknown command', () => ['chek'], 1, /unknown command: chek/],
   ['unknown flag', (r) => (goodCfg(r), ['check', '--prot']), 1, /unknown flag --prot/],
+  ['build --force (split)', (r) => (goodCfg(r), ['build', '--force']), 1, /--force has been split/],
   ['--port abc', (r) => (goodCfg(r), fs.mkdirSync(path.join(r, 'site')), fs.writeFileSync(path.join(r, 'site', 'index.html'), 'x'), ['serve', '--port', 'abc']), 1, /--port must be a whole number/],
   ['--port 99999', (r) => (goodCfg(r), fs.mkdirSync(path.join(r, 'site')), fs.writeFileSync(path.join(r, 'site', 'index.html'), 'x'), ['serve', '--port', '99999']), 1, /--port must be a whole number/],
   ['--host with --admin', (r) => (goodCfg(r), ['serve', '--admin', '--host', '0.0.0.0']), 1, /does not accept --host/],
@@ -112,16 +114,18 @@ for (const [label, setup, expected, pattern] of CASES) {
 }
 
 test('#108: port already in use exits 1 with a plain message', async () => {
+  const { testPort } = require('./helpers/ports');
+  const port = testPort(8721);
   const blocker = net.createServer();
-  await new Promise((resolve) => blocker.listen(8721, '127.0.0.1', resolve));
+  await new Promise((resolve) => blocker.listen(port, '127.0.0.1', resolve));
   try {
     withScratch((root) => {
       goodCfg(root);
       fs.mkdirSync(path.join(root, 'site'));
       fs.writeFileSync(path.join(root, 'site', 'index.html'), 'x');
-      const res = run(root, ['serve', '--port', '8721']);
+      const res = run(root, ['serve', '--port', String(port)]);
       assert.equal(res.code, 1, res.all);
-      assert.match(res.all, /port 8721 is already in use on 127\.0\.0\.1/);
+      assert.match(res.all, new RegExp(`port ${port} is already in use on 127\\.0\\.0\\.1`));
       assert.doesNotMatch(res.all, /EADDRINUSE|\n\s+at /);
     });
   } finally {

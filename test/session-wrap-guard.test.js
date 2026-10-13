@@ -148,7 +148,7 @@ test('build human output no longer says "does not support"', () => {
     const configPath = path.join(scratch, 'config.toml');
     writeConfigToml(configPath, { vaultDir, siteConfigPath, outDir: path.join(scratch, 'out'), campaign: 'guard-build' });
 
-    const result = runBuildCommand({ config: configPath, force: true }, 'guard-build');
+    const result = runBuildCommand({ config: configPath, 'force-out': true, 'force-check': true }, 'guard-build');
     assert.equal(result.exitCode, 0, result.human);
     assert.ok(!result.human.includes('does not support'), result.human);
   } finally {

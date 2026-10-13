@@ -195,7 +195,7 @@ test('PW7: _meta/scriptorium as a symlink outside the vault gives W-ESCAPE', (t)
   });
 });
 
-test('PW8: _meta/scriptorium as a symlink to a directory inside the vault is accepted', (t) => {
+test('PW8 (issue #24): _meta/scriptorium as a symlink to a vault folder outside _meta is refused', (t) => {
   withScratchDir((root) => {
     const vaultPath = makeVault(root);
     const insideTarget = path.join(vaultPath, 'real-pack-dir');
@@ -209,9 +209,11 @@ test('PW8: _meta/scriptorium as a symlink to a directory inside the vault is acc
       }
       throw err;
     }
-    const result = createPackEntries(vaultPath, FRESH_ENTRIES, { campaign: 'alpha' });
-    assert.equal(result.createdPackDir, false);
-    assert.equal(fs.readFileSync(path.join(insideTarget, 'pack.toml'), 'utf8'), 'theme = "plain"\n');
+    assert.throws(
+      () => createPackEntries(vaultPath, FRESH_ENTRIES, { campaign: 'alpha' }),
+      (err) => err instanceof ConfigError && err.message.includes("resolves outside the vault's _meta folder"),
+    );
+    assert.deepEqual(fs.readdirSync(insideTarget), []);
   });
 });
 

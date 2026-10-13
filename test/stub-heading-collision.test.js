@@ -52,7 +52,7 @@ function buildFixture(dir) {
   delete require.cache[require.resolve('../src/cli/build')];
   // eslint-disable-next-line global-require
   const { runBuildCommand } = require('../src/cli/build');
-  return { result: runBuildCommand({ config: configPath, force: true }, 'fixture'), outDir };
+  return { result: runBuildCommand({ config: configPath, 'force-check': true }, 'fixture'), outDir };
 }
 
 test('#100: a GM Notes sub-heading that matches a stub include entry reaches no built surface', () => {

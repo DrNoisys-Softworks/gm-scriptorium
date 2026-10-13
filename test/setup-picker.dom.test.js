@@ -4,8 +4,7 @@
  * ADR 0049: the folder picker in real browsers (Chromium and Firefox via PLAYWRIGHT_MODULE; skips,
  * loudly, without it; the axe checks also need axe-core, found beside PLAYWRIGHT_MODULE or via
  * AXE_CORE_PATH). The real bin runs in setup mode against a scratch tree with an isolated config.
- * Ports: 9449 (Chromium) and 9450 (Firefox); override the first with PICKER_UI_TEST_PORT (the
- * second is that plus one). The picker is driven with the keyboard, because that is how it is
+ * Ports: 9449 (Chromium) and 9450 (Firefox); both through testPort. The picker is driven with the keyboard, because that is how it is
  * specified; clicking is covered once.
  */
 
@@ -16,9 +15,10 @@ const os = require('os');
 const path = require('path');
 const { startAdminServer, stopChild } = require('./helpers/admin-server');
 const { SAMPLE } = require('./helpers/setup-fixtures');
+const { testPort } = require('./helpers/ports');
 
 const REPO = path.join(__dirname, '..');
-const BASE_PORT = Number(process.env.PICKER_UI_TEST_PORT || 9449);
+const PORTS = { chromium: testPort(9449), firefox: testPort(9450) };
 
 function loadPlaywright() {
   for (const c of [process.env.PLAYWRIGHT_MODULE, 'playwright'].filter(Boolean)) {
@@ -119,7 +119,7 @@ async function gotoFolder(page, folder) {
 
 for (const browserName of ['chromium', 'firefox']) {
   test(`the folder picker in ${browserName}`, { skip: SKIP, timeout: 420000 }, async (t) => {
-    const port = BASE_PORT + (browserName === 'firefox' ? 1 : 0);
+    const port = PORTS[browserName];
     const fx = makeFixture();
     const srv = await startAdminServer(['serve', '--admin', '--port', String(port), '--config', fx.configPath], { bin: path.join(REPO, 'bin', 'scriptorium.js'), env: fx.env });
     const browser = await pw[browserName].launch();

@@ -8,17 +8,18 @@ const net = require('net');
 const { startPanelListener, startLocalListener } = require('../src/serve/server');
 const { ScriptoriumError } = require('../src/util/errors');
 const addr = require('../src/remote/addr');
+const { testPort } = require('./helpers/ports');
 
 /*
- * V1.5a (SD-a3). startPanelListener on REAL sockets. Fixed ports 7920-7921, disjoint from every
- * other test file (node --test runs files in parallel). The peer tests use source addresses in
+ * V1.5a (SD-a3). startPanelListener on REAL sockets. Fixed ports 7920-7921 (through testPort, so SCRIPTORIUM_TEST_PORT_BASE moves them), disjoint from
+ * every other test file (node --test runs files in parallel). The peer tests use source addresses in
  * 127.0.0.0/8, which Linux accepts as local addresses on the loopback interface; other platforms
  * do not, so they are Linux-only (Windows and macOS are covered by C71's OPEN criterion and by
  * the unit tests of the gate, not by these sockets).
  */
 
-const PORT = 7920;
-const PORT2 = 7921;
+const PORT = testPort(7920);
+const PORT2 = testPort(7921);
 const linuxOnly = { skip: process.platform !== 'linux' ? 'Linux accepts every 127/8 address; other platforms do not' : false };
 
 const okHandler = (req, res) => {

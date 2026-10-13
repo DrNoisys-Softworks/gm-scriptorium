@@ -6,7 +6,7 @@
  * Expected values are literals or hand-computed here; nothing is read back through
  * src/cert's own parsing.
  *
- * Ports 8060-8069 (one per TLS case, run in file order; node --test runs files in parallel).
+ * Ports 8060-8064 through testPort (one per TLS case, run in file order; node --test runs files in parallel).
  *
  * Tests that pass today and prove nothing (so a Reviewer can refuse them as evidence):
  *  - PEM text shape checks (BEGIN/END lines, base64), used here only as a precondition;
@@ -27,6 +27,13 @@ const gen = require('../src/cert/generate');
 const inspect = require('../src/cert/inspect');
 const der = require('../src/cert/der');
 const { ConfigError } = require('../src/util/errors');
+const { testPort } = require('./helpers/ports');
+
+const PORT_GOOD = testPort(8060);
+const PORT_WRONG_CA = testPort(8061);
+const PORT_INSIDE = testPort(8062);
+const PORT_OUTSIDE = testPort(8063);
+const PORT_OPEN = testPort(8064);
 
 const DAY = 86400000;
 const NOW = Date.parse('2027-01-01T00:00:00Z');
@@ -353,23 +360,23 @@ async function withServer(t, port, options) {
 
 test('real TLS: generated pair authorises for each configured name, refuses others', async (t) => {
   const { pair } = fixture();
-  await withServer(t, 8060, { key: pair.keyPem, cert: pair.leafPem + pair.trustPem });
-  const good = await connect(8060, { ca: pair.trustPem, servername: 'scriptorium.home.arpa' });
+  await withServer(t, PORT_GOOD, { key: pair.keyPem, cert: pair.leafPem + pair.trustPem });
+  const good = await connect(PORT_GOOD, { ca: pair.trustPem, servername: 'scriptorium.home.arpa' });
   assert.deepEqual(good, { ok: true, authorized: true });
-  assert.deepEqual(await connect(8060, { ca: pair.trustPem, servername: 'preview.scriptorium.home.arpa' }), { ok: true, authorized: true });
-  assert.deepEqual(await connect(8060, { ca: pair.trustPem, servername: 'localhost' }), { ok: true, authorized: true });
-  const evil = await connect(8060, { ca: pair.trustPem, servername: 'evil.example' });
+  assert.deepEqual(await connect(PORT_GOOD, { ca: pair.trustPem, servername: 'preview.scriptorium.home.arpa' }), { ok: true, authorized: true });
+  assert.deepEqual(await connect(PORT_GOOD, { ca: pair.trustPem, servername: 'localhost' }), { ok: true, authorized: true });
+  const evil = await connect(PORT_GOOD, { ca: pair.trustPem, servername: 'evil.example' });
   assert.equal(evil.ok, false);
   assert.equal(evil.code, 'ERR_TLS_CERT_ALTNAME_INVALID');
-  const sibling = await connect(8060, { ca: pair.trustPem, servername: 'scriptorium.home.arpa.example' });
+  const sibling = await connect(PORT_GOOD, { ca: pair.trustPem, servername: 'scriptorium.home.arpa.example' });
   assert.equal(sibling.ok, false);
 });
 
 test('real TLS: a different generation\'s trust certificate is refused', async (t) => {
   const { pair } = fixture();
   const other = gen.generateCertificatePair({ ...NAMES });
-  await withServer(t, 8061, { key: pair.keyPem, cert: pair.leafPem + pair.trustPem });
-  const r = await connect(8061, { ca: other.trustPem, servername: 'scriptorium.home.arpa' });
+  await withServer(t, PORT_WRONG_CA, { key: pair.keyPem, cert: pair.leafPem + pair.trustPem });
+  const r = await connect(PORT_WRONG_CA, { ca: other.trustPem, servername: 'scriptorium.home.arpa' });
   assert.equal(r.ok, false);
   assert.match(r.code, /SELF_SIGNED|UNABLE_TO_VERIFY|CERT_/);
 });
@@ -415,17 +422,17 @@ test('name constraints are enforced by the verifier (hostile leaf built with bui
   const { caPem, leafFor } = hostileCa({ permitted: ['scriptorium.home.arpa'] });
   const inside = leafFor('scriptorium.home.arpa');
   const outside = leafFor('outside.example');
-  await withServer(t, 8062, { key: inside.keyPem, cert: inside.certPem + caPem });
-  await withServer(t, 8063, { key: outside.keyPem, cert: outside.certPem + caPem });
-  assert.deepEqual(await connect(8062, { ca: caPem, servername: 'scriptorium.home.arpa' }), { ok: true, authorized: true });
-  const bad = await connect(8063, { ca: caPem, servername: 'outside.example' });
+  await withServer(t, PORT_INSIDE, { key: inside.keyPem, cert: inside.certPem + caPem });
+  await withServer(t, PORT_OUTSIDE, { key: outside.keyPem, cert: outside.certPem + caPem });
+  assert.deepEqual(await connect(PORT_INSIDE, { ca: caPem, servername: 'scriptorium.home.arpa' }), { ok: true, authorized: true });
+  const bad = await connect(PORT_OUTSIDE, { ca: caPem, servername: 'outside.example' });
   assert.equal(bad.ok, false);
   assert.equal(bad.message, 'permitted subtree violation', JSON.stringify(bad));
   // the same hostile leaf under a CA WITHOUT constraints is accepted: the constraint is what blocks it
   const open = hostileCa({ permitted: null });
   const l2 = open.leafFor('outside.example');
-  await withServer(t, 8064, { key: l2.keyPem, cert: l2.certPem + open.caPem });
-  assert.deepEqual(await connect(8064, { ca: open.caPem, servername: 'outside.example' }), { ok: true, authorized: true });
+  await withServer(t, PORT_OPEN, { key: l2.keyPem, cert: l2.certPem + open.caPem });
+  assert.deepEqual(await connect(PORT_OPEN, { ca: open.caPem, servername: 'outside.example' }), { ok: true, authorized: true });
   // and openssl agrees about the constrained case
   const cf = write('hc.pem', caPem);
   assert.throws(() => openssl(['verify', '-CAfile', cf, write('ho.pem', outside.certPem)]), /permitted subtree violation/i);

@@ -50,16 +50,29 @@ test('listeningLine', () => {
   );
 });
 
-test('lockoutLine: open, with failures, and paused (with the UTC time and the refused count)', () => {
-  assert.equal(RA.lockoutLine({ active: false, until: null, recentFailures: 0, refused: 0 }), 'Remote sign-in is open. Five wrong passwords in ten minutes would pause it for fifteen.');
-  assert.equal(RA.lockoutLine({ active: false, until: null, recentFailures: 1, refused: 0 }), 'Remote sign-in is open. 1 wrong password in the last ten minutes; five would pause it for fifteen.');
-  assert.equal(RA.lockoutLine({ active: false, until: null, recentFailures: 3, refused: 0 }), 'Remote sign-in is open. 3 wrong passwords in the last ten minutes; five would pause it for fifteen.');
+test('lockoutLine (ADR 0054): open, with failures, paused names, a global pause (with the UTC time and the refused count)', () => {
+  const open = { active: false, until: null, recentFailures: 0, refused: 0, pausedAccounts: [], pausedOther: 0 };
+  assert.equal(RA.lockoutLine(open), 'Remote sign-in is open. Five wrong tries for one username in ten minutes would pause that username for fifteen.');
+  assert.equal(
+    RA.lockoutLine({ ...open, recentFailures: 1 }),
+    'Remote sign-in is open. Five wrong tries for one username in ten minutes would pause that username for fifteen. 1 wrong try in the last ten minutes.',
+  );
+  assert.equal(
+    RA.lockoutLine({ ...open, recentFailures: 3 }),
+    'Remote sign-in is open. Five wrong tries for one username in ten minutes would pause that username for fifteen. 3 wrong tries in the last ten minutes.',
+  );
+  assert.equal(
+    RA.lockoutLine({ ...open, pausedAccounts: ['rook', 'saffron'], pausedOther: 2 }),
+    'Remote sign-in is open. Five wrong tries for one username in ten minutes would pause that username for fifteen. Paused now: rook, saffron, and 2 other usernames.',
+  );
+  assert.match(RA.lockoutLine({ ...open, pausedOther: 1 }), /Paused now: 1 other username\.$/);
   const until = Date.UTC(2026, 9, 3, 13, 45, 0);
   assert.equal(
-    RA.lockoutLine({ active: true, until, recentFailures: 0, refused: 3 }),
-    'Remote sign-in is paused until 2026-10-03 13:45 UTC after five wrong passwords. 3 attempts have been turned away. The one-time link on this machine still works.',
+    RA.lockoutLine({ ...open, active: true, until, refused: 3 }),
+    'Remote sign-in is paused for everyone until 2026-10-03 13:45 UTC, after too many wrong tries across all usernames. 3 attempts have been turned away. The one-time link on this machine still works.',
   );
-  assert.match(RA.lockoutLine({ active: true, until, recentFailures: 0, refused: 1 }), /1 attempt has been turned away/);
+  assert.match(RA.lockoutLine({ ...open, active: true, until, refused: 1 }), /1 attempt has been turned away/);
+  assert.equal(RA.lockoutLine({ active: false }), 'Remote sign-in is open. Five wrong tries for one username in ten minutes would pause that username for fifteen.', 'an older or partial answer still reads');
 });
 
 test('signinRows: only sign-in events, "How" and "From" worded for the person, and there is NO "Who"', () => {
@@ -88,14 +101,13 @@ test('refusedOnly keeps only refused rows', () => {
   assert.deepEqual(RA.refusedOnly(undefined), []);
 });
 
-test('cliCommands: turn on or change, turn off, password, sign out every device, in that order, with neutral names', () => {
+test('cliCommands: turn on or change, turn off, sign out every device, in that order, with neutral names (accounts are managed by the hint under the accounts list)', () => {
   for (const mode of ['local', 'ssh', 'tailscale', 'proxy', 'direct']) {
     const cmds = RA.cliCommands(mode);
-    assert.deepEqual(cmds.map((c) => c.label), ['Turn on or change', 'Turn off', 'Set or change the password', 'Sign out every device']);
+    assert.deepEqual(cmds.map((c) => c.label), ['Turn on or change', 'Turn off', 'Sign out every device']);
     assert.match(cmds[0].command, /^gm-scriptorium remote set --mode /);
     assert.equal(cmds[1].command, 'gm-scriptorium remote off');
-    assert.equal(cmds[2].command, 'gm-scriptorium remote password');
-    assert.equal(cmds[3].command, 'gm-scriptorium remote signout-all');
+    assert.equal(cmds[2].command, 'gm-scriptorium remote signout-all');
   }
   assert.equal(RA.cliCommands('ssh')[0].command, 'gm-scriptorium remote set --mode ssh --port 7400 --preview-port 7401');
   assert.match(RA.cliCommands('tailscale')[0].command, /ts\.net/);
@@ -119,11 +131,11 @@ test('httpsShort has no "HTTPS" prefix (the pill carries the label), and httpsLi
   assert.equal(RA.httpsShort(null), 'not needed on this computer');
 });
 
-test('healthItems: HTTPS, Password, Listening, Audit log, File permissions, each with a state; no label is repeated inside its own text (the "HTTPS: HTTPS:" stutter)', () => {
+test('healthItems: HTTPS, Accounts, Listening, Audit log, File permissions, each with a state; no label is repeated inside its own text (the "HTTPS: HTTPS:" stutter)', () => {
   const view = {
     mode: 'proxy',
     https: { by: 'proxy', hop: 'plain' },
-    password: { set: true, setAt: '2026-10-01T12:00:00.000Z' },
+    accounts: { state: 'set', list: [{ name: 'gm' }, { name: 'rook' }, { name: 'saffron' }] },
     listening: { hosts: ['192.0.2.42', '127.0.0.1'], adminPort: 7400, previewPort: 7401 },
     audit: { ok: true, file: '/x/panel/audit.log', lastError: null },
     files: { looseModes: [] },
@@ -131,18 +143,20 @@ test('healthItems: HTTPS, Password, Listening, Audit log, File permissions, each
   const items = RA.healthItems(view);
   assert.deepEqual(items.map((i) => [i.label, i.text, i.state]), [
     ['HTTPS', 'by your proxy, plain hop', 'ok'],
-    ['Password', 'set 2026-10-01', 'ok'],
+    ['Accounts', '3 set', 'ok'],
     ['Listening', '7400, 7401 on 192.0.2.42 and 127.0.0.1', 'ok'],
     ['Audit log', 'writing', 'ok'],
     ['File permissions', 'private to your user', 'ok'],
   ]);
   for (const i of items) assert.ok(!i.text.toLowerCase().startsWith(i.label.toLowerCase()), i.label);
-  const broken = RA.healthItems({ ...view, password: { set: false, setAt: null }, audit: { ok: false, file: '/x', lastError: { message: 'EISDIR' } }, files: { looseModes: ['/x/panel'] } });
+  assert.equal(RA.healthItems({ ...view, accounts: { state: 'set', list: [{ name: 'gm' }] } })[1].text, '1 set');
+  const broken = RA.healthItems({ ...view, accounts: { state: 'unset', list: [] }, audit: { ok: false, file: '/x', lastError: { message: 'EISDIR' } }, files: { looseModes: ['/x/panel'] } });
   assert.deepEqual(broken.map((i) => i.state), ['ok', 'bad', 'ok', 'bad', 'warn']);
-  assert.equal(broken[1].text, 'not set');
+  assert.equal(broken[1].text, 'none set');
   assert.equal(broken[3].text, 'cannot write (EISDIR), remote changes paused');
   assert.equal(broken[4].text, 'other users can read: /x/panel');
-  assert.equal(RA.healthItems({ mode: 'local', password: { set: false } })[1].text, 'not needed in this mode');
+  assert.equal(RA.healthItems({ ...view, accounts: { state: 'invalid', list: [] } })[1].text, 'the saved accounts cannot be read');
+  assert.equal(RA.healthItems({ mode: 'local', accounts: { state: 'unset', list: [] } })[1].text, 'not needed in this mode');
   assert.equal(RA.healthItems({ mode: 'local', listening: { hosts: ['127.0.0.1'], adminPort: 1, previewPort: 2 } })[2].text, '127.0.0.1 only');
 });
 
@@ -155,7 +169,7 @@ test('summaryRows (the "How you get in" card): per mode, the mock\'s rows', () =
   assert.deepEqual(proxy, [
     { label: 'Address', value: 'https://scriptorium.home.arpa', code: true },
     { label: 'Preview', value: 'https://preview.scriptorium.home.arpa', code: true },
-    { label: 'Sign in', value: 'Your panel password. The one-time link still works on this machine.', code: false },
+    { label: 'Sign in', value: 'Your username and password. The one-time link still works on this machine.', code: false },
     { label: 'Listens on', value: 'Ports 7400, 7401 on 192.0.2.42 and 127.0.0.1, answering 198.51.100.20, 127.0.0.1, ::1', code: false },
   ]);
   const local = RA.summaryRows({ mode: 'local', addresses: { adminLoopback: 'http://127.0.0.1:51111' } });
@@ -166,6 +180,41 @@ test('summaryRows (the "How you get in" card): per mode, the mock\'s rows', () =
   const ts = RA.summaryRows({ mode: 'tailscale', addresses: { admin: 'https://panel-host.example-tailnet.ts.net', preview: 'https://panel-host.example-tailnet.ts.net:8443' }, listening: { answers: [] } });
   assert.doesNotMatch(JSON.stringify(ts), /only your devices/i);
   assert.match(ts[3].value, /tailnet rules decide who can reach the address/);
+});
+
+test('accountRows (ADR 0054): name, the mark for the earlier password, when the password was set and the last sign-in, in UTC, relative to the clock given', () => {
+  const now = Date.UTC(2026, 9, 12, 20, 0, 0);
+  const rows = RA.accountRows(
+    {
+      accounts: {
+        state: 'set',
+        list: [
+          { name: 'gm', setAt: '2026-09-12T21:40:00.000Z', fromEarlierPassword: true, lastSignin: '2026-10-12T18:05:00.000Z' },
+          { name: 'rook', setAt: '2026-10-03T09:12:00.000Z', fromEarlierPassword: false, lastSignin: '2026-10-11T22:31:00.000Z' },
+          { name: 'saffron', setAt: '2026-10-03T09:15:00.000Z', fromEarlierPassword: false, lastSignin: null },
+          { name: 'old', setAt: '2026-01-05T00:00:00.000Z', fromEarlierPassword: false, lastSignin: '2026-10-01T07:08:00.000Z' },
+        ],
+      },
+    },
+    now,
+  );
+  assert.deepEqual(rows, [
+    { name: 'gm', fromEarlier: true, setAt: '12 Sep 2026, 21:40 UTC', lastSignin: 'Today, 18:05 UTC' },
+    { name: 'rook', fromEarlier: false, setAt: '03 Oct 2026, 09:12 UTC', lastSignin: 'Yesterday, 22:31 UTC' },
+    { name: 'saffron', fromEarlier: false, setAt: '03 Oct 2026, 09:15 UTC', lastSignin: 'Never' },
+    { name: 'old', fromEarlier: false, setAt: '05 Jan 2026, 00:00 UTC', lastSignin: '01 Oct 2026, 07:08 UTC' },
+  ]);
+  assert.deepEqual(RA.accountRows({ accounts: { state: 'unset', list: [] } }, now), []);
+  assert.deepEqual(RA.accountRows({}, now), []);
+  assert.deepEqual(RA.accountRows(null, now), []);
+  assert.equal(RA.accountRows({ accounts: { list: [{ name: 'x', setAt: 'junk', lastSignin: 'junk' }] } }, now)[0].setAt, 'unknown');
+});
+
+test('accountsNote: what the screen says when there are none, and when the saved file is broken', () => {
+  assert.equal(RA.accountsNote({ accounts: { state: 'set', list: [{ name: 'a' }] } }), 'These people can sign in to the console. Every account has the same rights. This list is read-only.');
+  assert.equal(RA.accountsNote({ accounts: { state: 'unset', list: [] } }), 'No account can sign in remotely yet. Add one with the command below.');
+  assert.equal(RA.accountsNote({ accounts: { state: 'cleared', list: [] } }), 'No account can sign in remotely yet. Add one with the command below.');
+  assert.equal(RA.accountsNote({ accounts: { state: 'invalid', list: [] } }), 'The saved accounts cannot be read, so nobody can sign in remotely. Run "gm-scriptorium remote off" and add the accounts again.');
 });
 
 // --- PV.previewSrc (A1) ------------------------------------------------------------------

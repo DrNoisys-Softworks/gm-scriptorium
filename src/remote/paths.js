@@ -20,7 +20,7 @@ const packwrite = require('../vault/packwrite');
 
 /**
  * @param {string} configPath
- * @returns {Readonly<{ configDir: string, panelDir: string, passwordFile: string, sessionsFile: string, auditFile: string, tlsDir: string, generatedTlsFile: string }>}
+ * @returns {Readonly<{ configDir: string, panelDir: string, passwordFile: string, accountsFile: string, sessionsFile: string, auditFile: string, tlsDir: string, generatedTlsFile: string }>}
  */
 function remotePaths(configPath) {
   const configDir = path.dirname(path.resolve(configPath));
@@ -30,6 +30,7 @@ function remotePaths(configPath) {
     configDir,
     panelDir,
     passwordFile: path.join(panelDir, 'password.json'),
+    accountsFile: path.join(panelDir, 'accounts.json'),
     sessionsFile: path.join(panelDir, 'sessions.json'),
     auditFile: path.join(panelDir, 'audit.log'),
     tlsDir,
@@ -70,8 +71,24 @@ function vaultsOf(campaign) {
 }
 
 /**
+ * The nearest folder at or above `dir` that holds _meta/vault-config.md (a vault, registered or not),
+ * or null. Judged by the real path, so a link into a vault is caught, and a folder that does not
+ * exist yet is judged by where it will land.
+ */
+function enclosingVault(dir) {
+  for (let cur = realpathLoose(dir); ; ) {
+    if (fs.existsSync(path.join(cur, '_meta', 'vault-config.md'))) return cur;
+    const up = path.dirname(cur);
+    if (up === cur) return null;
+    cur = up;
+  }
+}
+
+/**
  * Refuses a folder inside ANY registered campaign's vault (every campaign, and every profile's
- * vault for it). src/config/write.js only checks at write time, and the panel may not reach
+ * vault for it), and inside any vault it can detect on disk (a folder holding
+ * _meta/vault-config.md at or above it), because a config that sits inside a vault cannot list that
+ * vault's campaign, so the registered check alone has nothing to compare against. src/config/write.js only checks at write time, and the panel may not reach
  * write.js (FR35), so this is the panel's own check.
  *
  * @param {string} dir
@@ -90,6 +107,12 @@ function assertNotInsideAnyVault(dir, config) {
       }
     }
   }
+  const found = enclosingVault(dir);
+  if (found !== null) {
+    throw new ConfigError(
+      `remote access keeps its files beside the config, never inside a vault, but ${dir} is inside the vault at ${found}`,
+    );
+  }
 }
 
 /**
@@ -104,7 +127,7 @@ function assertNotInsideAnyVault(dir, config) {
 function findLooseModes(paths) {
   if (process.platform === 'win32') return [];
   const loose = [];
-  for (const candidate of [paths.panelDir, paths.passwordFile, paths.sessionsFile, paths.auditFile]) {
+  for (const candidate of [paths.panelDir, paths.passwordFile, paths.accountsFile, paths.sessionsFile, paths.auditFile]) {
     try {
       if ((fs.lstatSync(candidate).mode & 0o077) !== 0) loose.push(candidate);
     } catch {

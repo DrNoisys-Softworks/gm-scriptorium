@@ -209,6 +209,68 @@ test('a disk failure while writing answers 503 io and leaves the old file whole'
   assert.equal(h.ctx.busy, null);
 });
 
+test('a settings file held open by another program answers a plain message, not the raw rename error, and a retry works', async (t) => {
+  const fx = makeCampaigns(t, ['alpha', 'beta']);
+  const h = await startPanel(t, { config: fx.configPath }, 'alpha');
+  const before = fs.readFileSync(fx.configPath);
+  const sha = await loadSha(h);
+  const original = fs.renameSync;
+  fs.renameSync = (from, to) => {
+    // What Windows says when another program holds the target open without delete sharing.
+    throw Object.assign(new Error(`EPERM: operation not permitted, rename '${from}' -> '${to}'`), { code: 'EPERM', syscall: 'rename', errno: -4048 });
+  };
+  let res;
+  try {
+    res = await post(h, '/api/campaigns/default', { name: 'beta', configSha256: sha }, { campaign: 'alpha' });
+  } finally {
+    fs.renameSync = original;
+  }
+  assert.equal(res.status, 503, res.text);
+  assert.deepEqual(res.json, { error: 'io', message: 'Your settings file is open in another program. Close it and try again.' });
+  assert.deepEqual(fs.readFileSync(fx.configPath), before, 'the file is untouched');
+  assert.deepEqual(fs.readdirSync(path.dirname(fx.configPath)).filter((n) => n.includes('scriptorium-tmp')), [], 'no temp file left');
+  assert.equal(h.ctx.busy, null);
+  const retry = await post(h, '/api/campaigns/default', { name: 'beta', configSha256: sha }, { campaign: 'alpha' });
+  assert.equal(retry.status, 200, retry.text);
+});
+
+test('a rename failure that is not a held-open file keeps its own message', async (t) => {
+  const fx = makeCampaigns(t, ['alpha', 'beta']);
+  const h = await startPanel(t, { config: fx.configPath }, 'alpha');
+  const sha = await loadSha(h);
+  const original = fs.renameSync;
+  fs.renameSync = () => {
+    throw Object.assign(new Error('no space left on device'), { code: 'ENOSPC', syscall: 'rename' });
+  };
+  let res;
+  try {
+    res = await post(h, '/api/campaigns/default', { name: 'beta', configSha256: sha }, { campaign: 'alpha' });
+  } finally {
+    fs.renameSync = original;
+  }
+  assert.equal(res.status, 503, res.text);
+  assert.deepEqual(res.json, { error: 'io', message: 'no space left on device' });
+});
+
+test('a permission error on something other than the rename keeps its own message', async (t) => {
+  const fx = makeCampaigns(t, ['alpha', 'beta']);
+  const h = await startPanel(t, { config: fx.configPath }, 'alpha');
+  const sha = await loadSha(h);
+  const original = fs.openSync;
+  fs.openSync = (file, ...rest) => {
+    if (String(file).includes('scriptorium-tmp')) throw Object.assign(new Error('EPERM: operation not permitted, open'), { code: 'EPERM', syscall: 'open' });
+    return original(file, ...rest);
+  };
+  let res;
+  try {
+    res = await post(h, '/api/campaigns/default', { name: 'beta', configSha256: sha }, { campaign: 'alpha' });
+  } finally {
+    fs.openSync = original;
+  }
+  assert.equal(res.status, 503, res.text);
+  assert.deepEqual(res.json, { error: 'io', message: 'EPERM: operation not permitted, open' });
+});
+
 test('set default and remove run under the exclusive lock: a busy context answers 409 busy and writes nothing', async (t) => {
   const fx = makeCampaigns(t, ['alpha', 'beta']);
   const h = await startPanel(t, { config: fx.configPath }, 'alpha');

@@ -5,7 +5,7 @@
  * without it; the axe checks also need axe-core, found beside PLAYWRIGHT_MODULE or via
  * AXE_CORE_PATH). The real bin runs in setup mode against scratch copies of the sample vault with
  * an isolated config. The full flow is keyboard only. Ports: 9441 (Chromium) and 9442 (Firefox);
- * override the first with SETUP_UI_TEST_PORT (the second is that plus one).
+ * both through testPort.
  */
 
 const test = require('node:test');
@@ -15,9 +15,10 @@ const os = require('os');
 const path = require('path');
 const { startAdminServer, stopChild } = require('./helpers/admin-server');
 const { SAMPLE } = require('./helpers/setup-fixtures');
+const { testPort } = require('./helpers/ports');
 
 const REPO = path.join(__dirname, '..');
-const BASE_PORT = Number(process.env.SETUP_UI_TEST_PORT || 9441);
+const PORTS = { chromium: testPort(9441), firefox: testPort(9442) };
 
 function loadPlaywright() {
   for (const c of [process.env.PLAYWRIGHT_MODULE, 'playwright'].filter(Boolean)) {
@@ -111,7 +112,7 @@ async function h1Focused(page, text) {
 
 for (const browserName of ['chromium', 'firefox']) {
   test(`browser setup in ${browserName}`, { skip: SKIP, timeout: 420000 }, async (t) => {
-    const port = BASE_PORT + (browserName === 'firefox' ? 1 : 0);
+    const port = PORTS[browserName];
     const fx = makeFixture();
     const srv = await startAdminServer(['serve', '--admin', '--port', String(port), '--config', fx.configPath], { bin: path.join(REPO, 'bin', 'scriptorium.js'), env: fx.env });
     const browser = await pw[browserName].launch();

@@ -6,8 +6,8 @@ themselves.
 ## Install
 
 1. Download the latest release from the
-   [Releases page](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases). The first
-   public release is an unsigned prerelease. You can also build from source (see below).
+   [Releases page](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases). Releases
+   before 1.0 are unsigned. You can also build from source (see below).
 2. Grab the binary for your platform (`gm-scriptorium-win-x64.exe` or `gm-scriptorium-linux-x64`)
    plus `SHA256SUMS` from the same release.
 3. Verify the download before running it.
@@ -27,7 +27,12 @@ themselves.
 5. There's no installer yet, it's a single portable executable. Put it wherever you keep tools and
    run it from there. (An installer is planned but not built.)
 
-**About the Windows warning:** signed releases carry a valid digital signature on the Windows
+**About the Windows warning:** releases before 1.0 are unsigned, so the first time you run one
+Windows SmartScreen will probably say "Windows protected your PC". Click **More info**, then **Run
+anyway**. If Smart App Control is on, it may block an unsigned executable outright. The `SHA256SUMS`
+check above is how you verify the download.
+
+**From 1.0, releases are signed.** A signed release carries a valid digital signature on the Windows
 executable. The certificate is new, though, and Windows SmartScreen trusts a certificate more as
 more people run programs signed with it. Until that reputation builds, SmartScreen may still say
 something like "Windows protected your PC" the first time you run it. If it does, click **More
@@ -40,25 +45,26 @@ Signatures** tab. You can also run this in PowerShell and look for `Valid`:
 Get-AuthenticodeSignature .\gm-scriptorium.exe | Select-Object Status
 ```
 
-The `SHA256SUMS` check above still applies and is worth doing. A release whose notes say it is
-unsigned will show the older warning instead, and you click through it the same way. If Smart App
-Control is on, it may block an unsigned executable outright.
+The `SHA256SUMS` check above still applies and is worth doing.
 
 ## Updating
 
 ```
 gm-scriptorium update
 ```
-Today, this requires the [GitHub CLI](https://cli.github.com) (`gh`) installed and signed in
-(`gh auth login`), because `update` fetches the release through `gh` rather than talking to the
-GitHub API directly. If `gh` isn't found, or is found but not authenticated, `update` fails with an
-explanation rather than doing nothing silently. As an alternative to signing in with `gh`, you can
-set `SCRIPTORIUM_GITHUB_TOKEN` to a fine-grained GitHub PAT with `Contents: Read` on this repo.
+This checks GitHub for the newest release, downloads it, checks it against the published
+checksums, and replaces the program. It needs an internet connection and nothing else: no GitHub
+account, no token and no other tool. Add `--check` to only ask whether a newer release exists,
+`--pre` to include prereleases, or `--version TAG` to install one exact release.
 
-If you'd rather not install `gh` at all, download the new release manually from the Releases page
-and replace the executable yourself, that always works regardless.
+`update` talks only to GitHub (`api.github.com`, `github.com` and the host GitHub downloads release
+files from). It ignores proxy settings, so on a computer that can only reach the internet through
+a proxy it cannot work. If you can't use `update`, or it can't reach GitHub, it says so in one
+line and points at the Releases page. You can always download the new release from there and replace
+the program yourself, or run the new installer.
 
-Removing the `gh` dependency is planned for later, but not built yet.
+Older versions of GM-Scriptorium (before this change) fetched releases through the GitHub CLI
+(`gh`) and needed it signed in. They still do, until they have updated once.
 
 ## Building from source
 

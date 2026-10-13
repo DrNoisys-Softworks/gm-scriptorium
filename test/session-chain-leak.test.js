@@ -91,7 +91,7 @@ test('(b): 0 leak findings for Sessions/Session 2.md; build exits 0 with 0 outpu
     assert.deepEqual(forSession2('leak/l3-unpublished-link'), []);
     assert.deepEqual(forSession2('leak/l5-gm-heading-survives'), []);
 
-    const build = runBuildCommand({ config: v.configPath, force: true }, 'b');
+    const build = runBuildCommand({ config: v.configPath, 'force-check': true }, 'b');
     assert.equal(build.exitCode, 0, build.human);
     assert.deepEqual(findingsOf({ envelope: { findings: build.envelope.outputScanFindings || [] } }, 'leak/l4-output-name'), []);
   } finally {
@@ -100,7 +100,7 @@ test('(b): 0 leak findings for Sessions/Session 2.md; build exits 0 with 0 outpu
 });
 
 // ---------------------------------------------------------------------------
-// Unpaired control: every finding fires; build exits 2; --force reports the output-scan hit
+// Unpaired control: every finding fires; build exits 2; --force-check overrides the check errors but the output-scan hit still refuses (ADR 0055)
 // ---------------------------------------------------------------------------
 
 function removeHubLink(vaultDir) {
@@ -110,7 +110,7 @@ function removeHubLink(vaultDir) {
   fs.writeFileSync(hubPath, hub);
 }
 
-test('unpaired control: L3/L4/L5 all fire for the unpaired hub; build exits 2; --force reports the output-scan finding', () => {
+test('unpaired control: L3/L4/L5 all fire for the unpaired hub; build exits 2; --force-check overrides the check errors and the output-scan hit still refuses', () => {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-chain-leak-unpaired-'));
   try {
     const v = variant(scratch, 'unpaired', { mutate: removeHubLink });
@@ -123,8 +123,12 @@ test('unpaired control: L3/L4/L5 all fire for the unpaired hub; build exits 2; -
     const build = runBuildCommand({ config: v.configPath }, 'unpaired');
     assert.equal(build.exitCode, 2, build.human);
 
-    const forced = runBuildCommand({ config: v.configPath, force: true }, 'unpaired');
-    assert.ok(forced.human.includes('output-leak scan') || forced.human.includes('OVERRIDDEN'), forced.human);
+    const forced = runBuildCommand({ config: v.configPath, 'force-check': true }, 'unpaired');
+    assert.match(forced.human, /OVERRIDDEN leak\/l4-hidden-name Sessions\/Session 2\.md/, 'the check errors are overridden and announced');
+    assert.equal(forced.exitCode, 2, forced.human);
+    assert.equal(forced.envelope.refusedByScan, true, 'the output-leak scan still refuses');
+    assert.ok(forced.envelope.outputScanFindings.some((f) => f.id === 'leak/l4-output-name' && f.outputPath === 'sessions/session-2.html'));
+    assert.deepEqual(forced.envelope.overriddenFindings, [], 'a scan-refused envelope records nothing as overridden');
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }

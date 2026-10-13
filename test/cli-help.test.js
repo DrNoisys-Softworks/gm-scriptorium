@@ -26,7 +26,7 @@ const EXPECT = {
   serve: 'http://127.0.0.1:8080',
   status: 'last and next session',
   config: 'remove <name>',
-  update: 'GitHub command',
+  update: 'no account, no token',
 };
 
 for (const [cmd, phrase] of Object.entries(EXPECT)) {
@@ -40,6 +40,14 @@ for (const [cmd, phrase] of Object.entries(EXPECT)) {
   });
 }
 
+test('update --help: no GitHub command-line tool, and exit code 4 says what it now means', () => {
+  const r = help(['update', '--help']);
+  assert.equal(r.code, 0);
+  assert.ok(!/\bgh\b|command line tool|signed in/i.test(r.out), r.out);
+  assert.ok(r.out.includes('  4  update cannot run (GitHub could not be reached, or there is no such release)'), r.out);
+  assert.ok(r.out.includes('internet connection'), r.out);
+});
+
 test('F08: help flag position does not matter', () => {
   assert.equal(help(['--help', 'build']).out, help(['build', '--help']).out);
 });
@@ -47,7 +55,7 @@ test('F08: help flag position does not matter', () => {
 test('F08: global --help keeps its command lines and gains the pointer line', () => {
   const r = help(['--help']);
   assert.equal(r.code, 0);
-  assert.ok(r.out.includes('  build    [campaign] [--no-check] [--force] [--out <path>] [--json]'));
+  assert.ok(r.out.includes('  build    [campaign] [--no-check] [--force-check] [--force-out] [--out <path>] [--json]'));
   assert.ok(r.out.includes(GLOBAL_MARKER));
   assert.ok(r.out.includes('Run "gm-scriptorium <command> --help"'));
 });

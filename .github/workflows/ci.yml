@@ -22,9 +22,33 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run verify-generator
-      # Deliberately not `npm run package` here: it downloads the Node
-      # binaries for both packaging targets, which is too slow and heavy to
-      # run on every push. Packaging is verified at release time instead.
+      # Packaging is deliberately not part of this job: it downloads the Node
+      # binaries for both targets, too heavy for every pull request. It runs
+      # in the packaged-smoke job below, on pushes to main only.
+
+  packaged-smoke:
+    # Push to main in the public repo only: packaging downloads two Node runtimes. No artifact upload.
+    if: github.repository == 'DrNoisys-Softworks/gm-scriptorium' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: packaged-smoke-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - id: pkgnode
+        run: echo "node=$(node -p "require('@yao-pkg/pkg-fetch').getNodeVersion('node22')")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.pkg-cache
+          key: pkg-fetch-${{ runner.os }}-${{ steps.pkgnode.outputs.node }}
+      - run: npm run package
+      - run: node scripts/packaged-smoke.js "dist/v$(node -p "require('./package.json').version")/gm-scriptorium-linux-x64"
 
   hygiene:
     # Same guard as the test job: never run this on the private repo.

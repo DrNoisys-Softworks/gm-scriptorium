@@ -27,8 +27,21 @@ function setup(t) {
 test('AUDIT_KEYS is exactly the stated list', () => {
   assert.deepEqual(
     [...A.AUDIT_KEYS],
-    ['t', 'event', 'method', 'result', 'via', 'from', 'browser', 'campaign', 'route', 'status', 'until', 'count', 'refused', 'by', 'changed', 'mode', 'fingerprint', 'trust', 'source', 'path', 'affected'],
+    ['t', 'event', 'method', 'result', 'via', 'from', 'browser', 'campaign', 'route', 'status', 'until', 'count', 'refused', 'by', 'changed', 'mode', 'fingerprint', 'trust', 'source', 'path', 'affected', 'account', 'scope'],
   );
+});
+
+test('ADR 0054: account and scope are whitelisted keys, kept as strings, sanitised like every string, and dropped when they are not strings', (t) => {
+  const { log, file } = setup(t);
+  log.append({ event: 'signin', result: 'ok', account: 'rook', scope: 'name' });
+  log.append({ event: 'signin', account: 'ro\u0000\nok' });
+  log.append({ event: 'signin', account: { nested: 'x' }, scope: ['all'] });
+  const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  assert.equal(lines[0].account, 'rook');
+  assert.equal(lines[0].scope, 'name');
+  assert.equal(lines[1].account, 'rook');
+  assert.equal(Object.prototype.hasOwnProperty.call(lines[2], 'account'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(lines[2], 'scope'), false);
 });
 
 test('ADR 0049: path is a whitelisted key; it is kept as a string, stripped of control characters and capped like every string, and a non-string path is dropped', (t) => {

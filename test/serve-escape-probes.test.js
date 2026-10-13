@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const net = require('net');
+const { testPort } = require('./helpers/ports');
 
 const serverModule = require('../src/serve/server');
 
@@ -15,13 +16,13 @@ const serverModule = require('../src/serve/server');
  * line is sent byte-for-byte, so nothing normalises the URL before the server sees it) for the
  * wider escape set: encoded and double-encoded dots, backslash, prefix sibling, symlinks, case,
  * trailing slashes, NUL, drive letters. A body containing a SECRET marker is a leak. Synthetic
- * names only. Port 8201 (range 8200-8219).
+ * names only. Port 8201, through testPort.
  *
  * Tests that pass against the pre-D11 code and therefore prove nothing as evidence for the fix:
  * the plain-200 controls ("/", "/sub/") and the 404 for a missing file.
  */
 
-const PORT = 8201;
+const PORT = testPort(8201);
 
 function rawGet(requestTarget) {
   return new Promise((resolve, reject) => {

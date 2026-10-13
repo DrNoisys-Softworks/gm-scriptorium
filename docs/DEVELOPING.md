@@ -57,7 +57,7 @@ comes in through a pin bump (see "Pin bump procedure" in
 | `npm run verify-generator` | The installed generator tree still matches `PIN.json`. |
 | `npm run package` | Builds both the win-x64 and linux-x64 targets into `dist/v<version>/`, with one combined `SHA256SUMS` covering both binaries and the notices file (see ADR 0001). |
 
-`npm run package` runs six gates for each target before it writes anything:
+`npm run package` runs seven gates for each target before it writes anything (the seventh applies to the Windows target only):
 
 1. Generator-pin verification. It re-verifies the pin itself, not just through the script above.
 2. Notices freshness.
@@ -65,13 +65,14 @@ comes in through a pin bump (see "Pin bump procedure" in
 4. Rules-content markers.
 5. A startup self-test of the packaged build.
 6. Starter template verification: every file under `assets/vault-template/` must match its manifest's sha256 and token counts, with no unlisted file on disk. It fails closed, before the build starts.
+7. Windows branding (win-x64 only). Before the build, `scripts/winres.js` checks the pkg base binary against the hash pkg-fetch expects and writes a copy with the Lantern icon and the version strings; only the Windows build uses that copy. After the build, `node scripts/winres.js check` reads the exe back: one icon group with the eight sizes, exactly the eight version strings, and no Node.js value. This gate does not prove that Windows draws the icon or starts the exe; that is criterion C142. The startup self-test still proves nothing about win-x64.
 
 If any target's gate fails, the run removes every binary it already produced and exits 1, so
 `dist/v<version>/` never holds a binary that `SHA256SUMS` doesn't cover. `--target` and `--out`
 still override to a single target.
 
 A change that touches packaging, notices or embedded assets is not shown to work by `npm test`
-alone. Run `npm run package`: five of its six gates exist nowhere else.
+alone. Run `npm run package`: five of its seven gates exist nowhere else.
 
 ## Constraints that are tests, not preferences
 
@@ -80,23 +81,24 @@ inverts the guarantee it gives.** If a fix needs one changed, raise it with the 
 than deciding alone.
 
 - `test/update-module-graph.test.js`: nothing in `src/update/*` or `src/cli/update.js` may
-  acquire a relative require that resolves into `src/vault/` or `src/build/`, and `src/update/*`
-  may not gain a direct network call. The network assertion is a `/\bfetch\(/` regex over raw
-  source, so an injected dependency named `fetch`, or one called as `.fetch(`, breaks the build
+  acquire a relative require that resolves into `src/vault/` or `src/build/`. `src/update/*` loads
+  no network or process module and has no `fetch(` call, and the update graph reaches a network
+  module only in `src/net/egress.js`, which it must reach. The `fetch(` assertion is a regex over
+  raw source, so an injected dependency named `fetch`, or one called as `.fetch(`, breaks the build
   with a confusing message.
 - `test/generator-module-graph.test.js`: no network builtin may appear anywhere in the module
-  graph from `bin/scriptorium.js`, except the allowlisted `src/serve/server.js`, and every
-  specifier must resolve.
-- `test/proc-structure.test.js`: only `src/proc/run.js` (plus the two older spawners, `src/cli/config.js`
-  and `src/update/gh.js`) may start a program, and every test that uses the spawner must go through
+  graph from `bin/scriptorium.js`, except the allowlisted `src/serve/server.js` and
+  `src/net/egress.js`, and every specifier must resolve.
+- `test/proc-structure.test.js`: only `src/proc/run.js` (plus the one older spawner, `src/cli/config.js`) may start a program, and every test that uses the spawner must go through
   `test/helpers/proc-fakebin.js`, so no test can start a real program. See
   [ADR 0046](decisions/0046-one-process-spawner.md).
-- `test/net-structure.test.js`: only `src/net/egress.js` (and the listener in `src/serve/server.js`) may load a network module, nothing under `src/net` names a fetch-style network token, and every test that uses egress goes through `test/helpers/net-stubs.js`, so no test can reach anything but this computer. See ADR 0024.
+- `test/net-structure.test.js`: only `src/net/egress.js` (and the listener in `src/serve/server.js`) may load a network module, nothing under `src/net` names a fetch-style network token, `egress.js` reads the location header in exactly one place, and every test that uses egress goes through `test/helpers/net-stubs.js`, so no test can reach anything but this computer. See ADR 0024.
 - `test/setup-structure.test.js`: the admin panel reaches the config writer only through `src/setup/register.js`, from the setup commit route and the campaign add, set-default and remove routes, and setup code writes to the vault only through `src/vault/packwrite.js` and, when it creates a new vault, `src/vault/vaultcreate.js`. See [ADR 0028](decisions/0028-installer-and-first-run.md), [ADR 0050](decisions/0050-several-campaigns.md) and [ADR 0052](decisions/0052-add-a-campaign.md).
 - `test/vault-create-structure.test.js`: `src/vault/vaultcreate.js` never deletes, renames, appends, truncates or uses a recursive `mkdirSync`, every `writeFileSync` in it is `flag: 'wx'`, it requires only `fs`, `path`, the error classes and the exclusions module, and `createVault` is named only in that file, `src/setup/register.js` and `src/cli/init.js`. See [ADR 0048](decisions/0048-new-campaign-vault.md).
 - `test/admin-campaign-fields.test.js`: every field the panel context carries is classified as belonging to the process or to one campaign, so a switch can never carry one campaign's state into another. See [ADR 0050](decisions/0050-several-campaigns.md).
 - `test/launch-structure.test.js`: the browser opener is named only in `src/proc/run.js` and `src/cli/launch.js`, launch code requires no other spawner, and every test that loads the launcher injects its opener, so no test opens a real browser. See [ADR 0028](decisions/0028-installer-and-first-run.md).
 - `test/folders-structure.test.js`: the folder picker's listing lives in `src/setup` (so it is write-free), its one folder write is a single non-recursive create in `src/admin/foldercreate.js`, reached only from its own route, and every filesystem call goes through the shared bounded probe. See [ADR 0049](decisions/0049-folder-picker.md).
+- `test/test-ports-structure.test.js`: no test binds a fixed port outside that helper, and no two test files share one.
 - `src/util/exitcodes.js`: the exit-code table is frozen. 0 is OK, 1 is a Scriptorium bug, 2 is
   a failed check, 3 is an unreachable vault and 4 is an update prerequisite. **No new exit
   codes.** User mistakes are mapped onto these (see "Exit codes for user errors" below). A cleanup or delete failure must never change the code a user sees. Copy the pattern in
@@ -130,9 +132,12 @@ prerequisite) for a user mistake. The table-driven test is `test/exit-codes-user
 | unusable campaign pack: pack folder missing, no `vault.config.json`, malformed `pack.toml`, unknown theme, missing or oversize image slot file | 1 | 3 | the pack message, e.g. `campaign "x": pack directory does not exist: <path>` |
 | campaign entry with no `vault` key | 1 | 3 | `campaign "x" has no vault configured. Set one with: gm-scriptorium config add x --vault <vault folder> --out <output folder>` |
 | vault with no `site_config`, no `pack` and no `_meta/scriptorium` (what a plain `config add` makes) | 1 | 3 | `campaign "x" has no site config: ... does not exist. Run "gm-scriptorium init" to create one, or set site_config or pack on the campaign.` |
+| `remote password`, `remote account add`, `change`, `reset`, `remove` or `rename`, `signout-all` or `off` with the config folder inside a vault (registered or not) | 1 | 3 | `remote access keeps its files beside the config, never inside a vault, but <path> is inside the vault at <vault>` |
+| `remote account` with a name that breaks the rule, an account that does not exist or already exists, a ninth account, a wrong current password, a cancelled prompt, an extra argument, or a saved accounts file that cannot be read | 1 | 1 | `account names are 1 to 32 letters, digits, dots, hyphens or underscores, starting with a letter or digit` / `no account named "x"` / `an account named "x" already exists` / `there can be at most 8 accounts` / `that is not the current password for "x"; nothing changed` / `cancelled; nothing changed` |
 | `status` with no campaigns | 0 | 0 | `no campaigns registered; run "gm-scriptorium config add" first` (informational) |
 | unknown command | 1 | 1 | `unknown command: chek` plus the usage block |
 | unknown flag, or a flag with no value | 1 | 1 | `unknown flag --prot for "build"` / `--vault needs a value` |
+| `build --force` (split into `--force-check` and `--force-out`) | accepted | 1 | `--force has been split: use --force-check ...` |
 | `--port abc`, `99999`, `-5` (plain or `--admin`) | 1 | 1 | `--port must be a whole number from 0 to 65535 ...` |
 | port in use | 1 | 1 | `failed to start server: port 8080 is already in use on 127.0.0.1` |
 | privileged port without rights (EACCES) | 1 | 1 | `failed to start server: port 80 needs administrator rights ...` |
@@ -164,6 +169,7 @@ raised while resolving a pack becomes exit 3 (`asPackProblem` in `src/cli/check.
   residual in a comment.
 - **Name the tests that pass today and so prove nothing**, so a reviewer can refuse them as
   evidence. This has caught real weak evidence.
+- **A test that needs a fixed port takes it from `testPort(<default>)` in `test/helpers/ports.js`.** Set `SCRIPTORIUM_TEST_PORT_BASE` (a whole number from 1024 to 29768; default 7000) to move all of them by the same amount, so two copies of the suite can run at once.
 - **Write residual gaps down** rather than leaving them for the next person to rediscover. The
   house style is the limits block at the top of `src/build/plan.js`, and the "Will catch / Will
   not catch, deliberately" section of [ADR 0009](decisions/0009-output-leak-scan.md).
@@ -172,6 +178,11 @@ raised while resolving a pack becomes exit 3 (`asPackProblem` in `src/cli/check.
 
 Maintainers make releases. These steps must run in this order, and two of them have already bitten
 someone.
+
+**Version numbers.** Releases are numbered `X.Y.Z`. A release with new features raises the
+middle number, and a release with fixes only raises the last. `-rc.N` is used only for the release
+candidates of 1.0.0, made at the feature freeze, and it is the only suffix the release tooling
+accepts. Releases before 1.0.0 are not signed (step 7).
 
 1. Bump `version` in `package.json`. Leave the stale root version in `package-lock.json` alone.
    Releases so far have, to avoid widening the notices diff mid-release.
@@ -192,15 +203,22 @@ someone.
    code-signing certificate, timestamped, on a Windows machine, because the signing key needs a
    person present. `SHA256SUMS` is regenerated after signing, so it covers the signed bytes.
    Check the signature on Windows before anything is published, using criterion C141 part A in the
-   Windows verification runbook. Prereleases can ship unsigned by choice, and their release notes then
-   say so. Stable releases are always signed. See
-   [ADR 0051](decisions/0051-code-signing.md).
+   Windows verification runbook. Signing applies to every release from 1.0.0, including its release
+   candidates. Releases before 1.0.0 skip this step and C141, ship unsigned, and their release
+   notes say so. See [ADR 0051](decisions/0051-code-signing.md), "Amended: releases are signed from 1.0".
 8. Create the release as a prerelease, with both binaries, `THIRD-PARTY-NOTICES.txt` and the one
-   combined `SHA256SUMS`.
+   combined `SHA256SUMS`. Every release goes up as a prerelease first, even one that will become
+   latest, so nobody running a plain `update` gets it before the Windows checks pass.
 9. Download the assets back off the release page and re-hash every one of them before announcing
    anything.
 10. Have the Windows checks run on the release, using the Windows verification runbook at
     `.agents/windows-verification.md`. Promote the release to latest only when they pass.
+    An `X.Y.Z` release is promoted once they pass, signed or not, below 1.0.0. From 1.0.0 it is
+    promoted only when signed. An `-rc.N` release is never promoted. A release whose checks fail
+    stays an unpromoted prerelease, and the next patch release replaces it.
+    On every push to main, CI packages both targets and runs the Linux binary through
+    `scripts/packaged-smoke.js`. That proves nothing about Windows: the Windows executable stays a release
+    gate on the test machine (C1 and C184, plus C141 part A step 4 from 1.0.0).
 11. Run the release-time `update` check, which is still **open**. Build a lower-version
     `scriptorium-linux-x64` in a scratch folder as a stand-in for an old install. Point it at the
     new release's tag and run `update --pre`. It should download, verify against `SHA256SUMS`, and
@@ -209,6 +227,11 @@ someone.
     against a real published release. `test/update-linux.test.js` and
     `test/update-packaged-guard.test.js` cover the pieces (the ELF check, the packaged-only guard,
     the 0755 mode) with injected dependencies, not a real download and self-replace.
+    After promoting, also run a plain `update --check` (no `--pre`) from the previous release's
+    Linux binary, in a scratch folder with its own config. It must name the new tag. Plain `update`
+    is what most people run, and it sees only the release marked latest. A previous release from
+    before 0.5.0 still fetches through the GitHub CLI, so this check needs `gh` signed in on the
+    build machine.
 
 ## Push policy
 

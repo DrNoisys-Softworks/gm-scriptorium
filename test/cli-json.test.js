@@ -90,7 +90,7 @@ test('build --json embeds the full check envelope and refuses with exit 2 on the
   });
 });
 
-test('build --json --force reports ok:true, the overridden findings, and stable fields across two runs', () => {
+test('build --json --force-check reports ok:true, the overridden findings, and stable fields across two runs', () => {
   withScratchDir((dir) => {
     const configPath = path.join(dir, 'config.toml');
     const outDir = path.join(dir, 'out');
@@ -99,13 +99,13 @@ test('build --json --force reports ok:true, the overridden findings, and stable 
     delete require.cache[require.resolve('../src/cli/build')];
     const { runBuildCommand } = require('../src/cli/build');
 
-    const a = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const a = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
     assert.equal(a.envelope.ok, true);
     assert.equal(a.envelope.forced, true);
     assert.ok(a.envelope.overriddenFindings.length > 0);
     assert.equal(typeof a.envelope.pagesWritten, 'number');
 
-    const b = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const b = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
     assert.equal(a.envelope.pagesWritten, b.envelope.pagesWritten, 'rebuilding unchanged content must write the same file count');
   });
 });

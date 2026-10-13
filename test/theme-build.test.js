@@ -289,7 +289,7 @@ function runRefusalRow(t, label, { buildOpts = {}, pack, setup, expectMessage, p
 
     const configPath = writeConfigToml(root, { vaultPath, finalOut });
 
-    const run = () => runBuildCommand({ config: configPath, 'no-check': true, force: true }, 'alpha');
+    const run = () => runBuildCommand({ config: configPath, 'no-check': true }, 'alpha');
     if (platform) {
       withPlatform(platform, () => expectedConfigError(run, expectMessage({ vaultPath, siteDir }), label));
     } else {
@@ -329,7 +329,7 @@ test('B4: every refusal in the gate list', (t) => {
     fs.writeFileSync(path.join(vaultPath, '_attachments', 'ok.webp'), Buffer.alloc(10485760));
     writePackToml(siteDir, '[images]\nground = "vault:_attachments/ok.webp"\n');
     const configPath = writeConfigToml(root, { vaultPath, finalOut });
-    const result = runBuildCommand({ config: configPath, 'no-check': true, force: true }, 'alpha');
+    const result = runBuildCommand({ config: configPath, 'no-check': true }, 'alpha');
     assert.equal(result.exitCode, EXIT_CODES.OK, '10485760 bytes must be accepted');
   });
 
@@ -480,7 +480,7 @@ test('B4: every refusal in the gate list', (t) => {
       writePackToml(siteDir, '[images]\nground = "vault:secret/x.webp"\n');
       const configPath = writeConfigToml(root, { vaultPath, finalOut });
       withPlatform('linux', () => {
-        const result = runBuildCommand({ config: configPath, 'no-check': true, force: true }, 'alpha');
+        const result = runBuildCommand({ config: configPath, 'no-check': true }, 'alpha');
         assert.equal(result.exitCode, EXIT_CODES.OK, 'the case variant must be accepted on linux');
       });
     });
@@ -753,7 +753,7 @@ test('B7: a folderMap entry mapping to "scriptorium" collides with a slot, but b
     const T = path.join(siteDir, 'pack.toml');
     const expected = `campaign "alpha": the generated site already has a scriptorium/ folder (a folderMap entry probably maps a vault folder to it); rename that output folder, because image slots and pack images are written to scriptorium/`;
 
-    expectedConfigError(() => runBuildCommand({ config: configPath, 'no-check': true, force: true }, 'alpha'), expected, 'B7 collision', ConfigError);
+    expectedConfigError(() => runBuildCommand({ config: configPath, 'no-check': true }, 'alpha'), expected, 'B7 collision', ConfigError);
     assert.equal(sha256Manifest(finalOut), beforeManifest);
     assert.deepEqual(siblingDirs(finalOut), []);
     void T;
@@ -769,14 +769,14 @@ test('B7: a folderMap entry mapping to "scriptorium" collides with a slot, but b
       return originalRmSync(target, opts);
     };
     try {
-      expectedConfigError(() => runBuildCommand({ config: configPath, 'no-check': true, force: true }, 'alpha'), expected, 'B7 collision (EBUSY cleanup)', ConfigError);
+      expectedConfigError(() => runBuildCommand({ config: configPath, 'no-check': true }, 'alpha'), expected, 'B7 collision (EBUSY cleanup)', ConfigError);
     } finally {
       fs.rmSync = originalRmSync;
     }
 
     // The same folderMap with no pack.toml builds successfully.
     fs.rmSync(path.join(siteDir, 'pack.toml'), { force: true });
-    const result = runBuildCommand({ config: configPath, 'no-check': true, force: true }, 'alpha');
+    const result = runBuildCommand({ config: configPath, 'no-check': true }, 'alpha');
     assert.equal(result.exitCode, EXIT_CODES.OK);
   });
 });

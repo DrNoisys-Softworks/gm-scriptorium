@@ -150,9 +150,9 @@ const COMMAND_SETS = [
   ['check', ['check', 'fm']],
   ['check --json', ['check', 'fm', '--json']],
   ['build (no flags)', ['build', 'fm']],
-  ['build --force', ['build', 'fm', '--force']],
+  ['build --force-check', ['build', 'fm', '--force-check']],
   ['build --no-check', ['build', 'fm', '--no-check']],
-  ['build --force --no-check', ['build', 'fm', '--force', '--no-check']],
+  ['build --force-check --no-check', ['build', 'fm', '--force-check', '--no-check']],
 ];
 
 for (const [label, extraArgs] of COMMAND_SETS) {
@@ -190,7 +190,7 @@ test('AC-FM-11: 0 marker hits across every captured stdout/stderr, and the 10 KB
 
     const checkRes = run(root, ['check', 'fm', '--config', configPath]);
     const checkJsonRes = run(root, ['check', 'fm', '--config', configPath, '--json']);
-    const buildRes = run(root, ['build', 'fm', '--config', configPath, '--force', '--no-check']);
+    const buildRes = run(root, ['build', 'fm', '--config', configPath, '--force-check', '--no-check']);
 
     for (const res of [checkRes, checkJsonRes, buildRes]) {
       assert.equal(grepMarker(res.stdout, marker), 0, 'marker must never appear in stdout');
