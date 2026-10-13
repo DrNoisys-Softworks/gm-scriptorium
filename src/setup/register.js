@@ -7,7 +7,7 @@ const { loadConfig } = require('../cli/args');
 const read = require('../vault/read');
 const { packDirFor, createPackEntries } = require('../vault/packwrite');
 const { createVault } = require('../vault/vaultcreate');
-const { addCampaign, removeCampaign, setDefaultCampaign, assertConfigPathNotInVault } = require('../config/write');
+const { addCampaign, removeCampaign, setDefaultCampaign, setUpdateSetting, assertConfigPathNotInVault } = require('../config/write');
 const { parseConfig } = require('../config/load');
 const { migrateConfig } = require('../config/migrate');
 // Called through the module object, never destructured: a test spies on writeConfigFile to prove it
@@ -25,7 +25,8 @@ const template = require('./template');
  * campaign set-default and remove (docs/decisions/0050-several-campaigns.md, section 5) and adding a
  * campaign from the running panel (docs/decisions/0052-add-a-campaign.md). This is the ONLY
  * panel-side importer of src/config/write.js, and only src/admin/handlers/setup.js (the commit
- * route) and src/admin/handlers/campaigns.js (the routes above) require this one. It reaches neither
+ * route), src/admin/handlers/campaigns.js (the routes above) and src/admin/handlers/updates.js (the
+ * update setting route) require this one. It reaches neither
  * src/cli/config.js (which starts the editor) nor src/cli/init.js, nor child_process
  * (test/setup-structure.test.js proves each of those).
  *
@@ -347,6 +348,7 @@ function changeCampaign({ name, configSha256, lenient, checkActive, apply, confi
     next = apply(snap.config, name);
   } catch (err) {
     if (err instanceof VaultUnreachableError) return { refused: 'unknown-campaign', message: err.message };
+    if (err instanceof ConfigError) return { refused: 'config-invalid', message: err.message };
     throw err;
   }
   try {
@@ -391,4 +393,26 @@ function setDefaultFromPanel({ name, configSha256 }, { configPath }) {
   return { ok: true, configSha256: readConfigSnapshot(configPath, { lenient: true }).sha256 };
 }
 
-module.exports = { commitSetup, addFromPanel, readConfigSnapshot, removeFromPanel, setDefaultFromPanel };
+/**
+ * Sets `[update] check` or `[update] channel` (docs/decisions/0028-installer-and-first-run.md,
+ * addendum "The update notice"): the panel's fourth write on this module, behind the same sha256
+ * compare as set-default. It never touches a campaign.
+ *
+ * @param {{ key: 'check'|'channel', value: boolean|string, configSha256: string }} args
+ * @param {{ configPath: string }} where
+ * @returns {{ ok: true, configSha256: string } | { refused: 'config-changed' } | { refused: 'config-invalid', message: string }}
+ */
+function setUpdateFromPanel({ key, value, configSha256 }, { configPath }) {
+  const done = changeCampaign({
+    name: null,
+    configSha256,
+    lenient: false,
+    checkActive: () => false,
+    apply: (config) => setUpdateSetting(config, key, value),
+    configPath,
+  });
+  if (!done.ok) return done;
+  return { ok: true, configSha256: readConfigSnapshot(configPath, { lenient: true }).sha256 };
+}
+
+module.exports = { commitSetup, addFromPanel, readConfigSnapshot, removeFromPanel, setDefaultFromPanel, setUpdateFromPanel };

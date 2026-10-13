@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const TOML = require('smol-toml');
 const { ConfigError, VaultUnreachableError } = require('../util/errors');
 const { CAMPAIGN_STRING_FIELDS, CAMPAIGN_INTEGER_FIELDS } = require('./schema');
+const { CHANNELS, parseUpdateTable } = require('./updatesettings');
 
 /*
  * The canonical config emitter (Engineering Brief section 4): "Write with
@@ -110,6 +111,28 @@ function setDefaultCampaign(config, name) {
     throw new VaultUnreachableError(`no campaign named "${name}"`, { path: null, campaign: name, reason: 'unknown-campaign' });
   }
   next.default_campaign = name;
+  return next;
+}
+
+/**
+ * The panel's update setting (docs/decisions/0028-installer-and-first-run.md, addendum "The update
+ * notice"): sets `[update] check` or `[update] channel`, keeping every other key in the table.
+ * A table that cannot be read as it stands is refused, so a hand-edit is never papered over.
+ *
+ * @param {object} config
+ * @param {'check'|'channel'} key
+ * @param {boolean|string} value
+ * @throws {ConfigError} on an unknown key, a bad value or an unreadable existing table
+ */
+function setUpdateSetting(config, key, value) {
+  if (key !== 'check' && key !== 'channel') throw new ConfigError('the update setting has two keys: check and channel');
+  if (key === 'check' && typeof value !== 'boolean') throw new ConfigError('[update] check must be true or false');
+  if (key === 'channel' && !CHANNELS.includes(value)) throw new ConfigError('[update] channel must be "stable" or "beta"');
+  if (!parseUpdateTable(config.update).readable) {
+    throw new ConfigError('the [update] entry in the settings file cannot be read, so it was left as it is. Fix it by hand first.');
+  }
+  const next = cloneConfig(config);
+  next.update = { ...(next.update || {}), [key]: value };
   return next;
 }
 
@@ -221,6 +244,7 @@ module.exports = {
   addCampaign,
   removeCampaign,
   setDefaultCampaign,
+  setUpdateSetting,
   assertConfigPathNotInVault,
   writeConfigFile,
 };

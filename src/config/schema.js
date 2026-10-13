@@ -45,7 +45,8 @@ const CAMPAIGN_INTEGER_FIELDS = Object.freeze(['serve_port']);
 
 // V1.5a (docs/decisions/0029-remote-access.md): `remote` is the opt-in remote-access table, so this
 // build does not warn about its own key (an older binary still warns, preserves it, runs local-only).
-const TOP_LEVEL_KEYS = Object.freeze(['config_version', 'default_campaign', 'campaigns', 'remote']);
+// The panel's update notice adds `update` (docs/decisions/0028-installer-and-first-run.md, addendum "The update notice"): the same rule, an older binary warns and keeps it.
+const TOP_LEVEL_KEYS = Object.freeze(['config_version', 'default_campaign', 'campaigns', 'remote', 'update']);
 
 module.exports = {
   CONFIG_VERSION,
