@@ -81,10 +81,13 @@ function flood(res, chunk) {
 
 // --- literal pins ---------------------------------------------------------------------------------
 
-test('DESTINATIONS is the two local model servers, deep frozen, and cannot be extended', () => {
+test('DESTINATIONS is the two local model servers and the three GitHub hosts, deep frozen, and cannot be extended', () => {
   assert.deepEqual(DESTINATIONS, [
     { id: 'ollama', scheme: 'http', host: '127.0.0.1', port: 11434 },
     { id: 'lmstudio', scheme: 'http', host: '127.0.0.1', port: 1234 },
+    { id: 'github-api', scheme: 'https', host: 'api.github.com', port: 443 },
+    { id: 'github', scheme: 'https', host: 'github.com', port: 443 },
+    { id: 'github-release-assets', scheme: 'https', host: 'release-assets.githubusercontent.com', port: 443 },
   ]);
   assert.ok(Object.isFrozen(DESTINATIONS));
   for (const d of DESTINATIONS) assert.ok(Object.isFrozen(d));
@@ -425,6 +428,258 @@ test('every 3xx is an error and no redirect is followed', async (t) => {
   assert.equal(stub.hits.byPath['/elsewhere'], undefined);
 });
 
+// --- one opt-in redirect hop ------------------------------------------------------------------------
+
+const hopStub = async (t, handler) => startHttpStub(t, handler);
+const here = (stub, p = '/') => `http://127.0.0.1:${stub.port}${p}`;
+
+test('redirectTo: 301, 302, 303, 307 and 308 are each followed once, to a second listed stub, as a plain GET', async (t) => {
+  const target = await hopStub(t, (req, res) => res.end('final'));
+  for (const status of [301, 302, 303, 307, 308]) {
+    const first = await hopStub(t, (req, res) => {
+      res.writeHead(status, { location: here(target, `/landed${status}?q=1`) });
+      res.end();
+    });
+    const client = seam([entry('a', first.port), entry('b', target.port)]);
+    const r = await client.request({ destination: 'a', url: here(first, '/start'), redirectTo: ['b'] });
+    assert.equal(r.status, 200, String(status));
+    assert.equal(r.body.toString(), 'final');
+    assert.equal(first.hits.total, 1);
+    assert.deepEqual(target.hits.log.filter((h) => h.path.startsWith(`/landed${status}`)), [{ method: 'GET', path: `/landed${status}?q=1` }]);
+  }
+});
+
+test('redirectTo: a relative location is resolved against the request and matched like any other', async (t) => {
+  const stub = await hopStub(t, (req, res) => {
+    if (req.url === '/start') {
+      res.writeHead(302, { location: '/next/place' });
+      res.end();
+    } else res.end('arrived');
+  });
+  const client = seam([entry('a', stub.port)]);
+  const r = await client.request({ destination: 'a', url: here(stub, '/start'), redirectTo: ['a'] });
+  assert.equal(r.body.toString(), 'arrived');
+  assert.equal(stub.hits.byPath['/next/place'], 1);
+});
+
+test('redirectTo: a location off the list is refused before any lookup, socket or trap hit', async (t) => {
+  const trap = await startTrap(t);
+  const other = await hopStub(t, (req, res) => res.end('should not be reached'));
+  const targets = [
+    `http://127.0.0.1:${trap.port}/`,
+    `http://hopcheck.invalid:${trap.port}/`,
+    here(other, '/'),
+    `http://user:pw@127.0.0.1:${trap.port}/`,
+    `ftp://127.0.0.1:${trap.port}/`,
+  ];
+  let target = targets[0];
+  const first = await hopStub(t, (req, res) => {
+    res.writeHead(302, { location: target });
+    res.end();
+  });
+  const client = seam([entry('a', first.port), entry('b', trap.port), entry('c', other.port)]);
+  for (const t2 of targets) {
+    target = t2;
+    const before = guard.snapshot();
+    const e = await rejection(client.request({ destination: 'a', url: here(first), redirectTo: ['a'] }));
+    assertNet(e, 'E_NET_REDIRECT', { status: 302, reason: 'off-list' });
+    assert.equal(guard.snapshot().lookups - before.lookups, 0, t2);
+  }
+  assert.equal(trap.count(), 0);
+  assert.equal(other.hits.total, 0);
+});
+
+test('redirectTo: a second redirect is refused, and nothing past the first hop is reached', async (t) => {
+  const third = await hopStub(t, (req, res) => res.end('never'));
+  const second = await hopStub(t, (req, res) => {
+    res.writeHead(302, { location: here(third) });
+    res.end();
+  });
+  const first = await hopStub(t, (req, res) => {
+    res.writeHead(302, { location: here(second) });
+    res.end();
+  });
+  const client = seam([entry('a', first.port), entry('b', second.port), entry('c', third.port)]);
+  const e = await rejection(client.request({ destination: 'a', url: here(first), redirectTo: ['b', 'c'] }));
+  assertNet(e, 'E_NET_REDIRECT', { status: 302, reason: 'second-hop' });
+  assert.equal(second.hits.total, 1);
+  assert.equal(third.hits.total, 0);
+});
+
+test('redirectTo: a 3xx that is not one of the five is not followed, on the first request and on the hop', async (t) => {
+  const target = await hopStub(t, (req, res) => res.end('never'));
+  for (const status of [300, 304, 305, 306]) {
+    const first = await hopStub(t, (req, res) => {
+      res.writeHead(status, { location: here(target) });
+      res.end();
+    });
+    const client = seam([entry('a', first.port), entry('b', target.port)]);
+    const e = await rejection(client.request({ destination: 'a', url: here(first), redirectTo: ['b'] }));
+    assertNet(e, 'E_NET_REDIRECT', { status, reason: 'not-followed' });
+  }
+  assert.equal(target.hits.total, 0);
+});
+
+test('redirectTo: a missing, empty or unparseable location is refused with its own reason', async (t) => {
+  const target = await hopStub(t, (req, res) => res.end('never'));
+  const rows = [
+    ['no-location', {}],
+    ['no-location', { location: '' }],
+    ['bad-location', { location: 'http://' }],
+    ['bad-location', { location: 'http://[::1' }],
+  ];
+  for (const [reason, headers] of rows) {
+    const first = await hopStub(t, (req, res) => {
+      res.writeHead(302, headers);
+      res.end();
+    });
+    const client = seam([entry('a', first.port), entry('b', target.port)]);
+    const e = await rejection(client.request({ destination: 'a', url: here(first), redirectTo: ['b'] }));
+    assertNet(e, 'E_NET_REDIRECT', { status: 302, reason });
+  }
+  assert.equal(target.hits.total, 0);
+});
+
+test('redirectTo: https to http is a downgrade and is refused; https to https is followed', async (t) => {
+  const plain = await hopStub(t, (req, res) => res.end('never'));
+  const secureTarget = await startHttpsStub(t, tlsFixture('ec-leaf'), (req, res) => res.end('secure final'));
+  let target = here(plain);
+  const first = await startHttpsStub(t, tlsFixture('ec-leaf'), (req, res) => {
+    res.writeHead(302, { location: target });
+    res.end();
+  });
+  const client = seam(
+    [entry('a', first.port, 'https'), entry('plain', plain.port), entry('s', secureTarget.port, 'https')],
+    fixtureCaPem(),
+  );
+  const down = await rejection(client.request({ destination: 'a', url: `https://127.0.0.1:${first.port}/`, redirectTo: ['plain'] }));
+  assertNet(down, 'E_NET_REDIRECT', { status: 302, reason: 'downgrade' });
+  assert.equal(plain.hits.total, 0);
+  target = `https://127.0.0.1:${secureTarget.port}/ok`;
+  const r = await client.request({ destination: 'a', url: `https://127.0.0.1:${first.port}/`, redirectTo: ['s'] });
+  assert.equal(r.body.toString(), 'secure final');
+});
+
+test('redirectTo: http to https is allowed, and the hop gets its own connect timer', async (t) => {
+  const silentTls = await startSilentTcp(t);
+  const first = await hopStub(t, (req, res) => {
+    res.writeHead(302, { location: `https://127.0.0.1:${silentTls.port}/` });
+    res.end();
+  });
+  const client = seam([entry('a', first.port), entry('s', silentTls.port, 'https')], fixtureCaPem());
+  const started = Date.now();
+  const e = await rejection(
+    client.request({ destination: 'a', url: here(first), redirectTo: ['s'], connectTimeoutMs: 300, idleTimeoutMs: 4000, totalTimeoutMs: 8000 }),
+  );
+  assertNet(e, 'E_NET_TIMEOUT', { phase: 'connect' });
+  assert.ok(Date.now() - started < 3000);
+});
+
+test('redirectTo: only GET without a body may opt in, and the list must be 1 to 4 distinct ids already in the client', async (t) => {
+  const stub = await hopStub(t, (req, res) => res.end('x'));
+  const client = seam([entry('a', stub.port), entry('b', stub.port), entry('c', stub.port), entry('d', stub.port), entry('e', stub.port)]);
+  const base = { destination: 'a', url: here(stub) };
+  const bad = [
+    { method: 'POST', redirectTo: ['b'] },
+    { method: 'POST', body: 'x', redirectTo: ['b'] },
+    { redirectTo: [] },
+    { redirectTo: 'b' },
+    { redirectTo: ['nope'] },
+    { redirectTo: ['b', 'nope'] },
+    { redirectTo: ['b', 'b'] },
+    { redirectTo: ['b', 'c', 'd', 'e', 'a'] },
+    { redirectTo: [5] },
+    { redirectTo: null },
+  ];
+  for (const extra of bad) {
+    const e = await rejection(client.request({ ...base, ...extra }));
+    assert.ok(e instanceof NetError && e.code === 'E_NET_BAD_OPTIONS', JSON.stringify(extra));
+    if (extra.body === undefined) assert.equal(e.reason, 'redirect', JSON.stringify(extra));
+  }
+  assert.equal(stub.hits.total, 0);
+  const ok = await client.request({ ...base, redirectTo: ['b', 'c', 'd', 'e'] });
+  assert.equal(ok.status, 200);
+  // The production client has the same rule, with the real list.
+  assertNet(await rejection(request({ destination: 'github', url: 'https://github.com/x', redirectTo: ['no-such-id'] })), 'E_NET_BAD_OPTIONS', { reason: 'redirect' });
+  assertNet(await rejection(request({ destination: 'github', url: 'https://github.com/x', method: 'POST', redirectTo: ['github'] })), 'E_NET_BAD_OPTIONS', { reason: 'redirect' });
+});
+
+test('redirectTo: the hop carries no header of the caller, and the first request still does', async (t) => {
+  const tokenSentinel = sentinel('hop');
+  let hopSeen = null;
+  const target = await hopStub(t, (req, res) => {
+    hopSeen = { method: req.method, names: Object.keys(req.headers).sort() };
+    res.end('final');
+  });
+  let firstSeen = null;
+  const first = await hopStub(t, (req, res) => {
+    firstSeen = req.headers;
+    res.writeHead(302, { location: here(target) });
+    res.end();
+  });
+  const client = seam([entry('a', first.port), entry('b', target.port)]);
+  await client.request({
+    destination: 'a',
+    url: here(first),
+    redirectTo: ['b'],
+    headers: { 'x-test': tokenSentinel, 'user-agent': 'GM-Scriptorium/test', accept: 'application/json', authorization: tokenSentinel },
+  });
+  assert.equal(firstSeen['x-test'], tokenSentinel);
+  assert.equal(firstSeen['user-agent'], 'GM-Scriptorium/test');
+  assert.equal(hopSeen.method, 'GET');
+  for (const name of hopSeen.names) assert.ok(['host', 'connection'].includes(name), `the hop sent ${name}`);
+  assert.ok(!hopSeen.names.includes('x-test') && !hopSeen.names.includes('user-agent'));
+});
+
+test('redirectTo: the total timeout spans both hops and is not re-armed for the second', async (t) => {
+  const target = await hopStub(t, (req, res) => setTimeout(() => res.end('late'), 700));
+  const first = await hopStub(t, (req, res) => {
+    setTimeout(() => {
+      res.writeHead(302, { location: here(target) });
+      res.end();
+    }, 600);
+  });
+  const client = seam([entry('a', first.port), entry('b', target.port)]);
+  const e = await rejection(client.request({ destination: 'a', url: here(first), redirectTo: ['b'], totalTimeoutMs: 1000 }));
+  assertNet(e, 'E_NET_TIMEOUT', { phase: 'total' });
+});
+
+test('redirectTo: onResponse and onChunk see only the final reply, once', async (t) => {
+  const target = await hopStub(t, (req, res) => {
+    res.writeHead(200, { 'x-which': 'final' });
+    res.end('final body');
+  });
+  const first = await hopStub(t, (req, res) => {
+    res.writeHead(302, { location: here(target), 'x-which': 'redirect' });
+    res.end('redirect body');
+  });
+  const client = seam([entry('a', first.port), entry('b', target.port)]);
+  const responses = [];
+  const chunks = [];
+  const r = await client.request({
+    destination: 'a',
+    url: here(first),
+    redirectTo: ['b'],
+    onResponse: ({ status, headers }) => responses.push([status, headers['x-which']]),
+    onChunk: (c) => chunks.push(c.toString()),
+  });
+  assert.deepEqual(responses, [[200, 'final']]);
+  assert.equal(chunks.join(''), 'final body');
+  assert.equal(r.body, null);
+  assert.equal(r.bytes, 10);
+});
+
+test('redirectTo: the byte cap applies to the final reply', async (t) => {
+  const target = await hopStub(t, (req, res) => flood(res, Buffer.from('x'.repeat(2048))));
+  const first = await hopStub(t, (req, res) => {
+    res.writeHead(302, { location: here(target) });
+    res.end();
+  });
+  const client = seam([entry('a', first.port), entry('b', target.port)]);
+  const e = await rejection(client.request({ destination: 'a', url: here(first), redirectTo: ['b'], maxResponseBytes: 4096 }));
+  assertNet(e, 'E_NET_RESPONSE_CAP');
+});
+
 test('proxy variables and a switched-off certificate check change nothing (child process)', async (t) => {
   const httpStub = await startHttpStub(t, (req, res) => res.end('ok'));
   const httpsStub = await startHttpsStub(t, tlsFixture('ec-leaf'), (req, res) => res.end('ok'));
@@ -649,7 +904,16 @@ test('no error from any reachable path carries request or response content', asy
   };
   const trap = await startTrap(t);
   const stub = await startHttpStub(t, (req, res) => {
-    if (req.url.startsWith(`/${s.path}/redirect`)) {
+    if (req.url.startsWith(`/${s.path}/redirect-off`)) {
+      res.writeHead(302, { location: `http://${s.location}.invalid/${s.path}` });
+      res.end();
+    } else if (req.url.startsWith(`/${s.path}/redirect-self`)) {
+      res.writeHead(302, { location: `http://127.0.0.1:${stub.port}/${s.path}/redirect-self?key=${s.query}` });
+      res.end();
+    } else if (req.url.startsWith(`/${s.path}/redirect-flood`)) {
+      res.writeHead(302, { location: `http://127.0.0.1:${stub.port}/${s.path}/flood` });
+      res.end();
+    } else if (req.url.startsWith(`/${s.path}/redirect`)) {
       res.writeHead(302, { location: `http://${s.location}.invalid/` });
       res.end();
     } else if (req.url.startsWith(`/${s.path}/flood`)) {
@@ -681,6 +945,11 @@ test('no error from any reachable path carries request or response content', asy
   check(await rejection(request({ destination: 'ollama', url: `https://${s.host}.invalid/`, headers: { 'x-test-token': `${s.header}\r\n` } })), 'E_NET_BAD_OPTIONS');
   check(await rejection(request({ destination: 'ollama', url: `not a url ${s.path}` })), 'E_NET_BAD_URL');
   check(await rejection(client.request({ ...send, url: url('/redirect') })), 'E_NET_REDIRECT');
+  const hopSend = { destination: 'stub', headers: { 'x-test-token': s.header }, redirectTo: ['stub'] };
+  check(await rejection(client.request({ ...hopSend, url: url('/redirect-off') })), 'E_NET_REDIRECT');
+  check(await rejection(client.request({ ...hopSend, url: url('/redirect-self') })), 'E_NET_REDIRECT');
+  check(await rejection(client.request({ ...hopSend, url: url('/redirect-flood'), maxResponseBytes: 4096 })), 'E_NET_RESPONSE_CAP');
+  check(await rejection(client.request({ ...hopSend, url: url('/redirect'), redirectTo: ['nope'] })), 'E_NET_BAD_OPTIONS');
   check(await rejection(client.request({ ...send, url: url('/flood'), maxResponseBytes: 4096 })), 'E_NET_RESPONSE_CAP');
   check(await rejection(client.request({ ...send, url: url('/stall'), idleTimeoutMs: 300 })), 'E_NET_TIMEOUT');
   check(await rejection(client.request({ ...send, url: url('/cut') })), 'E_NET_INCOMPLETE');

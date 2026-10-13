@@ -615,7 +615,7 @@ test('CLI: with the 1.12.3 pin the generator withholds handout Keeper sections i
   }
 });
 
-test('CLI: if the read shim failed, the output gate refuses the build and --force cannot override it', () => {
+test('CLI: if the read shim failed, the output gate refuses the build and --force-out --force-check cannot override it', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-cmt-gate-'));
   try {
     const vault = makeVault(root, 'with', true);
@@ -626,7 +626,7 @@ test('CLI: if the read shim failed, the output gate refuses the build and --forc
     const cfg = path.join(root, 'cfg.toml');
     const env = { ...process.env, XDG_CONFIG_HOME: path.join(root, 'xdg'), APPDATA: path.join(root, 'ad'), SCRIPTORIUM_CONFIG: cfg, NODE_OPTIONS: `--require ${breaker}` };
     delete env.SCRIPTORIUM_PROFILE;
-    for (const extra of [[], ['--force']]) {
+    for (const extra of [[], ['--force-out', '--force-check']]) {
       const r = spawnSync(process.execPath, [BIN, 'build', 'with', '--no-check', ...extra, '--config', cfg], { encoding: 'utf8', env });
       assert.equal(r.status, 2, `exit 2 (refused) expected, got ${r.status}: ${r.stdout}${r.stderr}`);
       assert.ok(r.stdout.includes('leak/l6-comment-in-output') || r.stderr.includes('leak/l6-comment-in-output'), r.stdout + r.stderr);
@@ -639,7 +639,7 @@ test('CLI: if the read shim failed, the output gate refuses the build and --forc
   }
 });
 
-test('CLI: a comment that reaches only a timeline data island is refused by the output gate, and --force cannot override it (ADR 0045)', () => {
+test('CLI: a comment that reaches only a timeline data island is refused by the output gate, and --force-out --force-check cannot override it (ADR 0045)', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-cmt-island-'));
   try {
     const vault = path.join(root, 'v');
@@ -657,7 +657,7 @@ test('CLI: a comment that reaches only a timeline data island is refused by the 
     const cfg = path.join(root, 'cfg.toml');
     const env = { ...process.env, XDG_CONFIG_HOME: path.join(root, 'xdg'), APPDATA: path.join(root, 'ad'), SCRIPTORIUM_CONFIG: cfg, NODE_OPTIONS: `--require ${breaker}` };
     delete env.SCRIPTORIUM_PROFILE;
-    for (const extra of [[], ['--force']]) {
+    for (const extra of [[], ['--force-out', '--force-check']]) {
       const r = spawnSync(process.execPath, [BIN, 'build', 'v', '--no-check', ...extra, '--config', cfg], { encoding: 'utf8', env });
       assert.equal(r.status, 2, `exit 2 (refused) expected, got ${r.status}: ${r.stdout}${r.stderr}`);
       assert.ok((r.stdout + r.stderr).includes('leak/l6-comment-in-output'), r.stdout + r.stderr);

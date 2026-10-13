@@ -64,6 +64,10 @@ const NETWORK_BUILTIN_ALLOWLIST = new Map([
       '127.0.0.1 by default per docs/decisions/0002-serve-binds-localhost.md), ' +
       'unrelated to the generator/build network posture this test guards.',
   ],
+  [
+    path.join(ROOT, 'src', 'net', 'egress.js'),
+    "Scriptorium's one outgoing-connection module (docs/decisions/0024-ai-connections.md): it reaches only the fixed destination list in its own file, which is GitHub's release API and download hosts for `update` and the panel's update check; pinned by test/net-structure.test.js.",
+  ],
 ]);
 
 function normalizeSpec(spec) {
@@ -315,11 +319,7 @@ function walkModuleGraphSafe(entryFiles) {
  * (Δ, #270 self-host fonts / the release-pin updater), src/generator/netguard.js itself
  * necessarily names `fetch`/`WebSocket` (it's the guard), js/party-core.js is the pre-existing,
  * documented browser-only case (see GENERATOR_LIB_DIR's own comment above: its fetch() call is
- * inside mountBoard(), which returns immediately under Node), and src/cli/update.js /
- * src/update/release.js are Scriptorium's own, pre-existing, deliberate self-update feature --
- * already governed by its own dedicated constraint test (test/update-module-graph.test.js,
- * CLAUDE.md), unrelated to the generator/build network posture this test guards (the same
- * reasoning NETWORK_BUILTIN_ALLOWLIST above already applies to src/serve/server.js).
+ * inside mountBoard(), which returns immediately under Node).
  */
 const NETWORK_TOKEN_ALLOWLIST = new Map([
   [path.join(GENERATOR_DIR, 'lib', 'fonts.js'), '#270 self-host font prefetch; Scriptorium never calls prefetchForConfig/ensureFontCache/buildWithFonts'],
@@ -329,8 +329,6 @@ const NETWORK_TOKEN_ALLOWLIST = new Map([
     path.join(GENERATOR_DIR, 'js', 'party-core.js'),
     'pre-existing, documented browser-only case (see the GENERATOR_LIB_DIR comment above): its fetch() call is inside mountBoard(), which returns immediately when `document` is undefined',
   ],
-  [path.join(ROOT, 'src', 'cli', 'update.js'), "Scriptorium's own self-update feature, governed by test/update-module-graph.test.js; unrelated to generator/build network posture"],
-  [path.join(ROOT, 'src', 'update', 'release.js'), "Scriptorium's own self-update feature, governed by test/update-module-graph.test.js; unrelated to generator/build network posture"],
 ]);
 
 let graphSafe;

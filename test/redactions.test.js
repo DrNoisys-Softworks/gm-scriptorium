@@ -296,7 +296,7 @@ test('a D&D-only build reports zero calls for every redaction and prints no extr
     delete require.cache[require.resolve('../src/cli/build')];
     // eslint-disable-next-line global-require
     const { runBuildCommand } = require('../src/cli/build');
-    const result = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const result = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
 
     assert.equal(result.envelope.ok, true, result.human);
     assert.doesNotMatch(result.human, /rules-content redaction/, 'a D&D build must print nothing extra');

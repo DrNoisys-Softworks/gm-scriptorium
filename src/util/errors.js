@@ -68,9 +68,10 @@ class VaultUnreachableError extends ScriptoriumError {
 }
 
 /**
- * Thrown by src/update/*: gh absent, unauthenticated, or a 404 from the release
- * lookup that is indistinguishable from "no such release" without authentication.
- * Maps to exit code 4.
+ * Thrown by src/update/*: GitHub unreachable, rate limited or answering in a way `update` will
+ * not follow, or a 404 from the release lookup that is indistinguishable from "no such release".
+ * Carries an own `reason` (no-release, rate-limit, unreachable, tls or redirect). Maps to exit
+ * code 4.
  */
 class UpdatePrerequisiteError extends ScriptoriumError {}
 

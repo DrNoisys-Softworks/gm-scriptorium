@@ -15,7 +15,12 @@ const { ConfigError, VaultUnreachableError } = require('../util/errors');
  */
 
 const GLOBAL_FLAGS_WITH_VALUE = new Set(['campaign', 'config', 'vault', 'out', 'site-config', 'port', 'host']);
-const GLOBAL_BOOLEAN_FLAGS = new Set(['json', 'quiet', 'no-color', 'version', 'help', 'notices', 'force', 'no-check', 'graph', 'build', 'check', 'pre', 'no-shim', 'yes', 'admin']);
+const GLOBAL_BOOLEAN_FLAGS = new Set(['json', 'quiet', 'no-color', 'version', 'help', 'notices', 'force', 'force-out', 'force-check', 'no-check', 'graph', 'build', 'check', 'pre', 'no-shim', 'yes', 'admin']);
+
+// ADR 0055: bare --force no longer exists. build refuses it with this one line, from validateFlags
+// (the CLI path) and from runBuildCommand (direct callers), so neither can ignore it silently.
+const FORCE_SPLIT_MESSAGE =
+  "--force has been split: use --force-check to build despite check errors, or --force-out to build into the site config's own outputDir. Nothing overrides the output-leak scan.";
 
 /*
  * Issue #106: the flags each command accepts. Anything else is an error (an unknown flag used to be
@@ -27,18 +32,18 @@ const COMMON_FLAGS = ['help', 'version', 'notices', 'config', 'json', 'quiet', '
 const COMMAND_FLAGS = Object.freeze({
   init: [...COMMON_FLAGS, 'name', 'title', 'theme', 'yes', 'new-vault', 'system'],
   check: [...COMMON_FLAGS, 'graph'],
-  build: [...COMMON_FLAGS, 'force', 'no-check'],
+  build: [...COMMON_FLAGS, 'force-out', 'force-check', 'no-check'],
   serve: [...COMMON_FLAGS, 'build', 'port', 'host', 'admin', 'preview-port'],
   status: [...COMMON_FLAGS],
   config: [...COMMON_FLAGS],
   update: [...COMMON_FLAGS, 'check', 'pre'],
   // V1.5a (ADR 0029): the remote-access command; each subcommand narrows this further itself
   // (src/cli/remote.js), so a flag meant for `set` is refused by `show`.
-  remote: [...COMMON_FLAGS, 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy', 'port', 'preview-port'],
+  remote: [...COMMON_FLAGS, 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy', 'port', 'preview-port', 'account'],
 });
 // Of the accepted flags, the ones that need a value after them (`update --version <tag>` is the one
 // place --version takes a value; elsewhere it is the boolean that prints the version).
-const VALUE_FLAGS = new Set(['campaign', 'config', 'vault', 'out', 'site-config', 'port', 'host', 'name', 'title', 'theme', 'new-vault', 'system', 'preview-port', 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy']);
+const VALUE_FLAGS = new Set(['campaign', 'config', 'vault', 'out', 'site-config', 'port', 'host', 'name', 'title', 'theme', 'new-vault', 'system', 'preview-port', 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy', 'account']);
 
 function editDistance(a, b) {
   const prev = Array.from({ length: b.length + 1 }, (_, j) => j);
@@ -87,6 +92,7 @@ function validateFlags(command, flags) {
       }
       continue;
     }
+    if (command === 'build' && name === 'force') throw new ConfigError(FORCE_SPLIT_MESSAGE);
     const eq = name.indexOf('=');
     if (eq > 0 && accepted.includes(name.slice(0, eq))) {
       const base = name.slice(0, eq);
@@ -184,4 +190,4 @@ function resolveCampaignContext(flags, explicitCampaign) {
   return { configPath, config, ...resolved };
 }
 
-module.exports = { COMMON_FLAGS, parseArgv, validateFlags, COMMAND_FLAGS, closestFlag, loadConfig, resolveCampaignContext, ConfigError };
+module.exports = { COMMON_FLAGS, FORCE_SPLIT_MESSAGE, parseArgv, validateFlags, COMMAND_FLAGS, closestFlag, loadConfig, resolveCampaignContext, ConfigError };

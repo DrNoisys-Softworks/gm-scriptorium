@@ -192,6 +192,7 @@ GM-Scriptorium keeps those notes off the site.
   derived views: relationship-graph labels, aggregate index cards, recency excerpts, the search
   index.
 - `build` runs those checks again against the freshly-built site before it swaps anything into
-  place, and refuses to publish (exit code 2, nothing written) if it finds a leak, unless you pass
-  `--force`.
+  place, and refuses to publish (exit code 2, nothing written) if it finds a leak. No flag overrides
+  that. `--force-check` builds despite errors the check found, and `--force-out` builds into the
+  site config's own output folder; neither one lets a leak through.
 - Builds are atomic: a failed or interrupted build never damages the site you already had live.

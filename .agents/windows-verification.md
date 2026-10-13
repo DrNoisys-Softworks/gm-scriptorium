@@ -128,6 +128,8 @@ proof only; this is exactly what C1 confirms on Windows):
   scriptorium-win-x64.exe build grapheme-check --force --config <config>.toml
   ```
 
+  *Note (2026-10-12, ADR 0055): from this version `--force` exits 1 with a one-line message. In the command above use `--force-check`, because the fixture's one check error (a missing publish manifest) is a check finding. `--force-out` is needed only if the output folder is the site config's own `outputDir`. The same change applies to the `build <campaign> --force` line in the Linux-side proof below.*
+
   then hash every file (PowerShell: `Get-ChildItem -Recurse -File <out-dir> | Get-FileHash -Algorithm
   SHA256 | Sort-Object Path`) and diff against the C1 manifest for this pin, delivered over
   the Windows verification channel: `c1-manifest-node.txt` (the Linux plain-node reference). **Stale as of the `publish-v1.11.44` repin (2026-10-01), again at `publish-v1.12.0` (2026-10-02), at `publish-v1.12.3` (2026-10-03) and again at `publish-v1.14.0` (2026-10-06), not yet regenerated (OPEN):** the pin's own `css/style.css` changed at the first two and is copied into every built site, at `publish-v1.12.3` the pin's page templates and link reading changed, and at `publish-v1.14.0` the pin's grouped Story toggle, the D&D sheet templates and `css/style.css` changed, so the manifest below no longer matches a build at the current pin. Regenerate it on the Linux build host before using this criterion. **Regenerated at `publish-v1.11.40`
@@ -220,6 +222,8 @@ contrived paths on Linux. What only Windows can add:
 
 ### C22-C25: `update`, full path
 
+Note: the `gh` wording in this criterion applies to old binaries only. From 0.5.0, `update` needs no `gh` and no token (see C148).
+
 These need a real GitHub release to exist. The repo is public, under the owner's own
 GitHub account. Releases `v0.1.0` and `v0.1.1` exist (published by the
 orchestrator) specifically for this test flow: install the `v0.1.0` exe from its release, then run
@@ -287,6 +291,8 @@ orchestrator) specifically for this test flow: install the `v0.1.0` exe from its
 
 ### C26: confirmed on the wire, not only by inspection
 
+Note: the `gh` wording in this criterion applies to old binaries only. From 0.5.0, `update` needs no `gh` and no token (see C148).
+
 `test/update-module-graph.test.js` already proves by static analysis that `src/update/` never imports
 `src/vault/` or `src/build/`, and greps for a direct HTTP client (none found). What only a live capture
 can add: run `update --check` under a network trace (Windows: `netsh trace start` or Wireshark/Fiddler
@@ -350,6 +356,8 @@ seed depending on `fs.readFileSync` of a `/snapshot/...` path) no longer exists.
    required: the fixture ships no `_meta/publish-manifest.md` and its `publish.mode` is `player`, so a plain
    `build` fails closed at exit 2 before ever reaching the patch under test (`test/section-filter-build.test.js`
    itself calls `runBuildCommand({ config, force: true })`, which is what this step now matches).
+
+   *Note (2026-10-12, ADR 0055): from this version `--force` exits 1 with a one-line message. Use `--force-check` in step 2; the fixture's missing publish manifest is a check finding.*
 3. Confirm the built page's HTML carries `Public Bio` and its body (so the build really ran) and
    carries **neither** `Rumours In Play` nor `NESTEDLEAKSENTINEL`.
 4. Search `<scratch-dir>\search-index.json` for `nestedleaksentinel` (it is lowercased there) and
@@ -434,6 +442,7 @@ packaged artefact. **Mark this OPEN: Linux-verified from source only.**
      directory, by registering the campaign with no override at all. **Re-verify on Windows against the
      real campaign vault: confirm a plain `build` refuses instead of writing there, and that
      `build --force` still proceeds and says so.**
+     *Note (2026-10-12, ADR 0055): from this version the flag for this case is `--force-out`; `build --force-out` still proceeds and says `--force-out: building into the site config's own outputDir`. A bare `--force` exits 1 with a one-line message.*
   3. A campaign registered with no `site_config` now fails with one clean line
      (`campaign has no site_config configured`) and exit 3 (issue #108; was 1, now **OPEN** again), not a ten-frame stack trace. **Re-verify on
      Windows:** `scriptorium-win-x64.exe config add no-site-config-check --vault <any reachable
@@ -878,6 +887,8 @@ Setup as in C40, with campaign `c42` and output `S\out`.
    published prose from a real fixture, and separately proves a marker in a `type: pc` note's non-publishing body
    never reaches the staged tree -- pinning this exact fixture assumption so it cannot silently drift back.
 
+   *Note (2026-10-12, ADR 0055): from this version `--force` exits 1 with a one-line message, so step 6 runs `build c42 --force-out --force-check` (both flags, to show that neither overrides the refusal). The expected exit 2, the `build/gm-link-marker` lines and the unchanged hashes are as written.*
+
 ### C43: `assertSafeOutputDir`'s containment (prefix) checks catch a case-different or symlinked output dir on real Windows, not just a `process.platform`-forced Linux test
 
 Issue #23 closed the containment half of the fail-open gap `5d8dfb5` closed for equality: `finalOut` (or
@@ -1237,6 +1248,8 @@ itself; never plant one of these files in the real campaign vault.
    confirming the scratch harness itself is live and the refusal above is real rather than
    coincidental.
 
+*Note (2026-10-12, ADR 0055): from this version `--force` exits 1 with a one-line message, so step 3 runs `build c54 --force-check --no-check`. The expected exit 2 and the phrase "neither --force nor --no-check" (still printed, still true) are as written. `--force-check` cannot override this refusal.*
+
 ### C55: Title views and the campaign-id warning, from the real win-x64 exe
 
 `docs/decisions/0022-gm-admin-panel.md`, "Title and tagline, finished": the Title screen's
@@ -1503,6 +1516,8 @@ Linux-verified only.**
 
 ### C65: the public-repository rename, in the real exe (S3, new)
 
+Note: the `gh` wording in this criterion applies to old binaries only. From 0.5.0, `update` needs no `gh` and no token (see C148).
+
 `docs/decisions/0030-public-repo-and-update-source.md`: GM-Scriptorium's `update` source is now
 the public repository, the release assets are `gm-scriptorium-win-x64.exe` and
 `gm-scriptorium-linux-x64`, the CLI's help and user-facing hints say "gm-scriptorium", and a built
@@ -1725,6 +1740,8 @@ Bug batch B4, issue 106. **Verified on Windows (2026-10-07, rc.4, Windows 11 tes
 2. `check lease --jsno`: exit 1, `Did you mean --json?`.
 3. `serve lease --out=C:\x`: exit 1, the message says to write the value after a space.
 4. `build lease --no-check --force --json` and `update --check` still run as before.
+
+   *Note (2026-10-12, ADR 0055): from this version a bare `--force` is refused with exit 1 and one line (`--force has been split ...`), so step 4 runs `build lease --no-check --force-check --json`. `update --check` is unchanged.*
 
 ### C94: the first-run errors say what to do next, in the real win-x64 exe
 
@@ -2117,6 +2134,141 @@ Issue #49, `docs/decisions/0011-notices-beside-the-executable.md`. **Mark this O
 1. Copy the exe to a scratch folder with no `THIRD-PARTY-NOTICES.txt` and run `gm-scriptorium-win-x64.exe --version`. It prints "third-party notices: run gm-scriptorium --notices to print them".
 2. List the folder. No `THIRD-PARTY-NOTICES.txt` (or any other new file) was created beside the exe.
 3. Run `--notices`. It prints the notices text and exits 0. Re-hash the real config.
+
+### C148: `update` works with no GitHub login, in the real exe
+
+`docs/decisions/0024-ai-connections.md` (the amendment), issue #29. **Mark this OPEN: Linux tests prove the request shapes and the redirect rules on loopback stubs; only the real exe against the real GitHub shows that the download host accepts the hop (it gets no User-Agent and no other header) and what `update` puts on the wire.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after the last step; the two must match.
+
+1. On a machine with no `gh` on PATH and no `SCRIPTORIUM_GITHUB_TOKEN` (check with `where gh` and `echo %SCRIPTORIUM_GITHUB_TOKEN%`), run a lower-version build of this code from an installed copy: `update --check --pre`. It names the newer release and a release-notes link under `https://github.com/DrNoisys-Softworks/gm-scriptorium/releases/tag/`.
+2. Run `update --pre`. It downloads, verifies against `SHA256SUMS`, replaces the program and says so. The new file's hash equals the published one. A rejection by the download host (an error that points at the releases page) is a finding to report, not something to fix by sending headers.
+3. During step 1 and step 2, capture the exe's connections (`netstat -b`, or a Process Monitor capture filtered to the exe). Only `api.github.com`, `github.com` and `release-assets.githubusercontent.com` appear. Record the host names only, never a query string.
+4. Set `HTTPS_PROXY` and `HTTP_PROXY` to an address where nothing listens and repeat `update --check --pre`. It behaves exactly as in step 1: proxy settings are ignored.
+5. Turn the network off and run `update --check --pre`. One plain line that names the releases page, exit code 4.
+6. Rate limit: provoke it only if that is practical without hammering GitHub. Otherwise record it as not provoked. The message names the releases page and the exit code is 4.
+7. Re-hash the real config.
+
+### C152: the 0.2.3 > bridge > 0.5.0 chain
+
+`docs/decisions/0030-public-repo-and-update-source.md` (addendum). **Mark this OPEN: it needs the private archive, a lower-version build and a VM; it is the only check that an old install, which still uses `gh`, reaches the new code.** Isolate config as in C135.
+
+1. An install of 0.2.3 (which uses `gh`, so the VM needs `gh` signed in for this step only) runs `update --pre` and lands on the bridge release at the private archive. Record the version it reports.
+2. The bridge runs `update --pre` and lands on 0.5.0. Record the version.
+3. The 0.5.0 copy, with `gh` removed from PATH and no token set, runs `update --check --pre` and gets an answer. This is C148 step 1 on the end of the chain.
+4. Re-hash the real config before step 1 and after step 3; the two must match.
+
+### C157: the `remote account` prompts, in conhost and Windows Terminal, in the real win-x64 exe
+
+`docs/decisions/0054-gm-access-from-the-player-site.md`: `gm-scriptorium remote account add | change | reset | remove | rename | list` read each password with nothing echoed on a terminal, and from standard input when there is no terminal, never from an argument or an environment variable. Verified on Linux from source, through a fake terminal and the real `bin` (`test/remote-cli.test.js`). **Mark this OPEN: Linux-verified from source and a Linux packaged build only.**
+
+Isolate config exactly as in C35 and as in C69: a scratch TOML via `SCRIPTORIUM_CONFIG` and the same path as `--config` on every command. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 9; they must match. Let `<scratch>` be a local scratch folder that holds the scratch TOML.
+
+1. In conhost (`cmd.exe`), run `remote account add rook --config <scratch>\config.toml`. It prompts `New password for rook: ` and then `Type it again: `, with nothing echoed, not even asterisks. It prints `account "rook" added.` and exits 0 (`echo %ERRORLEVEL%`).
+2. Repeat in Windows Terminal, pasting the password with Ctrl+V at both prompts.
+3. `remote account change rook`: it asks `Current password for rook: ` first. A wrong one exits 1 with `that is not the current password for "rook"; nothing changed`.
+4. `remote account reset rook` asks no current password, and prints `password for "rook" reset. Its remote devices are signed out.`
+5. `remote account add Rook` exits 1 with `an account named "rook" already exists`. `remote account add "bad name"` exits 1 with `account names are 1 to 32 letters, digits, dots, hyphens or underscores, starting with a letter or digit`. Adding a ninth account exits 1 with `there can be at most 8 accounts`.
+6. Backspace and Ctrl-C behave as in C69 steps 4 and 5.
+7. Piped from PowerShell, `"a new passphrase 123" | gm-scriptorium remote account add saffron --config <scratch>\config.toml` works. With a password as an argument, `remote account add saffron hunter2hunter2 --config <scratch>\config.toml` exits 1 with one line and no password in it. With `$env:SCRIPTORIUM_PANEL_PASSWORD` set to something else, the password that works is still the one typed or piped.
+8. `remote account list` shows names and dates only, never a secret.
+9. `findstr /s /m /c:"<each password you typed>" "<scratch>\*"` and the same over `%APPDATA%\Scriptorium` find nothing. Re-hash the config.
+
+### C158: the access list on `panel\accounts.json`, in the real win-x64 exe
+
+`docs/decisions/0054-gm-access-from-the-player-site.md`: `accounts.json` sits in the `panel` folder beside the resolved config. On POSIX it is `0700` and `0600` from creation; on Windows it inherits the folder's access list. Verified on Linux for the POSIX modes (`test/remote-accounts.test.js`). **Mark this OPEN: the Windows access list is unverified.**
+
+Repeat C70 steps 2 and 3 for the accounts file: for each of a scratch folder inside the profile and one outside it, add an account with `remote account add`, then record `icacls <folder>\panel` and `icacls <folder>\panel\accounts.json`. Expect no user or group beyond the owner, SYSTEM and Administrators. A broader access list outside the profile is recorded here, not fixed. Confirm `panel` is a real folder (`dir /AL` shows nothing for it).
+
+### C159: Edge through a proxy with usernames: sign-in, the lockout per name and the password manager
+
+`docs/decisions/0054-gm-access-from-the-player-site.md`: sign-in takes a username and a password, a name is paused after five wrong tries and everyone after fifty, and the sign-in page is built so a browser's password manager can save and fill it. Verified in Chromium and Firefox through the repo's test proxy (what the page does, not what the browser's password manager offers). **Mark this OPEN: Edge is unverified, and so is every claim that a password manager saves and fills.**
+
+Use the repo's test proxy with a TLS front in scratch Edge profiles, as in C74, with isolated config as in C35. Add two accounts, `rook` and `saffron`.
+
+1. Sign in as `rook` in the first profile and check the cookie attributes as in C74 step 2. DevTools shows `X-Robots-Tag: noindex` on the sign-in page and on `/api/session`.
+2. Edge offers to save the login after the successful sign-in. Sign out of this device: Edge fills both fields on the sign-in page. A failed sign-in does not offer to save.
+3. Type five wrong passwords for `rook`, then the right one: it is refused with the same message as a wrong password. In a second profile, `saffron` still signs in.
+4. Five wrong tries for a name that does not exist (`nobody`) leave `rook` able to sign in.
+5. The Remote access screen, opened on the PC through the loopback link, lists `rook` and `saffron` with when each password was set and the last sign-in, and has no control that edits an account.
+6. DevTools shows zero console errors and zero CSP violations, apart from the deliberate 403s.
+
+### C160: reset from the PC, `remote off`, and an install from before accounts, in the real win-x64 exe
+
+`docs/decisions/0054-gm-access-from-the-player-site.md`: an earlier single password keeps working as the account `gm` with nothing rewritten on read, a reset or removal signs one account out, and `remote off` clears every account. Verified on Linux over real sockets (`test/remote-signin-accounts.test.js`). **Mark this OPEN: Linux-verified only.**
+
+Isolate config as in C35.
+
+1. In a scratch config set up with the release before accounts (`remote password` only), the new exe signs in as `gm` with that password. `panel\accounts.json` does not exist until the first `remote account` command. After that command, the Remote access screen shows `gm` marked "from your earlier password", and `panel\password.json` no longer holds a hash.
+2. Signed in as `rook` and `saffron` in two profiles: `remote account reset rook` sends `rook`'s next request to the sign-in page, while `saffron` keeps working.
+3. `remote signout-all --account saffron` does the same for `saffron`.
+4. `remote off` clears every account: remote sign-in is refused, and `remote account list` prints `no accounts`.
+
+### C174: a pack folder linked to another vault folder is refused, in the real win-x64 exe
+
+Issue #24, `docs/decisions/0021-init-first-run-setup.md` ("Amended for issue 24"). **Mark this OPEN: Linux tests prove the logic only; junction resolution on NTFS is only proven by running the exe.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 4; the two must match. Work in a local scratch folder S. Make the junctions from an administrator account and run the exe as the standard user (the C83 note).
+
+1. Make `S\vault\_meta` and `S\vault\Notes`, then a junction `S\vault\_meta\scriptorium` > `S\vault\Notes`.
+2. Run `gm-scriptorium init --vault S\vault --name c174 --out S\out --yes --config <scratch config>`. It is refused, the message contains "resolves outside the vault's _meta folder", and nothing new appears in `S\vault\Notes`.
+3. Put `pack.toml` and `vault.config.json` in `Notes`, register the campaign in the scratch config, run `serve --admin` and save a theme. The save is refused, and the `Notes\pack.toml` hash is unchanged.
+4. Re-hash the real config.
+
+### C175: a pack folder linked to `_meta` itself is refused, in the real win-x64 exe
+
+Issue #24, same record. **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135 and hash the real config before and after, as in C174. Work in a local scratch folder S.
+
+1. Make a junction `S\vault\_meta\scriptorium` > `S\vault\_meta`.
+2. Run `init --vault S\vault --name c175 --out S\out --yes --config <scratch config>`. It is refused with "resolves outside the vault's _meta folder", and no `pack.toml` appears in `S\vault\_meta`.
+3. Repeat C174 and C175 with `mklink /D` if Developer Mode is on. Re-hash the real config.
+
+### C176: a pack folder linked inside `_meta` still works, in the real win-x64 exe
+
+Issue #24, same record. **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135 and hash the real config before and after, as in C174. Work in a local scratch folder S.
+
+1. Make `S\vault\_meta\packs\real` and a junction `S\vault\_meta\scriptorium` > `S\vault\_meta\packs\real`.
+2. Run `init --vault S\vault --name c176 --out S\out --yes --config <scratch config>`. It succeeds, and the pack files land in `packs\real`.
+3. Run `serve --admin` and save a theme. The save works.
+4. Repeat steps 2 and 3 with the vault path typed in a different case. Re-hash the real config.
+
+### C184: the packaged smoke, by hand, on the real win-x64 exe with no Node on the machine
+
+rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on every push to main; that proves nothing about Windows. **Mark this OPEN: the Windows exe can only be exercised here.** Use a machine with no Node installed. Read "Checkout line endings (CRLF)" near the top of this document first, and copy `examples\the-long-lease` from an LF tree (a stock CRLF checkout changes the counts). Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` plus the same path as `--config`, with one campaign named `smoke` whose vault is the scratch copy and whose output is a scratch folder. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 5; the two must match. The expected numbers are `EXPECTED` and `PLANTED_NAME` in `scripts/packaged-smoke.js`.
+
+1. Run `gm-scriptorium-win-x64.exe --version`. It exits 0 and its first line is the release version.
+2. Run `build smoke`. It exits 0.
+3. Run `check smoke --json`. The exit code and the `counts` equal `EXPECTED.clean`, and there is no `leak/` error finding.
+4. Append the planted name (`PLANTED_NAME`) in a paragraph to `out\index.html`. Run `check smoke --json`. It exits 2, the `counts` equal `EXPECTED.planted`, and there is exactly one `leak/l4-output-name` finding, naming `index.html`.
+5. Re-hash the real config.
+
+### C170: a bare `--force` is refused with one line, in the real win-x64 exe
+
+Issue #15, [ADR 0055](../docs/decisions/0055-force-split.md). **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match. Use a scratch copy of the-long-lease example vault, registered as campaign `c170` with an output folder `S\out` that does not exist.
+
+1. `build c170 --force --config "S\config.toml"` exits 1 and prints exactly one line, `--force has been split: use --force-check to build despite check errors, or --force-out to build into the site config's own outputDir. Nothing overrides the output-leak scan.` No stack trace.
+2. `S\out` still does not exist, and `S\config.toml` has the same hash as before.
+3. `build c170 --force --no-check --json --config "S\config.toml"` exits 1 with the same line and still writes nothing. Re-hash the real config.
+
+### C171: `--force-check` builds despite a check error, in the real win-x64 exe
+
+Issue #15, ADR 0055. **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of the-long-lease example vault with one extra page whose link points at nothing (a check ERROR), registered as campaign `c171`.
+
+1. `build c171 --config "S\config.toml"` exits 2 and writes nothing.
+2. `build c171 --force-check --json --config "S\config.toml"` exits 0, the human output (run once without `--json`) has a `--force-check: overriding N error finding(s):` line and `OVERRIDDEN` lines, and the JSON has `forceCheck` true, `forceOut` false and `siteOutputDirCollision` null.
+3. `build c171 --force-out --config "S\config.toml"` exits 2: `--force-out` alone does not override a check error. Re-hash the real config.
+
+### C172: no flag overrides an output-leak scan hit, in the real win-x64 exe
+
+Issue #15, ADR 0055. **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch vault of the gate shape: one published page that embeds an attachment named after a withheld entity (for example `![[secret-witness.png]]` with a withheld page `Secret Witness.md`), registered as campaign `c172` with a convention pack. Build it once into `S\out` first by a route that is allowed (for example with the attachment reference removed), and record `Get-ChildItem -Recurse -File S\out | Get-FileHash` as the baseline.
+
+1. Put the attachment reference back. `build c172 --force-out --force-check --no-check --config "S\config.toml"` exits 2 and names the scan finding for `images\secret-witness.png`.
+2. The hashes of every file in `S\out` equal the baseline, and no `.scriptorium-build-*` or `.scriptorium-old-*` folder is left beside `S\out`.
+3. Repeat step 1 with `--force-check` alone, `--force-out` alone and `--json` (`refusedByScan` true). Each exits 2 with the same unchanged hashes. Re-hash the real config.
+
+### C173: `--force-out` builds into the site config's own outputDir, in the real win-x64 exe
+
+Issue #15, ADR 0055. **Mark this OPEN: Linux tests prove the logic only; NTFS folds case, so the collision guard must see a differently cased path as the same folder.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of a vault whose pack `vault.config.json` sets `"outputDir": "../../../out"` (the folder `S\out` beside the vault), registered as campaign `c173` with `--out` typed as `S\OUT` (different case).
+
+1. `build c173 --no-check --config "S\config.toml"` exits 2, says it refuses to build because the output is the site config's own `outputDir`, tells you to rerun with `--force-out`, and writes nothing.
+2. `build c173 --force-check --no-check --config "S\config.toml"` exits 2 with the same refusal: `--force-check` does not override the collision guard.
+3. `build c173 --force-out --no-check --json --config "S\config.toml"` exits 0, the human output (run once without `--json`) has the line `--force-out: building into the site config's own outputDir`, and the JSON has `forceOut` true and `siteOutputDirCollision` set to the path. Re-hash the real config.
 
 ## Items OPEN after the 2026-09-29 rc.2 Windows run — need a person at a keyboard
 

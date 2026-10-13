@@ -43,7 +43,7 @@ function buildSiteConfig(dir) {
 // -- AC-R3 (CoC side): the protected build path renders the fixture's own skill rows and ships
 // no CoC marker (the canonical starting skill list). --
 
-test('build --force against the CoC fixture renders the sheet\'s own skills and ships no CoC marker', () => {
+test('build --force-check against the CoC fixture renders the sheet\'s own skills and ships no CoC marker', () => {
   withTmpDir((dir) => {
     const siteDir = path.join(dir, 'site');
     fs.mkdirSync(siteDir, { recursive: true });
@@ -68,7 +68,7 @@ test('build --force against the CoC fixture renders the sheet\'s own skills and 
 
     delete require.cache[require.resolve('../src/cli/build')];
     const { runBuildCommand } = require('../src/cli/build');
-    const result = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const result = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
 
     assert.equal(result.envelope.ok, true, result.human);
 
@@ -125,8 +125,8 @@ test('two builds of the unchanged CoC fixture report identical redactions', () =
 
     delete require.cache[require.resolve('../src/cli/build')];
     const { runBuildCommand } = require('../src/cli/build');
-    const a = runBuildCommand({ config: configPath, force: true }, 'fixture');
-    const b = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const a = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
+    const b = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
 
     assert.equal(a.envelope.ok, true, a.human);
     assert.equal(b.envelope.ok, true, b.human);

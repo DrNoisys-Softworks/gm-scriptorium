@@ -15,7 +15,7 @@ const { ConfigError } = require('../util/errors');
 const settingsLib = require('../remote/settings');
 const { remotePaths, assertNotInsideAnyVault, findLooseModes } = require('../remote/paths');
 const { makePeerPredicate } = require('../remote/addr');
-const { readPasswordRecord } = require('../remote/password');
+const { readAccounts } = require('../remote/accounts');
 const { createSessionStore } = require('../remote/sessions');
 const { createAuditLog } = require('../remote/audit');
 const { createLockoutState } = require('../remote/lockout');
@@ -170,7 +170,7 @@ async function startAdminPanel(
   if (settings.mode !== 'local') assertNotInsideAnyVault(paths.panelDir, ctxInfo.config);
 
   if (settings.mode !== 'local') {
-    const problems = settingsLib.readiness(settings, { password: readPasswordRecord(paths.passwordFile).state, tlsSupported: false });
+    const problems = settingsLib.readiness(settings, { accounts: readAccounts(paths).state, tlsSupported: false });
     if (problems.length > 0) throw new ConfigError(problems[0]);
   }
 

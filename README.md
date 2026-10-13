@@ -18,10 +18,10 @@ leaves them out. Your GM notes stay on your computer and are never put on the si
 ## Get it
 
 Download the single program for your system (no Node or npm needed) from the
-[Releases page](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases). Releases are signed
-on Windows, but the certificate is new, so Windows SmartScreen may still warn you the first time you
-run one. Installing a release, checking its signature and hash, and building a binary are in
-[Install](docs/install.md).
+[Releases page](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases). Releases before 1.0
+are not signed yet, so Windows SmartScreen will probably warn you the first time you run one: click
+**More info**, then **Run anyway**. Signing starts at 1.0. Installing a release, checking its signature and hash, and
+building a binary are in [Install](docs/install.md).
 
 Or build it from source (needs Node.js 22 or later):
 
@@ -71,7 +71,7 @@ Open the local admin panel for themes, image slots and your tagline.
 - [Install, update and build from source](docs/install.md)
 - [Trying it beside a real campaign](docs/trying-it-safely.md)
 - [Backing up your vault](docs/backing-up-your-vault.md)
-- [Privacy](docs/privacy.md): no telemetry, no analytics, and the admin panel stays on your computer unless you turn on remote access.
+- [Privacy](docs/privacy.md): no telemetry, no analytics, updates come only from GitHub with no account needed, and the admin panel stays on your computer unless you turn on remote access.
 - [Why, and how this relates to gm-apprentice](docs/about.md)
 - [All documentation](docs/README.md)
 

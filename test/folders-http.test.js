@@ -16,12 +16,13 @@ const { writeConfigFile } = require('../src/config/write');
 const pw = require('../src/remote/password');
 const pwWrite = require('../src/remote/passwordwrite');
 const { createTestProxy } = require('./helpers/remote-test-proxy');
+const { testPort } = require('./helpers/ports');
 const remoteHandlers = require('../src/admin/handlers/remote');
 
 /*
  * ADR 0049 over real sockets: GET /api/folders and POST /api/folders/create, in setup mode and in
  * normal mode, from loopback and from a remote session (the repo's test proxy, fixed ports
- * 7936/7937, Linux only). Expected bodies and numbers are written out by hand. Everything the OS
+ * 7936/7937 through testPort, Linux only). Expected bodies and numbers are written out by hand. Everything the OS
  * could do badly is an injected ctx.folderDeps, never a real unreachable share.
  */
 
@@ -489,7 +490,7 @@ const ADMIN_HOST = 'scriptorium.home.arpa';
 const PREVIEW_HOST = 'preview.scriptorium.home.arpa';
 const ADMIN_ORIGIN = `https://${ADMIN_HOST}`;
 const PASSWORD = 'correct horse battery';
-const PORTS = [7936, 7937];
+const PORTS = [testPort(7936), testPort(7937)];
 
 function remoteFixture(t) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-fh-')));
@@ -569,7 +570,7 @@ function remoteRequest(env, { method = 'GET', pathname, headers = {}, body }) {
 }
 
 async function remoteSession(env) {
-  const res = await remoteRequest(env, { method: 'POST', pathname: '/auth/password', headers: { 'Content-Type': 'application/json', Origin: ADMIN_ORIGIN }, body: JSON.stringify({ password: PASSWORD }) });
+  const res = await remoteRequest(env, { method: 'POST', pathname: '/auth/password', headers: { 'Content-Type': 'application/json', Origin: ADMIN_ORIGIN }, body: JSON.stringify({ username: 'gm', password: PASSWORD }) });
   assert.equal(res.status, 200, res.text);
   const raw = [].concat(res.headers['set-cookie'] || []).find((c) => c.startsWith('__Host-scriptorium_session='));
   return raw.split(';')[0];

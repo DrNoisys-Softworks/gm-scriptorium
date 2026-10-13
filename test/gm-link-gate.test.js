@@ -98,11 +98,11 @@ function scratchCopySiteConfig(fixtureName, root) {
 
 // --- FR34(b): runBuildCommand, real call site, both flags -----------------
 
-test('FR34(b): runBuildCommand with force:true and no-check:true still refuses a vault whose text carries the marker; exit 2, output not written', async () => {
+test('FR34(b): runBuildCommand with force-out, force-check and no-check still refuses a vault whose text carries the marker; exit 2, output not written', async () => {
   await withMarkerVault(true, ({ configPath, output }) => {
     delete require.cache[require.resolve('../src/cli/build')];
     const { runBuildCommand } = require('../src/cli/build');
-    const result = runBuildCommand({ config: configPath, force: true, 'no-check': true }, 'alpha');
+    const result = runBuildCommand({ config: configPath, 'force-out': true, 'force-check': true, 'no-check': true }, 'alpha');
     assert.equal(result.exitCode, 2);
     assert.equal(result.envelope.refusedByScan, true);
     assert.ok(
@@ -120,7 +120,7 @@ test('FR34(b) positive control: the same vault without the marker text, same fla
   await withMarkerVault(false, ({ configPath, output }) => {
     delete require.cache[require.resolve('../src/cli/build')];
     const { runBuildCommand } = require('../src/cli/build');
-    const result = runBuildCommand({ config: configPath, force: true, 'no-check': true }, 'alpha');
+    const result = runBuildCommand({ config: configPath, 'force-out': true, 'force-check': true, 'no-check': true }, 'alpha');
     assert.equal(result.exitCode, 0, result.human);
     assert.equal(result.envelope.ok, true);
     assert.ok(fs.existsSync(path.join(output, 'index.html')));
@@ -129,17 +129,17 @@ test('FR34(b) positive control: the same vault without the marker text, same fla
 
 // --- FR34(b): a spawned CLI process ----------------------------------------
 
-test('FR34(b), CLI spawn: build --force exits 2 and stdout names build/gm-link-marker', async () => {
+test('FR34(b), CLI spawn: build --force-out --force-check exits 2 and stdout names build/gm-link-marker', async () => {
   await withMarkerVault(true, ({ configPath }, root) => {
-    const res = run(['build', 'alpha', '--force', '--config', configPath], { env: scratchEnv(root) });
+    const res = run(['build', 'alpha', '--force-out', '--force-check', '--config', configPath], { env: scratchEnv(root) });
     assert.equal(res.status, 2);
     assert.match(res.stdout, /build\/gm-link-marker/);
   });
 });
 
-test('FR34(b), CLI spawn positive control: without the marker text, build --force exits 0', async () => {
+test('FR34(b), CLI spawn positive control: without the marker text, build --force-out --force-check exits 0', async () => {
   await withMarkerVault(false, ({ configPath }, root) => {
-    const res = run(['build', 'alpha', '--force', '--config', configPath], { env: scratchEnv(root) });
+    const res = run(['build', 'alpha', '--force-out', '--force-check', '--config', configPath], { env: scratchEnv(root) });
     assert.equal(res.status, 0, res.stdout + res.stderr);
   });
 });
@@ -183,7 +183,7 @@ test('a second preview build, after a first one injected GM links, still succeed
 // either fixture. On its own it proves nothing; it only means something paired with the
 // --force refusal tests above, which prove the SAME gate does refuse when the marker IS present.
 
-test('FR34(c): a CLI build of a scratch copy of vocab-vault contains no marker (paired with the --force refusal above)', () => {
+test('FR34(c): a CLI build of a scratch copy of vocab-vault contains no marker (paired with the --force-out --force-check refusal above)', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-gm-link-frc-vocab-'));
   try {
     const dest = scratchCopyVault('vocab-vault', root);
@@ -201,7 +201,7 @@ test('FR34(c): a CLI build of a scratch copy of vocab-vault contains no marker (
   }
 });
 
-test('FR34(c): a CLI build of a scratch copy of mini-vault contains no marker (paired with the --force refusal above)', () => {
+test('FR34(c): a CLI build of a scratch copy of mini-vault contains no marker (paired with the --force-out --force-check refusal above)', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-gm-link-frc-mini-'));
   try {
     const dest = scratchCopyVault('mini-vault', root);
@@ -222,10 +222,10 @@ test('FR34(c): a CLI build of a scratch copy of mini-vault contains no marker (p
       ].join('\n'),
     );
     // mini-vault is a shared fixture deliberately full of pre-existing check ERRORs (broken
-    // frontmatter, unresolved links) used by other suites; --force --no-check isolates this
+    // frontmatter, unresolved links) used by other suites; --force-out --force-check --no-check isolates this
     // test to the staging-tree scan the GM-link gate itself runs, the same way
     // test/build-output-gate.test.js's own CLI test does.
-    const res = run(['build', 'mini', '--force', '--no-check', '--config', configPath], { env: scratchEnv(root) });
+    const res = run(['build', 'mini', '--force-out', '--force-check', '--no-check', '--config', configPath], { env: scratchEnv(root) });
     assert.equal(res.status, 0, res.stdout + res.stderr);
     assert.deepEqual(findGmLinkMarker(output), []);
   } finally {
@@ -270,7 +270,7 @@ test("C42 step 6, real fixture: a marker appended to vocab-vault's Episodes/Epis
       configPath,
       ['config_version = 1', 'default_campaign = "vocab"', '', '[campaigns.vocab]', `vault = '${dest}'`, `output = '${output}'`, ''].join('\n'),
     );
-    const res = run(['build', 'vocab', '--force', '--config', configPath], { env: scratchEnv(root) });
+    const res = run(['build', 'vocab', '--force-out', '--force-check', '--config', configPath], { env: scratchEnv(root) });
     assert.equal(res.status, 2, res.stdout + res.stderr);
     assert.match(res.stdout, /build\/gm-link-marker/);
     assert.equal(fs.existsSync(output), false, 'a refused build must write nothing');
@@ -293,7 +293,7 @@ test("C42 step 6, real fixture: the SAME marker appended to vocab-vault's People
       configPath,
       ['config_version = 1', 'default_campaign = "vocab"', '', '[campaigns.vocab]', `vault = '${dest}'`, `output = '${output}'`, ''].join('\n'),
     );
-    const res = run(['build', 'vocab', '--force', '--config', configPath], { env: scratchEnv(root) });
+    const res = run(['build', 'vocab', '--force-out', '--force-check', '--config', configPath], { env: scratchEnv(root) });
     assert.equal(res.status, 0, res.stdout + res.stderr);
     assert.deepEqual(findGmLinkMarker(output), [], 'the marker must never reach the staged tree from a type: pc note\'s non-publishing body');
   } finally {

@@ -9,6 +9,11 @@ const path = require('path');
 const { runUpdateCommand, assetPatternForPlatform } = require('../src/cli/update');
 const { replaceExecutable } = require('../src/update/replace');
 const { EXIT_CODES } = require('../src/util/exitcodes');
+const { installLoopbackGuard } = require('./helpers/net-stubs');
+
+// The update flow is injected here, so nothing may reach a network: the guard fails the file if it does.
+const guard = installLoopbackGuard();
+test.after(() => guard.assertClean({ minConnects: 0 }));
 
 const ELF_HEADER = (() => {
   const buf = Buffer.alloc(20);
@@ -40,11 +45,11 @@ function makeExeAndTmp(root, exeName = 'scriptorium') {
 // P5a-FR02/FR04: assetPatternForPlatform()
 // ---------------------------------------------------------------------------
 
-test('assetPatternForPlatform("win32") is the public asset name: gm-scriptorium-win-x64.exe', () => {
+test('assetPatternForPlatform("win32") is the public asset name: gm-scriptorium-win-x64.exe', async () => {
   assert.equal(assetPatternForPlatform('win32'), 'gm-scriptorium-win-x64.exe');
 });
 
-test('S3: assetPatternForPlatform("linux", "x64") returns gm-scriptorium-linux-x64 (D-12: no extension)', () => {
+test('S3: assetPatternForPlatform("linux", "x64") returns gm-scriptorium-linux-x64 (D-12: no extension)', async () => {
   assert.equal(assetPatternForPlatform('linux', 'x64'), 'gm-scriptorium-linux-x64');
 });
 
@@ -60,11 +65,11 @@ test('P5a-FR04: assetPatternForPlatform defaults arch to process.arch; this buil
   assert.equal(assetPatternForPlatform('linux'), 'gm-scriptorium-linux-x64');
 });
 
-test('P5a-FR04: arm64 stays out of scope -- linux+arm64 still throws the "no pattern known" error', () => {
+test('P5a-FR04: arm64 stays out of scope -- linux+arm64 still throws the "no pattern known" error', async () => {
   assert.throws(() => assetPatternForPlatform('linux', 'arm64'), /no release asset pattern known for platform "linux"/);
 });
 
-test('macOS keeps today\'s error, unchanged by 5a', () => {
+test('macOS keeps today\'s error, unchanged by 5a', async () => {
   assert.throws(() => assetPatternForPlatform('darwin', 'x64'), /no release asset pattern known for platform "darwin"/);
 });
 
@@ -80,9 +85,8 @@ function linuxDeps({ execPath, tmpRoot, downloadBytes }) {
     arch: 'x64',
     tmpRoot,
     isPkg: true,
-    requireGh: () => '/usr/bin/gh',
-    fetchLatestRelease: () => ({ tag_name: 'v9.9.9', html_url: 'https://example.test/releases/v9.9.9' }),
-    downloadAsset: (ghPath, tag, pattern, dir) => {
+    lookupRelease: async () => ({ tag_name: 'v9.9.9', html_url: 'https://example.test/releases/v9.9.9' }),
+    downloadAsset: async (tag, pattern, dir) => {
       fs.writeFileSync(path.join(dir, pattern), downloadBytes);
     },
     verifyDownload: () => {},
@@ -90,11 +94,11 @@ function linuxDeps({ execPath, tmpRoot, downloadBytes }) {
   };
 }
 
-test('P5a-FR05: a downloaded asset without an ELF header is refused on platform=linux', () => {
+test('P5a-FR05: a downloaded asset without an ELF header is refused on platform=linux', async () => {
   const root = makeScratch('scriptorium-linux-elf-t1-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
-    const result = runUpdateCommand({}, linuxDeps({ execPath, tmpRoot, downloadBytes: Buffer.from('not-an-elf-binary') }));
+    const result = await runUpdateCommand({}, linuxDeps({ execPath, tmpRoot, downloadBytes: Buffer.from('not-an-elf-binary') }));
 
     assert.equal(result.exitCode, EXIT_CODES.SCRIPTORIUM_ERROR);
     assert.match(result.human, /ELF/);
@@ -103,11 +107,11 @@ test('P5a-FR05: a downloaded asset without an ELF header is refused on platform=
   }
 });
 
-test('P5a-FR05: a downloaded asset WITH a real ELF header passes the check on platform=linux', () => {
+test('P5a-FR05: a downloaded asset WITH a real ELF header passes the check on platform=linux', async () => {
   const root = makeScratch('scriptorium-linux-elf-t2-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
-    const result = runUpdateCommand({}, linuxDeps({ execPath, tmpRoot, downloadBytes: ELF_HEADER }));
+    const result = await runUpdateCommand({}, linuxDeps({ execPath, tmpRoot, downloadBytes: ELF_HEADER }));
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.match(result.human, /^updated /);
@@ -116,13 +120,13 @@ test('P5a-FR05: a downloaded asset WITH a real ELF header passes the check on pl
   }
 });
 
-test('the ELF check never runs on platform=win32 (an MZ-only asset still passes there)', () => {
+test('the ELF check never runs on platform=win32 (an MZ-only asset still passes there)', async () => {
   const root = makeScratch('scriptorium-linux-elf-t3-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root, 'scriptorium.exe');
     const deps = linuxDeps({ execPath, tmpRoot, downloadBytes: Buffer.from([0x4d, 0x5a, 0x00, 0x00]) });
     deps.platform = 'win32';
-    const result = runUpdateCommand({}, deps);
+    const result = await runUpdateCommand({}, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
   } finally {
@@ -134,7 +138,7 @@ test('the ELF check never runs on platform=win32 (an MZ-only asset still passes 
 // P5a-FR06: the staged file gets mode 0755 before the swap.
 // ---------------------------------------------------------------------------
 
-test('P5a-FR06: replaceExecutable() leaves the new (now-current) executable at mode 0755', () => {
+test('P5a-FR06: replaceExecutable() leaves the new (now-current) executable at mode 0755', async () => {
   const root = makeScratch('scriptorium-mode-t1-');
   try {
     const exeDir = path.join(root, 'exe');
@@ -154,7 +158,7 @@ test('P5a-FR06: replaceExecutable() leaves the new (now-current) executable at m
   }
 });
 
-test('P5a-FR06: a chmod failure rolls back to the old binary, same as a rename failure', () => {
+test('P5a-FR06: a chmod failure rolls back to the old binary, same as a rename failure', async () => {
   const root = makeScratch('scriptorium-mode-t2-');
   try {
     const exeDir = path.join(root, 'exe');

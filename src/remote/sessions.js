@@ -24,6 +24,11 @@ const SESSION_TTL_MS = 86400000;
 const ADMIN_COOKIE = '__Host-scriptorium_session';
 const PREVIEW_COOKIE = '__Host-scriptorium_preview';
 const MAX_CREDENTIAL_LENGTH = 256;
+// ADR 0054 section 3: the canonical account name (src/remote/accounts.js canonicalUsername, lower case).
+const ACCOUNT_RE = /^[a-z0-9][a-z0-9._-]{0,31}$/;
+// A session made before accounts existed has no account; it counts as the account "gm", which is
+// what the older single password reads as.
+const LEGACY_ACCOUNT = 'gm';
 
 function sha256hex(value) {
   return crypto.createHash('sha256').update(String(value), 'utf8').digest('hex');
@@ -71,10 +76,13 @@ function createSessionStore({ file, now = Date.now, randomBytes = crypto.randomB
             Number.isFinite(rec.created) &&
             Number.isFinite(rec.expires) &&
             rec.expires > t &&
-            (rec.kind === 'admin' || (typeof rec.parent === 'string' && /^[0-9a-f]{64}$/.test(rec.parent)))
+            (rec.kind === 'admin' || (typeof rec.parent === 'string' && /^[0-9a-f]{64}$/.test(rec.parent))) &&
+            // an account that is present must be a canonical name; a record without one is a legacy "gm" session
+            (!Object.prototype.hasOwnProperty.call(rec, 'account') || (typeof rec.account === 'string' && ACCOUNT_RE.test(rec.account)))
           ) {
             const clean = { id: rec.id, kind: rec.kind, created: rec.created, expires: rec.expires };
             if (rec.kind === 'preview') clean.parent = rec.parent;
+            else if (typeof rec.account === 'string') clean.account = rec.account;
             next.set(rec.id, clean);
           }
         }
@@ -119,10 +127,11 @@ function createSessionStore({ file, now = Date.now, randomBytes = crypto.randomB
 
     /**
      * @param {'admin'|'preview'} kind
-     * @param {{ parentId?: string }} [opts]
+     * @param {{ parentId?: string, account?: string }} [opts] account: the canonical name an admin session signed in as
      * @returns {{ credential: string, id: string, expires: number }}
      */
-    create(kind, { parentId } = {}) {
+    create(kind, { parentId, account } = {}) {
+      if (account !== undefined && !(typeof account === 'string' && ACCOUNT_RE.test(account))) throw new Error('the session account must be a canonical account name');
       refreshIfChanged();
       dropExpired();
       const created = now();
@@ -140,6 +149,7 @@ function createSessionStore({ file, now = Date.now, randomBytes = crypto.randomB
       const id = sha256hex(credential);
       const rec = { id, kind, created, expires };
       if (kind === 'preview') rec.parent = parentId;
+      else if (account !== undefined) rec.account = account;
       records.set(id, rec);
       try {
         persist();
@@ -163,6 +173,24 @@ function createSessionStore({ file, now = Date.now, randomBytes = crypto.randomB
       if (!records.has(id)) return;
       for (const [rid, rec] of records) if (rid === id || rec.parent === id) records.delete(rid);
       persist();
+    },
+
+    /**
+     * Signs one account out: its admin sessions and their preview children. A record with no account
+     * counts as "gm". Writes nothing when the account has no session.
+     *
+     * @param {string} name a canonical account name
+     * @returns {{ count: number }} how many admin sessions were signed out
+     */
+    revokeAccount(name) {
+      refreshIfChanged();
+      dropExpired();
+      const ids = new Set();
+      for (const rec of records.values()) if (rec.kind === 'admin' && (rec.account || LEGACY_ACCOUNT) === name) ids.add(rec.id);
+      if (ids.size === 0) return { count: 0 };
+      for (const [rid, rec] of records) if (ids.has(rid) || ids.has(rec.parent)) records.delete(rid);
+      persist();
+      return { count: ids.size };
     },
 
     /** @returns {{ count: number }} how many admin sessions were signed out */

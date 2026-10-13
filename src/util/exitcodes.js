@@ -19,8 +19,9 @@
  *    (none registered, unknown name, missing or malformed config file, output
  *    folder missing or inside the vault), thrown as a VaultUnreachableError.
  *    The user-mistake table is in docs/DEVELOPING.md, "Exit codes".
- * 4  update prerequisites not met (gh absent or unauthenticated, or a
- *    404 from the release lookup that is indistinguishable from "no such release")
+ * 4  update prerequisites not met (GitHub could not be reached, rate limited or answered in
+ *    a way `update` will not follow, or a 404 from the release lookup that is
+ *    indistinguishable from "no such release")
  */
 
 const EXIT_CODES = Object.freeze({

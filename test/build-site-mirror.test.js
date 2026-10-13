@@ -165,7 +165,7 @@ test('SITE_RELATIVE_INPUTS matches the literal configDir/siteDir joins in the pi
 
 // -- 4. end to end: runBuildCommand --force with a tmp site config whose dir holds css/overrides.css --
 
-test('build --force mirrors css/overrides.css into the built site, linked from index.html, alongside lunr.js', () => {
+test('build --force-check mirrors css/overrides.css into the built site, linked from index.html, alongside lunr.js', () => {
   withTmpDir((dir) => {
     const siteDir = path.join(dir, 'site');
     fs.mkdirSync(path.join(siteDir, 'css'), { recursive: true });
@@ -193,7 +193,7 @@ test('build --force mirrors css/overrides.css into the built site, linked from i
 
     delete require.cache[require.resolve('../src/cli/build')];
     const { runBuildCommand } = require('../src/cli/build');
-    const result = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const result = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
 
     assert.equal(result.envelope.ok, true, result.human);
 

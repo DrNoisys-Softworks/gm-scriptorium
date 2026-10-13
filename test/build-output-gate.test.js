@@ -186,7 +186,7 @@ test('AC-D2-14 (envelope shape): runAtomicBuild refusedByScan maps to CHECK_FAIL
  * same behaviour, exercised through the real CLI entry point for the
  * first time rather than only through a direct runAtomicBuild call.
  */
-test('AC-D2-14/15 (CLI, real call site): runBuildCommand refuses without --force and succeeds with --force', () => {
+test('AC-D2-14/15 (CLI, real call site): runBuildCommand refuses a scan hit with every build flag set (ADR 0055)', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-gate-cli-'));
   try {
     const { configPath, finalOut } = writeGateVaultOnDisk(root);
@@ -208,15 +208,12 @@ test('AC-D2-14/15 (CLI, real call site): runBuildCommand refuses without --force
     assert.match(refused.human, /secret-witness\.png/);
     assert.ok(!fs.existsSync(path.join(finalOut, 'index.html')), 'a refused build must write nothing, via the real CLI path');
 
-    const forced = runBuildCommand({ config: configPath, 'no-check': true, force: true }, 'gate');
-    assert.equal(forced.exitCode, EXIT_CODES.OK, 'the user\'s own --force flag must let the same real build through');
-    assert.equal(forced.envelope.ok, true);
-    assert.ok(forced.envelope.overriddenFindings.length > 0);
-    assert.ok(
-      forced.envelope.overriddenFindings.some((f) => f.outputPath === 'images/secret-witness.png'),
-      'the override record must be the real scan finding',
-    );
-    assert.ok(fs.existsSync(path.join(finalOut, 'index.html')), 'a forced build must actually swap, via the real CLI path');
+    const everyFlag = runBuildCommand({ config: configPath, 'no-check': true, 'force-out': true, 'force-check': true }, 'gate');
+    assert.equal(everyFlag.exitCode, EXIT_CODES.CHECK_FAILED, 'no flag combination may let a scan hit through (ADR 0055)');
+    assert.equal(everyFlag.envelope.refusedByScan, true);
+    assert.equal(everyFlag.envelope.forceOut, true);
+    assert.equal(everyFlag.envelope.forceCheck, true);
+    assert.ok(!fs.existsSync(path.join(finalOut, 'index.html')), 'a build refused by the scan must write nothing, whatever flags were set');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -363,46 +360,27 @@ test('every runAtomicBuild call site passes campaign and an explicit force', () 
           `${file}: a non-product caller that deliberately builds a leaky vault must hardcode force: true, not: ${call}`,
         );
       } else {
-        // The product call site (src/cli/build.js): `force` must be a
-        // regression a value test can actually fail on. A hardcoded
-        // `force: true` here would silently make every real `scriptorium
-        // build` override every future scan hit — exactly the gap this
-        // test exists to close, so it is asserted directly rather than
-        // only checking that SOME token named `force` is present.
-        assert.doesNotMatch(
-          call,
-          /force\s*:\s*true\b/,
-          `${file}: the product call site must never hardcode force: true — it must come from the user's own --force flag: ${call}`,
-        );
-        assert.doesNotMatch(
-          call,
-          /force\s*:\s*false\b/,
-          `${file}: the product call site must never hardcode force: false either — a real --force flag would then do nothing: ${call}`,
-        );
-        assert.match(
-          call,
-          /force\s*:\s*forced\b/,
-          `${file}: expected force to be threaded from the user's own --force flag (the local "forced" binding), got: ${call}`,
-        );
+        // ADR 0055: no command-line flag reaches the scan override. The product call site passes
+        // the literal false; --force-out and --force-check never reach runAtomicBuild.
+        assert.match(call, /force\s*:\s*false\b/, `${file}: the product call site must pass the literal force: false (ADR 0055), got: ${call}`);
       }
     }
   }
 });
 
 test('AC-D2-14/15 regression guard (CLI): the run-through-runBuildCommand test above actually exercises real call-site regressions', () => {
-  // A direct proof, run at test time rather than only asserted about by
-  // reading source (the check above): temporarily monkey-patch
-  // src/build/run.js's exported runAtomicBuild to record whether the
-  // caller (src/cli/build.js, reached only through runBuildCommand) ever
-  // passes force: true when the CLI flags did not ask for it. This is a
-  // narrower, dynamic version of "hardcode force: true and watch the CLI
-  // test go red" that can live in the suite permanently.
+  // A direct proof, run at test time rather than only asserted about by reading source (the check
+  // above): temporarily monkey-patch src/build/run.js's exported runAtomicBuild to record whether
+  // the caller (src/cli/build.js, reached only through runBuildCommand) ever passes anything but
+  // force: false, whatever the command-line flags were (ADR 0055).
   const runModulePath = require.resolve('../src/build/run');
   const original = require(runModulePath).runAtomicBuild;
-  let sawForceTrueWithoutFlag = false;
+  let calls = 0;
+  let sawForceOtherThanFalse = false;
 
   require.cache[runModulePath].exports.runAtomicBuild = (opts) => {
-    if (opts.force === true) sawForceTrueWithoutFlag = true;
+    calls++;
+    if (opts.force !== false) sawForceOtherThanFalse = true;
     return original(opts);
   };
   delete require.cache[require.resolve('../src/cli/build')];
@@ -411,16 +389,17 @@ test('AC-D2-14/15 regression guard (CLI): the run-through-runBuildCommand test a
   try {
     const { configPath } = writeGateVaultOnDisk(root);
     const { runBuildCommand } = require('../src/cli/build');
-    // 'no-check': true so the pre-build check's OWN error (the gate vault's
-    // attachment embed also literally names the withheld entity in source,
-    // see the module doc comment above) never short-circuits before
-    // runAtomicBuild is reached at all — otherwise this guard would pass
+    // 'no-check': true so the pre-build check's OWN error (the gate vault's attachment embed also
+    // literally names the withheld entity in source, see the module doc comment above) never
+    // short-circuits before runAtomicBuild is reached at all, otherwise this guard would pass
     // vacuously, having never actually called the patched function.
-    runBuildCommand({ config: configPath, 'no-check': true }, 'gate'); // no --force flag
+    const flagSets = [{}, { 'force-out': true }, { 'force-check': true }, { 'force-out': true, 'force-check': true }];
+    for (const flags of flagSets) runBuildCommand({ config: configPath, 'no-check': true, ...flags }, 'gate');
+    assert.equal(calls, 4, 'the patched runAtomicBuild must have been reached once per flag set (non-vacuous)');
     assert.equal(
-      sawForceTrueWithoutFlag,
+      sawForceOtherThanFalse,
       false,
-      'src/cli/build.js called runAtomicBuild with force: true even though the CLI flags carried no --force',
+      'src/cli/build.js called runAtomicBuild with a force other than the literal false; no command-line flag may reach the scan override',
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

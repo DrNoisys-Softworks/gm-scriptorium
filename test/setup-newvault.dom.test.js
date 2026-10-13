@@ -5,8 +5,7 @@
  * PLAYWRIGHT_MODULE; skips, loudly, without it; the axe checks also need axe-core, found beside
  * PLAYWRIGHT_MODULE or via AXE_CORE_PATH). The real bin runs in setup mode with an isolated config
  * and the starter built into this build. Ports: 9486 and 9487 for the panels that only look, 9488
- * and 9489 for the ones that commit (override the first with NEWVAULT_UI_TEST_PORT; the others are
- * that plus 1, 2 and 3). Expected texts are written out by hand. The screens are compared with the
+ * and 9489 for the ones that commit (all four through testPort). Expected texts are written out by hand. The screens are compared with the
  * approved mock by the screenshot gate, which is not part of npm test.
  */
 
@@ -17,9 +16,11 @@ const os = require('os');
 const path = require('path');
 const { startAdminServer, stopChild } = require('./helpers/admin-server');
 const { SAMPLE } = require('./helpers/setup-fixtures');
+const { testPort } = require('./helpers/ports');
 
 const REPO = path.join(__dirname, '..');
-const BASE_PORT = Number(process.env.NEWVAULT_UI_TEST_PORT || 9486);
+const LOOK_PORTS = { chromium: testPort(9486), firefox: testPort(9487) };
+const COMMIT_PORTS = { chromium: testPort(9488), firefox: testPort(9489) };
 
 function loadPlaywright() {
   for (const c of [process.env.PLAYWRIGHT_MODULE, 'playwright'].filter(Boolean)) {
@@ -155,10 +156,9 @@ async function pressWhileCommitLands(page, field, buttonSelector) {
 }
 
 for (const browserName of ['chromium', 'firefox']) {
-  const offset = browserName === 'firefox' ? 1 : 0;
   test(`start a new campaign, browsing in ${browserName}`, { skip: SKIP, timeout: 420000 }, async (t) => {
     const fx = makeFixture();
-    const srv = await startAdminServer(['serve', '--admin', '--port', String(BASE_PORT + offset), '--config', fx.configPath], { bin: path.join(REPO, 'bin', 'scriptorium.js'), env: fx.env });
+    const srv = await startAdminServer(['serve', '--admin', '--port', String(LOOK_PORTS[browserName]), '--config', fx.configPath], { bin: path.join(REPO, 'bin', 'scriptorium.js'), env: fx.env });
     const browser = await pw[browserName].launch();
     t.after(async () => {
       await browser.close();
@@ -168,7 +168,7 @@ for (const browserName of ['chromium', 'firefox']) {
     const open = async (width) => {
       const ctx = await browser.newContext({ viewport: { width, height: width < 700 ? 800 : 1000 } });
       const page = await ctx.newPage();
-      await page.goto(`http://127.0.0.1:${BASE_PORT + offset}/auth?token=${srv.token}`, { waitUntil: 'load' });
+      await page.goto(`http://127.0.0.1:${LOOK_PORTS[browserName]}/auth?token=${srv.token}`, { waitUntil: 'load' });
       await page.waitForSelector('[data-role="setup-root"] h1');
       return page;
     };
@@ -635,7 +635,7 @@ for (const browserName of ['chromium', 'firefox']) {
 
   test(`start a new campaign, committing in ${browserName}`, { skip: SKIP, timeout: 420000 }, async (t) => {
     const fx = makeFixture();
-    const port = BASE_PORT + 2 + offset;
+    const port = COMMIT_PORTS[browserName];
     const srv = await startAdminServer(['serve', '--admin', '--port', String(port), '--config', fx.configPath], { bin: path.join(REPO, 'bin', 'scriptorium.js'), env: fx.env });
     const browser = await pw[browserName].launch();
     t.after(async () => {

@@ -297,7 +297,7 @@ test('runBuildCommand refuses with a ConfigError and writes nothing, for all thr
 
       const { runBuildCommand } = requireFresh('../src/cli/build');
       assert.throws(
-        () => runBuildCommand({ config: configPath, force: true }, 'fixture'),
+        () => runBuildCommand({ config: configPath, 'force-check': true }, 'fixture'),
         (err) => err instanceof ConfigError && err.message === expectedMessage(jsonPath, shape.missing),
         shape.label,
       );
@@ -320,7 +320,7 @@ test('runBuildCommand refuses with a ConfigError and writes nothing, for all six
 
       const { runBuildCommand } = requireFresh('../src/cli/build');
       assert.throws(
-        () => runBuildCommand({ config: configPath, force: true }, 'fixture'),
+        () => runBuildCommand({ config: configPath, 'force-check': true }, 'fixture'),
         (err) => err instanceof ConfigError && err.message === shape.expected(jsonPath),
         shape.label,
       );
@@ -354,7 +354,7 @@ test('runBuildCommand: positive control, a real mini-vault with both keys builds
     );
 
     const { runBuildCommand } = requireFresh('../src/cli/build');
-    const result = runBuildCommand({ config: configPath, force: true }, 'fixture');
+    const result = runBuildCommand({ config: configPath, 'force-check': true }, 'fixture');
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.ok(fs.existsSync(path.join(outDir, 'index.html')));
   });
@@ -554,7 +554,7 @@ test('CLI: build on a vault.config.json missing both keys prints one clean line,
     let stderr = '';
     let status = 0;
     try {
-      execFileSync(process.execPath, [BIN, 'build', 'fixture', '--config', configPath, '--force'], { stdio: 'pipe' });
+      execFileSync(process.execPath, [BIN, 'build', 'fixture', '--config', configPath, '--force-check'], { stdio: 'pipe' });
     } catch (err) {
       stderr = err.stderr.toString('utf8');
       status = err.status;
