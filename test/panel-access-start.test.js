@@ -23,7 +23,7 @@ const pwWrite = require('../src/remote/passwordwrite');
  * Synthetic identity: EXAMPLEPC / examplegm.
  */
 
-const TOKEN = 'TOKENTOKENTOKENTOKENTOKENTOKENTOKENTOKEN123';
+const LAUNCH_CODE = 'ABCD'.repeat(11);
 const ENV = { USERDOMAIN: 'EXAMPLEPC', USERNAME: 'examplegm', SystemRoot: 'C:\\Windows', PATH: 'C:\\x' };
 
 const MODES = {
@@ -99,7 +99,7 @@ function start(fx, h, run, panelAccess = {}) {
     emit: h.emit,
     startLocalListener: h.startLocalListener,
     startPanelListener: h.startPanelListener,
-    createToken: () => TOKEN,
+    createToken: () => LAUNCH_CODE,
     panelAccess: { platform: 'win32', env: ENV, run, ...panelAccess },
   });
 }
@@ -222,7 +222,7 @@ test('POSIX (the real platform, no panelAccess override): icacls is never run an
     emit: h.emit,
     startLocalListener: h.startLocalListener,
     startPanelListener: h.startPanelListener,
-    createToken: () => TOKEN,
+    createToken: () => LAUNCH_CODE,
     panelAccess: { run },
   });
   t.after(() => started.ok && started.stop());

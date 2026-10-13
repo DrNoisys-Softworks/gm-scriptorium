@@ -35,7 +35,7 @@ The account is `USERDOMAIN\USERNAME` from the environment of the running program
 
 ### When it fails
 
-The reasons come from a closed set: `the account name could not be read`, `the folder could not be prepared (<code>)`, `icacls could not be run (<code>)`, `icacls timed out` and `icacls exited <n>`.
+The reasons come from a closed set: `the account name could not be read`, `the folder could not be prepared (<code>)`, `icacls could not be run (<code>)`, `icacls timed out` and `icacls exited <n>`. An unforeseen failure inside the step is reported as `icacls could not be run (unknown)`, so the step never rejects.
 
 - **Every remote mode (ssh, tailscale, proxy, direct)** refuses to start, before any listener, with one `ConfigError` and exit 1: `remote access (mode <mode>) needs <panel> limited to your account, SYSTEM and Administrators, and that could not be done (<reason>); nothing was started`.
 - **Local and setup mode** start, print one warning line before the first listener, and the Remote access screen's File permissions row lists the panel folder.
@@ -57,7 +57,7 @@ The reasons come from a closed set: `the account name could not be read`, `the f
 
 ## 3. Will not catch, deliberately
 
-- An entry someone adds by hand on the panel folder itself. It is replaced on the next start or `remote` write only if it is an inherited one; an explicit entry on the folder is kept.
+- An explicit entry someone adds by hand on the panel folder is kept; only inherited entries are removed on the next start or `remote` write.
 - A file whose inheritance someone switched off.
 - Explicit entries on the folder or on its files. Only the owner or an administrator can add one.
 - The owner as named by `USERDOMAIN\USERNAME` of the running process. If that names a different account than the one that created the folder, the grant goes to the named one.
