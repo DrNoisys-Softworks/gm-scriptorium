@@ -22,7 +22,7 @@ In scope:
   `account` commands, and the panel's Remote access screen), and the sign-in
   page and its username and password check
 - launch mode (running the program with no command, which opens the panel)
-- the update mechanism
+- the update mechanism (it reaches GitHub only through the one connection module, with no account or token)
 - the build pipeline and its leak checks
 
 Out of scope: the vendored `gm-apprentice-publish` generator itself. Report

@@ -106,6 +106,28 @@ function defaultOutPathFor(target) {
 // execFileSync a generous ceiling well above that.
 const DEBUG_MAX_BUFFER = 200 * 1024 * 1024;
 
+const WIN_TARGET = 'node22-win-x64';
+const WINRES_PATH = path.join(ROOT, 'scripts', 'winres.js');
+
+/**
+ * The environment for one pkg invocation (I2a-1). Only the win-x64 build is given
+ * PKG_NODE_PATH, pointing at the branded base binary (scripts/winres.js). Every other build,
+ * including the self-test's Linux proxy, has PKG_NODE_PATH removed even when the caller's
+ * environment carries it, so a Windows base can never end up inside the Linux binary. This
+ * returns a copy and never touches process.env.
+ *
+ * @param {string} target
+ * @param {string|null} brandedBase
+ * @param {NodeJS.ProcessEnv} [baseEnv]
+ * @returns {NodeJS.ProcessEnv}
+ */
+function pkgEnvFor(target, brandedBase, baseEnv = process.env) {
+  const env = { ...baseEnv };
+  if (target === WIN_TARGET && brandedBase) env.PKG_NODE_PATH = brandedBase;
+  else delete env.PKG_NODE_PATH;
+  return env;
+}
+
 function parseArgs(argv) {
   const out = {};
   for (let i = 0; i < argv.length; i++) {
@@ -201,17 +223,46 @@ function buildTarget({ target, outPath }) {
     return { ok: false };
   }
 
+  // Gate 7, first half (I2a-1): for the Windows target, brand a copy of the pkg base binary
+  // BEFORE pkg runs, because pkg appends its payload at absolute offsets and a resource edit of
+  // the finished exe would break them. scripts/winres.js checks the base against pkg-fetch's
+  // expected sha256 first (PKG_NODE_PATH turns pkg-fetch's own check off). It runs as a child
+  // process, so this file never loads the resource editor.
+  let brandedDir = null;
+  let brandedBase = null;
+  if (target === WIN_TARGET) {
+    brandedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-branded-base-'));
+    brandedBase = path.join(brandedDir, 'node-win-x64-branded');
+    let brandOut;
+    try {
+      brandOut = execFileSync(process.execPath, [WINRES_PATH, 'brand', brandedBase], {
+        cwd: ROOT,
+        encoding: 'utf8',
+        env: pkgEnvFor('', null),
+      });
+    } catch (err) {
+      const detail = String((err.stdout || '') + (err.stderr || '')).trim();
+      console.error(`package: refusing to build ${target}, the Windows base binary could not be branded: ${detail}`);
+      fs.rmSync(brandedDir, { recursive: true, force: true });
+      return { ok: false };
+    }
+    process.stdout.write(brandOut);
+  }
+
   let debugText;
   try {
     debugText = execFileSync(process.execPath, buildInvocation({ target, out: outPath }), {
       cwd: ROOT,
       maxBuffer: DEBUG_MAX_BUFFER,
       encoding: 'utf8',
+      env: pkgEnvFor(target, brandedBase),
     });
   } catch (err) {
     if (err.stdout) process.stdout.write(err.stdout);
     if (err.stderr) process.stderr.write(err.stderr);
     throw err;
+  } finally {
+    if (brandedDir) fs.rmSync(brandedDir, { recursive: true, force: true });
   }
   process.stdout.write(debugText);
 
@@ -266,6 +317,7 @@ function buildTarget({ target, outPath }) {
       execFileSync(process.execPath, buildInvocation({ target: plan.buildTarget, out: proxyOut }), {
         cwd: ROOT,
         maxBuffer: DEBUG_MAX_BUFFER,
+        env: pkgEnvFor(plan.buildTarget, null),
       });
       selfTest = execVersionProbe(proxyOut);
     } catch (err) {
@@ -286,6 +338,24 @@ function buildTarget({ target, outPath }) {
   }
   if (selfTest && selfTest.ok) {
     console.log(`package: startup self-test passed for ${target}: ${selfTest.detail}`);
+  }
+
+  // Gate 7, second half (I2a-1): read the branding back out of the finished Windows exe. The
+  // self-test above proves nothing about win-x64, so this is the check that the icon and the
+  // version strings really landed, and that no Node.js string survived.
+  if (target === WIN_TARGET) {
+    let brandingFailure = null;
+    try {
+      const out = execFileSync(process.execPath, [WINRES_PATH, 'check', outPath], { cwd: ROOT, encoding: 'utf8', env: pkgEnvFor('', null) });
+      console.log(out.trim());
+    } catch (err) {
+      brandingFailure = String(err.stdout || err.message).trim();
+    }
+    if (brandingFailure !== null) {
+      console.error(`package: refusing to ship ${target}, the Windows branding check failed: ${brandingFailure}`);
+      fs.rmSync(outPath, { force: true });
+      return { ok: false };
+    }
   }
 
   const hash = crypto.createHash('sha256').update(fs.readFileSync(outPath)).digest('hex');
@@ -359,6 +429,7 @@ if (require.main === module) {
 
 module.exports = {
   buildInvocation,
+  pkgEnvFor,
   run,
   parseArgs,
   TARGETS,

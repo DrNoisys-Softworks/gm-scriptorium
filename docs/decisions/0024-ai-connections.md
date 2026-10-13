@@ -2,14 +2,16 @@
 
 ## Summary
 
-Nothing a GM sees changes yet. Scriptorium now has one module that is allowed to make outgoing
-network connections, `src/net/egress.js`. It reaches only a fixed list written in the code (today,
-the two local model servers on this computer) and refuses anything else before any name lookup or
-socket exists. Certificates are always verified, a redirect is an error, and proxy settings are
-ignored. The main alternative, letting each feature use Node's built-in network client directly, is
+Scriptorium has one module that is allowed to make outgoing network connections,
+`src/net/egress.js`. It reaches only a fixed list written in the code (the two local model servers
+on this computer, and the three GitHub hosts that `update` uses) and refuses anything else before
+any name lookup or socket exists. Certificates are always verified, a redirect is an error unless a
+request opts in to one GET hop to another listed destination, with no request headers carried, and
+proxy settings are ignored. The main alternative, letting each feature use Node's built-in network client directly, is
 rejected below because every feature would then carry its own answers to "where may this go?". The
-limit a user will hit: a local model server on a non-default port, or a machine that can only reach
-the network through a proxy, cannot be used.
+limits a user will hit: a local model server on a non-default port cannot be used, and a machine
+that can only reach the network through a proxy cannot use `update` (it must use the installer or
+a manual download).
 
 Status: accepted for sections 1 to 4. The sections marked Pending are not decided yet.
 
@@ -25,18 +27,22 @@ requires that `egress.js` loads only `http`, `https` and its own error file, tha
 a fetch-style client, a socket-based browser API or an event-source client, so the same words
 cannot slip past the older network scans once the module is reachable.
 
-The AI features are not built yet. Nothing in the command-line tool or the panel reaches `src/net`,
-which is why the older network checks (`test/generator-module-graph.test.js` and the update and
-panel scans) are unchanged and still green. When a feature first reaches the module, two things
-change in the same pull request: the generator-graph test gets one named entry for `egress.js` in
-its allowlist, and the network line in the README is amended to say that Scriptorium can now make
-outgoing connections, to which destinations, and when.
+The AI features are not built yet. The first feature to reach the module is `update` (and, from the
+next change, the panel's update check). In the same change that made `update` reach it, the
+generator-graph test got one named entry for `egress.js` in its allowlist, and the network line in
+the README was amended to say that Scriptorium makes outgoing connections only to GitHub, for
+`update`, with no account needed. The update scan (`test/update-module-graph.test.js`) now says the
+same thing structurally: nothing under `src/update/` loads a network or process module, and the
+update graph reaches a network module only in `egress.js`.
 
 ## 2. The outgoing connection module
 
 - **A fixed destination list.** `DESTINATIONS` is a frozen list in `egress.js`: `ollama` at
-  `http://127.0.0.1:11434` and `lmstudio` at `http://127.0.0.1:1234`. It is checked when the module
-  loads. An entry has exactly an id, a scheme, a host and a port. Plain `http` is allowed only for
+  `http://127.0.0.1:11434`, `lmstudio` at `http://127.0.0.1:1234`, and three `https` entries on port
+  443 for `update`: `github-api` (`api.github.com`), `github` (`github.com`) and
+  `github-release-assets` (`release-assets.githubusercontent.com`). The last host was measured on
+  2026-10-12: a request for a release asset on `github.com` answers with one redirect to it, and it
+  answers 200 with no further redirect. It is checked when the module loads. An entry has exactly an id, a scheme, a host and a port. Plain `http` is allowed only for
   an address in 127.0.0.0/8. No config key, environment variable, command-line flag or request field
   can add an entry, and `egress.js` never reads the process environment. Adding a destination means
   editing this file and its pinned test.
@@ -68,8 +74,18 @@ outgoing connections, to which destinations, and when.
   uses the global agents, so Node's proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`,
   `NO_PROXY`, `NODE_USE_ENV_PROXY`) have no effect on it, and a test runs the module in a child
   process with those variables aimed at a trap to show it. Any 3xx status is an error
-  (`E_NET_REDIRECT`) carrying only the status. The `location` header is never read and the reply is
-  destroyed.
+  (`E_NET_REDIRECT`) carrying the status, unless the request passes `redirectTo`. `redirectTo` is a
+  list of one to four distinct ids already in the client's destination list, and it is valid only
+  with `GET` and no body. With it, one hop is followed, and only when all of these hold, in this
+  order and before any name lookup: the status is 301, 302, 303, 307 or 308 and this is the first
+  reply; the `location` header is present (reason `no-location`) and parses against the request URL
+  (`bad-location`); the result matches one of the listed ids exactly (`off-list`); and it is not a
+  drop from `https` to `http` (`downgrade`). The reply is then destroyed and the hop goes out as a
+  `GET` with no headers at all and no body, on a fresh connect timer. The total timer is not
+  re-armed. A second redirect is refused (`second-hop`) and so is any other 3xx
+  (`not-followed`). The callbacks see only the final reply. The `location` header is read in one
+  place in the file, which `test/net-structure.test.js` counts. Without `redirectTo` the header is
+  never read and the reply is destroyed.
 - **Limits.** Defaults: 10 seconds to connect (until the TLS handshake finishes, for `https`), 120
   seconds without a byte once connected, 10 minutes in total, and 16 MiB of reply. A call can lower
   or raise each one. The byte cap cuts the chunk that crosses it, so a caller receives exactly the
@@ -108,8 +124,11 @@ What the events and values mean is decided with each provider, not here.
   only place".
 - **Honouring proxy variables.** A proxy sees every request, including the key header, and an
   environment variable is an easy way to send traffic somewhere the GM did not choose.
-- **Following redirects after a re-check.** A listed host could still bounce a request that carries a
-  key header to somewhere else that happens to pass the check.
+- **Following redirects after a re-check, for requests that carry headers.** A listed host could
+  still bounce a request that carries a key header to somewhere else that happens to pass the
+  check. This stays rejected for any request with secrets in its headers. The one hop that is
+  allowed drops every header of the caller, so a key header can never be bounced. That is why the
+  option is per request and not a property of a destination.
 - **A config key or environment variable that adds destinations.** It would turn "where may this
   go?" from something reviewable in one file into something any file on the machine could change.
 - **Suffix or wildcard host matching.** `evil-api.example` and `api.example.evil` both end or
@@ -120,7 +139,8 @@ What the events and values mean is decided with each provider, not here.
 ## Will catch / Will not catch, deliberately
 
 Will catch: a URL that is not an exact match for a listed destination; plain `http` to a
-non-loopback address; any redirect; a certificate that is untrusted, expired or issued for another
+non-loopback address; any redirect that a request has not opted in to, and any opted-in redirect
+that is not one GET hop to a listed destination; a certificate that is untrusted, expired or issued for another
 name; a reply over the size cap; a stalled, slow or endless request; an abort; an error that tries
 to carry request or reply text; a test that could reach anything but this computer.
 
@@ -134,6 +154,10 @@ Will not catch:
 - any program on this computer that listens on the two local model-server ports;
 - what a reply says (its size is capped, its meaning is not judged);
 - a hard kill in the middle of a request;
+- GitHub changing the host that serves release assets: `update` then fails with exit 4 and a pointer
+  to the releases page, until the list is edited;
+- a machine that reaches the network only through a proxy: proxy settings are ignored, so `update`
+  cannot work there and the installer or a manual download is the way;
 - Windows socket behaviour, until the criterion named below has been run.
 
 ## What a consumer must do
@@ -144,6 +168,7 @@ Will not catch:
 - Feed `onChunk` to a parser rather than buffering a long stream.
 - Put keys in headers, not in the URL, wherever the vendor allows it, because a URL is more likely to
   be logged elsewhere.
+- Pass `redirectTo` only for downloads, and never for a request with secrets in its headers.
 
 ## Pending: connection modes
 
