@@ -19,6 +19,11 @@ const {
 const { EXIT_CODES } = require('../src/util/exitcodes');
 const { UpdatePrerequisiteError } = require('../src/util/errors');
 const { NOTICES_FILENAME } = require('../src/util/notices');
+const { installLoopbackGuard } = require('./helpers/net-stubs');
+
+// The update flow is injected here, so nothing may reach a network: the guard fails the file if it does.
+const guard = installLoopbackGuard();
+test.after(() => guard.assertClean({ minConnects: 0 }));
 
 const WIN_ASSET_PATTERN = 'scriptorium-win-x64.exe';
 const MZ_HEADER = Buffer.from([0x4d, 0x5a, 0x00, 0x00]);
@@ -56,9 +61,8 @@ function baseDeps({ execPath, tmpRoot, extra = {} }) {
     // pre-existing tests of the rest of the flow (cleanup, sweeps, notices), so they opt into
     // the packaged branch here; test/update-packaged-guard.test.js covers the guard itself.
     isPkg: true,
-    requireGh: () => '/usr/bin/gh',
-    fetchLatestRelease: () => ({ tag_name: 'v9.9.9', html_url: 'https://example.test/releases/v9.9.9' }),
-    downloadAsset: (ghPath, tag, pattern, dir) => {
+    lookupRelease: async () => ({ tag_name: 'v9.9.9', html_url: 'https://example.test/releases/v9.9.9' }),
+    downloadAsset: async (tag, pattern, dir) => {
       fs.writeFileSync(path.join(dir, pattern), MZ_HEADER);
     },
     verifyDownload: () => {},
@@ -82,7 +86,7 @@ function fakeNoticesContent(version = '0.2.2') {
 
 // -- AC-24-01: a throwing verifyDownload leaves no temp dir behind --
 
-test('AC-24-01: verifyDownload throwing exits 1 and leaves no scriptorium-update-* dir under tmpRoot', () => {
+test('AC-24-01: verifyDownload throwing exits 1 and leaves no scriptorium-update-* dir under tmpRoot', async () => {
   const root = makeScratch('scriptorium-cleanup-t1-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
@@ -96,7 +100,7 @@ test('AC-24-01: verifyDownload throwing exits 1 and leaves no scriptorium-update
       },
     });
 
-    const result = runUpdateCommand({}, deps);
+    const result = await runUpdateCommand({}, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.SCRIPTORIUM_ERROR);
     const leftover = fs.readdirSync(tmpRoot).filter((e) => e.startsWith(UPDATE_TMP_PREFIX));
@@ -108,7 +112,7 @@ test('AC-24-01: verifyDownload throwing exits 1 and leaves no scriptorium-update
 
 // -- AC-24-02: a throwing replaceExecutable leaves no staged file behind --
 
-test('AC-24-02: replaceExecutable throwing exits 1 and leaves no staged <exeName>-update-* file behind', () => {
+test('AC-24-02: replaceExecutable throwing exits 1 and leaves no staged <exeName>-update-* file behind', async () => {
   const root = makeScratch('scriptorium-cleanup-t2-');
   try {
     const { exeDir, execPath, tmpRoot } = makeExeAndTmp(root);
@@ -122,7 +126,7 @@ test('AC-24-02: replaceExecutable throwing exits 1 and leaves no staged <exeName
       },
     });
 
-    const result = runUpdateCommand({}, deps);
+    const result = await runUpdateCommand({}, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.SCRIPTORIUM_ERROR);
     const leftover = fs.readdirSync(exeDir).filter((e) => e.startsWith(`${path.basename(execPath)}-update-`));
@@ -134,7 +138,7 @@ test('AC-24-02: replaceExecutable throwing exits 1 and leaves no staged <exeName
 
 // -- AC-24-03: a pre-seeded dead-owner temp dir is removed at the start of the next run --
 
-test('AC-24-03: a pre-seeded dead-owner temp dir is removed at the start of the next run', () => {
+test('AC-24-03: a pre-seeded dead-owner temp dir is removed at the start of the next run', async () => {
   const root = makeScratch('scriptorium-cleanup-t3-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
@@ -143,7 +147,7 @@ test('AC-24-03: a pre-seeded dead-owner temp dir is removed at the start of the 
     fs.writeFileSync(path.join(deadDir, OWNER_MARKER_FILENAME), String(deadPid()));
 
     const deps = baseDeps({ execPath, tmpRoot });
-    const result = runUpdateCommand({}, deps);
+    const result = await runUpdateCommand({}, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.equal(fs.existsSync(deadDir), false, 'a dead-owner temp dir must be swept at the start of the next run');
@@ -154,7 +158,7 @@ test('AC-24-03: a pre-seeded dead-owner temp dir is removed at the start of the 
 
 // -- AC-24-04: the concurrency guarantee --
 
-test('AC-24-04: a pre-seeded live-owner temp dir survives a full run (the concurrency guarantee)', () => {
+test('AC-24-04: a pre-seeded live-owner temp dir survives a full run (the concurrency guarantee)', async () => {
   const root = makeScratch('scriptorium-cleanup-t4-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
@@ -163,7 +167,7 @@ test('AC-24-04: a pre-seeded live-owner temp dir survives a full run (the concur
     fs.writeFileSync(path.join(liveDir, OWNER_MARKER_FILENAME), String(process.pid));
 
     const deps = baseDeps({ execPath, tmpRoot });
-    const result = runUpdateCommand({}, deps);
+    const result = await runUpdateCommand({}, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.equal(
@@ -178,7 +182,7 @@ test('AC-24-04: a pre-seeded live-owner temp dir survives a full run (the concur
 
 // -- AC-24-05: the legacy (marker-less) age threshold, driven by an injected now, not by waiting --
 
-test('AC-24-05: a marker-less legacy temp dir survives under the age threshold and is removed past it', () => {
+test('AC-24-05: a marker-less legacy temp dir survives under the age threshold and is removed past it', async () => {
   // Hardcoded literal, independent of the constant used below: catches a mutation to
   // LEGACY_MIN_AGE_MS itself, which the relative before/after windows further down cannot (they
   // are derived from the same constant, so they would shift together with it).
@@ -205,7 +209,7 @@ test('AC-24-05: a marker-less legacy temp dir survives under the age threshold a
 
 // -- AC-24-06: the staged-executable arm's pid ownership (new shape) and age rule (legacy shape) --
 
-test('AC-24-06: staged-executable sweep applies pid ownership to the new shape and age to the legacy shape', () => {
+test('AC-24-06: staged-executable sweep applies pid ownership to the new shape and age to the legacy shape', async () => {
   const exeDir = makeScratch('scriptorium-cleanup-t6-');
   try {
     const exeName = 'scriptorium.exe';
@@ -229,7 +233,7 @@ test('AC-24-06: staged-executable sweep applies pid ownership to the new shape a
 
 // -- AC-24-07: round-trip drift guard between stagedExecutableName and the sweep's own parser --
 
-test('AC-24-07: a name from stagedExecutableName is recognised as new-shape by the sweep, never as legacy', () => {
+test('AC-24-07: a name from stagedExecutableName is recognised as new-shape by the sweep, never as legacy', async () => {
   const exeDir = makeScratch('scriptorium-cleanup-t7-');
   try {
     const exeName = 'scriptorium.exe';
@@ -255,7 +259,7 @@ test('AC-24-07: a name from stagedExecutableName is recognised as new-shape by t
 
 // -- AC-24-08: cleanup failure is invisible in the exit code --
 
-test('AC-24-08: a failed cleanup never changes the exit code -- success path still reports success', () => {
+test('AC-24-08: a failed cleanup never changes the exit code -- success path still reports success', async () => {
   const root = makeScratch('scriptorium-cleanup-t8a-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
@@ -282,7 +286,7 @@ test('AC-24-08: a failed cleanup never changes the exit code -- success path sti
 
     let result;
     try {
-      result = runUpdateCommand({}, deps);
+      result = await runUpdateCommand({}, deps);
     } finally {
       fs.rmSync = originalRmSync;
       fs.unlinkSync = originalUnlinkSync;
@@ -295,7 +299,7 @@ test('AC-24-08: a failed cleanup never changes the exit code -- success path sti
   }
 });
 
-test('AC-24-08: a failed cleanup never changes the exit code -- failure path still reports its own failure', () => {
+test('AC-24-08: a failed cleanup never changes the exit code -- failure path still reports its own failure', async () => {
   const root = makeScratch('scriptorium-cleanup-t8b-');
   try {
     const { execPath, tmpRoot } = makeExeAndTmp(root);
@@ -321,7 +325,7 @@ test('AC-24-08: a failed cleanup never changes the exit code -- failure path sti
 
     let result;
     try {
-      result = runUpdateCommand({}, deps);
+      result = await runUpdateCommand({}, deps);
     } finally {
       fs.rmSync = originalRmSync;
     }
@@ -336,13 +340,13 @@ test('AC-24-08: a failed cleanup never changes the exit code -- failure path sti
 
 // -- The success path itself is unchanged: no orphan on a clean run --
 
-test('a clean successful run leaves no temp dir and no staged file behind', () => {
+test('a clean successful run leaves no temp dir and no staged file behind', async () => {
   const root = makeScratch('scriptorium-cleanup-happy-');
   try {
     const { exeDir, execPath, tmpRoot } = makeExeAndTmp(root);
     const deps = baseDeps({ execPath, tmpRoot });
 
-    const result = runUpdateCommand({}, deps);
+    const result = await runUpdateCommand({}, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.deepEqual(
@@ -360,7 +364,7 @@ test('a clean successful run leaves no temp dir and no staged file behind', () =
 
 // -- AC-26-04: a successful update deletes the stale beside-exe notices file --
 
-test('AC-26-04: a successful update removes the beside-exe notices file and names how to get it back', () => {
+test('AC-26-04: a successful update removes the beside-exe notices file and names how to get it back', async () => {
   const root = makeScratch('scriptorium-cleanup-t26a-');
   try {
     const { exeDir, execPath, tmpRoot } = makeExeAndTmp(root);
@@ -368,7 +372,7 @@ test('AC-26-04: a successful update removes the beside-exe notices file and name
     fs.writeFileSync(noticesPath, fakeNoticesContent('0.2.2'));
 
     const deps = baseDeps({ execPath, tmpRoot });
-    const result = runUpdateCommand({}, deps);
+    const result = await runUpdateCommand({}, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.equal(fs.existsSync(noticesPath), false, 'the stale notices file must be gone after a successful update');
@@ -379,7 +383,7 @@ test('AC-26-04: a successful update removes the beside-exe notices file and name
   }
 });
 
-test('AC-26-04 (scoping): a same-named file without the recognisable header is left untouched even on success', () => {
+test('AC-26-04 (scoping): a same-named file without the recognisable header is left untouched even on success', async () => {
   const root = makeScratch('scriptorium-cleanup-t26a2-');
   try {
     const { exeDir, execPath, tmpRoot } = makeExeAndTmp(root);
@@ -388,7 +392,7 @@ test('AC-26-04 (scoping): a same-named file without the recognisable header is l
     fs.writeFileSync(noticesPath, foreignContent);
 
     const deps = baseDeps({ execPath, tmpRoot });
-    const result = runUpdateCommand({}, deps);
+    const result = await runUpdateCommand({}, deps);
 
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.equal(fs.existsSync(noticesPath), true, 'a foreign same-named file must not be deleted');
@@ -402,10 +406,10 @@ test('AC-26-04 (scoping): a same-named file without the recognisable header is l
 
 const AC_26_05_FAILURE_CASES = [
   {
-    name: 'prerequisite (requireGh throws UpdatePrerequisiteError)',
+    name: 'prerequisite (the release lookup throws UpdatePrerequisiteError)',
     extra: {
-      requireGh: () => {
-        throw new UpdatePrerequisiteError('gh not found');
+      lookupRelease: async () => {
+        throw new UpdatePrerequisiteError('GitHub could not be reached');
       },
     },
   },
@@ -420,7 +424,7 @@ const AC_26_05_FAILURE_CASES = [
   {
     name: 'MZ (downloadAsset writes a non-Windows-executable asset)',
     extra: {
-      downloadAsset: (ghPath, tag, pattern, dir) => {
+      downloadAsset: async (tag, pattern, dir) => {
         fs.writeFileSync(path.join(dir, pattern), Buffer.from('not-an-exe'));
       },
     },
@@ -436,7 +440,7 @@ const AC_26_05_FAILURE_CASES = [
 ];
 
 for (const { name, extra } of AC_26_05_FAILURE_CASES) {
-  test(`AC-26-05: the beside-exe notices file survives byte-unchanged on failure -- ${name}`, () => {
+  test(`AC-26-05: the beside-exe notices file survives byte-unchanged on failure -- ${name}`, async () => {
     const root = makeScratch('scriptorium-cleanup-t26b-');
     try {
       const { exeDir, execPath, tmpRoot } = makeExeAndTmp(root);
@@ -445,7 +449,7 @@ for (const { name, extra } of AC_26_05_FAILURE_CASES) {
       fs.writeFileSync(noticesPath, originalContent);
 
       const deps = baseDeps({ execPath, tmpRoot, extra });
-      const result = runUpdateCommand({}, deps);
+      const result = await runUpdateCommand({}, deps);
 
       assert.notEqual(result.exitCode, EXIT_CODES.OK, `${name} must not report success`);
       assert.equal(fs.existsSync(noticesPath), true, 'the notices file must survive a failed update');
@@ -462,7 +466,7 @@ for (const { name, extra } of AC_26_05_FAILURE_CASES) {
 
 // -- AC-26-06: a failed deletion never changes the exit code or loses the success message --
 
-test('AC-26-06: a failed notices deletion (EBUSY) does not change the exit code or lose the success message', () => {
+test('AC-26-06: a failed notices deletion (EBUSY) does not change the exit code or lose the success message', async () => {
   const root = makeScratch('scriptorium-cleanup-t26c-');
   try {
     const { exeDir, execPath, tmpRoot } = makeExeAndTmp(root);
@@ -483,7 +487,7 @@ test('AC-26-06: a failed notices deletion (EBUSY) does not change the exit code 
 
     let result;
     try {
-      result = runUpdateCommand({}, deps);
+      result = await runUpdateCommand({}, deps);
     } finally {
       fs.unlinkSync = originalUnlinkSync;
     }

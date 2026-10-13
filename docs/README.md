@@ -79,6 +79,7 @@ the way.
 - [0050. Several campaigns in one panel](decisions/0050-several-campaigns.md): One running panel can switch between registered campaigns, set the default and remove one from the list, and config.toml is now written crash-safely.
 - [0051. Code signing for the Windows executable](decisions/0051-code-signing.md): Signed releases carry a valid signature, checked on Windows, while self-update keeps trusting SHA256SUMS.
 - [0052. Adding a campaign from the panel](decisions/0052-add-a-campaign.md): A GM can add another campaign from the running panel, on this computer or over remote access, with the same questions and checks as first-run setup, then switch to it.
+- [0054. Getting into the GM console from the player site](decisions/0054-gm-access-from-the-player-site.md): Remote sign-in takes a username and a password against up to eight named accounts managed from the command line, wrong tries are counted per username with a global ceiling, and a published site can carry one opt-in "Game master" link.
 
 ## Licensing
 

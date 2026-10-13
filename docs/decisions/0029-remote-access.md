@@ -610,3 +610,12 @@ owner's own infrastructure. Agents never change the owner's proxy or tailnet con
 | Caddy over the HTTPS hop, trusting a generated trust certificate, with the external name as the TLS server name and Host passed through; verification never skipped | OPEN (Pending (V1.5b)) |
 | The same with a supplied certificate | OPEN (Pending (V1.5b)) |
 | `tailscale serve` for the admin and preview ports, from another tailnet device, including that the browser's Host reaches the panel unchanged | OPEN |
+
+## 17. Amended by ADR 0054
+
+[ADR 0054](0054-gm-access-from-the-player-site.md) changes two things in this record and adds two non-relaxing notes.
+
+- **Section 6 (signing in).** Remote sign-in takes a username and a password, against named accounts (up to eight, all with the same rights). The lockout is five wrong tries per username typed, whether or not that account exists, in ten minutes for fifteen minutes, plus a global ceiling of fifty across all names. Changing, resetting, removing or renaming an account signs that account out. `remote off` clears every account. The earlier single password keeps working as the account `gm`, and nothing is rewritten when it is read.
+- **Section 7 (the preview, the GM link, and URLs from the server).** A published build may carry the configured `https://` console address, only when the campaign's `pack.toml` switches the footer link on, never a loopback address, and byte for byte unchanged when it is off.
+- **Section 4 (settings and files).** The `panel` folder also holds `accounts.json`, created and written like the other files in it.
+- **Section 9 (the CLI).** `remote account add | change | reset | remove | rename | list` and `remote signout-all --account NAME` are added. The panel's module graph still never reaches the writer.

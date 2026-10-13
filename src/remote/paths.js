@@ -20,7 +20,7 @@ const packwrite = require('../vault/packwrite');
 
 /**
  * @param {string} configPath
- * @returns {Readonly<{ configDir: string, panelDir: string, passwordFile: string, sessionsFile: string, auditFile: string, tlsDir: string, generatedTlsFile: string }>}
+ * @returns {Readonly<{ configDir: string, panelDir: string, passwordFile: string, accountsFile: string, sessionsFile: string, auditFile: string, tlsDir: string, generatedTlsFile: string }>}
  */
 function remotePaths(configPath) {
   const configDir = path.dirname(path.resolve(configPath));
@@ -30,6 +30,7 @@ function remotePaths(configPath) {
     configDir,
     panelDir,
     passwordFile: path.join(panelDir, 'password.json'),
+    accountsFile: path.join(panelDir, 'accounts.json'),
     sessionsFile: path.join(panelDir, 'sessions.json'),
     auditFile: path.join(panelDir, 'audit.log'),
     tlsDir,
@@ -126,7 +127,7 @@ function assertNotInsideAnyVault(dir, config) {
 function findLooseModes(paths) {
   if (process.platform === 'win32') return [];
   const loose = [];
-  for (const candidate of [paths.panelDir, paths.passwordFile, paths.sessionsFile, paths.auditFile]) {
+  for (const candidate of [paths.panelDir, paths.passwordFile, paths.accountsFile, paths.sessionsFile, paths.auditFile]) {
     try {
       if ((fs.lstatSync(candidate).mode & 0o077) !== 0) loose.push(candidate);
     } catch {

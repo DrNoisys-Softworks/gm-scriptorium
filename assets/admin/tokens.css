@@ -20,6 +20,10 @@
   --text: #ece5d5; --text-muted: #aca494; --text-faint: #978f82;            /* D-7: was #857e71 */
   --accent: #c9a55a; --accent-strong: #f0d99a; --on-accent: #21190b; --seal: #7a61ad; --focus: #b9a1e6;
   --pending: #dc9d88; --ok: #a6c48f; --error: #e38672;
+  /* ADR 0054: the Lantern product palette of the GM console sign-in (nothing from a campaign or a theme) */
+  --lan-night: #14161d; --lan-card: #1b1e27; --lan-lamp: #e6a858; --lan-paper: #f2eee6; --lan-slate: #8a93a6;
+  --lan-edge: #2f3442; --lan-bar: #0d0e13; --lan-bar-edge: #2a2e3a;
+  --lan-glow: rgba(230, 168, 88, 0.2); --lan-glow-soft: rgba(230, 168, 88, 0.35);
   --wash-hover: rgba(255, 255, 255, 0.035); --wash-current: rgba(201, 165, 90, 0.1); --wash-crest: rgba(201, 165, 90, 0.08);
   --wash-selected: rgba(201, 165, 90, 0.22); --wash-pending: rgba(220, 157, 136, 0.14);
   --wash-note: rgba(122, 97, 173, 0.12); --line-note: rgba(185, 161, 230, 0.35); --shadow: #000;

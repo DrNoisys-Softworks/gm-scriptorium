@@ -32,6 +32,7 @@ test('remotePaths: every path is derived from the directory of the resolved conf
       configDir: '/srv/gm/.config/scriptorium',
       panelDir: '/srv/gm/.config/scriptorium/panel',
       passwordFile: '/srv/gm/.config/scriptorium/panel/password.json',
+      accountsFile: '/srv/gm/.config/scriptorium/panel/accounts.json',
       sessionsFile: '/srv/gm/.config/scriptorium/panel/sessions.json',
       auditFile: '/srv/gm/.config/scriptorium/panel/audit.log',
       tlsDir: '/srv/gm/.config/scriptorium/tls',
@@ -293,6 +294,7 @@ test('findLooseModes reports an existing folder or file that group or others can
   assert.deepEqual(findLooseModes(paths), [], 'nothing exists yet');
   fs.mkdirSync(paths.panelDir, { mode: 0o700 });
   fs.writeFileSync(paths.passwordFile, '{}', { mode: 0o600 });
+  fs.writeFileSync(paths.accountsFile, '{}', { mode: 0o600 });
   fs.writeFileSync(paths.auditFile, '', { mode: 0o600 });
   assert.deepEqual(findLooseModes(paths), []);
   fs.chmodSync(paths.auditFile, 0o644);
@@ -300,6 +302,8 @@ test('findLooseModes reports an existing folder or file that group or others can
   assert.deepEqual(findLooseModes(paths), [paths.panelDir, paths.auditFile]);
   fs.chmodSync(paths.passwordFile, 0o640);
   assert.deepEqual(findLooseModes(paths), [paths.panelDir, paths.passwordFile, paths.auditFile]);
+  fs.chmodSync(paths.accountsFile, 0o644);
+  assert.deepEqual(findLooseModes(paths), [paths.panelDir, paths.passwordFile, paths.accountsFile, paths.auditFile]);
   // it only reports: nothing was changed
   assert.equal(fs.statSync(paths.auditFile).mode & 0o777, 0o644);
 });

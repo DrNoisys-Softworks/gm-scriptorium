@@ -97,9 +97,20 @@ stays exactly as it already was.
   `scripts/generate-notices.js`'s `buildNoticesText`; the cross-version contract is proven by a
   test in `test/build-notice.test.js`.
 - The frozen `tool.name` JSON field: `src/cli/check.js`, `src/cli/status.js`, `src/cli/build.js`.
-- The `gh` authentication requirement: `src/update/gh.js`'s `requireGh` and `assertAuthenticated`.
+- The `gh` authentication requirement (removed; see the addendum below).
 - User-facing text: `bin/scriptorium.js`'s `HELP`, and the hints in `src/cli/status.js`,
   `src/config/resolve.js`, `src/cli/config.js` and `src/cli/serve.js`; the site credit in
   `src/build/notice.js`'s `buildNoticeText`.
 - The argument-vector and 404-wording proof: `test/public-rename.test.js`.
 - The Windows verification criterion for all of the above: `.agents/windows-verification.md`, C65.
+
+## Addendum: `update` no longer uses `gh`
+
+`update` reaches GitHub through `src/net/egress.js` now (see the amendment in
+[ADR 0024](0024-ai-connections.md)). It needs no `gh`, no account and no token, and
+`SCRIPTORIUM_GITHUB_TOKEN` is no longer read. The repository is public, so none of those is needed.
+The bullet above about the `gh` authentication requirement is therefore gone, and so is
+`src/update/gh.js`. Old executables still use `gh`, so the wording about it in older
+verification steps applies to those only. The argument-vector proof in
+`test/public-rename.test.js` became a request-shape proof: the same repository name, the same
+404 wording, and the same releases link.

@@ -21,6 +21,7 @@ const folderHandlers = require('./handlers/folders');
 const setupmode = require('./setupmode');
 const campaignstate = require('./campaignstate');
 const { ADMIN_COOKIE, PREVIEW_COOKIE } = require('../remote/sessions');
+const { NAME_RE } = require('../setup/validate');
 
 /*
  * Phase 8 slice S1 (Structural decision 4: "the gate is pure, and the route table is data").
@@ -136,10 +137,32 @@ function sendHtmlRefusal(res, file, isHead) {
 }
 
 /**
+ * ADR 0054 section 7: the page a browser navigation to the panel produces is "/", optionally with
+ * the campaign hint a published site's GM link adds, "/?campaign=<name>". The hint is accepted only
+ * as exactly one parameter whose value has the shape of a campaign name (and nothing else is
+ * accepted: any other query keeps the plain text refusal). The server does not look the name up,
+ * does not decode it, and never puts it in a header, a redirect or a page; the sign-in page's own
+ * script re-checks it and forwards it after sign-in.
+ *
+ * @param {unknown} rawUrl the raw, undecoded req.url
+ * @returns {boolean}
+ */
+function isRootRequest(rawUrl) {
+  if (typeof rawUrl !== 'string') return false;
+  const q = rawUrl.indexOf('?');
+  if (q === -1) return rawUrl === '/';
+  if (rawUrl.slice(0, q) !== '/') return false;
+  const query = rawUrl.slice(q + 1);
+  if (query === '') return true;
+  const hint = /^campaign=([^&=#]*)$/.exec(query);
+  return hint !== null && NAME_RE.test(hint[1]);
+}
+
+/**
  * Refusal pages. The gate's failure shape carries no decoded pathname (a Host failure means decode
  * never ran), so the page choices are made on the raw, undecoded req.url: a literal "/" is the only
  * form a browser navigation to the panel produces, and the raw path before "?" being exactly /auth is
- * the only way a token URL reaches the sign-in page.
+ * the only way a token URL reaches the sign-in page. "/" here means isRootRequest (ADR 0054).
  *  - token on / or /setup  : locked.html (ADR 0028 adds /setup); launch-locked.html in launch mode
  *  - session on /          : signin.html (V1.5a: a remote browser with no session)
  *  - kind on /auth         : signin.html (V1.5a: a token URL used against the external name)
@@ -147,7 +170,7 @@ function sendHtmlRefusal(res, file, isHead) {
  */
 function sendGateRefusal(res, listener, rawUrl, result, isHead, lockedFile = 'locked.html') {
   if (listener === 'admin') {
-    const isRoot = rawUrl === '/';
+    const isRoot = isRootRequest(rawUrl);
     const rawPath = typeof rawUrl === 'string' ? rawUrl.split('?')[0] : '';
     if (result.reason === 'token' && (isRoot || rawPath === '/setup')) return sendHtmlRefusal(res, lockedFile, isHead);
     if (result.reason === 'session' && isRoot) return sendHtmlRefusal(res, 'signin.html', isHead);
