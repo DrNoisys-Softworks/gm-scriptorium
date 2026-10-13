@@ -261,11 +261,11 @@ function assertRefused(res, v, id) {
   assert.deepEqual(leftover, [], 'no staging tree is left behind');
 }
 
-test('(d) link on: a note carrying the preview marker text is still refused, exit 2, even with --force', () => {
+test('(d) link on: a note carrying the preview marker text is still refused, exit 2, even with --force-check', () => {
   withRoot((root) => {
     const v = writeVault(root, { pack: `theme = "plain"\n${GM_TOML}`, marker: true });
     assertRefused(runBin(['build', 'alpha', '--config', v.configPath], root), v, 'build/gm-link-marker');
-    assertRefused(runBin(['build', 'alpha', '--force', '--no-check', '--config', v.configPath], root), v, 'build/gm-link-marker');
+    assertRefused(runBin(['build', 'alpha', '--force-check', '--no-check', '--config', v.configPath], root), v, 'build/gm-link-marker');
   });
 });
 
@@ -276,7 +276,7 @@ test('(d) link on: a withheld-name leak is refused, exit 2', () => {
   });
 });
 
-test('(d) link on: a %% comment that survives into the output is refused, exit 2, even with --force', () => {
+test('(d) link on: a %% comment that survives into the output is refused, exit 2, even with --force-check', () => {
   withRoot((root) => {
     const v = writeVault(root, { pack: `theme = "plain"\n${GM_TOML}`, comment: true });
     const breaker = path.join(root, 'break.js');
@@ -285,7 +285,7 @@ test('(d) link on: a %% comment that survives into the output is refused, exit 2
       `require(${JSON.stringify(path.join(__dirname, '..', 'src', 'generator', 'bootstrap.js'))}).READ_TRANSFORMS_FOR_BUILD.length = 0;\n`,
     );
     const env = { NODE_OPTIONS: `--require ${breaker}` };
-    for (const extra of [[], ['--force']]) {
+    for (const extra of [[], ['--force-check']]) {
       assertRefused(runBin(['build', 'alpha', '--no-check', ...extra, '--config', v.configPath], root, env), v, 'leak/l6-comment-in-output');
     }
   });
@@ -294,7 +294,7 @@ test('(d) link on: a %% comment that survives into the output is refused, exit 2
 test('(d) control: the same vault without the offending text builds and carries the link', () => {
   withRoot((root) => {
     const v = writeVault(root, { pack: `theme = "plain"\n${GM_TOML}` });
-    const res = runBin(['build', 'alpha', '--force', '--no-check', '--config', v.configPath], root);
+    const res = runBin(['build', 'alpha', '--force-check', '--no-check', '--config', v.configPath], root);
     assert.equal(res.status, 0, res.stdout + res.stderr);
     assert.ok(fs.readFileSync(path.join(v.output, 'index.html'), 'utf8').includes(GM_ACCESS_MARKER));
   });
