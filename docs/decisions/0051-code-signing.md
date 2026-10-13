@@ -2,7 +2,7 @@
 
 ## Summary
 
-The Windows executable in a signed release now carries a digital signature, so a GM can see who published it and that it was not changed afterwards. A maintainer signs it on a Windows machine with the project's code-signing certificate, and the checksum list is rebuilt from the signed file. The signature is checked on Windows before anything is published. The main alternative, making `update` check the signature before it replaces the program, is rejected below because it adds a process spawn or a hand-written verifier to the most sensitive path, for no gain over the checksum list `update` already trusts. The limit a GM will meet is that the certificate is new, so Windows SmartScreen may still warn on first run until the certificate builds reputation.
+The Windows executable in a signed release now carries a digital signature, so a GM can see who published it and that it was not changed afterwards. A maintainer signs it on a Windows machine with the project's code-signing certificate, and the checksum list is rebuilt from the signed file. The signature is checked on Windows before anything is published. Releases are signed from 1.0, and releases before it ship unsigned and say so in their notes. The main alternative, making `update` check the signature before it replaces the program, is rejected below because it adds a process spawn or a hand-written verifier to the most sensitive path, for no gain over the checksum list `update` already trusts. The limit a GM will meet is that the certificate is new, so Windows SmartScreen may still warn on first run until the certificate builds reputation.
 
 Status: accepted.
 
@@ -23,7 +23,7 @@ Only the release process and the documents. No program code changes.
 
 ## Rejected alternatives
 
-- **Check the Authenticode signature inside `update`, by starting PowerShell.** `Get-AuthenticodeSignature` is the natural tool, but it means a new exception to the one-process-spawner rule (ADR 0046) and the test that pins it. It would also have to cope with prereleases that ship unsigned, and the Linux binary has no equivalent, so the two platforms would verify differently.
+- **Check the Authenticode signature inside `update`, by starting PowerShell.** `Get-AuthenticodeSignature` is the natural tool, but it means a new exception to the one-process-spawner rule (ADR 0046) and the test that pins it. It would also have to cope with releases before 1.0 that ship unsigned, and the Linux binary has no equivalent, so the two platforms would verify differently.
 - **Check the signature inside `update`, with a verifier written in JavaScript.** Parsing a PKCS#7 signature, building a chain and checking a timestamp by hand is a large amount of new security-sensitive code in the one place that replaces the running program. A mistake there is worse than not checking, because it looks like a check.
 - **Sign on a build server or in CI.** Not possible. The signing key sits behind a login that needs a code from the maintainer's phone for each session, so it cannot be handed to an unattended job. Putting the key where a job can reach it would defeat the point of the arrangement.
 - **Install `osslsigncode` on the build machine to verify the signature early.** It would catch a bad signature without starting a Windows machine, but it adds a package to the build machine and is still not Windows' own verdict. The test that matters is what Windows says about the real file, so the Windows check is the authority and the extra package is skipped.
@@ -38,3 +38,12 @@ Only the release process and the documents. No program code changes.
 ## Windows verification
 
 How Windows treats the signature, the chain, the timestamp and the program's start-up is verified only from the real signed exe. It is OPEN: `.agents/windows-verification.md` C141. The checks on the build machine prove the file is the unsigned file plus a signature. They do not prove the signature is good.
+
+## Amended: releases are signed from 1.0
+
+Signing is mandatory from 1.0.0, including the release candidates of 1.0.0. Releases before 1.0 (0.x) ship unsigned as normal releases. They are promoted to latest after their Windows checks pass, and their release notes say "unsigned" and carry the More info, then Run anyway guidance. The release tooling refuses an unsigned release from 1.0.0. The staged flow is unchanged: every release goes up as a prerelease first and is promoted once its checks pass. Self-update is unchanged (section 2), because it trusts `SHA256SUMS`, not the signature.
+
+Rejected alternatives:
+
+- **Sign every 0.x release.** Each signing needs a sitting with the maintainer and a code from their phone, and that cost buys little while the program is pre-1.0.
+- **Keep 0.x as prereleases only until 1.0.** A plain `update` sees only the release marked latest, so nobody on a plain `update` would ever get a 0.x release.
