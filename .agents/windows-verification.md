@@ -222,7 +222,7 @@ contrived paths on Linux. What only Windows can add:
 
 ### C22-C25: `update`, full path
 
-Note: the `gh` wording in this criterion applies to old binaries only. From rc.3, `update` needs no `gh` and no token (see C148).
+Note: the `gh` wording in this criterion applies to old binaries only. From 0.5.0, `update` needs no `gh` and no token (see C148).
 
 These need a real GitHub release to exist. The repo is public, under the owner's own
 GitHub account. Releases `v0.1.0` and `v0.1.1` exist (published by the
@@ -291,7 +291,7 @@ orchestrator) specifically for this test flow: install the `v0.1.0` exe from its
 
 ### C26: confirmed on the wire, not only by inspection
 
-Note: the `gh` wording in this criterion applies to old binaries only. From rc.3, `update` needs no `gh` and no token (see C148).
+Note: the `gh` wording in this criterion applies to old binaries only. From 0.5.0, `update` needs no `gh` and no token (see C148).
 
 `test/update-module-graph.test.js` already proves by static analysis that `src/update/` never imports
 `src/vault/` or `src/build/`, and greps for a direct HTTP client (none found). What only a live capture
@@ -1516,7 +1516,7 @@ Linux-verified only.**
 
 ### C65: the public-repository rename, in the real exe (S3, new)
 
-Note: the `gh` wording in this criterion applies to old binaries only. From rc.3, `update` needs no `gh` and no token (see C148).
+Note: the `gh` wording in this criterion applies to old binaries only. From 0.5.0, `update` needs no `gh` and no token (see C148).
 
 `docs/decisions/0030-public-repo-and-update-source.md`: GM-Scriptorium's `update` source is now
 the public repository, the release assets are `gm-scriptorium-win-x64.exe` and
@@ -2101,13 +2101,13 @@ Issue #49, `docs/decisions/0011-notices-beside-the-executable.md`. **Mark this O
 6. Rate limit: provoke it only if that is practical without hammering GitHub. Otherwise record it as not provoked. The message names the releases page and the exit code is 4.
 7. Re-hash the real config.
 
-### C152: the 0.2.3 > bridge > rc.3 chain
+### C152: the 0.2.3 > bridge > 0.5.0 chain
 
 `docs/decisions/0030-public-repo-and-update-source.md` (addendum). **Mark this OPEN: it needs the private archive, a lower-version build and a VM; it is the only check that an old install, which still uses `gh`, reaches the new code.** Isolate config as in C135.
 
 1. An install of 0.2.3 (which uses `gh`, so the VM needs `gh` signed in for this step only) runs `update --pre` and lands on the bridge release at the private archive. Record the version it reports.
-2. The bridge runs `update --pre` and lands on rc.3. Record the version.
-3. The rc.3 copy, with `gh` removed from PATH and no token set, runs `update --check --pre` and gets an answer. This is C148 step 1 on the end of the chain.
+2. The bridge runs `update --pre` and lands on 0.5.0. Record the version.
+3. The 0.5.0 copy, with `gh` removed from PATH and no token set, runs `update --check --pre` and gets an answer. This is C148 step 1 on the end of the chain.
 4. Re-hash the real config before step 1 and after step 3; the two must match.
 
 ### C157: the `remote account` prompts, in conhost and Windows Terminal, in the real win-x64 exe

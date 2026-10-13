@@ -180,6 +180,11 @@ raised while resolving a pack becomes exit 3 (`asPackProblem` in `src/cli/check.
 Maintainers make releases. These steps must run in this order, and two of them have already bitten
 someone.
 
+**Version numbers.** Releases are numbered `X.Y.Z`. A release with new features raises the
+middle number, and a release with fixes only raises the last. `-rc.N` is used only for the release
+candidates of 1.0.0, made at the feature freeze, and it is the only suffix the release tooling
+accepts. Releases before 1.0.0 are not signed (step 7).
+
 1. Bump `version` in `package.json`. Leave the stale root version in `package-lock.json` alone.
    Releases so far have, to avoid widening the notices diff mid-release.
 2. Run `npm run notices`. The notices header carries the Scriptorium version, and
@@ -199,18 +204,22 @@ someone.
    code-signing certificate, timestamped, on a Windows machine, because the signing key needs a
    person present. `SHA256SUMS` is regenerated after signing, so it covers the signed bytes.
    Check the signature on Windows before anything is published, using criterion C141 part A in the
-   Windows verification runbook. Prereleases can ship unsigned by choice, and their release notes then
-   say so. Stable releases are always signed. See
-   [ADR 0051](decisions/0051-code-signing.md).
+   Windows verification runbook. Signing applies to every release from 1.0.0, including its release
+   candidates. Releases before 1.0.0 skip this step and C141, ship unsigned, and their release
+   notes say so. See [ADR 0051](decisions/0051-code-signing.md), "Amended: releases are signed from 1.0".
 8. Create the release as a prerelease, with both binaries, `THIRD-PARTY-NOTICES.txt` and the one
-   combined `SHA256SUMS`.
+   combined `SHA256SUMS`. Every release goes up as a prerelease first, even one that will become
+   latest, so nobody running a plain `update` gets it before the Windows checks pass.
 9. Download the assets back off the release page and re-hash every one of them before announcing
    anything.
 10. Have the Windows checks run on the release, using the Windows verification runbook at
     `.agents/windows-verification.md`. Promote the release to latest only when they pass.
+    An `X.Y.Z` release is promoted once they pass, signed or not, below 1.0.0. From 1.0.0 it is
+    promoted only when signed. An `-rc.N` release is never promoted. A release whose checks fail
+    stays an unpromoted prerelease, and the next patch release replaces it.
     On every push to main, CI packages both targets and runs the Linux binary through
     `scripts/packaged-smoke.js`. That proves nothing about Windows: the Windows executable stays a release
-    gate on the test machine (C1 and C141 part A step 4, and C184).
+    gate on the test machine (C1 and C184, plus C141 part A step 4 from 1.0.0).
 11. Run the release-time `update` check, which is still **open**. Build a lower-version
     `scriptorium-linux-x64` in a scratch folder as a stand-in for an old install. Point it at the
     new release's tag and run `update --pre`. It should download, verify against `SHA256SUMS`, and
@@ -219,6 +228,11 @@ someone.
     against a real published release. `test/update-linux.test.js` and
     `test/update-packaged-guard.test.js` cover the pieces (the ELF check, the packaged-only guard,
     the 0755 mode) with injected dependencies, not a real download and self-replace.
+    After promoting, also run a plain `update --check` (no `--pre`) from the previous release's
+    Linux binary, in a scratch folder with its own config. It must name the new tag. Plain `update`
+    is what most people run, and it sees only the release marked latest. A previous release from
+    before 0.5.0 still fetches through the GitHub CLI, so this check needs `gh` signed in on the
+    build machine.
 
 ## Push policy
 
