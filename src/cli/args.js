@@ -195,4 +195,4 @@ function resolveCampaignContext(flags, explicitCampaign) {
   return { configPath, config, ...resolved };
 }
 
-module.exports = { COMMON_FLAGS, FORCE_SPLIT_MESSAGE, parseArgv, validateFlags, COMMAND_FLAGS, closestFlag, loadConfig, resolveCampaignContext, ConfigError };
+module.exports = { COMMON_FLAGS, VALUE_FLAGS, FORCE_SPLIT_MESSAGE, parseArgv, validateFlags, COMMAND_FLAGS, closestFlag, loadConfig, resolveCampaignContext, ConfigError };

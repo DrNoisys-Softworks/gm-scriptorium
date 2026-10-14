@@ -34,6 +34,7 @@ const {
   resolveCommand,
   killAll,
   liveRunCount,
+  runTrayHandoff,
 } = require('../src/proc/run');
 const { makeFakeBin } = require('./helpers/proc-fakebin');
 
@@ -183,7 +184,7 @@ test('defaults and limits are pinned as literals', () => {
 });
 
 test('the documented functions are exported as functions', () => {
-  for (const fn of [buildChildEnv, buildInvocation, resolveCommand, killAll, liveRunCount, ProcError]) {
+  for (const fn of [buildChildEnv, buildInvocation, resolveCommand, killAll, liveRunCount, runTrayHandoff, ProcError]) {
     assert.equal(typeof fn, 'function');
   }
 });

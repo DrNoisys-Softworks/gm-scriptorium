@@ -76,6 +76,10 @@ async function main() {
   // the panel opens in the browser. This replaces ADR 0021's no-argument offer.
   const { shouldLaunch, runLaunch } = require('../src/cli/launch');
   if (shouldLaunch({ positional, flags, stdinIsTTY: Boolean(process.stdin.isTTY), stdoutIsTTY: Boolean(process.stdout.isTTY) })) {
+    // ADR 0057, section 10: on an installed Windows copy the background app is started (or reused)
+    // instead of a console panel. null means the hand-off does not apply, or nothing was started.
+    const handedOff = await require('../src/desktop/handoff').runBareHandoff(flags);
+    if (handedOff !== null) return handedOff;
     return runLaunch(flags, { reportError, version: pkg.version });
   }
   if (flags.help && positional.length > 0) {

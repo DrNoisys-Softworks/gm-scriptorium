@@ -89,7 +89,7 @@ The accepted leftovers are those in [ADR 0028](0028-installer-and-first-run.md),
 - Until the GM confirms, a start at sign-in (`--background` from the `Run` value) runs the panel in local, this-PC-only mode. The tray header says "Remote access is off at sign-in. Start it from the tray to turn it on."
 - A start the GM makes themselves (shortcut, Start menu, tray Start panel, terminal) uses the saved remote mode, as before.
 - The confirmation is a per-machine flag kept with the desktop settings, written only through the one config writer. `remote off` clears it, and running `remote set` again with a different remote mode asks again, and withdraws the earlier yes on a No.
-- **How the helper knows.** When a start at sign-in is held back like this (a remote mode is saved and the confirmation is not), the host adds a fifth field, the literal `signin-local`, to its `state running` line, and the helper shows the header line above. In every other case the line has four fields.
+- **How the helper knows.** When a start at sign-in is held back like this (a remote mode is saved and the confirmation is not), the host adds the literal `signin-local` as the optional last field of its `state running` line, and the helper shows the header line above. In every other case the line ends at the address.
 - **How it is built.** The host reads `remote_at_signin` at every start. A start at sign-in without it passes `localOnly` to the panel's start function, which then runs in local mode on the desktop ports whatever `[remote]` says. Every start the GM asks for, even in a host that was started with `--background`, leaves it off. The program cannot read the `Run` value (that needs a program on the spawner's list, which this decision does not add), so `remote set` asks whenever the helper sits beside the program on Windows, and a question that was not needed costs nothing, because the flag is read only at sign-in.
 
 Rejected:
@@ -130,7 +130,8 @@ This amends [ADR 0028](0028-installer-and-first-run.md), "Launch mode": launch m
   - The Node side works out the helper's path itself, as the folder of its own executable plus `gm-scriptorium-tray.exe`. The caller cannot supply a path.
   - When no instance is running, `--handoff` starts a separate helper process with no arguments (a GM start) and exits with code 3. The `--handoff` process never becomes the instance itself, because Node places children that are not detached in a job that is closed with the terminal.
   - The helper's exit code is mapped, never passed through. 0 (delivered to a running instance) and 3 (started one) give the command exit 0. 4 (the running instance is in an error state) gives exit 1 with a line pointing at the notification and the log, because 4 is the frozen update-prerequisite code of the command line. 1 means nothing was started.
-  - The command falls back to console launch mode only when the spawn fails or the helper exits 1. On a timeout it prints "GM-Scriptorium is still starting. Look for its icon in the system tray." and exits 1 with no fallback, since a fallback after a helper has started an instance would give two panels.
+  - Any other code, or none, prints a plain line pointing at the icon and the log and exits 1 without a fallback, because the helper may already have started something. The command falls back to console launch mode only when the spawn fails or the helper exits 1. The wait is 15 seconds. On a timeout it prints "GM-Scriptorium is still starting. Look for its icon in the system tray." and exits 1 with no fallback, since a fallback after a helper has started an instance would give two panels.
+  - The status lines name the default campaign, or the only one, in brackets, and leave the brackets out when there is neither or the config cannot be read.
   - The environment passed on carries the settings path and profile when set, and also `USERDOMAIN`. Without it, a remote-mode panel started from a terminal could not work out the account for the access list and would refuse to start ([ADR 0056](0056-windows-panel-access-list.md), "When it fails").
 - **`serve --admin`** stays a separate foreground panel on OS-picked ports.
 - **Settings.** Restart picks up edits made in a terminal. A different `SCRIPTORIUM_CONFIG` in a terminal does not affect the running app, whose settings win.
@@ -142,7 +143,7 @@ This amends [ADR 0028](0028-installer-and-first-run.md), "Launch mode": launch m
 - "Check for updates" opens the panel with the Updates card in view, through the launch landing.
 - On a desktop install, the panel's update hint says to run `gm-scriptorium update` from the tray's Open command line (Advanced), because `PATH` is off by default.
 - **`update` replaces both programs** when `gm-scriptorium-tray.exe` sits beside the program on Windows. It downloads and verifies both before replacing either, and any helper failure means nothing is replaced. It then replaces the program, then the helper, and each keeps an `.old-<version>` copy.
-- **It never leaves a half-updated install.** If replacing the helper fails after the program was replaced, the program is rolled back: the new program is moved aside and the `.old-<version>` file is renamed back into place, and the command reports that nothing changed. Only if the rollback also fails does it say which file is at which version and tell the GM to run the installer.
+- **A failed step does not leave a half-updated install.** If replacing the helper fails after the program was replaced, the program is rolled back: the new program is moved aside and the `.old-<version>` file is renamed back into place, and the command reports that nothing changed. A hard stop between the two replacements, such as a crash or power loss, is not rolled back (see "Will not catch"). The new program is kept beside it as `.old-<new version>` until the next command sweeps it, since every step is a rename and Windows allows renaming a running program. Only if the rollback also fails does it say which file is at which version and tell the GM to run the installer. The helper's own `.old-` copies and abandoned staged files are swept at the start of every `update`, by the same rules as the program's.
 - The success message on an installed copy adds "If GM-Scriptorium is running in the system tray, quit it and start it again to use the new version."
 - **The two must match.** The helper compares the app version in `hello` exactly with its own version, not only the protocol number. A mismatch shows an error state reading "Quit GM-Scriptorium and start it again from the Start menu to finish updating."
 - **Every later Windows release must ship `gm-scriptorium-tray-win-x64.exe` and list it in `SHA256SUMS`**, or installed copies cannot update.
@@ -172,12 +173,14 @@ Will catch:
 
 - A line that carries a TAB or newline in a field, because the sender strips every control character and a receiver drops any line that still has one (unit tests on the protocol module).
 - A line over 1024 bytes: the sender refuses and the receiver drops.
-- An old helper with a new program, or the reverse, through the exact version in `hello`.
+- An old helper with a new program, or the reverse, through the exact version in `hello`, and through `update` replacing both or neither (unit tests with injected downloads and a rename failure injected at each step).
+- A terminal hand-off that would give a second panel: a timeout never falls back, and only "nothing was started" does.
 - A stale session after Stop and Start, because the token changes.
 - Remote access starting at sign-in without the GM's say-so, because the panel runs local-only until the confirmation flag is set.
 
 Will not catch, deliberately:
 
+- A crash or power loss between the program's replacement and the helper's. No rollback runs, the program is the new version, and `update` then reports it is already up to date. Running the installer repairs it.
 - A second account on the same PC taking port 7400 or 7401 while the panel is not running. It can show a page there. It cannot sign in as the GM, and the fresh token means it cannot replay a cookie.
 - Antivirus software judging the unsigned helper before 1.0. It is expected, recorded, and fixed by signing.
 - A helper that was ended by Task Manager. The host then sees end of input and quits, but a host that was ended hard leaves the accepted leftovers in section 6.

@@ -131,4 +131,4 @@ function runDesktopCommand(flags, subcommand, args = [], deps = {}) {
   };
 }
 
-module.exports = { runDesktopCommand, USAGE };
+module.exports = { runDesktopCommand, USAGE, ALLOWED_FLAGS };
