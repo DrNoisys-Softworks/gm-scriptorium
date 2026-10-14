@@ -27,7 +27,8 @@ Every page for GMs meets these.
   guard accepts pictures in. Take it from the sample campaign, on a scratch config, never from
   your own campaign. Add its row to the guard's list of named images (`NAMED_IMAGE_RESIDUAL` in
   `scripts/public-guard.js`) only after a person has looked at the picture for names, paths and
-  host names. Give each picture alt text.
+  host names. Give each picture alt text. A page can mark where a picture will go with a line
+  `<!-- screenshot: how-to/<name>.png -->` until the picture has been checked and added.
 - **Keep paths stable.** Once a page is linked from the admin panel or from a release note, its
   path does not change. The panel's publish link already points at `docs/README.md`. If a page
   has to move, leave a stub at the old path with a link to the new one.
@@ -54,6 +55,9 @@ disagree.
 | [Trying it safely](trying-it-safely.md) | How-to guides | Linux (the Windows blocks have not been run) |
 | [Remote access](remote-access.md) | How-to guides | Not recorded |
 | [Backing up your vault](backing-up-your-vault.md) | How-to guides | Not recorded |
+| [Start a new campaign](how-to/start-a-new-campaign.md) | How-to guides | Linux (the Windows steps have not been run) |
+| [Add another campaign, and switch between them](how-to/add-another-campaign.md) | How-to guides | Linux (the Windows steps have not been run) |
+| [Change how your site looks and the words it uses](how-to/change-the-look-and-vocabulary.md) | How-to guides | Linux (the Windows steps have not been run) |
 | [Image slots](image-slots.md) | Reference | No steps |
 | [The settings file (config.toml)](reference/config-toml.md) | Reference | No steps |
 | [Environment variables](reference/environment-variables.md) | Reference | No steps |
