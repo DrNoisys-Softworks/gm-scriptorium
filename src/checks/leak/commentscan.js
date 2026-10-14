@@ -15,8 +15,8 @@ const { normaliseEmitted, noBuildInfo, deferredInfo } = require('./outputscan');
  *   leak/l6-comment-unterminated WARN, a `%%` with no closing `%%`: withheld to the end of the file.
  *   leak/l6-comment-in-output    ERROR, comment text (or a literal `%%` outside code) reached the
  *                                built output. Runs on the real output via `check`, and on the
- *                                staging tree before the swap during `build`, where `--force`
- *                                cannot override it. ADR 0045: JSON data islands (`<script
+ *                                staging tree before the swap during `build`, where nothing
+ *                                overrides it (ADR 0055). ADR 0045: JSON data islands (`<script
  *                                type="application/json">`) are searched too, and one that does
  *                                not parse is an error (`arm: 'island-unparsable'`), never skipped.
  */
