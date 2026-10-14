@@ -203,3 +203,6 @@ GM-Scriptorium keeps those notes off the site.
   that. `--force-check` builds despite errors the check found, and `--force-out` builds into the
   site config's own output folder; neither one lets a leak through.
 - Builds are atomic: a failed or interrupted build never damages the site you already had live.
+
+For how a build decides what players see, and what these checks cannot see, read
+[How GM-Scriptorium decides what players see](explanation/what-players-see.md).

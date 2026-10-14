@@ -41,6 +41,7 @@ Facts to look up.
 Why the tool works the way it does.
 
 - [Privacy](privacy.md): what the tool sends over the network, and what it never does.
+- [How GM-Scriptorium decides what players see](explanation/what-players-see.md): which pages publish, what is cut from them, and what the leak checks cannot see.
 - [Why, and how this relates to gm-apprentice](about.md): the reasoning and the upstream credit.
 
 ## Contributing
