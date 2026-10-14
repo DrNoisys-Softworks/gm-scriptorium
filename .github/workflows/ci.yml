@@ -47,6 +47,10 @@ jobs:
         with:
           path: ~/.pkg-cache
           key: pkg-fetch-${{ runner.os }}-${{ steps.pkgnode.outputs.node }}
+      # The tray helper (gate 8) is cross-compiled with mingw-w64, win32 thread model (ADR 0057).
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64-win32 binutils-mingw-w64-x86-64 mingw-w64-x86-64-dev
+      - run: apt-cache policy gcc-mingw-w64-x86-64-win32 binutils-mingw-w64-x86-64 mingw-w64-x86-64-dev
       - run: npm run package
       - run: node scripts/packaged-smoke.js "dist/v$(node -p "require('./package.json').version")/gm-scriptorium-linux-x64"
 

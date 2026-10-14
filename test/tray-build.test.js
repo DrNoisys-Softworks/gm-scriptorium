@@ -836,3 +836,26 @@ test('real cross build: the helper builds, passes every check, and builds the sa
 test('the real build uses the package.json version for the define', () => {
   assert.ok(tray.gccArgs({ out: '/o', version: VERSION, sources: [], objects: [] }).includes(`-DTRAY_APP_VERSION="${VERSION}"`));
 });
+
+test('CI packaged-smoke installs the three mingw-w64 packages, and records their versions, before it packages', () => {
+  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
+  const lines = yml.split('\n');
+  const start = lines.indexOf('  packaged-smoke:');
+  assert.ok(start > 0);
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^ {2}\S/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  const job = lines.slice(start, end);
+  const at = (text) => job.indexOf(text);
+  const update = at('      - run: sudo apt-get update');
+  const install = at('      - run: sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64-win32 binutils-mingw-w64-x86-64 mingw-w64-x86-64-dev');
+  const policy = at('      - run: apt-cache policy gcc-mingw-w64-x86-64-win32 binutils-mingw-w64-x86-64 mingw-w64-x86-64-dev');
+  const pkg = at('      - run: npm run package');
+  assert.ok(update > 0 && install > update && policy > install && pkg > policy, 'update, install, policy, then package');
+  const testJob = yml.slice(yml.indexOf('\n  test:'), yml.indexOf('\n  packaged-smoke:'));
+  assert.equal(testJob.includes('mingw'), false, 'the pull-request test job stays as it was');
+});
