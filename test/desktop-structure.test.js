@@ -63,8 +63,12 @@ const FILES = listJs(DESKTOP);
 
 // --- src/desktop has no network or spawner -----------------------------------------------------------------
 
-test('src/desktop holds protocol, log and host, and none loads a network builtin, child_process or a fetch-style call', () => {
-  assert.deepEqual(FILES.map((f) => rel(DESKTOP, f)), ['host.js', 'log.js', 'protocol.js']);
+// handoff.js is the terminal side (the one command-line hand-off to the tray helper); it prints a status to the
+// terminal and starts the helper through the one spawner, so it is not held to the host's stream rule below.
+const HOST_SIDE = FILES.filter((f) => rel(DESKTOP, f) !== 'handoff.js');
+
+test('src/desktop holds the hand-off, host, log and protocol, and none loads a network builtin, child_process or a fetch-style call', () => {
+  assert.deepEqual(FILES.map((f) => rel(DESKTOP, f)), ['handoff.js', 'host.js', 'log.js', 'protocol.js']);
   for (const f of FILES) assert.deepEqual(networkProblems(fs.readFileSync(f, 'utf8')), [], rel(ROOT, f));
 });
 
@@ -86,8 +90,9 @@ test('positive control: the network scan catches each planted load and call, and
 
 // --- the protocol stream and the log stay clean ---------------------------------------------------------------
 
-test('nothing under src/desktop names process.stdout, process.stderr, startupText(, launchLines( or adminUrl(', () => {
-  for (const f of FILES) assert.deepEqual(streamProblems(fs.readFileSync(f, 'utf8')), [], rel(ROOT, f));
+test('nothing in the host side of src/desktop (host, log, protocol) names process.stdout, process.stderr, startupText(, launchLines( or adminUrl(', () => {
+  assert.deepEqual(HOST_SIDE.map((f) => rel(DESKTOP, f)), ['host.js', 'log.js', 'protocol.js']);
+  for (const f of HOST_SIDE) assert.deepEqual(streamProblems(fs.readFileSync(f, 'utf8')), [], rel(ROOT, f));
 });
 
 test('positive control: each of the five names is caught when planted, and a comment or an unrelated name is not', () => {
