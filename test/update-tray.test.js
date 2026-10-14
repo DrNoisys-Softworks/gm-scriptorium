@@ -78,6 +78,19 @@ function listing(dir) {
   return fs.readdirSync(dir).sort();
 }
 
+/** Escapes every regular-expression metacharacter, the backslash included, so a value matches literally. */
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+test('control: escapeRegExp matches a Windows path with backslashes and dots literally, and nothing looser', () => {
+  const winPath = 'C:\\Tools\\GM-Scriptorium\\gm-scriptorium.exe.old-0.4.0';
+  assert.match(winPath, new RegExp(`^${escapeRegExp(winPath)}$`));
+  assert.doesNotMatch('C:ToolsXGM-ScriptoriumXgm-scriptorium.exe.old-0.4.0', new RegExp(escapeRegExp(winPath)));
+  assert.doesNotMatch('0x4x0', new RegExp(escapeRegExp('0.4.0')));
+  assert.equal(escapeRegExp('a\\b'), 'a\\\\b');
+});
+
 const read = (p) => fs.readFileSync(p, 'utf8');
 
 // --- both programs ----------------------------------------------------------------------------------------
@@ -98,7 +111,7 @@ test('with the helper beside the exe, both are downloaded into separate folders 
 test('the success message names the helper and tells the GM to quit and start the tray app again', async (t) => {
   const install = makeInstall(t);
   const result = await runUpdateCommand({}, deps(install, fakeRelease([])));
-  assert.match(result.human, new RegExp(`^updated ${CURRENT.replace(/\./g, '\\.')} -> ${NEW_TAG}\\. Previous binary kept at `));
+  assert.match(result.human, new RegExp(`^updated ${escapeRegExp(CURRENT)} -> ${NEW_TAG}\\. Previous binary kept at `));
   assert.ok(result.human.includes('The tray helper was updated too.'), result.human);
   assert.ok(result.human.includes(QUIT_AND_RESTART), result.human);
   assert.ok(result.human.includes('Release notes: '), result.human);
@@ -288,7 +301,7 @@ test('if the exe cannot be moved aside during the rollback, the message names wh
   assert.deepEqual(hits, [1, 1]);
   assert.equal(result.exitCode, EXIT_CODES.SCRIPTORIUM_ERROR);
   assert.match(result.human, new RegExp(`gm-scriptorium\\.exe is now version ${NEW_VERSION}`));
-  assert.match(result.human, new RegExp(`gm-scriptorium-tray\\.exe is still version ${CURRENT.replace(/\./g, '\\.')}`));
+  assert.match(result.human, new RegExp(`gm-scriptorium-tray\\.exe is still version ${escapeRegExp(CURRENT)}`));
   assert.match(result.human, /installer/);
   assert.doesNotMatch(result.human, /Nothing changed/);
   assert.equal(read(install.execPath), 'MZ\x00\x00NEW-' + EXE_ASSET);
@@ -300,7 +313,7 @@ test('if the old exe cannot be renamed back, the new exe is put back so an exe s
   const { result, hits } = await updateWithFailures(install, [STEPS.trayIntoPlace(install), STEPS.rollbackRestoreOldExe(install)]);
   assert.deepEqual(hits, [1, 1]);
   assert.match(result.human, new RegExp(`gm-scriptorium\\.exe is now version ${NEW_VERSION}`));
-  assert.match(result.human, new RegExp(`gm-scriptorium-tray\\.exe is still version ${CURRENT.replace(/\./g, '\\.')}`));
+  assert.match(result.human, new RegExp(`gm-scriptorium-tray\\.exe is still version ${escapeRegExp(CURRENT)}`));
   assert.match(result.human, /installer/);
   assert.equal(read(install.execPath), 'MZ\x00\x00NEW-' + EXE_ASSET, 'an exe exists at its own name');
   assert.equal(read(install.trayPath), 'OLD-TRAY', 'the helper rolled itself back');
