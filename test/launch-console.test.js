@@ -310,14 +310,34 @@ async function consoleBytes(t, { reply, updateText }) {
   const calls = [];
   const check = (args) => {
     calls.push(args);
-    if (reply === 'never') return new Promise(() => {});
+    // "Never settles" in practice: it ends only when the panel stops (the abort), or after 6 s so a
+    // mutated build that waits on it cannot hang the file.
+    if (reply === 'never') {
+      return new Promise((resolve) => {
+        const timer = setTimeout(resolve, 6000);
+        args.signal.addEventListener('abort', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+    }
     if (reply instanceof Error) return Promise.reject(reply);
     return Promise.resolve(reply);
   };
   const h = await launch(t, { root, configPath, startPanelWrap: packagedPanel(check) });
-  await until(() => h.opened.length === 1, 'startup');
-  if (updateText === undefined) await until(() => calls.length === 1, 'the check');
-  for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+  try {
+    await until(() => h.opened.length === 1, 'startup (the launch must not wait for the update check)', 3000);
+    if (updateText === undefined) await until(() => calls.length === 1, 'the check', 3000);
+    for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+  } catch (err) {
+    // Stop the launch even if it is still starting, so a failed bound ends the file instead of hanging it.
+    const until20 = Date.now() + 20000;
+    while (!h.finished && Date.now() < until20) {
+      h.signals.emit('SIGINT');
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    throw err;
+  }
   const port = h.panel.ctx.adminPort;
   return { text: h.state.text.split(String(port)).join('PORT'), calls, h };
 }

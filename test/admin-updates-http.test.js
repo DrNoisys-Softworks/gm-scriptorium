@@ -47,15 +47,37 @@ function stub(reply) {
   return check;
 }
 
+/** Set when a panel failed to come up within its bound, so every later test fails at once instead of waiting again. */
+let panelHung = false;
+const START_BOUND_MS = 5000;
+
 async function startWith(t, flags, updateDeps, emit = () => {}) {
-  const result = await startAdminPanel({ admin: true, ...flags }, undefined, {
+  assert.equal(panelHung, false, 'an earlier panel never came up (something awaits the update check), so this test did not start one');
+  const handles = [];
+  const started = startAdminPanel({ admin: true, ...flags }, undefined, {
     emit,
-    startLocalListener,
+    startLocalListener: async (...a) => {
+      const h = await startLocalListener(...a);
+      handles.push(h);
+      return h;
+    },
     startPanelListener: async () => {
       throw new Error('no remote listener expected');
     },
     updateDeps,
   });
+  let bound;
+  const result = await Promise.race([
+    started,
+    new Promise((resolve) => {
+      bound = setTimeout(() => resolve(null), START_BOUND_MS);
+    }),
+  ]).finally(() => clearTimeout(bound));
+  if (result === null) {
+    panelHung = true;
+    await Promise.all(handles.map((h) => h.close()));
+    assert.fail(`startAdminPanel did not resolve within ${START_BOUND_MS} ms: something awaits the update check`);
+  }
   assert.equal(result.ok, true, JSON.stringify(result));
   let stopped = false;
   const stop = async () => {
@@ -78,6 +100,52 @@ function withUpdateTable(fx, text) {
   }
   fs.appendFileSync(fx.configPath, `\n${text}\n`);
 }
+
+test('startAdminPanel resolves while the check never settles, and the check is first called only after it resolved', async (t) => {
+  const fx = makeCampaigns(t, ['alpha']);
+  const check = stub('never');
+  let resolvedAt = null;
+  let firstCallAt = null;
+  let tick = 0;
+  const wrapped = (args) => {
+    firstCallAt = firstCallAt === null ? ++tick : firstCallAt;
+    return check(args);
+  };
+  // If the panel never resolves, its listeners are closed before the assertion fails, so the run ends and the message is reported.
+  const handles = [];
+  const started = startAdminPanel({ admin: true, config: fx.configPath }, undefined, {
+    emit() {},
+    startLocalListener: async (...a) => {
+      const h = await startLocalListener(...a);
+      handles.push(h);
+      return h;
+    },
+    startPanelListener: async () => {
+      throw new Error('none');
+    },
+    updateDeps: { isPkg: true, check: wrapped, currentVersion: '1.0.0' },
+  });
+  let bound;
+  const result = await Promise.race([
+    started,
+    new Promise((resolve) => {
+      bound = setTimeout(() => resolve('timeout'), 5000);
+    }),
+  ]).finally(() => clearTimeout(bound));
+  if (result === 'timeout') {
+    panelHung = true;
+    await Promise.all(handles.map((h) => h.close()));
+  }
+  assert.notEqual(result, 'timeout', 'startAdminPanel did not resolve within 5 s while the check never settles: something awaits the check');
+  resolvedAt = ++tick;
+  t.after(() => result.stop());
+  assert.equal(result.ok, true);
+  assert.equal(check.calls.length, 0, 'not called by the time startAdminPanel returned');
+  await settle();
+  assert.equal(check.calls.length, 1);
+  assert.ok(firstCallAt > resolvedAt, 'the first call came after startAdminPanel resolved');
+});
+
 
 // ---- the three routes ---------------------------------------------------------------------------
 
@@ -373,48 +441,6 @@ test('a fresh result in update-check.json is shown and not asked for again', asy
 });
 
 // ---- timing and silence ------------------------------------------------------------------------
-
-test('startAdminPanel resolves while the check never settles, and the check is first called only after it resolved', async (t) => {
-  const fx = makeCampaigns(t, ['alpha']);
-  const check = stub('never');
-  let resolvedAt = null;
-  let firstCallAt = null;
-  let tick = 0;
-  const wrapped = (args) => {
-    firstCallAt = firstCallAt === null ? ++tick : firstCallAt;
-    return check(args);
-  };
-  // If the panel never resolves, its listeners are closed before the assertion fails, so the run ends and the message is reported.
-  const handles = [];
-  const started = startAdminPanel({ admin: true, config: fx.configPath }, undefined, {
-    emit() {},
-    startLocalListener: async (...a) => {
-      const h = await startLocalListener(...a);
-      handles.push(h);
-      return h;
-    },
-    startPanelListener: async () => {
-      throw new Error('none');
-    },
-    updateDeps: { isPkg: true, check: wrapped, currentVersion: '1.0.0' },
-  });
-  let bound;
-  const result = await Promise.race([
-    started,
-    new Promise((resolve) => {
-      bound = setTimeout(() => resolve('timeout'), 5000);
-    }),
-  ]).finally(() => clearTimeout(bound));
-  if (result === 'timeout') await Promise.all(handles.map((h) => h.close()));
-  assert.notEqual(result, 'timeout', 'startAdminPanel did not resolve within 5 s while the check never settles: something awaits the check');
-  resolvedAt = ++tick;
-  t.after(() => result.stop());
-  assert.equal(result.ok, true);
-  assert.equal(check.calls.length, 0, 'not called by the time startAdminPanel returned');
-  await settle();
-  assert.equal(check.calls.length, 1);
-  assert.ok(firstCallAt > resolvedAt, 'the first call came after startAdminPanel resolved');
-});
 
 test('stop() aborts the signal passed to a check in flight', async (t) => {
   const fx = makeCampaigns(t, ['alpha']);
