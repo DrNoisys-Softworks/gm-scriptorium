@@ -19,7 +19,7 @@
 #include <windowsx.h>
 
 #define CAP(a) (sizeof(a) / sizeof((a)[0]))
-#define DOT L" · "
+#define DOT L" \u00B7 "
 
 #define WM_TRAY_ICON (WM_APP + 1)
 #define TRAY_ICON_ID 1
