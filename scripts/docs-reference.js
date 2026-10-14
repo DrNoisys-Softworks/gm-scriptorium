@@ -31,6 +31,7 @@ const TARGETS = Object.freeze([
   'docs/reference/config-toml.md',
   'docs/reference/exit-codes.md',
   'docs/reference/files-and-folders.md',
+  'docs/reference/command-line.md',
 ]);
 
 /** Which blocks each page holds, so a block in the wrong page, or a page missing one, is caught. */
@@ -38,6 +39,7 @@ const BLOCKS_BY_TARGET = Object.freeze({
   'docs/reference/config-toml.md': ['config-top', 'config-campaign', 'config-match', 'config-remote', 'config-update', 'config-desktop'],
   'docs/reference/exit-codes.md': ['exit-codes'],
   'docs/reference/files-and-folders.md': ['files'],
+  'docs/reference/command-line.md': ['cli-commands', 'cli-global-flags', 'cli-flags', 'cli-subcommands'],
 });
 
 const BLOCK_NAMES = Object.freeze(Object.values(BLOCKS_BY_TARGET).flat());
@@ -62,12 +64,32 @@ const COLUMNS = {
     ['What it holds', 'what'],
     ['Edit by hand?', 'handEdit'],
   ]),
+  'cli-commands': Object.freeze([
+    ['Command', 'key'],
+    ['What it does', 'what'],
+    ['Exit codes', 'exits'],
+  ]),
+  'cli-global-flags': Object.freeze([
+    ['Flag', 'key'],
+    ['Takes a value', 'takesValue'],
+    ['What it does', 'what'],
+  ]),
+  'cli-flags': Object.freeze([
+    ['Flag', 'key'],
+    ['Takes a value', 'takesValue'],
+    ['What it does', 'what'],
+  ]),
+  'cli-subcommands': Object.freeze([
+    ['Subcommand', 'key'],
+    ['Flags it accepts', 'flags'],
+    ['What it does', 'what'],
+  ]),
 };
 for (const name of BLOCK_NAMES) if (name.startsWith('config-')) COLUMNS[name] = CONFIG_COLUMNS;
 Object.freeze(COLUMNS);
 
 /** The columns whose values may come from the code. Text may give none of these for a key whose code fact has it. */
-const CODE_COLUMNS = Object.freeze(['type', 'default', 'allowed', 'meaning', 'commands']);
+const CODE_COLUMNS = Object.freeze(['type', 'default', 'allowed', 'meaning', 'commands', 'exits', 'takesValue', 'flags']);
 
 const BEGIN_RE = /^<!-- BEGIN GENERATED ([a-z-]+): edit scripts\/docs-reference-text\.js, then run npm run docs-reference -->$/;
 const END_RE = /^<!-- END GENERATED ([a-z-]+) -->$/;
@@ -93,6 +115,11 @@ function codeFacts() {
   const welcome = require('../src/admin/welcome');
   const updateNotice = require('../src/admin/updatenotice');
   const { launcherPath } = require('../src/launch/launcherfile');
+  const args = require('../src/cli/args');
+  const remoteCli = require('../src/cli/remote');
+  const desktopCli = require('../src/cli/desktop');
+  const configCli = require('../src/cli/config');
+  const { ADMIN_ALLOWED_FLAGS } = require('../src/cli/serve-admin');
 
   const facts = {};
 
@@ -157,7 +184,93 @@ function codeFacts() {
   files.push(`panel/${path.basename(launcherPath('/x', '<number>'))}`);
   facts.files = files.map((key) => ({ key }));
 
+  Object.assign(
+    facts,
+    cliFacts({
+      COMMAND_FLAGS: args.COMMAND_FLAGS,
+      COMMON_FLAGS: args.COMMON_FLAGS,
+      VALUE_FLAGS: args.VALUE_FLAGS,
+      validateFlags: args.validateFlags,
+      HELP_BY_COMMAND,
+      commandHelp,
+    }),
+  );
+  facts['cli-subcommands'] = subcommandFacts({
+    configSubs: configCli.SUBCOMMANDS,
+    remoteSubs: remoteCli.SUBCOMMANDS,
+    accountVerbs: remoteCli.ACCOUNT_VERBS,
+    remoteAllowed: remoteCli.ALLOWED_FLAGS,
+    desktopAllowed: desktopCli.ALLOWED_FLAGS,
+    adminAllowed: ADMIN_ALLOWED_FLAGS,
+  });
+
   return facts;
+}
+
+/**
+ * The command line facts that come from the flag tables and the help texts. The inputs are injected
+ * so the logic can be tested with scratch tables.
+ *
+ * takesValue is read by asking the real validator (validateFlags(command, { flag: true })): a flag that
+ * needs a value throws "needs a value". That way the one special case (update --version) is never copied by hand.
+ *
+ * @returns {{ 'cli-commands': object[], 'cli-global-flags': object[], 'cli-flags': object[] }}
+ * @throws a command with a flag table but no help, or help but no flag table
+ */
+function cliFacts({ COMMAND_FLAGS, COMMON_FLAGS, VALUE_FLAGS, validateFlags, HELP_BY_COMMAND, commandHelp }) {
+  const commands = Object.keys(COMMAND_FLAGS);
+  for (const cmd of commands) {
+    if (!Object.prototype.hasOwnProperty.call(HELP_BY_COMMAND, cmd)) throw new Error(`command "${cmd}" has flags in COMMAND_FLAGS but no help in HELP_BY_COMMAND`);
+  }
+  for (const cmd of Object.keys(HELP_BY_COMMAND)) {
+    if (!Object.prototype.hasOwnProperty.call(COMMAND_FLAGS, cmd)) throw new Error(`command "${cmd}" has help in HELP_BY_COMMAND but no flags in COMMAND_FLAGS`);
+  }
+  const probe = (cmd, flag) => {
+    try {
+      validateFlags(cmd, { [flag]: true });
+      return false;
+    } catch (e) {
+      if (/needs a value/.test(e.message)) return true;
+      throw e;
+    }
+  };
+  const yesNo = (b) => (b ? 'yes' : 'no');
+
+  const flagRows = [];
+  for (const cmd of commands) {
+    for (const f of COMMAND_FLAGS[cmd]) {
+      if (!COMMON_FLAGS.includes(f)) flagRows.push({ key: `${cmd} --${f}`, takesValue: yesNo(probe(cmd, f)) });
+    }
+    for (const f of COMMON_FLAGS) {
+      if (COMMAND_FLAGS[cmd].includes(f) && probe(cmd, f) !== VALUE_FLAGS.has(f)) flagRows.push({ key: `${cmd} --${f}`, takesValue: yesNo(probe(cmd, f)) });
+    }
+  }
+  return {
+    'cli-commands': commands.map((cmd) => ({ key: cmd, exits: exitCodesOfHelp(commandHelp(cmd)).join(', ') })),
+    'cli-global-flags': COMMON_FLAGS.map((f) => ({ key: `--${f}`, takesValue: yesNo(VALUE_FLAGS.has(f)) })),
+    'cli-flags': flagRows,
+  };
+}
+
+/**
+ * The subcommand rows: config's, remote's (with the account verbs expanded), desktop's, and the
+ * `serve --admin` mode, which narrows the flags the same way. Flags come from each allow-list; the
+ * config subcommands have no allow-list, so their text gives the flags.
+ *
+ * @throws a remote subcommand with no allow-list entry
+ */
+function subcommandFacts({ configSubs, remoteSubs, accountVerbs, remoteAllowed, desktopAllowed, adminAllowed }) {
+  const flagsOf = (list) => list.map((f) => `--${f}`).join(', ');
+  const out = configSubs.map((s) => ({ key: `config ${s}` }));
+  for (const s of remoteSubs) {
+    if (!Object.prototype.hasOwnProperty.call(remoteAllowed, s)) throw new Error(`remote subcommand "${s}" has no entry in the remote ALLOWED_FLAGS`);
+    const flags = flagsOf(remoteAllowed[s]);
+    if (s === 'account') for (const v of accountVerbs) out.push({ key: `remote account ${v}`, flags });
+    else out.push({ key: `remote ${s}`, flags });
+  }
+  for (const s of Object.keys(desktopAllowed)) out.push({ key: `desktop ${s}`, flags: flagsOf(desktopAllowed[s]) });
+  out.push({ key: 'serve --admin', flags: flagsOf(adminAllowed) });
+  return out;
 }
 
 /** The exit codes listed in the `Exit codes:` block at the end of a help text. */
@@ -223,7 +336,7 @@ function renderBlock(block, opts) {
       const where = `block ${block}, key "${row.key}", ${field}`;
       let value = row[field];
       if (field === 'key') return cell(`\`${row.key}\``, where);
-      if (field === 'allowed' || field === 'commands') return value === undefined || value === '' ? cell(undefined, where) : cell(codeList(value), where);
+      if (field === 'allowed' || field === 'commands' || field === 'exits' || field === 'flags') return value === undefined || value === '' ? cell(undefined, where) : cell(codeList(value), where);
       if ((field === 'what' || field === 'whatToDo') && row.since !== undefined) {
         value = `*Since ${row.since}.* ${value === undefined ? '' : value}`.trimEnd();
       }
@@ -322,7 +435,7 @@ function main(argv, { root = ROOT, out = (s) => process.stdout.write(s), err = (
   }
 }
 
-module.exports = { TARGETS, BLOCKS_BY_TARGET, BLOCK_NAMES, COLUMNS, beginLine, endLine, blockNamesIn, codeFacts, rows, renderBlock, fillBlocks, staleTargets, main };
+module.exports = { TARGETS, BLOCKS_BY_TARGET, BLOCK_NAMES, COLUMNS, beginLine, endLine, blockNamesIn, codeFacts, cliFacts, subcommandFacts, rows, renderBlock, fillBlocks, staleTargets, main };
 
 if (require.main === module) {
   process.exitCode = main(process.argv.slice(2));

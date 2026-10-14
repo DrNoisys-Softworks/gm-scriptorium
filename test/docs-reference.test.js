@@ -34,8 +34,9 @@ const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const FIX = 'npm run docs-reference';
 
-const BLOCKS = ['config-top', 'config-campaign', 'config-match', 'config-remote', 'config-update', 'config-desktop', 'exit-codes', 'files'];
+const BLOCKS = ['config-top', 'config-campaign', 'config-match', 'config-remote', 'config-update', 'config-desktop', 'exit-codes', 'files', 'cli-commands', 'cli-global-flags', 'cli-flags', 'cli-subcommands'];
 const PAGES = [
+  'docs/reference/command-line.md',
   'docs/reference/config-toml.md',
   'docs/reference/environment-variables.md',
   'docs/reference/exit-codes.md',
@@ -50,9 +51,14 @@ test('every generated table is up to date (run npm run docs-reference if this fa
   assert.deepEqual(gen.staleTargets(ROOT), [], `these pages are stale; run: ${FIX}`);
 });
 
-test('the block names are the eight the pages hold, and TARGETS lists the three generated pages', () => {
+test('the block names are the twelve the pages hold, and TARGETS lists the four generated pages', () => {
   assert.deepEqual([...gen.BLOCK_NAMES], BLOCKS);
-  assert.deepEqual([...gen.TARGETS], ['docs/reference/config-toml.md', 'docs/reference/exit-codes.md', 'docs/reference/files-and-folders.md']);
+  assert.deepEqual([...gen.TARGETS], [
+    'docs/reference/config-toml.md',
+    'docs/reference/exit-codes.md',
+    'docs/reference/files-and-folders.md',
+    'docs/reference/command-line.md',
+  ]);
 });
 
 for (const block of BLOCKS) {
@@ -65,7 +71,7 @@ for (const block of BLOCKS) {
   test(`no conflict: the text for ${block} gives no column the code holds for the same key`, () => {
     const facts = gen.codeFacts()[block];
     for (const fact of facts) {
-      for (const col of ['type', 'default', 'allowed', 'meaning', 'commands']) {
+      for (const col of ['type', 'default', 'allowed', 'meaning', 'commands', 'exits', 'takesValue', 'flags']) {
         if (fact[col] !== undefined) {
           assert.equal(textFile[block][fact.key][col], undefined, `${block}.${fact.key}: the code holds "${col}"`);
         }
@@ -85,6 +91,7 @@ test('each block appears in exactly one page, in the page it belongs to, and eve
   assert.deepEqual(gen.blockNamesIn(read('docs/reference/exit-codes.md')), ['exit-codes']);
   assert.deepEqual(gen.blockNamesIn(read('docs/reference/files-and-folders.md')), ['files']);
   assert.deepEqual(gen.blockNamesIn(read('docs/reference/config-toml.md')), BLOCKS.slice(0, 6));
+  assert.deepEqual(gen.blockNamesIn(read('docs/reference/command-line.md')), ['cli-commands', 'cli-global-flags', 'cli-flags', 'cli-subcommands']);
 });
 
 // ---- literal expectations on what the generator reads from the code ----
@@ -334,13 +341,13 @@ function allStrings(value, out = []) {
   return out;
 }
 
-test('the four pages and every text string have no em dash, en dash or arrow', () => {
+test('the five pages and every text string have no em dash, en dash or arrow', () => {
   const bad = /[\u2014\u2013\u2192]/;
   for (const rel of PAGES) assert.doesNotMatch(read(rel), bad, rel);
   for (const s of allStrings(textFile)) assert.doesNotMatch(s, bad, s);
 });
 
-test('the four pages and every text string carry no private path, host name or address', () => {
+test('the five pages and every text string carry no private path, host name or address', () => {
   const bad = /C:\\Users|\/home\/|\/mnt\/|\b(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+/;
   for (const rel of PAGES) assert.doesNotMatch(read(rel), bad, rel);
   for (const s of allStrings(textFile)) assert.doesNotMatch(s, bad, s);
