@@ -2261,7 +2261,11 @@ rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on eve
 
 1. In Windows Terminal and in cmd, with the app running, `gm-scriptorium` prints the "already running" lines, opens a tab, and returns the prompt. `echo %ERRORLEVEL%` prints 0.
 2. After Quit, it prints the "Started" lines, the icon appears and `%ERRORLEVEL%` is 0. Close the terminal: the app keeps running (the terminal's job object does not take it down).
-3. Save `remote set --mode tailscale` (then repeat with `--mode proxy`) in the scratch config, Quit, and repeat step 2 from a terminal. The panel starts and the app keeps running. Then run `icacls <panel folder>` on the scratch config's `panel` folder: it lists only your account, SYSTEM and Administrators. Remote mode needs `USERDOMAIN` to name your account, and on the test machine a terminal opened over SSH reports a different one from the signed-in session; this step also proves the value is carried. Set the mode back with `remote off`.
+3. Remote mode and the access list. ADR 0056 applies the access list to every remote mode, and mode ssh is the simplest to set up because it needs only fixed ports (no addresses, bind address, proxy or account). With the scratch config saved as in the isolation note, run these as two commands, then Quit the app:
+   - `gm-scriptorium remote set --mode ssh --port 7410 --preview-port 7411`
+   - `gm-scriptorium remote show` (it must list no problems)
+
+   Then run `gm-scriptorium` from a terminal. The panel starts, the app keeps running, and `icacls <panel folder>` (the `panel` folder beside the scratch config) lists only your account, SYSTEM and Administrators. Ownership of that list is worked out from `USERDOMAIN`, which the hand-off carries to the panel; the VM run of the earlier build showed the SSH harness session had `USERDOMAIN=WORKGROUP` while the interactive session had the machine name, so also do this step from the interactive session. Finish with `gm-scriptorium remote off`.
 4. With the panel stopped from the tray, `gm-scriptorium` starts it.
 5. With another program holding the panel's fixed port, `gm-scriptorium` prints the "its panel couldn't start" line and `%ERRORLEVEL%` is 1, never 4.
 6. Start `gm-scriptorium` in two terminals at the same moment. Both return, one icon appears, and Task Manager shows one `gm-scriptorium.exe` panel host.
