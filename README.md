@@ -4,8 +4,9 @@ GM-Scriptorium turns your Obsidian-style campaign vault into a website your play
 Before it publishes anything, it checks every page for GM notes, secrets and unrevealed names, and
 leaves them out. Your GM notes stay on your computer and are never put on the site. Built for tabletop GMs. Free and open source.
 
-[Download](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases) for Windows or Linux, or
-[try the sample campaign](examples/README.md) (`examples/the-long-lease`).
+[Download](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases) for Windows or Linux, or [see the sample campaign online](https://drnoisys-softworks.github.io/gm-scriptorium/)
+and [what a leak check protects](https://drnoisys-softworks.github.io/gm-scriptorium/leak-demo.html).
+To build it yourself, read the [sample campaign guide](examples/README.md) (`examples/the-long-lease`).
 
 ## How it works
 

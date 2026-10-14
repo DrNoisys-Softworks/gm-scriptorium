@@ -8,3 +8,5 @@ docs/agent-runs/
 
 # Local, machine-specific notes: never committed (FR-03).
 CLAUDE.local.md
+/.sample-site/
+/_site/
