@@ -65,7 +65,7 @@ async function startWith(t, flags, updateDeps, emit = () => {}) {
   };
   t.after(stop);
   const port = result.ctx.adminPort;
-  return { ctx: result.ctx, port, stop, token: result.token, cookie: `scriptorium_admin_${port}=${result.token}`, origin: `http://127.0.0.1:${port}` };
+  return { ctx: result.ctx, port, stop, cookie: `scriptorium_admin_${port}=${result.token}`, origin: `http://127.0.0.1:${port}` };
 }
 
 /** A config with `[update]` text appended to the campaigns the helper writes. */
@@ -436,7 +436,7 @@ test('the emitted lines are identical whether the check finds an update, rejects
     const h = await startWith(t, { config: fx.configPath }, { isPkg: true, check: stub(reply), currentVersion: '1.0.0' }, (l) => lines.push(l));
     await settle();
     await h.stop();
-    return lines.map((l) => String(l).replace(/token=[^&\s]+/, 'token=X').replace(/:\d+/g, ':P'));
+    return lines.map((l) => String(l).replace(/\/auth\?\S+/, '/auth').replace(/:\d+/g, ':P'));
   };
   const available = await run(AVAILABLE);
   assert.deepEqual(await run(new Error('down')), available);
