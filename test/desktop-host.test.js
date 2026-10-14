@@ -788,8 +788,10 @@ function fakeStreams() {
   stderr.write = (chunk) => { stderrChunks.push(String(chunk)); return true; };
   const consoleObj = {};
   for (const name of ['log', 'info', 'warn', 'error', 'debug']) {
-    // Like the real console: it writes to the stream the host speaks on.
-    consoleObj[name] = (...a) => (name === 'warn' || name === 'error' ? stderr : stdout).write(`${util.format(...a)}\n`);
+    // Like a console that holds the stream's own write function, so only redirecting console.* itself stops it
+    // (the direct-write redirect is pinned separately).
+    const raw = (name === 'warn' || name === 'error' ? stderr : stdout).write;
+    consoleObj[name] = (...a) => raw(`${util.format(...a)}\n`);
   }
   const originals = { out: stdout.write, err: stderr.write, log: consoleObj.log, error: consoleObj.error };
   return { stdout, stderr, consoleObj, stdoutChunks, stderrChunks, originals };
