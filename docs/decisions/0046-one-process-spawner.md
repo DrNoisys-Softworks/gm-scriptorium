@@ -172,6 +172,23 @@ It is deliberately outside the rules above that suit a program the panel waits f
 
 `bin` now reaches this module, through launch mode (`src/cli/launch.js`), where before nothing in `bin` did. The file and the one function are still the only places a program is started on the panel path.
 
+## Addendum: the tray hand-off
+
+[ADR 0057](0057-windows-desktop-app.md) section 10 adds one more function to `src/proc/run.js`, `runTrayHandoff`, so that typing `gm-scriptorium` in a terminal on an installed Windows copy can ask the tray helper beside the program to start the background app, or to reuse the running one. It lives in this module so the structural rule that only this file (plus the two older spawners) may start a program stands unedited. The pins in `test/proc-structure.test.js` are unchanged: the module still requires the same five modules, still reads no `process.env`, and its one new timer is unref-ed.
+
+What it may do is narrower than `run` and wider than `openFile`:
+
+- **It takes no program name and no path.** The helper's path is worked out inside the function, as the folder of the running program plus `gm-scriptorium-tray.exe`. The options are `env` and `timeoutMs` only, and any other key, including one that names a path, is refused before anything starts. `PATH` is never searched, and a helper in any other folder is never used. The program path is a test seam (`deps.execPath`, default `process.execPath`), not an option.
+- **Windows only.** Anywhere else it is refused with the reason `windows-only`. The program path must be absolute (a drive or network share path) with no control characters.
+- **One fixed command line.** `--handoff` and nothing else, no shell, ignored stdio, with the helper's own folder as the working folder. It is not detached: it is waited for. It is not on the allowlist and not in the live-run set.
+- **Its environment is the usual scratch environment plus three names**, when they are set: `SCRIPTORIUM_CONFIG`, `SCRIPTORIUM_PROFILE` and `USERDOMAIN`. The first two let a terminal that has chosen a settings file or profile reach the same one in the app. `USERDOMAIN` is not in the base list, but [ADR 0056](0056-windows-panel-access-list.md) needs it to name the account in the panel folder's access list. Without it, a panel started from a terminal in a remote mode would refuse to start. Every other variable, including the stripped credentials, is left out as for any call.
+- **It waits up to 15 seconds and never kills.** The timer is unref-ed, and the child handle keeps the command alive while it waits. On a timeout it lets go of the child and resolves `{ outcome: 'timeout' }`. What the helper started has to outlive the terminal, so nothing here ever stops it, by a timer or by `killAll`.
+- **It reports what the helper did and decides nothing.** It resolves `{ outcome: 'exited', exitCode }` or `{ outcome: 'timeout' }`, and rejects `E_PROC_NOT_ALLOWED`, `E_PROC_BAD_OPTIONS`, `E_PROC_ENV` or `E_PROC_SPAWN`. The meaning of the exit code is in `src/desktop/handoff.js`: 0 and 3 give exit 0, 4 gives exit 1 and a line about the log, 1 falls back to console launch mode, a timeout prints a line and exits 1 with no fallback. The helper's code is never passed through, because 4 is the frozen update-prerequisite code.
+
+Will not catch, deliberately: whether the helper started by `--handoff` survives the closing of the terminal. The helper starts a separate process for that reason, and only a real Windows machine can show it (criterion C197).
+
+`bin` reaches this function through `src/desktop/handoff.js`, on a bare `gm-scriptorium` in a terminal.
+
 ## Addendum: the `gh` lookup is gone
 
 `src/update/gh.js` was deleted when `update` moved onto the egress module (see
