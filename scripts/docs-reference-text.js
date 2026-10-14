@@ -228,6 +228,310 @@ module.exports = deepFreeze({
     },
   },
 
+  'pack-top': {
+    theme: {
+      type: 'text',
+      what: 'The look of the built site. A theme the program does not know stops the build. New campaigns made by `init` get `gloam`; a pack file with no `theme` gets the default shown here.',
+      changedBy: 'The Theme screen in the admin panel, `init`, or by hand',
+    },
+    images: {
+      type: 'table',
+      default: 'No images',
+      what: 'The art for the image slots. See the `[images]` section below.',
+      changedBy: 'The Images screen in the admin panel, or by hand',
+    },
+    labels: {
+      type: 'table',
+      default: 'The built-in words',
+      what: 'The words the built site shows, such as the name of the party. See the `[labels]` section below.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    timeline: {
+      type: 'table',
+      default: 'The built-in timeline words',
+      what: 'How the story timeline reads your timeline page. See the `[timeline]` section below.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    recaps: {
+      type: 'table',
+      default: 'The built-in heading',
+      what: 'How recaps are read. See the `[recaps]` section below.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    gm_link: {
+      type: 'table',
+      default: 'Absent means no link',
+      what: 'Adds one plain "Game master" link to the footer of every published page. See the `[gm_link]` section below.',
+      changedBy: 'By hand',
+      since: '0.5.0',
+    },
+  },
+
+  'pack-images': {
+    hero: {
+      type: 'text',
+      default: 'Empty',
+      what: 'The landing banner: a wide picture for the top of the landing page. A slot is a place for your art, and it shows only where a theme or your `overrides.css` draws it. See [image slots](../image-slots.md).',
+      changedBy: 'The Images screen in the admin panel, or by hand',
+    },
+    ground: {
+      type: 'text',
+      default: 'Empty',
+      what: 'The page backdrop: a picture fixed behind your pages.',
+      changedBy: 'The Images screen in the admin panel, or by hand',
+    },
+    paper: {
+      type: 'text',
+      default: 'Empty',
+      what: 'The paper texture: a small image repeated behind text and cards.',
+      changedBy: 'The Images screen in the admin panel, or by hand',
+    },
+    'crest-frame': {
+      type: 'text',
+      default: 'Empty',
+      what: 'The emblem frame: a decorative border for faction crests. Use an image with a transparent background.',
+      changedBy: 'The Images screen in the admin panel, or by hand',
+    },
+    portrait: {
+      type: 'text',
+      default: 'Empty',
+      what: 'The character portrait: an upright picture, cropped to fill a 3 to 4 frame.',
+      changedBy: 'The Images screen in the admin panel, or by hand',
+    },
+    '404': {
+      type: 'text',
+      default: 'Empty',
+      what: 'The picture on the page players land on when a link goes nowhere. Write the key in quotes, as `"404"`.',
+      changedBy: 'The Images screen in the admin panel, or by hand',
+    },
+  },
+
+  'pack-labels': {
+    learned_lens: {
+      type: 'text',
+      what: 'The name of the timeline view that shows what the party learned.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    learned_legend: {
+      type: 'text',
+      what: 'The timeline legend entry for a point where the party learned something.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    story_lens: {
+      type: 'text',
+      what: 'The name of the timeline view that shows the story.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    chapter: {
+      type: 'text',
+      what: 'The word used for a chapter on the timeline.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    recap: {
+      type: 'text',
+      what: 'The word for a session recap.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    recap_learned_link: {
+      type: 'text',
+      what: 'The text of the link from a recap to what the party learned.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    same_recap: {
+      type: 'text',
+      what: 'The label for other events in the same recap.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    connections_heading: {
+      type: 'text',
+      what: 'The heading above the connections section of a page.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    group_tie: {
+      type: 'text',
+      what: 'The heading for the group of ties between two pages.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    group_named: {
+      type: 'text',
+      what: 'The heading for the group of pages that name this one.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    group_pc: {
+      type: 'text',
+      what: 'The heading for the player characters, usually the party.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    group_npc: {
+      type: 'text',
+      what: 'The heading for the non-player characters.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    group_faction: {
+      type: 'text',
+      what: 'The heading for factions.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    group_location: {
+      type: 'text',
+      what: 'The heading for places.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    group_thing: {
+      type: 'text',
+      what: 'The heading for things, such as items.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    group_event: {
+      type: 'text',
+      what: 'The heading for events.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    group_other: {
+      type: 'text',
+      what: 'The heading for pages that fit none of the other groups.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+  },
+
+  'pack-timeline': {
+    kinds: {
+      type: 'list of tables',
+      what: 'The kinds of story point, written as `[[timeline.kinds]]` entries. Your list replaces the built-in kinds as a whole, it is not added to them. See the `[[timeline.kinds]]` section below.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    weights: {
+      type: 'list of text',
+      what: 'The three words for how much a story point matters, from lightest to heaviest. There must be exactly three.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    session_token: {
+      type: 'text',
+      what: 'A pattern that finds a session number in the text, such as the 3 in S3. It needs at least one capture group, and the first group must catch the number. The pattern is case-sensitive.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    segment_units: {
+      type: 'text',
+      what: 'A pattern that finds a stretch of time, such as week 2. It needs at least two capture groups: the unit word, then the number. The pattern ignores case.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    columns: {
+      type: 'table',
+      default: 'The built-in column names',
+      what: 'The column names the timeline page uses in your vault. See the `[timeline.columns]` section below.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+  },
+
+  'pack-timeline-kinds': {
+    key: {
+      type: 'text',
+      default: 'Required',
+      what: 'The kind\'s name as it is written in your timeline table. A lower-case word of up to 32 characters: a letter, then letters, digits or hyphens. `learned` and `none` are reserved. No two kinds, or their aliases, may share a name.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    label: {
+      type: 'text',
+      default: 'The key',
+      what: 'The word shown for the kind on the site.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    glyph: {
+      type: 'text or drawing',
+      default: 'The built-in glyph named like the key, if there is one; otherwise none',
+      what: 'The small picture for the kind. Use one of the built-in names, or SVG path data starting with `M` or `m`, at most 1024 characters.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    aliases: {
+      type: 'list of text',
+      default: 'None',
+      what: 'Other names a Kind cell may use for this kind. Up to 16.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    before: {
+      type: 'true or false',
+      default: 'false',
+      what: 'Marks the kind as something that happened before the story began. Such points sit at the start of the timeline.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+  },
+
+  'pack-timeline-columns': {
+    title: {
+      type: 'list of text',
+      what: 'The names the Title column of the timeline table may go by.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    kind: {
+      type: 'list of text',
+      what: 'The names the Kind column may go by.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    weight: {
+      type: 'list of text',
+      what: 'The names the Weight column may go by.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    place: {
+      type: 'list of text',
+      what: 'The names the Place column may go by.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    in_game: {
+      type: 'list of text',
+      what: 'The names the in-game date column may go by.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    when: {
+      type: 'list of text',
+      what: 'The names the When column may go by.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    real_world: {
+      type: 'list of text',
+      what: 'The names the real-world date column may go by.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    what: {
+      type: 'list of text',
+      what: 'The names the What column may go by. Its text becomes the body of the timeline card.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    session: {
+      type: 'list of text',
+      what: 'The names the Session column of the second table, the one that anchors what the party learned, may go by.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    learned: {
+      type: 'list of text',
+      what: 'The names the Learned column of that second table may go by.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+    after: {
+      type: 'list of text',
+      what: 'The names the After column of that second table may go by.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+  },
+
+  'pack-recaps': {
+    learned_heading: {
+      type: 'text',
+      what: 'The heading, inside a recap, above the list of what the party learned. The match ignores capital letters.',
+      changedBy: 'The Vocabulary screen in the admin panel, or by hand',
+    },
+  },
+
+  'pack-gm-link': {
+    url: {
+      type: 'text',
+      default: 'Required when the table is present',
+      what: 'The address the "Game master" link opens. It must start with `https://` and be a bare address with no path, no user name and no loopback address. Anyone who can read the site can read this address.',
+      changedBy: 'By hand',
+      since: '0.5.0',
+    },
+  },
+
   'exit-codes': {
     0: {
       whatToDo: 'Nothing. Warnings are shown but do not stop anything.',

@@ -32,6 +32,7 @@ const TARGETS = Object.freeze([
   'docs/reference/exit-codes.md',
   'docs/reference/files-and-folders.md',
   'docs/reference/command-line.md',
+  'docs/reference/pack-toml.md',
 ]);
 
 /** Which blocks each page holds, so a block in the wrong page, or a page missing one, is caught. */
@@ -40,6 +41,7 @@ const BLOCKS_BY_TARGET = Object.freeze({
   'docs/reference/exit-codes.md': ['exit-codes'],
   'docs/reference/files-and-folders.md': ['files'],
   'docs/reference/command-line.md': ['cli-commands', 'cli-global-flags', 'cli-flags', 'cli-subcommands'],
+  'docs/reference/pack-toml.md': ['pack-top', 'pack-images', 'pack-labels', 'pack-timeline', 'pack-timeline-kinds', 'pack-timeline-columns', 'pack-recaps', 'pack-gm-link'],
 });
 
 const BLOCK_NAMES = Object.freeze(Object.values(BLOCKS_BY_TARGET).flat());
@@ -85,7 +87,7 @@ const COLUMNS = {
     ['What it does', 'what'],
   ]),
 };
-for (const name of BLOCK_NAMES) if (name.startsWith('config-')) COLUMNS[name] = CONFIG_COLUMNS;
+for (const name of BLOCK_NAMES) if (name.startsWith('config-') || name.startsWith('pack-')) COLUMNS[name] = CONFIG_COLUMNS;
 Object.freeze(COLUMNS);
 
 /** The columns whose values may come from the code. Text may give none of these for a key whose code fact has it. */
@@ -120,6 +122,9 @@ function codeFacts() {
   const desktopCli = require('../src/cli/desktop');
   const configCli = require('../src/cli/config');
   const { ADMIN_ALLOWED_FLAGS } = require('../src/cli/serve-admin');
+  const packToml = require('../src/build/packtoml');
+  const labels = require('../src/build/labels');
+  const themes = require('../src/build/themes');
 
   const facts = {};
 
@@ -204,7 +209,53 @@ function codeFacts() {
     adminAllowed: ADMIN_ALLOWED_FLAGS,
   });
 
+  Object.assign(
+    facts,
+    packFacts({
+      PACK_TOP_LEVEL_KEYS: packToml.PACK_TOP_LEVEL_KEYS,
+      DEFAULT_THEME: themes.DEFAULT_THEME,
+      THEMES: themes.THEMES,
+      SLOT_NAMES: themes.SLOT_NAMES,
+      DEFAULT_LABELS: labels.DEFAULT_LABELS,
+      DEFAULT_VOCAB: labels.DEFAULT_VOCAB,
+      TIMELINE_KEYS: labels.TIMELINE_KEYS,
+      KIND_ENTRY_KEYS: labels.KIND_ENTRY_KEYS,
+      GLYPH_NAMES: labels.GLYPH_NAMES,
+      RECAPS_KEYS: labels.RECAPS_KEYS,
+      GM_LINK_KEYS: packToml.GM_LINK_KEYS,
+    }),
+  );
+
   return facts;
+}
+
+/**
+ * The pack.toml facts that come from the parser's own constants. The inputs are injected so the
+ * logic can be tested with scratch values. A regular expression's default is its source in a code
+ * span; renderBlock escapes any pipe in it.
+ *
+ * @returns {object} the eight pack-* blocks
+ */
+function packFacts({ PACK_TOP_LEVEL_KEYS, DEFAULT_THEME, THEMES, SLOT_NAMES, DEFAULT_LABELS, DEFAULT_VOCAB, TIMELINE_KEYS, KIND_ENTRY_KEYS, GLYPH_NAMES, RECAPS_KEYS, GM_LINK_KEYS }) {
+  const code = (re) => '`' + re.source + '`';
+  const timelineDefault = {
+    kinds: DEFAULT_VOCAB.kinds.map((k) => k.key).join(', '),
+    weights: DEFAULT_VOCAB.weights.join(', '),
+    session_token: code(DEFAULT_VOCAB.sessionToken),
+    segment_units: code(DEFAULT_VOCAB.segmentUnits),
+  };
+  return {
+    'pack-top': PACK_TOP_LEVEL_KEYS.map((key) =>
+      key === 'theme' ? { key, default: DEFAULT_THEME, allowed: Object.keys(THEMES).sort().join(', ') } : { key },
+    ),
+    'pack-images': SLOT_NAMES.map((key) => ({ key })),
+    'pack-labels': Object.keys(DEFAULT_LABELS).map((key) => ({ key, default: DEFAULT_LABELS[key] })),
+    'pack-timeline': TIMELINE_KEYS.map((key) => (timelineDefault[key] === undefined ? { key } : { key, default: timelineDefault[key] })),
+    'pack-timeline-kinds': KIND_ENTRY_KEYS.map((key) => (key === 'glyph' ? { key, allowed: GLYPH_NAMES.join(', ') } : { key })),
+    'pack-timeline-columns': Object.keys(DEFAULT_VOCAB.columns).map((key) => ({ key, default: DEFAULT_VOCAB.columns[key].join(', ') })),
+    'pack-recaps': RECAPS_KEYS.map((key) => (key === 'learned_heading' ? { key, default: DEFAULT_VOCAB.learnedHeading } : { key })),
+    'pack-gm-link': GM_LINK_KEYS.map((key) => ({ key })),
+  };
 }
 
 /**
@@ -435,7 +486,7 @@ function main(argv, { root = ROOT, out = (s) => process.stdout.write(s), err = (
   }
 }
 
-module.exports = { TARGETS, BLOCKS_BY_TARGET, BLOCK_NAMES, COLUMNS, beginLine, endLine, blockNamesIn, codeFacts, cliFacts, subcommandFacts, rows, renderBlock, fillBlocks, staleTargets, main };
+module.exports = { TARGETS, BLOCKS_BY_TARGET, BLOCK_NAMES, COLUMNS, beginLine, endLine, blockNamesIn, codeFacts, cliFacts, subcommandFacts, packFacts, rows, renderBlock, fillBlocks, staleTargets, main };
 
 if (require.main === module) {
   process.exitCode = main(process.argv.slice(2));
