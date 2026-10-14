@@ -7,6 +7,7 @@ const TOML = require('smol-toml');
 const { ConfigError, VaultUnreachableError } = require('../util/errors');
 const { CAMPAIGN_STRING_FIELDS, CAMPAIGN_INTEGER_FIELDS } = require('./schema');
 const { CHANNELS, parseUpdateTable } = require('./updatesettings');
+const { parseDesktopTable } = require('./desktopsettings');
 
 /*
  * The canonical config emitter (Engineering Brief section 4): "Write with
@@ -137,6 +138,47 @@ function setUpdateSetting(config, key, value) {
 }
 
 /**
+ * The desktop app's ports (docs/decisions/0057-windows-desktop-app.md, section 8): sets `[desktop] port`
+ * and `preview_port`, keeping every other key in the table (the sign-in confirmation). The result is
+ * read back through parseDesktopTable, so an unreadable existing table, a string port or equal ports
+ * is refused here and nothing is written.
+ *
+ * @param {object} config
+ * @param {{ port: number, previewPort: number }} ports
+ * @throws {ConfigError}
+ */
+function setDesktopPorts(config, { port, previewPort }) {
+  const next = cloneConfig(config);
+  if (next.desktop !== undefined) parseDesktopTable(next.desktop); // an unreadable table is refused as found
+  next.desktop = { ...(next.desktop || {}), port, preview_port: previewPort };
+  parseDesktopTable(next.desktop);
+  return next;
+}
+
+/**
+ * The per-machine confirmation that remote access may start at sign-in (ADR 0057, section 7): sets
+ * `[desktop] remote_at_signin` to true, or clears it with false (`remote off` does that), keeping the
+ * ports. A table the clearing leaves empty is dropped. Like every config change it is written only
+ * through writeConfigFile; this function only builds the next config.
+ *
+ * @param {object} config
+ * @param {boolean} confirmed
+ * @throws {ConfigError} on a non-boolean or an unreadable existing table
+ */
+function setRemoteAtSignin(config, confirmed) {
+  if (typeof confirmed !== 'boolean') throw new ConfigError('desktop: remote_at_signin must be true or false');
+  const next = cloneConfig(config);
+  if (next.desktop !== undefined) parseDesktopTable(next.desktop);
+  const table = { ...(next.desktop || {}) };
+  if (confirmed) table.remote_at_signin = true;
+  else delete table.remote_at_signin;
+  if (Object.keys(table).length === 0) delete next.desktop;
+  else next.desktop = table;
+  parseDesktopTable(next.desktop);
+  return next;
+}
+
+/**
  * Refuse to load or write a config path that resolves inside a registered
  * vault (Engineering Brief section 4.3: "Must not live inside a vault").
  * Best-effort string comparison, normalising slash direction: a true
@@ -245,6 +287,8 @@ module.exports = {
   removeCampaign,
   setDefaultCampaign,
   setUpdateSetting,
+  setDesktopPorts,
+  setRemoteAtSignin,
   assertConfigPathNotInVault,
   writeConfigFile,
 };

@@ -15,7 +15,7 @@ const { ConfigError, VaultUnreachableError } = require('../util/errors');
  */
 
 const GLOBAL_FLAGS_WITH_VALUE = new Set(['campaign', 'config', 'vault', 'out', 'site-config', 'port', 'host']);
-const GLOBAL_BOOLEAN_FLAGS = new Set(['json', 'quiet', 'no-color', 'version', 'help', 'notices', 'force', 'force-out', 'force-check', 'no-check', 'graph', 'build', 'check', 'pre', 'no-shim', 'yes', 'admin']);
+const GLOBAL_BOOLEAN_FLAGS = new Set(['json', 'quiet', 'no-color', 'version', 'help', 'notices', 'force', 'force-out', 'force-check', 'no-check', 'graph', 'build', 'check', 'pre', 'no-shim', 'yes', 'background', 'admin']);
 
 // ADR 0055: bare --force no longer exists. build refuses it with this one line, from validateFlags
 // (the CLI path) and from runBuildCommand (direct callers), so neither can ignore it silently.
@@ -42,6 +42,9 @@ const COMMAND_FLAGS = Object.freeze({
   // V1.5a (ADR 0029): the remote-access command; each subcommand narrows this further itself
   // (src/cli/remote.js), so a flag meant for `set` is refused by `show`.
   remote: [...COMMON_FLAGS, 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy', 'port', 'preview-port', 'account'],
+  // The Windows desktop app (ADR 0057, section 8): `desktop set` writes the [desktop] ports. --background is
+  // for `desktop run` (a later slice); `desktop set` refuses it itself.
+  desktop: [...COMMON_FLAGS, 'port', 'preview-port', 'background'],
 });
 // Of the accepted flags, the ones that need a value after them (`update --version <tag>` is the one
 // place --version takes a value; elsewhere it is the boolean that prints the version).
