@@ -22,6 +22,8 @@ Commands:
   remote   show | set [--mode local|ssh|tailscale|proxy] [--admin-url URL] [--preview-url URL] [--bind ADDR]
            [--trusted-proxy ADDR,...] [--port N] [--preview-port N] | account add|change|reset|remove|rename|list
            | password | signout-all [--account NAME] | off
+  desktop  set [--port N] [--preview-port N]
+           (the ports the Windows desktop app uses; defaults 7400 and 7401)
   status   [campaign] [--json]
   config   list | add <name> --vault <path> [--out <path>] [--site-config <path>] | remove <name> | set-default <name> | path | edit
   update   [--check] [--pre] [--version TAG]
@@ -136,6 +138,13 @@ async function main() {
         const { runRemoteCommand } = require('../src/cli/remote');
         const [subcommand, ...subArgs] = rest;
         const result = await runRemoteCommand(flags, subcommand, subArgs, { panelAccess: { env: process.env } });
+        if (result.human) console.log(result.human);
+        return result.exitCode;
+      }
+      case 'desktop': {
+        const { runDesktopCommand } = require('../src/cli/desktop');
+        const [subcommand, ...subArgs] = rest;
+        const result = runDesktopCommand(flags, subcommand, subArgs);
         if (result.human) console.log(result.human);
         return result.exitCode;
       }

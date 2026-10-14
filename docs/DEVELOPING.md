@@ -8,7 +8,7 @@ rules; point it at `AGENTS.md`.
 GM-Scriptorium is a compiled command-line tool, released as a Windows and a Linux executable. It checks a gm-apprentice campaign vault
 (the folder of markdown pages a GM writes in), builds a player-facing website from it, and updates
 itself from this repository's releases. Its commands are `init`, `check`, `build`, `serve`,
-`status`, `config`, `remote` and `update`.
+`status`, `config`, `remote`, `desktop` and `update`.
 
 Where this project depends on the upstream generator's behaviour, read
 [Collaborating with the upstream generator](COLLABORATING.md) as well.
