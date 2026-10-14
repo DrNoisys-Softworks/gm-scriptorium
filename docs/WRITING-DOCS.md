@@ -60,19 +60,21 @@ disagree.
 | [Exit codes](reference/exit-codes.md) | Reference | No steps |
 | [Files and folders](reference/files-and-folders.md) | Reference | No steps |
 | [The command line](reference/command-line.md) | Reference | No steps |
+| [The campaign pack file (pack.toml)](reference/pack-toml.md) | Reference | No steps |
 | [Privacy](privacy.md) | Explanation | No steps |
 | [Why, and how this relates to gm-apprentice](about.md) | Explanation | No steps |
 
 ## Generated tables
 
-Four pages in `docs/reference/` (the settings file, exit codes, files and folders, and the command line) hold tables that
+Five pages in `docs/reference/` (the settings file, exit codes, files and folders, the command line, and the campaign pack file) hold tables that
 are generated from the code, so they cannot drift from it. A table sits between two comments that
 start `<!-- BEGIN GENERATED` and `<!-- END GENERATED`. Never edit inside them. To change a table,
 edit the hand-written columns in `scripts/docs-reference-text.js`, then run
 `npm run docs-reference`. A column the code holds (the key lists, defaults, allowed values, exit-code
 meanings, the commands that return each code, each command's exit codes, whether a flag takes a
 value, and the flags a subcommand accepts) comes from the code and cannot be overridden in
-that file. `test/docs-reference.test.js` and `test/docs-reference-cli.test.js` fail when the code
+that file. `test/docs-reference.test.js`, `test/docs-reference-cli.test.js` and
+`test/docs-reference-pack.test.js` fail when the code
 gains a key, exit code, file, command, flag or subcommand the tables lack, or when a table lists
 one the code lacks. The environment variables page is written
 by hand, and the same test checks it against the variables the source reads.
