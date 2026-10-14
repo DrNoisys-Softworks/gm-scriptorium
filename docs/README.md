@@ -83,6 +83,7 @@ the way.
 - [0054. Getting into the GM console from the player site](decisions/0054-gm-access-from-the-player-site.md): Remote sign-in takes a username and a password against up to eight named accounts managed from the command line, wrong tries are counted per username with a global ceiling, and a published site can carry one opt-in "Game master" link.
 - [0055. `--force` is split, and no flag overrides the output-leak scan](decisions/0055-force-split.md): `build --force-check` builds despite check errors, `build --force-out` builds into the site config's own output folder, nothing overrides the output-leak scan, and a bare `--force` exits 1 with one line.
 - [0056. An owner-only access list on the panel folder on Windows](decisions/0056-windows-panel-access-list.md): On Windows the program sets the `panel` folder's access list to your account, SYSTEM and Administrators on every panel start and before any `remote` command writes there, using `icacls` from System32 through the one process spawner, and the remote modes refuse to start if it cannot.
+- [0057. The Windows desktop app](decisions/0057-windows-desktop-app.md): Installed Windows copies run in the background with a system tray icon and no console window, a small native helper owns the icon, the single running copy, sign-out and Start with Windows and talks to the program over pipes, the panel uses fixed addresses (7400 and 7401 by default, which the GM can change), and remote access never starts at sign-in until the GM confirms it.
 
 ## Licensing
 
