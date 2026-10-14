@@ -167,7 +167,7 @@ for (const browserName of ['chromium', 'firefox']) {
         assert.match(card, /You are running 1\.0\.0-rc\.3, a prerelease build, so Beta is selected for you\. Saved as \[update\] channel in config\.toml\./);
         assert.match(card, /GM-Scriptorium only tells you about updates\. It never installs one by itself\./);
         assert.match(card, /Last checked today at \d{1,2}:\d{2} (am|pm)\. A newer version, 1\.1\.0-rc\.4, was found\./);
-        assert.match(card, /Privacy\. When this is on, GM-Scriptorium asks GitHub once a day/);
+        assert.match(card, /Privacy\. When this is on, GM-Scriptorium asks GitHub about once a day whether a newer version is out, and once more when you change the channel\. If a check fails it tries again the next time it starts\./);
         assert.match(card, /Saved as \[update\] check = true in .*config\.toml\. Turning it off takes effect straight away\./);
         assert.equal(await page.locator('#updates [role="switch"]').getAttribute('aria-checked'), 'true');
         assert.equal(await page.locator('input[name="upd-channel"][value="beta"]').isChecked(), true);

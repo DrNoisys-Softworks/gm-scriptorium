@@ -236,7 +236,7 @@
       note.appendChild(A.icon('shield'));
       if (s.setting === 'on') {
         var on = el('p');
-        add(on, [(function () { var b = el('b'); setText(b, 'Privacy.'); return b; })(), ' When this is on, GM-Scriptorium asks GitHub once a day whether a newer version is out. GitHub can see this computer’s internet address, the version you run, and the time. It never sees your campaigns, your files or your settings. A notice only appears when there is a newer release on your channel.']);
+        add(on, [(function () { var b = el('b'); setText(b, 'Privacy.'); return b; })(), ' When this is on, GM-Scriptorium asks GitHub about once a day whether a newer version is out, and once more when you change the channel. If a check fails it tries again the next time it starts. GitHub can see this computer’s internet address, the version you run, and the time. It never sees your campaigns, your files or your settings. A notice only appears when there is a newer release on your channel.']);
         body.appendChild(on);
       } else {
         body.appendChild(add(el('p'), ['When this is off, GM-Scriptorium makes no internet requests on its own. You can still run ', code('gm-scriptorium update'), ' whenever you like.']));
