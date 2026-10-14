@@ -100,7 +100,8 @@ environment variable to its name. A name that does not exist also exits 3.
 ## Remote access: `[remote]`
 
 Remote access lets you use the admin panel from another device. [Remote access](../remote-access.md)
-explains the modes and what each one protects. The table here lists the keys. Use `gm-scriptorium
+explains the modes and how to set them up, and [Remote access: accounts, sign-in and what is protected](remote-access.md)
+says what each one protects. The table here lists the keys. Use `gm-scriptorium
 remote set` to change them where you can, because it checks every value before it writes anything.
 Changing `--mode` drops the old addresses unless you give new ones in the same command.
 

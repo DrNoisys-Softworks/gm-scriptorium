@@ -28,7 +28,7 @@ relative to that folder. None of it is ever written inside a vault.
 
 **Take care with `panel/`.** It holds the password hashes for remote access and the digests of
 signed-in devices. Copy it, back it up or share it with care, and keep it out of any backup you
-hand to someone else. [Remote access](../remote-access.md) explains how its permissions are set.
+hand to someone else. [Remote access: accounts, sign-in and what is protected](remote-access.md) explains how its permissions are set.
 
 ## Beside the program
 

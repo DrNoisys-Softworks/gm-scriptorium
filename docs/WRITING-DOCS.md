@@ -63,6 +63,7 @@ disagree.
 | [The campaign pack file (pack.toml)](reference/pack-toml.md) | Reference | No steps |
 | [The vault's publish settings (vault-config.md and vault.config.json)](reference/vault-config.md) | Reference | No steps |
 | [Check messages](reference/check-messages.md) | Reference | No steps |
+| [Remote access: accounts, sign-in and what is protected](reference/remote-access.md) | Reference | No steps |
 | [Privacy](privacy.md) | Explanation | No steps |
 | [How GM-Scriptorium decides what players see](explanation/what-players-see.md) | Explanation | No steps |
 | [Why, and how this relates to gm-apprentice](about.md) | Explanation | No steps |
