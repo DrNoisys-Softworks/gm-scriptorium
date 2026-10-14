@@ -47,8 +47,10 @@ test('using.md keeps its Leak checks heading and links the page', () => {
 
 test('the page links the hosted sample and the leak demo', () => {
   const targets = Array.from(read(PAGE).matchAll(/\]\(([^)\s]+)\)/g), (m) => m[1]);
-  assert.ok(targets.includes('https://drnoisys-softworks.github.io/gm-scriptorium/'));
-  assert.ok(targets.includes('https://drnoisys-softworks.github.io/gm-scriptorium/leak-demo.html'));
+  const SAMPLE = 'https://drnoisys-softworks.github.io/gm-scriptorium/';
+  const DEMO = 'https://drnoisys-softworks.github.io/gm-scriptorium/leak-demo.html';
+  assert.equal(targets.filter((t) => t === SAMPLE).length, 1);
+  assert.equal(targets.filter((t) => t === DEMO).length, 1);
 });
 
 test('the page has no em dash, en dash or arrow', () => {
