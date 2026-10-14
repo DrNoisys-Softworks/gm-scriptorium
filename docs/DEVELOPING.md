@@ -196,7 +196,8 @@ accepts. Releases before 1.0.0 are not signed (step 7).
    version bump fails `npm run package` until the notices are regenerated.** That is deliberate.
    Confirm the diff is only the version line and the timestamp.
 3. Run `npm test`, `npm run verify-generator` and `npm run package`. All three must pass.
-   `npm run package` builds both `gm-scriptorium-win-x64.exe` and `gm-scriptorium-linux-x64`.
+   `npm run package` builds `gm-scriptorium-win-x64.exe`, the tray helper
+   `gm-scriptorium-tray-win-x64.exe` (ADR 0057) and `gm-scriptorium-linux-x64`.
 4. Commit the bump with the regenerated notices.
 5. In the public repository, run `node scripts/public-guard.js release <previous tag>` with the
    private lists configured (for the first public release, use the public root commit). It must
@@ -204,18 +205,22 @@ accepts. Releases before 1.0.0 are not signed (step 7).
 6. Rebuild both executables after the release commit, from a cleared `dist/`, and check the build
    timestamp is later than the commit. A stale binary from an earlier commit has nearly shipped
    here.
-7. Sign the Windows executable. Maintainers sign `gm-scriptorium-win-x64.exe` with the project's
-   code-signing certificate, timestamped, on a Windows machine, because the signing key needs a
-   person present. `SHA256SUMS` is regenerated after signing, so it covers the signed bytes.
+7. Sign the Windows executables. Maintainers sign `gm-scriptorium-win-x64.exe` and the tray helper
+   `gm-scriptorium-tray-win-x64.exe` with the project's code-signing certificate, timestamped, on a
+   Windows machine, because the signing key needs a person present. `SHA256SUMS` is regenerated after signing, so it covers the signed bytes.
    Check the signature on Windows before anything is published, using criterion C141 part A in the
    Windows verification runbook. Signing applies to every release from 1.0.0, including its release
    candidates. Releases before 1.0.0 skip this step and C141, ship unsigned, and their release
    notes say so. See [ADR 0051](decisions/0051-code-signing.md), "Amended: releases are signed from 1.0".
-8. Create the release as a prerelease, with both binaries, `THIRD-PARTY-NOTICES.txt` and the one
-   combined `SHA256SUMS`. Every release goes up as a prerelease first, even one that will become
+8. Create the release as a prerelease, with every binary (the Windows program, the tray helper
+   `gm-scriptorium-tray-win-x64.exe` and the Linux program), `THIRD-PARTY-NOTICES.txt` and the one
+   combined `SHA256SUMS`. **Every Windows release must carry the tray helper and list it in
+   `SHA256SUMS`**: `update` on an installed copy downloads both programs and refuses to replace
+   either if the helper is missing, so a release without it cannot be installed by `update` (ADR 0057,
+   section 11). Every release goes up as a prerelease first, even one that will become
    latest, so nobody running a plain `update` gets it before the Windows checks pass.
 9. Download the assets back off the release page and re-hash every one of them before announcing
-   anything.
+   anything, the tray helper included.
 10. Have the Windows checks run on the release, using the Windows verification runbook at
     `.agents/windows-verification.md`. Promote the release to latest only when they pass.
     An `X.Y.Z` release is promoted once they pass, signed or not, below 1.0.0. From 1.0.0 it is
@@ -232,6 +237,10 @@ accepts. Releases before 1.0.0 are not signed (step 7).
     against a real published release. `test/update-linux.test.js` and
     `test/update-packaged-guard.test.js` cover the pieces (the ELF check, the packaged-only guard,
     the 0755 mode) with injected dependencies, not a real download and self-replace.
+    `update` on an installed Windows copy replaces the program and the tray helper together.
+    `test/update-tray.test.js` covers that with injected downloads and real files in a scratch
+    folder, and only the Windows runbook (C201) proves it on a real copy. Before promoting, confirm
+    the release's `SHA256SUMS` has a line for `gm-scriptorium-tray-win-x64.exe`.
     After promoting, also run a plain `update --check` (no `--pre`) from the previous release's
     Linux binary, in a scratch folder with its own config. It must name the new tag. Plain `update`
     is what most people run, and it sees only the release marked latest. A previous release from

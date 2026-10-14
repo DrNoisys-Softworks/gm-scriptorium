@@ -122,6 +122,11 @@ a proxy it cannot work. If you can't use `update`, or it can't reach GitHub, it 
 line and points at the Releases page. You can always download the new release from there and replace
 the program yourself, or run the new installer.
 
+On an installed copy, `update` also replaces the tray helper (`gm-scriptorium-tray.exe`) that sits
+beside the program. It downloads and checks both files first, and if anything goes wrong it puts
+everything back and says nothing changed. When it finishes, quit GM-Scriptorium from its icon in the
+system tray and start it again, so the new version is the one running.
+
 The panel also tells you when a newer version is out. When GM-Scriptorium runs from its program
 file, the Overview shows a notice with the new version, your version and a link to what changed,
 and a Not now button that hides it until a newer version comes out. The notice never installs

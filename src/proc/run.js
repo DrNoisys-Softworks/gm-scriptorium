@@ -20,6 +20,10 @@ const { ScriptoriumError } = require('../util/errors');
  * opener and lets go. It is not on the list, is never registered in the live-run set and is never
  * killed, because the browser it starts has to outlive the panel (the "stopped" tab).
  *
+ * A second, narrower exception follows it: runTrayHandoff, the terminal's hand-off to the tray helper
+ * on an installed Windows copy (ADR 0057, section 10; ADR 0046 addendum). It takes no program name and
+ * no path, works the helper's path out from the running program's own, and is never killed either.
+ *
  * What this still cannot see (residual limits, written down rather than left for the next person
  * to rediscover; the same list is in ADR 0046, "Will not catch"):
  *
@@ -754,6 +758,87 @@ async function openFile(opts, deps = {}) {
   });
 }
 
+// --- the tray hand-off (installed Windows copies only) -----------------------------------------------------
+
+const TRAY_EXE_NAME = 'gm-scriptorium-tray.exe';
+const TRAY_OPTION_KEYS = new Set(['env', 'timeoutMs']);
+const TRAY_DEFAULT_TIMEOUT_MS = 15000;
+// The settings path and profile, and the account's domain, are the only names carried on top of the base
+// list. USERDOMAIN is needed because the panel's access list (ADR 0056) names the account as DOMAIN\user,
+// and a panel started from a terminal in a remote mode refuses to start without it.
+const TRAY_ENV_EXTRA = Object.freeze(['SCRIPTORIUM_CONFIG', 'SCRIPTORIUM_PROFILE', 'USERDOMAIN']);
+
+function validateTrayOptions(opts, execPath) {
+  const bad = (reason) => fail('E_PROC_BAD_OPTIONS', 'the options are not valid', { reason });
+  if (!isPlainObject(opts)) throw bad('options');
+  for (const key of Object.keys(opts)) {
+    if (!TRAY_OPTION_KEYS.has(key)) throw bad('unknown-option');
+  }
+  if (!isPlainObject(opts.env)) throw bad('env');
+  if (opts.timeoutMs !== undefined && !isPositiveSafeInteger(opts.timeoutMs)) throw bad('timeoutMs');
+  if (typeof execPath !== 'string' || CONTROL_CHAR_RE.test(execPath) || !WIN_ABSOLUTE_RE.test(execPath)) throw bad('execPath');
+}
+
+/**
+ * Starts the tray helper beside this program with --handoff, waits for it, and lets go. The helper's
+ * path is worked out here from the program's own path and nothing else: the caller cannot supply a
+ * path, and PATH is never searched. Not on the allowlist, never in the live-run set, never killed
+ * (not by the timeout and not by killAll): what the helper started has to outlive this command.
+ *
+ * Resolves { outcome: 'exited', exitCode } (exitCode is null if it was stopped by a signal) or, after
+ * timeoutMs, { outcome: 'timeout' }. Rejects ProcError: E_PROC_NOT_ALLOWED off Windows,
+ * E_PROC_BAD_OPTIONS, E_PROC_ENV, or E_PROC_SPAWN if it could not be started.
+ *
+ * @param {{ env: object, timeoutMs?: number }} opts
+ * @param {{ spawn?: Function, platform?: string, execPath?: string }} [deps]  tests only
+ * @returns {Promise<{ outcome: 'exited', exitCode: number|null } | { outcome: 'timeout' }>}
+ */
+async function runTrayHandoff(opts, deps = {}) {
+  const platform = deps.platform || process.platform;
+  if (platform !== 'win32') throw fail('E_PROC_NOT_ALLOWED', 'that program is only run on Windows', { reason: 'windows-only' });
+  const execPath = deps.execPath === undefined ? process.execPath : deps.execPath;
+  validateTrayOptions(opts, execPath);
+  const spawnFn = deps.spawn || spawn;
+
+  const extra = {};
+  for (const name of TRAY_ENV_EXTRA) {
+    const key = findKey(opts.env, name);
+    const value = key === undefined ? undefined : opts.env[key];
+    if (typeof value === 'string' && value !== '') setOwn(extra, name, value);
+  }
+  const childEnv = buildChildEnv(opts.env, extra, platform);
+
+  const dir = path.win32.dirname(execPath);
+  const trayPath = path.win32.join(dir, TRAY_EXE_NAME);
+  const timeoutMs = opts.timeoutMs === undefined ? TRAY_DEFAULT_TIMEOUT_MS : opts.timeoutMs;
+
+  let child;
+  try {
+    child = spawnFn(trayPath, ['--handoff'], { stdio: 'ignore', shell: false, windowsHide: true, env: childEnv, cwd: dir });
+  } catch (err) {
+    throw fail('E_PROC_SPAWN', 'the program could not be started', { syscallCode: safeSyscallCode(err) });
+  }
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    // Unref-ed: while the helper runs, the child handle itself keeps the process alive.
+    const timer = setTimeout(() => {
+      if (typeof child.unref === 'function') child.unref();
+      finish(null, { outcome: 'timeout' });
+    }, timeoutMs);
+    timer.unref();
+    function finish(error, result) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(result);
+    }
+    child.on('error', (err) => finish(fail('E_PROC_SPAWN', 'the program could not be started', { syscallCode: safeSyscallCode(err) })));
+    child.once('exit', (code) => finish(null, { outcome: 'exited', exitCode: code }));
+  });
+}
+
 /** Best-effort, swallowed: a failed removal must never change what the caller sees. */
 function removeDir(dir) {
   try {
@@ -782,4 +867,6 @@ module.exports = {
   liveRunCount,
   OPENER_ENV_EXTRA,
   openFile,
+  TRAY_ENV_EXTRA,
+  runTrayHandoff,
 };

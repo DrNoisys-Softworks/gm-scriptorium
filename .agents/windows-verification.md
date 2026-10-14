@@ -2255,6 +2255,25 @@ rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on eve
 4. Append the planted name (`PLANTED_NAME`) in a paragraph to `out\index.html`. Run `check smoke --json`. It exits 2, the `counts` equal `EXPECTED.planted`, and there is exactly one `leak/l4-output-name` finding, naming `index.html`.
 5. Re-hash the real config.
 
+### C197: the command line alongside the background app
+
+[ADR 0057](../docs/decisions/0057-windows-desktop-app.md) section 10; [ADR 0046](../docs/decisions/0046-one-process-spawner.md) addendum "The tray hand-off". **Mark this OPEN: Linux tests prove the logic only** (`test/desktop-handoff.test.js`, `test/proc-tray-handoff.test.js` and `test/update-tray.test.js`, all with fake helpers); nothing about the real helper, the terminal or the job object is shown without a Windows machine. Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG`, never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 10; the two must match. Remove the scratch `SCRIPTORIUM_CONFIG` variable when done.
+
+1. In Windows Terminal and in cmd, with the app running, `gm-scriptorium` prints the "already running" lines, opens a tab, and returns the prompt. `echo %ERRORLEVEL%` prints 0.
+2. After Quit, it prints the "Started" lines, the icon appears and `%ERRORLEVEL%` is 0. Close the terminal: the app keeps running (the terminal's job object does not take it down).
+3. Remote mode and the access list. ADR 0056 applies the access list to every remote mode, and mode ssh is the simplest to set up because it needs only fixed ports (no addresses, bind address, proxy or account). With the scratch config saved as in the isolation note, run these as two commands, then Quit the app:
+   - `gm-scriptorium remote set --mode ssh --port 7410 --preview-port 7411`
+   - `gm-scriptorium remote show` (it must print `ready: yes`; a `not ready:` line names the missing setting)
+
+   Then run `gm-scriptorium` from a terminal. The panel starts, the app keeps running, and `icacls <panel folder>` (the `panel` folder beside the scratch config) lists only your account, SYSTEM and Administrators. Ownership of that list is worked out from `USERDOMAIN`, which the hand-off carries to the panel; the VM run of the earlier build showed the SSH harness session had `USERDOMAIN=WORKGROUP` while the interactive session had the machine name, so also do this step from the interactive session. Finish with `gm-scriptorium remote off`.
+4. With the panel stopped from the tray, `gm-scriptorium` starts it.
+5. With another program holding the panel's fixed port, `gm-scriptorium` prints the "its panel couldn't start" line and `%ERRORLEVEL%` is 1, never 4.
+6. Start `gm-scriptorium` in two terminals at the same moment. Both return, one icon appears, and Task Manager shows one `gm-scriptorium.exe` panel host.
+7. A portable copy in another folder still opens console launch mode, and so does `gm-scriptorium --config <scratch>` from the installed copy.
+8. `serve --admin` in a terminal runs a separate panel on an OS-picked port while the tray app runs.
+9. `check`, `build`, `config list`, `remote show` and `update --check` all work.
+10. If it can be provoked (suspend `gm-scriptorium-tray.exe` in Process Explorer the moment the command starts), a hand-off that gets no answer in 15 seconds prints "GM-Scriptorium is still starting. Look for its icon in the system tray." and returns 1, and no second panel opens in the terminal.
+
 ### C170: a bare `--force` is refused with one line, in the real win-x64 exe
 
 Issue #15, [ADR 0055](../docs/decisions/0055-force-split.md). **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match. Use a scratch copy of the-long-lease example vault, registered as campaign `c170` with an output folder `S\out` that does not exist.
