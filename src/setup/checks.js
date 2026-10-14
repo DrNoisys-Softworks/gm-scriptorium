@@ -489,6 +489,7 @@ module.exports = {
   checkSystem,
   checkStarterTitle,
   underOneDrive,
+  ONEDRIVE_VARS,
   suggestSlug,
   RELATIVE_RULE,
   NEED_VAULT_RULE,

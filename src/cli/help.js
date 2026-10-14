@@ -205,4 +205,4 @@ function commandHelp(command, sub) {
   return lines ? lines.join('\n') + '\n' : null;
 }
 
-module.exports = { commandHelp, HELP_BY_COMMAND };
+module.exports = { commandHelp, HELP_BY_COMMAND, EXIT_LINES };
