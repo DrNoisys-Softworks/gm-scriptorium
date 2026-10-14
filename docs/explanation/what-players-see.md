@@ -28,7 +28,7 @@ A page that publishes is still trimmed before a player sees it. These are remove
 - Sections under the headings named in `exclude_sections`. The two config files' lists are joined. The generator's own default list applies only when neither file lists any.
 - Blocks wrapped in `<!-- gm-only -->` or `<!-- spoiler -->` comments, and dataview blocks.
 - Callouts of the kinds named in `exclude_callouts`.
-- Frontmatter fields named in `exclude_fields`, and in the page's own `publish_exclude_fields`. A setting under `overrides.fields` can bring one back.
+- Frontmatter fields named in `exclude_fields`, and in the page's own `publish_exclude_fields`. A setting under `overrides.fields` can bring back a field named in `exclude_fields`, but never one hidden by `publish_exclude_fields`.
 - Relationship edges marked `gm_only: true`.
 - Obsidian `%%comments%%`. GM-Scriptorium removes these before the generator runs ([ADR 0044](../decisions/0044-obsidian-comments-withheld.md)).
 
@@ -36,14 +36,14 @@ A page marked `publish: stub` keeps only the sections you chose to include.
 
 ## Withheld names
 
-A page marked `withheld: true` never builds, and its name must not appear on any page a player can read. The sample campaign marks Ottoline Pardew this way, in her own page's frontmatter. The manifest lists her under Excluded.
+What keeps a page off the site is the rules above, not the `withheld: true` marker. In the sample campaign, the manifest lists Ottoline Pardew under Excluded. The marker, in her own page's frontmatter, tells the leak checks that her name must not appear on any page a player can read.
 
 The name check looks for the page's file name, its `title`, and each alias that is distinctive. A name is searched for only if it is at least 3 characters long. An alias is skipped if it starts with a lower-case letter, or with "the", "a" or "an", because words like that turn up in ordinary sentences.
 
 ## The checks and the build
 
 - `check` reads your vault and exits with code 2 if it finds any error.
-- `build` runs the same checks first and refuses to go on if they find an error, unless you pass `--force-check`.
+- `build` runs the same checks first and refuses to go on if they find an error, unless you pass `--force-check`. That flag does not override every finding; a few, such as notes with executable frontmatter ([ADR 0034](../decisions/0034-executable-frontmatter-guard.md)), always stop the build.
 - It then builds the site in a staging folder and scans what the generator wrote. A leak there stops the build, and nothing overrides that scan ([ADR 0055](../decisions/0055-force-split.md)).
 - Comment text in the output, and the GM link marker, are refused separately.
 - The swap into place is atomic, so a refused build leaves your live site as it was.

@@ -71,8 +71,8 @@ See `../docs/image-slots.md` for the full list of slots a theme can draw, and th
 art at.
 
 **The withheld NPC.** One character in this vault, Ottoline Pardew, is marked `withheld: true` in her
-own page's frontmatter, and listed under Excluded in `_meta/publish-manifest.md`. Her page never builds, and her name is kept out of every page a player
-can read. Try this: open `Characters/NPCs/Orpiment.md` and type a sentence naming her on the line
+own page's frontmatter, and listed under Excluded in `_meta/publish-manifest.md`. Her page never
+builds, and her name is kept out of every page a player can read. Try this: open `Characters/NPCs/Orpiment.md` and type a sentence naming her on the line
 right under the `# Orpiment` heading, such as `Ottoline Pardew was seen here.` Then run `check`
 again. It refuses to pass (exit code 2), because that is exactly what the leak checks exist to
 catch. Put the same sentence at the very bottom of the file and `check` passes, because everything
