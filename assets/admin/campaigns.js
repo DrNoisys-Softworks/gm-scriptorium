@@ -148,18 +148,45 @@
 
   function renderPop(sw) {
     var pop = sw.pop;
-    clear(pop);
-    add(pop, 'div', 'cs-pop-h', 'Campaigns');
+    var existing = {};
+    var oldList = pop.children && Array.prototype.find.call(pop.children, function (child) {
+      return child.className === 'cs-list';
+    });
+    if (oldList) {
+      Array.prototype.forEach.call(oldList.children, function (li) {
+        var row = li.firstChild;
+        if (row && row.getAttribute) existing[row.getAttribute('data-campaign')] = li;
+      });
+    }
+    if (oldList) {
+      Array.prototype.forEach.call(pop.children, function (child) {
+        if (child !== oldList) pop.removeChild(child);
+      });
+    } else {
+      clear(pop);
+    }
+    var heading = oldList && pop.children.length ? pop.children[0] : null;
+    if (heading) setText(heading, 'Campaigns');
+    else heading = add(pop, 'div', 'cs-pop-h', 'Campaigns');
     var reason = lockedReason();
     if (reason) messageBlock(pop, 'is-lock', 'lock', reason, 'cs-lock-' + sw.which);
     if (!data) {
       if (loadError) messageBlock(pop, '', 'warn', loadError);
       else add(pop, 'div', 'cs-pop-h', 'Loading…');
     } else {
-      var list = add(pop, 'ul', 'cs-list');
+      var list = oldList || add(pop, 'ul', 'cs-list');
+      var keep = {};
       data.campaigns.forEach(function (c) {
-        var li = add(list, 'li');
-        var row = el('button');
+        var li = existing[c.name];
+        var row = li ? li.firstChild : el('button');
+        if (li) {
+          while (row.firstChild) row.removeChild(row.firstChild);
+        } else {
+          li = add(list, 'li');
+        }
+        row.removeAttribute('aria-describedby');
+        row.removeAttribute('aria-current');
+        row.removeAttribute('aria-disabled');
         row.type = 'button';
         row.setAttribute('data-campaign', c.name);
         var cls = 'cs-row';
@@ -191,7 +218,12 @@
           if (c.active || reason || busyName) return;
           chooseCampaign(c.name);
         });
-        li.appendChild(row);
+        if (!existing[c.name]) li.appendChild(row);
+        list.appendChild(li);
+        keep[c.name] = true;
+      });
+      Object.keys(existing).forEach(function (name) {
+        if (!keep[name]) list.removeChild(existing[name]);
       });
     }
     if (busyName) {
