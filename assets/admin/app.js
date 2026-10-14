@@ -141,6 +141,17 @@
       var session = result.body;
       var admin = window.ScriptoriumAdmin;
       admin.store.set({ session: session });
+      // ADR 0028 section 7 (S5): the one-shot landing a tray command asked for. The server returns a
+      // word from a closed set and clears it; the page builds its own destination from it.
+      if (session.landing === 'preview' && typeof session.previewPort === 'number') {
+        var scheme = session.access && session.access.loopbackScheme === 'https' ? 'https' : 'http';
+        window.location.replace(scheme + '://' + window.location.hostname + ':' + session.previewPort + '/');
+        return;
+      }
+      if (session.landing === 'updates') {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search + '#/overview');
+        if (admin.updates && admin.updates.land) admin.updates.land();
+      }
       api('/api/prefs').then(function (prefsResult) {
         var ok = prefsResult.ok && !!prefsResult.body;
         admin.store.set({

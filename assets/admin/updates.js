@@ -26,6 +26,13 @@
   var problem = '';
   var polls = 0;
   var pollTimer = null;
+  var landing = false; // the tray's "Check for updates" asked to land on the card (S5): focus it once, when it is mounted
+
+  /** True under the desktop app (the session says so), where the command line is not on PATH by default. */
+  function isDesktop() {
+    var s = A.store && A.store.get().session;
+    return !!s && s.desktop === true;
+  }
 
   /** @returns {string} "today at 9:14 am" for the same local day as nowMs, else "on 10 Oct 2026" */
   function whenText(ms, nowMs) {
@@ -114,7 +121,11 @@
     add(have, ['You have ' + snap.current + '. ', notes]);
     grow.appendChild(have);
 
-    grow.appendChild(add(el('span'), ['To update, run the new installer, or ', code('gm-scriptorium update'), '.']));
+    if (isDesktop()) {
+      grow.appendChild(add(el('span'), ['To update, run the new installer, or choose Open command line (Advanced) from the tray menu and run ', code('gm-scriptorium update'), '.']));
+    } else {
+      grow.appendChild(add(el('span'), ['To update, run the new installer, or ', code('gm-scriptorium update'), '.']));
+    }
 
     var fine = el('span');
     fine.className = 'upd-fine';
@@ -239,7 +250,11 @@
         add(on, [(function () { var b = el('b'); setText(b, 'Privacy.'); return b; })(), ' When this is on, GM-Scriptorium asks GitHub about once a day whether a newer version is out, and once more when you change the channel. If a check fails it tries again the next time it starts. GitHub can see this computer’s internet address, the version you run, and the time. It never sees your campaigns, your files or your settings. A notice only appears when there is a newer release on your channel.']);
         body.appendChild(on);
       } else {
-        body.appendChild(add(el('p'), ['When this is off, GM-Scriptorium makes no internet requests on its own. You can still run ', code('gm-scriptorium update'), ' whenever you like.']));
+        if (isDesktop()) {
+          body.appendChild(add(el('p'), ['When this is off, GM-Scriptorium makes no internet requests on its own. You can still update whenever you like: choose Open command line (Advanced) from the tray menu and run ', code('gm-scriptorium update'), '.']));
+        } else {
+          body.appendChild(add(el('p'), ['When this is off, GM-Scriptorium makes no internet requests on its own. You can still run ', code('gm-scriptorium update'), ' whenever you like.']));
+        }
       }
       body.appendChild(add(el('p'), ['Saved as ', code('[update] check = ' + (s.setting === 'on' ? 'true' : 'false')), ' in ', code(s.configPath || 'config.toml'), '. Turning it off takes effect straight away.']));
     }
@@ -374,6 +389,10 @@
       var oldCard = rest.querySelector('[data-part="update-setting"]');
       if (oldCard) oldCard.parentNode.removeChild(oldCard);
       rest.appendChild(buildCard());
+      if (landing) {
+        landing = false;
+        focusCard();
+      }
       if (active) {
         var again = rest.querySelector('[data-ctl="' + active + '"]');
         if (again && !again.disabled) again.focus();
@@ -412,5 +431,10 @@
     });
   }
 
-  A.updates = { mount: mount, whenText: whenText };
+  /** Called once at boot when the session carries the "updates" landing. */
+  function land() {
+    landing = true;
+  }
+
+  A.updates = { mount: mount, whenText: whenText, land: land };
 })();
