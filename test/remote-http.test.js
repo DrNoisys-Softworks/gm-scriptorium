@@ -1104,7 +1104,7 @@ test('local mode, the deliberate differences only: /api/session gains access, /o
   const cookie = { Cookie: `scriptorium_admin_${env.adminPort}=${env.token}` };
   const sess = JSON.parse((await loopbackReq(env, { pathname: '/api/session', headers: cookie })).text);
   assert.deepEqual(sess.access, { mode: 'local', via: 'loopback', reach: 'Bound to 127.0.0.1 only', previewUrl: null, loopbackScheme: 'http' });
-  assert.deepEqual(Object.keys(sess).sort(), ['access', 'account', 'campaign', 'launch', 'previewPort', 'readOnlyReason', 'siteSource', 'writable']);
+  assert.deepEqual(Object.keys(sess).sort(), ['access', 'account', 'campaign', 'desktop', 'landing', 'launch', 'previewPort', 'readOnlyReason', 'siteSource', 'writable']);
   assert.equal((await loopbackReq(env, { pathname: '/open-preview', headers: cookie })).status, 303);
   const pwRes = await request(env.adminPort, { method: 'POST', pathname: '/auth/password', host: `127.0.0.1:${env.adminPort}`, body: '{}', headers: { Origin: `http://127.0.0.1:${env.adminPort}`, 'Content-Type': 'application/json' } });
   assert.equal(pwRes.status, 403);

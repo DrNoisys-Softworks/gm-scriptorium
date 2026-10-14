@@ -430,16 +430,16 @@ const { renderLauncher } = require('../src/launch/launcherfile');
 const CODE_16 = 'A'.repeat(16);
 
 test('renderLauncher: no landing adds no field; updates and preview add one hidden "to" field; anything else throws', () => {
-  const plain = renderLauncher({ port: 7400, code: CODE_16 });
+  const plain = renderLauncher({ port: 80, code: CODE_16 });
   assert.equal(plain.includes('name="to"'), false);
   assert.ok(plain.includes(`<input type="hidden" name="code" value="${CODE_16}">\n<noscript>`), 'unchanged bytes without a landing');
   for (const to of ['updates', 'preview']) {
-    const html = renderLauncher({ port: 7400, code: CODE_16, to });
+    const html = renderLauncher({ port: 80, code: CODE_16, to });
     assert.ok(html.includes(`<input type="hidden" name="code" value="${CODE_16}">\n<input type="hidden" name="to" value="${to}">\n<noscript>`), to);
     assert.equal(html.split('name="to"').length, 2, 'one field only');
   }
   for (const bad of ['', 'Updates', 'updates ', '/', 'https://example.test/', '"><script>', null, 0, {}, ['updates']]) {
-    assert.throws(() => renderLauncher({ port: 7400, code: CODE_16, to: bad }), /landing is not usable/, JSON.stringify(bad));
+    assert.throws(() => renderLauncher({ port: 80, code: CODE_16, to: bad }), /landing is not usable/, JSON.stringify(bad));
   }
 });
 
