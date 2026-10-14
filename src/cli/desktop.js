@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('path');
+const pkg = require('../../package.json');
 const util = require('util');
 const config = require('./config');
 const { loadConfig } = require('./args');
@@ -67,6 +68,8 @@ async function runHost(flags, deps) {
     proc = process,
     now = Date.now,
     host,
+    // The helper compares this exactly with its own version (ADR 0057, section 11), so it is never empty.
+    version = pkg.version,
     ...hostDeps
   } = deps;
   const { runDesktopHost } = host || require('../desktop/host');
@@ -78,7 +81,7 @@ async function runHost(flags, deps) {
   const restore = redirectOutput(log, { consoleObj, stdout, stderr });
   let code;
   try {
-    code = await runDesktopHost({ background: flags.background === true }, { ...hostDeps, input: stdin, output, now, log, configPath, proc });
+    code = await runDesktopHost({ background: flags.background === true }, { ...hostDeps, version, input: stdin, output, now, log, configPath, proc });
   } finally {
     restore();
   }

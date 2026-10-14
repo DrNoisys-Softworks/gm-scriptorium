@@ -1007,3 +1007,26 @@ test('signin-local: absent when the confirmation is set, when the GM started the
   const plain = makeConfig(t, desktopToml());
   assert.equal((await runningOf(plain, { background: true })).length, 5, 'a local config has nothing held back');
 });
+
+test('desktop run with NO injected version says hello with the version in package.json (the helper compares it exactly)', async (t) => {
+  const cfg = makeConfig(t, desktopToml());
+  const s = fakeStreams();
+  const stdin = new PassThrough();
+  const proc = new EventEmitter();
+  proc.exit = () => {};
+  const result = runDesktopCommand({ config: cfg.configPath }, 'run', [], {
+    platform: 'win32', stdin, stdout: s.stdout, stderr: s.stderr, consoleObj: s.consoleObj, proc,
+    retryDelaysMs: [], pollMs: 1000,
+    openFile: async () => ({ outcome: 'exited', exitCode: 0 }),
+    killAll: async () => {},
+    startPanel: async () => fakePanel(cfg),
+  });
+  await until(() => s.stdoutChunks.length >= 1, 'the hello line');
+  const expected = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).version;
+  const fields = s.stdoutChunks[0].replace(/\n$/, '').split('\t');
+  assert.equal(fields[0], 'hello');
+  assert.ok(expected.length > 0);
+  assert.equal(fields[2], expected);
+  stdin.end();
+  await within(result, 'desktop run');
+});
