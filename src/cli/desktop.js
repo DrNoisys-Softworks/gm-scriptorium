@@ -53,4 +53,4 @@ function runDesktopCommand(flags, subcommand, args = []) {
   };
 }
 
-module.exports = { runDesktopCommand, USAGE };
+module.exports = { runDesktopCommand, USAGE, ALLOWED_FLAGS };
