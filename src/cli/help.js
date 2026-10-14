@@ -59,6 +59,21 @@ const REMOTE_SUB_HELP = {
 const REMOTE_SUBS = ['show', 'set', 'account', 'password', 'signout-all', 'off'];
 
 const HELP_BY_COMMAND = {
+  desktop: [
+    'gm-scriptorium desktop set [--port N] [--preview-port N] [--config PATH]',
+    '',
+    'Saves the two ports the Windows desktop app gives its panel (--port, default 7400) and its preview',
+    '(--preview-port, default 7401). Give at least one; a port you leave out keeps its current value. They',
+    'must be different whole numbers from 1 to 65535, and nothing is written until both are checked.',
+    'Only the [desktop] part of the settings file changes. Takes effect the next time the desktop app',
+    'starts its panel. Terminal and portable copies keep ports picked by the system.',
+    '',
+    '--background belongs to a later subcommand of desktop; desktop set refuses it.',
+    '',
+    'Example: gm-scriptorium desktop set --port 7500 --preview-port 7501',
+    '',
+    exits([0, 1, 3]),
+  ],
   init: [
     'gm-scriptorium init [--name <name>] [--vault <path>] [--out <path>] [--title <text>] [--theme <name>] [--yes]',
     'gm-scriptorium init --new-vault <path> --system <id|none> [--name <name>] [--title <text>] [--out <path>] [--theme <name>] [--yes]',
