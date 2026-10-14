@@ -23,7 +23,8 @@
     "notices": "node scripts/generate-notices.js",
     "package": "node scripts/package.js",
     "installer": "node scripts/installer.js",
-    "verify-generator": "node scripts/generator-pin.js verify"
+    "verify-generator": "node scripts/generator-pin.js verify",
+    "docs-reference": "node scripts/docs-reference.js"
   },
   "pkg": {
     "assets": [
