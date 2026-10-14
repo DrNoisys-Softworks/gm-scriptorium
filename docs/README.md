@@ -34,6 +34,7 @@ Facts to look up.
 - [Files and folders](reference/files-and-folders.md): what GM-Scriptorium keeps on your computer, and where.
 - [The command line](reference/command-line.md): every command, flag and subcommand, and the exit codes each command returns.
 - [The campaign pack file (pack.toml)](reference/pack-toml.md): every key in a campaign's pack file, what it does, and what changes it.
+- [The vault's publish settings (vault-config.md and vault.config.json)](reference/vault-config.md): the keys GM-Scriptorium reads, shows or changes in the two files, how they combine, and which the panel edits.
 
 ## Explanation
 
