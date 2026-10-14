@@ -65,7 +65,7 @@ panel's audit log records it.
 Use this if you prefer a terminal, or you are writing a script. The examples use `lease` as the
 campaign name.
 
-**No vault yet.** This makes one in a folder that does not exist or is empty:
+**No vault yet.** *Since 0.5.0.* This makes one in a folder that does not exist or is empty:
 
 ```
 gm-scriptorium init --new-vault ~/campaigns/lease --system none --name lease
