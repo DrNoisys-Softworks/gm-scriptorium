@@ -35,6 +35,7 @@ Facts to look up.
 - [The command line](reference/command-line.md): every command, flag and subcommand, and the exit codes each command returns.
 - [The campaign pack file (pack.toml)](reference/pack-toml.md): every key in a campaign's pack file, what it does, and what changes it.
 - [The vault's publish settings (vault-config.md and vault.config.json)](reference/vault-config.md): the keys GM-Scriptorium reads, shows or changes in the two files, how they combine, and which the panel edits.
+- [Check messages](reference/check-messages.md): every message id `check` and `build` can print, what it means and what to do.
 
 ## Explanation
 

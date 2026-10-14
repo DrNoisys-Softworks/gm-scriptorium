@@ -48,6 +48,8 @@ The name check looks for the page's file name, its `title`, and each alias that 
 - Comment text in the output, and the GM link marker, are refused separately.
 - The swap into place is atomic, so a refused build leaves your live site as it was.
 
+Every message these print, with what it means and what to do, is in [check messages](../reference/check-messages.md).
+
 ## What the leak checks cannot see
 
 The checks are proxies for a leak, not a judgement of one. A clean run is not clearance: "They cannot catch forward-looking prep prose that names nobody hidden, or GM-facing framing under a heading nobody listed. A clean result here is not clearance to share this site with players." Read the site yourself before you share it. The checks do not see:

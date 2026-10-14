@@ -105,7 +105,7 @@ than deciding alone.
   codes.** User mistakes are mapped onto these (see "Exit codes for user errors" below). A cleanup or delete failure must never change the code a user sees. Copy the pattern in
   `src/build/run.js` (best-effort removal, swallowed, commented), tested in
   `test/build-output-gate.test.js`, which injects `EBUSY` through an `fs.rmSync` monkeypatch.
-- `test/docs-reference.test.js`, `test/docs-reference-cli.test.js`, `test/docs-reference-pack.test.js` and `test/docs-reference-vault.test.js`: the reference pages in `docs/reference/` match the code. A new settings key, exit code, environment variable, file kept beside the config, command, flag, subcommand, pack.toml key, a vault-config.md key the panel knows, or a vault.config.json key the program reads, writes or requires fails them until it has its text in `scripts/docs-reference-text.js` (or a row on the environment variables page) and `npm run docs-reference` has been run.
+- `test/docs-reference.test.js`, `test/docs-reference-cli.test.js`, `test/docs-reference-pack.test.js`, `test/docs-reference-vault.test.js` and `test/docs-reference-checks.test.js`: the reference pages in `docs/reference/` match the code. A new settings key, exit code, environment variable, file kept beside the config, command, flag, subcommand, pack.toml key, a vault-config.md key the panel knows, a vault.config.json key the program reads, writes or requires, or a check id fails them until it has its text in `scripts/docs-reference-text.js` (or a row on the environment variables page) and `npm run docs-reference` has been run.
 - **No new runtime dependency without saying so explicitly.** Anything new forces a regeneration
   of the notices and a licence re-audit (see [Licence provenance](PROVENANCE.md)).
 
