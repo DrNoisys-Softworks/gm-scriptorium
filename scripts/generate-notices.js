@@ -242,6 +242,41 @@ function buildInstallerSectionLines() {
   return lines;
 }
 
+/**
+ * Section 10 (docs/decisions/0057-windows-desktop-app.md, section 2): the Windows tray helper is built
+ * with the mingw-w64 cross compiler and links the mingw-w64 runtime and parts of libgcc statically.
+ * The mingw-w64 runtime is under the Zope Public License 2.1, with some files public domain or under
+ * other permissive licences; libgcc is covered by the GCC Runtime Library Exception. The licence text is
+ * the copyright file of the Debian package the release machine builds with
+ * (scripts/vendor/mingw-w64-x86-64-dev-10.0.0-3-copyright.txt, sha256 in docs/PROVENANCE.md).
+ */
+const MINGW_COPYRIGHT_PATH = path.join(VENDOR_DIR, 'mingw-w64-x86-64-dev-10.0.0-3-copyright.txt');
+
+function buildTraySectionLines() {
+  const licenseText = fs.readFileSync(MINGW_COPYRIGHT_PATH, 'utf8').trim();
+  const lines = [];
+  lines.push(SEPARATOR);
+  lines.push('SECTION 10: THE WINDOWS TRAY HELPER (MINGW-W64)');
+  lines.push(SEPARATOR);
+  lines.push('');
+  lines.push(
+    'The Windows tray helper (released as gm-scriptorium-tray-win-x64.exe and installed as ' +
+      'gm-scriptorium-tray.exe) is written for this project and built with the mingw-w64 cross compiler: ' +
+      'GCC 12 from the Debian package gcc-mingw-w64-x86-64-win32, with the headers and runtime from ' +
+      'mingw-w64-x86-64-dev 10.0.0-3. It links the mingw-w64 runtime start-up code and libraries statically, ' +
+      'so the helper carries parts of the mingw-w64 runtime. Those are licensed under the Zope Public License 2.1, ' +
+      'with some files in the public domain or under the other permissive licences listed below. The helper also ' +
+      'links parts of the GCC runtime library (libgcc) statically; the GCC Runtime Library Exception, version 3.1, ' +
+      'allows that code to be distributed under terms of the distributor\'s choosing. Apart from those, the helper ' +
+      'uses only Windows system libraries. The complete copyright and licence file of the ' +
+      'mingw-w64-x86-64-dev 10.0.0-3 package follows, unedited.',
+  );
+  lines.push('');
+  lines.push(licenseText);
+  lines.push('');
+  return lines;
+}
+
 function isProdPackage(meta) {
   return !meta.dev && !meta.devOptional && !meta.optional;
 }
@@ -493,6 +528,9 @@ function buildNoticesText() {
 
   // Section 9: the Windows installer and uninstaller (ADR 0053)
   out.push(...buildInstallerSectionLines());
+
+  // Section 10: the Windows tray helper (ADR 0057)
+  out.push(...buildTraySectionLines());
 
   return out.join('\n');
 }

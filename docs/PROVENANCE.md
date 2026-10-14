@@ -1229,3 +1229,21 @@ turned into shapes so the picture needs no font at run time.
 
 The two BMP files are binary, so the public-guard residual classes now include them as well as the icon.
 They hold no text a guard list could match beyond the image data.
+
+## Windows tray helper, 2026-10-14
+
+The Windows tray helper, `gm-scriptorium-tray.exe` (ADR 0057), is written for this project in C and
+built with the mingw-w64 cross compiler on the release machine: GCC 12 from the Debian package
+`gcc-mingw-w64-x86-64-win32` 12.2.0-14+deb12u1+25.2+b1, with `binutils-mingw-w64-x86-64` 2.40 and
+`mingw-w64-x86-64-dev` 10.0.0-3. The compiler is a build tool, not a dependency of the program, but the
+helper links the mingw-w64 runtime start-up code and libraries and parts of the GCC runtime library
+(`libgcc`) statically, so the licence file of `mingw-w64-x86-64-dev` is reproduced in
+`THIRD-PARTY-NOTICES.txt` Section 10. The mingw-w64 runtime is licensed under the Zope Public
+License 2.1, with some files in the public domain or under other permissive licences listed in that
+file. `libgcc` is covered by the GCC Runtime Library Exception, version 3.1, which lets the compiled
+code be distributed on the distributor's own terms. The helper's other imports are Windows system
+libraries. Its icon is the Lantern described in "Windows icon and version strings" above.
+
+| File | sha256 |
+|---|---|
+| `scripts/vendor/mingw-w64-x86-64-dev-10.0.0-3-copyright.txt` (a copy of `/usr/share/doc/mingw-w64-x86-64-dev/copyright`) | `f27a58667538b6913ea23cb9e07e270922761ebf7c22d94bda7f819aaf08ea08` |
