@@ -17,7 +17,7 @@ const { EXIT_CODES } = require('../util/exitcodes');
  * reachability check (which warns, never blocks, on failure).
  */
 
-function runConfigCommand(flags, subcommand, args) {
+function runConfigCommand(flags, subcommand, args, { env = process.env, spawnEditor = spawnSync } = {}) {
   // `remove` loads leniently so a malformed entry (which makes every other command refuse to
   // load the config) can still be removed, instead of forcing a hand edit of the TOML.
   const { configPath, config } = loadConfig(flags, { lenient: subcommand === 'remove' });
@@ -98,13 +98,22 @@ function runConfigCommand(flags, subcommand, args) {
       return { exitCode: EXIT_CODES.OK, human: configPath };
 
     case 'edit': {
-      const editor = process.env.EDITOR || process.env.VISUAL;
+      const editor = env.EDITOR || env.VISUAL;
       if (!editor) {
         return { exitCode: EXIT_CODES.OK, human: `no $EDITOR set; config is at ${configPath}` };
       }
       if (!fs.existsSync(configPath)) writeConfigFile(configPath, config);
-      const result = spawnSync(editor, [configPath], { stdio: 'inherit' });
-      return { exitCode: result.status || EXIT_CODES.OK, human: '' };
+      const result = spawnEditor(editor, [configPath], { stdio: 'inherit' });
+      // The editor's own status is outside the frozen exit-code table (src/util/exitcodes.js). Any
+      // failure is exit 1 with a plain message (a ConfigError): the config itself is fine, so not 3.
+      if (result.error) {
+        throw new ConfigError(`could not start the editor "${editor}" (${result.error.code || result.error.message}); the config file is at ${configPath}`);
+      }
+      if (result.status !== 0) {
+        const how = result.signal ? `was stopped by ${result.signal}` : `exited with status ${result.status}`;
+        throw new ConfigError(`the editor "${editor}" ${how}; the config file is at ${configPath}`);
+      }
+      return { exitCode: EXIT_CODES.OK, human: '' };
     }
 
     default:

@@ -151,6 +151,7 @@ prerequisite) for a user mistake. The table-driven test is `test/exit-codes-user
 | the starter in this build is missing, or fails its check against its manifest | 1 | 1 | `this build has no new-campaign starter` / `the new-campaign starter in this executable failed its integrity check: <file>; nothing was written` |
 | `init --new-vault` into a folder that is not empty, is a file or a link, is a filesystem root, is inside a vault or inside the settings folder; or the creation stops part-way | 1 | 3 | `refusing to create a vault in <path>: it is not empty (it holds ...)` and its siblings / `stopped creating the vault in <path>: ...; created before stopping: ...` |
 | `init` aborted by closed stdin | 1 | 1 | `init aborted; nothing written` |
+| `config edit` when the editor exits with a non-zero status, is stopped by a signal, or cannot be started | the editor's own status (0 when stopped or not started) | 1 | `the editor "x" exited with status N; the config file is at <path>` / `the editor "x" was stopped by SIGTERM; ...` / `could not start the editor "x" (ENOENT); ...` |
 
 Not remapped, still 1: a folderMap output collision, and any genuinely unexpected
 exception (including one while loading a pack), which prints its stack. Only a `ConfigError`

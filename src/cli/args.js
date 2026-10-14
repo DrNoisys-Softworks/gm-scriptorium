@@ -10,7 +10,7 @@ const { ConfigError, VaultUnreachableError } = require('../util/errors');
 /*
  * Global flag parsing and campaign resolution, shared by every subcommand
  * (bin/scriptorium.js dispatches, but does no parsing itself). Global
- * flags: --campaign <name>, --json, --quiet, --no-color, --config <path>,
+ * flags: --campaign <name>, --json, --no-color, --config <path>,
  * --vault/--out/--site-config diagnostic overrides, --version, --help, --notices, --yes.
  */
 
@@ -25,8 +25,10 @@ const FORCE_SPLIT_MESSAGE =
 /*
  * Issue #106: the flags each command accepts. Anything else is an error (an unknown flag used to be
  * ignored silently, so a typo of --force or --json quietly did something other than intended).
- * COMMON_FLAGS are the documented global flags (see HELP in bin/scriptorium.js); --quiet and
- * --no-color are documented and accepted but nothing reads them yet.
+ * COMMON_FLAGS are the global flags (see HELP in bin/scriptorium.js). --no-color is documented and
+ * accepted but nothing reads it yet. --quiet is accepted so existing scripts keep working, but nothing
+ * reads it and it is no longer advertised; keep it in GLOBAL_BOOLEAN_FLAGS too, or `--quiet <campaign>`
+ * would swallow the campaign name.
  */
 const COMMON_FLAGS = ['help', 'version', 'notices', 'config', 'json', 'quiet', 'no-color', 'campaign', 'vault', 'out', 'site-config'];
 const COMMAND_FLAGS = Object.freeze({

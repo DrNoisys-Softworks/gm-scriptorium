@@ -97,12 +97,16 @@ stop it cleanly, but ending the process from Task Manager cannot be caught.
 ```
 gm-scriptorium serve my-campaign --admin
 ```
-Opens the local GM admin panel instead: a small web page, on this computer only, for your campaign
-pack (theme, image slots and vocabulary) and your campaign's tagline, with a live preview of the
-player site inside the panel. The tagline is saved into your vault's `_meta/vault-config.md`, and
-the panel keeps a copy of that file outside the vault before every save. Editing more of
-`_meta/vault-config.md` from the panel is planned. The panel answers only on this computer unless
-you turn on remote access (next command).
+Opens the local GM admin panel instead: a small web page, on this computer only, with a live
+preview of the player site inside it. From the panel you can change your campaign pack's theme,
+image slots and vocabulary, set the site's title and tagline, run the checks, edit
+`_meta/vault-config.md`, and switch between your campaigns (see below). The title is saved in
+`vault.config.json` and the tagline in your vault's `_meta/vault-config.md`. The vault-config.md
+screen edits seven settings as form fields (the hidden fields, headings and folders, the landing
+page's featured characters, quick links and how many characters to show, and the not-found
+message), or all of its settings as text. The publish mode can only be changed as text. The panel
+keeps a copy of `_meta/vault-config.md` outside the vault before every save. The panel answers only
+on this computer unless you turn on remote access (next command).
 
 If no campaign is registered yet, `gm-scriptorium serve --admin` starts browser setup instead of
 stopping with an error. It asks the same five questions as `init` (name, vault, output folder, site
@@ -132,8 +136,9 @@ gm-scriptorium remote show
 ```
 Opt-in access to the admin panel from another device, for a GM who runs GM-Scriptorium on a home
 server or a VM: behind a reverse proxy, through `tailscale serve`, or through an SSH tunnel. Set it
-up with `remote set`, `remote password`, `remote signout-all` and `remote off`. Behind a reverse
-proxy or `tailscale serve`, the panel needs HTTPS (from the proxy or Tailscale) and a password.
+up with `remote set`, `remote account`, `remote signout-all` and `remote off`. Behind a reverse
+proxy or `tailscale serve`, the panel needs HTTPS (from the proxy or Tailscale) and a sign-in: a username and a
+password, made with `remote account add <name>`.
 Through an SSH tunnel it needs neither, because SSH has already authenticated and encrypted the
 connection. See [Remote access](remote-access.md).
 
@@ -151,7 +156,7 @@ Manage registered campaigns (`add`, `remove`, `set-default`, `path`, `edit`). `a
 ```
 gm-scriptorium update
 ```
-Self-updates from the latest release. See [Updating](install.md#updating), it needs one extra tool.
+Self-updates from the latest release. It needs an internet connection and nothing else; see [Updating](install.md#updating).
 
 That's the full command surface: `init`, `check`, `build`, `serve` (with a `--admin` mode),
 `status`, `config`, `remote`, `update`. Run `gm-scriptorium --help` for the full flag list on each.
@@ -186,8 +191,10 @@ Everything a GM writes in a campaign vault, notes on what's really behind a myst
 motives, stat blocks that would spoil a fight, is not meant for players. The leak checks are how
 GM-Scriptorium keeps those notes off the site.
 
-- `check` runs read-only leak checks (L1 through L5, five layers that each look for GM-only names
-  and notes in a different place; see [ADR 0009](decisions/0009-output-leak-scan.md)) over the
+- `check` runs read-only leak checks (L1 through L6, six layers that each look for GM-only names
+  and notes in a different place, the sixth being Obsidian `%%` comments; see
+  [ADR 0009](decisions/0009-output-leak-scan.md) and
+  [ADR 0044](decisions/0044-obsidian-comments-withheld.md)) over the
   vault itself, including a scan of any already-built site for withheld names showing up in
   derived views: relationship-graph labels, aggregate index cards, recency excerpts, the search
   index.

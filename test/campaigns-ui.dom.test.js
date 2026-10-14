@@ -379,10 +379,15 @@ for (const browserName of ['chromium', 'firefox']) {
         page.on('request', (req) => {
           if (req.method() === 'POST') posts.push(req.url());
         });
+        // force skips the enabled check (both targets are aria-disabled on purpose) but also the visible
+        // check, so wait, bounded, for each target to have a box first; else a forced click throws.
+        await trigger(page, size).waitFor({ state: 'visible', timeout: 15000 });
         await trigger(page, size).click({ force: true }); // aria-disabled, so Playwright would wait forever
         await pop(page, size).waitFor({ state: 'visible' });
         assert.equal((await pop(page, size).locator('.cs-msg.is-lock').textContent()).trim(), reason);
-        await pop(page, size).locator('[data-campaign="beta"]').click({ force: true });
+        const betaRow = pop(page, size).locator('[data-campaign="beta"]');
+        await betaRow.waitFor({ state: 'visible', timeout: 15000 });
+        await betaRow.click({ force: true });
         assert.deepEqual(posts, [], 'a disabled row sends nothing');
         if (!SKIP_AXE) assert.deepEqual(await axeViolations(page), [], `--vault switcher at ${size.width}`);
         await page.keyboard.press('Escape');
