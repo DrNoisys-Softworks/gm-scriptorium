@@ -548,7 +548,7 @@ module.exports = deepFreeze({
     },
     exclude_drafts: {
       type: 'true or false',
-      what: 'A switch for leaving draft pages out of the site.',
+      what: 'Whether pages with `canon_status: DRAFT` are left out of the site.',
     },
     exclude_callouts: {
       type: 'true or false, or a list of text',

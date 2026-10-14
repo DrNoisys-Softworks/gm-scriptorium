@@ -273,3 +273,48 @@ test('the page has the opening, the combining rule, the guarded editor and the b
   assert.match(page, /decisions\/0033-vaultconfig-write-exception\.md/);
   assert.match(page, /decisions\/0041-check-an-edited-copy\.md/);
 });
+
+// ---- the examples are safe to copy: dropped into a scratch copy of the sample, check finds nothing new ----
+
+const os = require('os');
+const { spawnSync } = require('child_process');
+
+function findingCounts(mutate) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-config-example-'));
+  try {
+    const vault = path.join(dir, 'v');
+    fs.cpSync(path.join(ROOT, 'examples', 'the-long-lease'), vault, { recursive: true });
+    mutate({
+      vaultConfigMd: path.join(vault, '_meta', 'vault-config.md'),
+      vaultConfigJson: path.join(vault, '_meta', 'scriptorium', 'vault.config.json'),
+    });
+    const config = path.join(dir, 'config.toml');
+    fs.writeFileSync(config, `config_version = 1\n\n[campaigns.lease]\nvault = ${JSON.stringify(vault)}\n`);
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'bin', 'scriptorium.js'), 'check', 'lease', '--config', config, '--json', '--no-color'], { encoding: 'utf8', maxBuffer: 1 << 28 });
+    const counts = {};
+    for (const f of JSON.parse(r.stdout).findings) counts[f.id] = (counts[f.id] || 0) + 1;
+    return counts;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const withYaml = (yamlBody) => ({ vaultConfigMd }) => {
+  const s = fs.readFileSync(vaultConfigMd, 'utf8');
+  const from = s.indexOf('\npublish:\n');
+  const to = s.indexOf('\n---\n', from);
+  fs.writeFileSync(vaultConfigMd, s.slice(0, from + 1) + yamlBody.replace(/\n$/, '') + s.slice(to));
+};
+const withJson = (jsonBody) => ({ vaultConfigJson }) => fs.writeFileSync(vaultConfigJson, jsonBody);
+
+test('the examples dropped into a copy of the sample add no finding to the sample baseline', () => {
+  const baseline = findingCounts(() => {});
+  assert.deepEqual(findingCounts(withYaml(exampleOf('yaml'))), baseline, 'the YAML example');
+  assert.deepEqual(findingCounts(withJson(exampleOf('json'))), baseline, 'the JSON example');
+});
+
+test('control: a trimmed exclude list or a short folderMap does add findings', () => {
+  const baseline = findingCounts(() => {});
+  assert.notDeepEqual(findingCounts(withYaml('publish:\n  exclude_fields: ["secrets"]\n  exclude_dirs: ["_meta", "_Templates"]\n')), baseline);
+  assert.notDeepEqual(findingCounts(withJson('{"folderMap": {"Locations": "locations"}, "excludeDirs": ["_meta", "_Templates"]}')), baseline);
+});

@@ -74,7 +74,7 @@ table: `max_npcs:` under `landing:`.
 | `exclude_fields` | list of text | secrets, current_plan, plan_progress, gm_notes, prep_notes, reliability | Hidden fields (edit) | Frontmatter fields that are never published, on any page. Joined with `excludeFields` in `vault.config.json`; see how the two files combine, above. |
 | `exclude_sections` | list of text | GM Notes, DM Notes, Player Notes, Source References, Reconciliation Context, Handoff to Reconcile | Hidden headings (edit) | Headings whose section is removed from every page, at any heading level. Joined with `excludeSections` in `vault.config.json`. |
 | `exclude_dirs` | list of text | _meta, _Templates | Hidden folders (edit) | Vault folders that are skipped completely. Joined with `excludeDirs` in `vault.config.json`. `check` compares the two lists and says if they differ. |
-| `exclude_drafts` | true or false | false | - | A switch for leaving draft pages out of the site. |
+| `exclude_drafts` | true or false | false | - | Whether pages with `canon_status: DRAFT` are left out of the site. |
 | `exclude_callouts` | true or false, or a list of text | false | - | Whether callout blocks are removed from pages. When this key is absent, `excludeCallouts` in `vault.config.json` is used instead, and then the default. |
 | `overrides` | table | No overrides | - | Per-page exceptions to the hidden fields, under `overrides.fields`. An entry the generator cannot read is dropped. |
 | `theme.palette` | table of colours | The built-in colours | Colours (shown) | The four site colours: `primary`, `accent`, `background` and `text`. The panel shows them but has no field to change them. |
@@ -94,13 +94,14 @@ table: `max_npcs:` under `landing:`.
 For the other keys of the file, see
 [the generator's documentation](https://github.com/AntTheLimey/gm-apprentice/tree/publish-v1.14.0).
 
-This is the `publish:` block of the sample campaign, trimmed to keys in the table:
+This is the `publish:` block of the sample campaign, with the long explore text left out. The hidden
+lists are in full, so copying the block loses none of the built-in ones.
 
 ```yaml
 publish:
   mode: player
-  exclude_sections: ["GM Notes", "DM Notes", "Player Notes"]
-  exclude_fields: ["secrets", "gm_notes"]
+  exclude_sections: ["GM Notes", "DM Notes", "Player Notes", "Source References", "Reconciliation Context", "Handoff to Reconcile"]
+  exclude_fields: ["secrets", "current_plan", "plan_progress", "gm_notes", "prep_notes", "reliability"]
   exclude_dirs: ["_meta", "_Templates"]
   theme:
     tagline: "Three hundred years ago a queen rented this valley from a dragon."
@@ -142,18 +143,26 @@ get" is what `init` and the panel's first-run setup write.
 The generator's own reference for this file is
 [its README](https://github.com/AntTheLimey/gm-apprentice/blob/publish-v1.14.0/tools/publish/README.md).
 
-This is the sample campaign's file, trimmed to keys in the table:
+This is the sample campaign's file, with the optional keys the sample does not need left out.
+A real `folderMap` needs an entry for every folder you want published.
 
 ```json
 {
   "siteTitle": "The Long Lease",
   "attachmentsDir": "_attachments",
   "folderMap": {
+    "Sessions": "sessions",
+    "Characters/PCs": "characters/pcs",
+    "Characters/NPCs": "characters/npcs",
     "Locations": "locations",
-    "Characters/NPCs": "characters/npcs"
+    "Factions & Organizations": "factions",
+    "Items & Artifacts": "items",
+    "Creatures": "creatures",
+    "Events": "events",
+    "_Campaign": "campaign"
   },
   "excludeDirs": ["_meta", "_Templates"],
-  "excludeSections": ["GM Notes", "DM Notes", "Player Notes"],
+  "excludeSections": ["GM Notes", "DM Notes", "Player Notes", "Source References", "Reconciliation Context", "Handoff to Reconcile"],
   "excludeCallouts": false
 }
 ```
