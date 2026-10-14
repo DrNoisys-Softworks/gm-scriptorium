@@ -23,9 +23,21 @@ can return. The codes themselves are on [the exit codes page](exit-codes.md).
 ## With no command
 
 Run `gm-scriptorium` on its own, with no command and no flag other than `--config <path>`, in a
-terminal, and it opens the admin panel in your browser. That is also what happens when you
-double-click the program. If the output is piped or redirected, or any other flag is given, it
-prints the list of commands and exits 0 instead.
+terminal, and it opens the admin panel in your browser. If the output is piped or redirected, or
+any other flag is given, it prints the list of commands and exits 0 instead.
+
+What happens in the terminal depends on the copy you run.
+
+- **An installed copy on Windows** (the one Setup installs, with `gm-scriptorium-tray.exe` beside
+  it), when you give no `--config`. The command asks the background app to start, or reuses the
+  one already running. It prints a short status line, opens your browser, and returns with exit 0.
+  If the app is running but its panel could not start, it points you at the log and exits 1.
+  If it takes longer than 15 seconds to start, it says to look for the icon in the system tray
+  and exits 1.
+- **Any other copy**, such as a portable copy, Linux, or a Windows run with `--config`. The
+  command runs the panel in the terminal, prints a one-time link and opens your browser. Stop it
+  with Ctrl+C. If the background app could not be started at all, an installed copy falls back to
+  this too.
 
 ## Commands
 
@@ -38,7 +50,7 @@ prints the list of commands and exits 0 instead.
 | `serve` | Serves the built site on this computer so you can look at it, or with `--admin` opens the admin panel. | `0`, `1`, `3` |
 | `status` | Shows where a campaign stands: whether the vault is reachable, when the site was last built, the last and next session, file counts and the latest check result. It changes nothing. | `0`, `1`, `3` |
 | `config` | Manages the list of campaigns GM-Scriptorium knows about. It never needs the vault to be reachable. | `0`, `1`, `3` |
-| `update` | Downloads the newest release from GitHub and replaces this program with it. | `0`, `1`, `4` |
+| `update` | Downloads the newest release from GitHub and replaces this program with it. On an installed copy on Windows it replaces the tray helper beside it too, and nothing is replaced if either download fails. Quit the tray app and start it again afterwards. | `0`, `1`, `4` |
 | `remote` | Changes how the admin panel can be reached from other devices, and manages the accounts that can sign in. See [Remote access](../remote-access.md). | `0`, `1`, `3` |
 | `desktop` | *Since 0.5.0.* Saves the two ports the Windows desktop app gives its panel and its preview. | `0`, `1`, `3` |
 <!-- END GENERATED cli-commands -->
