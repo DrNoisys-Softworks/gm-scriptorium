@@ -22,6 +22,9 @@ Steps for a job you already have in mind.
 - [Trying it safely](trying-it-safely.md): using the tool beside a campaign you care about, without touching your real config.
 - [Remote access](remote-access.md): using the admin panel from another device, safely.
 - [Backing up your vault](backing-up-your-vault.md): how to keep your campaign notes safe, and why GM-Scriptorium does not do it for you.
+- [Start a new campaign](how-to/start-a-new-campaign.md): set up your first campaign, with a vault you already have or a new one, in the admin panel or on the command line.
+- [Add another campaign, and switch between them](how-to/add-another-campaign.md): add a second campaign, move the panel between campaigns, choose the default and take one off the list.
+- [Change how your site looks and the words it uses](how-to/change-the-look-and-vocabulary.md): the theme, the pictures, the title and tagline, and the vocabulary.
 - [Keep GM-only notes off the player site](how-to/hide-gm-content.md): hiding a page, part of a page, a field, a relationship or a name, and checking the result.
 - [Add a Game master link to the player site](how-to/add-a-game-master-link.md): a link in the site footer back to your own admin panel, and why its address is public.
 

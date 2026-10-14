@@ -36,7 +36,7 @@ You need a campaign you can build, and an address for your own panel that starts
 
    <!-- screenshot: how-to/site-footer-gm-link.png -->
 
-   The footer ends with "Game master". It opens `https://scriptorium.home.arpa/?campaign=lease`, which is the address you wrote, a slash, and the campaign's name.
+   The footer ends with "Game master". It opens `https://scriptorium.home.arpa/?campaign=lease`, which is the address you wrote, then `/?campaign=` and the campaign's name.
 
 ## What the address can be
 

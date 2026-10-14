@@ -50,19 +50,12 @@ Running a command without a terminal (from a script, say) still prints the help.
 ```
 gm-scriptorium init --new-vault ~/campaigns/lease --system none --name lease
 ```
-Start a new campaign from nothing. It creates a vault in that folder, which must not exist yet or must
-be empty (any parent folders that are missing are created too, and listed first), then sets up the
-campaign pack and registers it. Pick your game system with `--system`, or `--system none`; it is never
-guessed. It never overwrites or removes anything, and if it stops part-way it lists exactly what it
-made. At a terminal, without `--vault` or `--new-vault`, `init` asks whether you already have a vault, and the questions follow from your answer. With piped input it does not ask, so scripts say `--new-vault`.
+Start a new campaign from nothing: this makes a vault in an empty or new folder and registers it, and `--system` is never guessed (use `--system none` for no particular system). See [Start a new campaign](how-to/start-a-new-campaign.md).
 
 ```
 gm-scriptorium init
 ```
-Interactive first-run setup: point it at your vault, give the campaign a name, pick a theme, and it
-scaffolds `_meta/scriptorium/` inside your vault. It never touches anything else in the vault, and
-never overwrites an existing file. The theme it suggests is `gloam`, a dark theme that ships its
-own fonts.
+Interactive first-run setup: point it at your vault, name the campaign and pick a theme. It only adds files under `_meta/scriptorium/` and never overwrites one; see [Start a new campaign](how-to/start-a-new-campaign.md).
 
 ```
 gm-scriptorium check my-campaign
@@ -97,39 +90,15 @@ stop it cleanly, but ending the process from Task Manager cannot be caught.
 ```
 gm-scriptorium serve my-campaign --admin
 ```
-Opens the local GM admin panel instead: a small web page, on this computer only, with a live
-preview of the player site inside it. From the panel you can change your campaign pack's theme,
-image slots and vocabulary, set the site's title and tagline, run the checks, edit
-`_meta/vault-config.md`, and switch between your campaigns (see below). The title is saved in
-`vault.config.json` and the tagline in your vault's `_meta/vault-config.md`. The vault-config.md
-screen edits seven settings as form fields (the hidden fields, headings and folders, the landing
-page's featured characters, quick links and how many characters to show, and the not-found
-message), or all of its settings as text. The publish mode can only be changed as text. The panel
-keeps a copy of `_meta/vault-config.md` outside the vault before every save. The panel answers only
-on this computer unless you turn on remote access (next command).
+Opens the local GM admin panel instead: a small web page, on this computer only unless you turn on remote access (next command), with a live preview of the player site inside it. From it you can change the theme, images, vocabulary, title and tagline, run the checks, edit `_meta/vault-config.md` and switch campaigns; see [Change how your site looks and the words it uses](how-to/change-the-look-and-vocabulary.md).
 
-If no campaign is registered yet, `gm-scriptorium serve --admin` starts browser setup instead of
-stopping with an error. It asks the same five questions as `init` (name, vault, output folder, site
-title and theme), checks each answer with the same rules, and shows the rule's own message when it
-refuses one. Nothing is written until its review screen, apart from any folder you make with New folder, which creates the same pack files and
-registers the same campaign as `gm-scriptorium init --yes`. It then builds a first preview into the
-panel's own preview folder and opens the panel on your campaign without restarting. Setup listens on
-this computer only, whatever your remote access settings say. A vault on a network share is allowed,
-with a warning to commit to git first. On Linux, a browser installed as a snap cannot always read the
-hidden config folder, so use the link the command prints.
+If no campaign is registered yet, `gm-scriptorium serve --admin` starts browser setup instead of stopping with an error. It asks the same questions as `init`; the steps are in [Start a new campaign](how-to/start-a-new-campaign.md).
 
-The vault and output questions have a Browse button. It opens a list of folders under the field, starting at the deepest folder that already exists above what you typed. The list shows folders only, never files. A link or shortcut is marked and can't be opened there, so type its path instead. Choose this folder fills the field and runs the usual check. On the output question, New folder makes a folder inside the open one straight away, and it stays even if you cancel. This works from another device too, and the panel's audit log records it.
+The vault and output questions have a Browse button, and the output question has New folder; see [Browse and New folder](how-to/start-a-new-campaign.md#browse-and-new-folder).
 
-With more than one campaign registered, the campaign name at the top of the panel opens a list, and
-choosing another campaign switches the whole panel to it, from this computer or from a remote
-browser. If you have unsaved changes on the page, it asks before it switches. The Campaigns screen
-(under Setup) lists each campaign with its vault and output folders, sets the one that opens by
-default, and removes one from the list. Removing only takes it off GM-Scriptorium's list: the vault,
-pack, output and backups stay where they are, and the campaign you are on cannot be removed. A
-browser tab left open on the old campaign shows a banner and asks you to reload before it can change
-anything. A panel started with `--vault` cannot switch.
+With more than one campaign registered, the campaign name at the top of the panel opens a list, and choosing another campaign switches the whole panel to it. The Campaigns screen (under Setup) sets the default and removes a campaign from the list; see [Add another campaign, and switch between them](how-to/add-another-campaign.md).
 
-To add another campaign, press Add a campaign on the Campaigns screen, or in the list at the top of the panel. It asks the same questions as first-run setup, with the same checks, and it refuses a name, vault or output folder that clashes with a campaign you already have. Nothing is written until the last screen, and your default campaign does not change unless you have none. Afterwards you can switch to the new campaign and build its first preview, or stay where you are. It works from a remote browser too; there, a path you type is checked when you leave the box, and the panel's audit log records it.
+To add another campaign, press Add a campaign on the Campaigns screen, or in the list at the top of the panel. It asks the same questions as first-run setup; see [Add a campaign](how-to/add-another-campaign.md#add-a-campaign).
 
 ```
 gm-scriptorium remote show
@@ -159,7 +128,7 @@ gm-scriptorium update
 Self-updates from the latest release. It needs an internet connection and nothing else; see [Updating](install.md#updating).
 
 That's the full command surface: `init`, `check`, `build`, `serve` (with a `--admin` mode),
-`status`, `config`, `remote`, `update`. Run `gm-scriptorium --help` for the full flag list on each.
+`status`, `config`, `remote`, `desktop`, `update`. Run `gm-scriptorium --help` for the full flag list on each.
 
 ## Keeping the admin panel running on Linux
 
