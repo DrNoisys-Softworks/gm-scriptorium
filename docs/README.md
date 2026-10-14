@@ -25,6 +25,9 @@ Steps for a job you already have in mind.
 - [Start a new campaign](how-to/start-a-new-campaign.md): set up your first campaign, with a vault you already have or a new one, in the admin panel or on the command line.
 - [Add another campaign, and switch between them](how-to/add-another-campaign.md): add a second campaign, move the panel between campaigns, choose the default and take one off the list.
 - [Change how your site looks and the words it uses](how-to/change-the-look-and-vocabulary.md): the theme, the pictures, the title and tagline, and the vocabulary.
+- [Move to another computer](how-to/move-to-another-computer.md): copying your settings, fixing the paths, and sharing one vault between two computers.
+- [Use the command line and scripts](how-to/use-the-command-line-and-scripts.md): giving a script its own settings, reading results as data, acting on exit codes, and setting a password without a prompt.
+- [Troubleshooting](how-to/troubleshooting.md): what the common messages mean and what to do, and the problems that come with no message.
 - [Keep GM-only notes off the player site](how-to/hide-gm-content.md): hiding a page, part of a page, a field, a relationship or a name, and checking the result.
 - [Add a Game master link to the player site](how-to/add-a-game-master-link.md): a link in the site footer back to your own admin panel, and why its address is public.
 
