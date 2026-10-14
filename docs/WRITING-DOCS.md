@@ -54,6 +54,9 @@ disagree.
 | [Trying it safely](trying-it-safely.md) | How-to guides | Linux (the Windows blocks have not been run) |
 | [Remote access](remote-access.md) | How-to guides | Not recorded |
 | [Backing up your vault](backing-up-your-vault.md) | How-to guides | Not recorded |
+| [Move to another computer](how-to/move-to-another-computer.md) | How-to guides | Linux (the Windows steps have not been run) |
+| [Use the command line and scripts](how-to/use-the-command-line-and-scripts.md) | How-to guides | Linux (the PowerShell example has not been run) |
+| [Troubleshooting](how-to/troubleshooting.md) | How-to guides | Linux (the Windows steps have not been run) |
 | [Image slots](image-slots.md) | Reference | No steps |
 | [The settings file (config.toml)](reference/config-toml.md) | Reference | No steps |
 | [Environment variables](reference/environment-variables.md) | Reference | No steps |

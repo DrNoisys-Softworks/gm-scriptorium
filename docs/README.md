@@ -22,6 +22,9 @@ Steps for a job you already have in mind.
 - [Trying it safely](trying-it-safely.md): using the tool beside a campaign you care about, without touching your real config.
 - [Remote access](remote-access.md): using the admin panel from another device, safely, and what is and is not protected.
 - [Backing up your vault](backing-up-your-vault.md): how to keep your campaign notes safe, and why GM-Scriptorium does not do it for you.
+- [Move to another computer](how-to/move-to-another-computer.md): copying your settings, fixing the paths, and sharing one vault between two computers.
+- [Use the command line and scripts](how-to/use-the-command-line-and-scripts.md): giving a script its own settings, reading results as data, acting on exit codes, and setting a password without a prompt.
+- [Troubleshooting](how-to/troubleshooting.md): what the common messages mean and what to do, and the problems that come with no message.
 
 ## Reference
 
