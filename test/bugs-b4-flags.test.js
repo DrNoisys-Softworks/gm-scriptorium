@@ -8,6 +8,7 @@ const path = require('path');
 const { withScratch, run, SAMPLE } = require('./helpers/b4-cli');
 const { validateFlags, closestFlag, parseArgv } = require('../src/cli/args');
 const { ConfigError } = require('../src/util/errors');
+const { userDocFiles } = require('./helpers/doc-criteria');
 
 /*
  * Issue #106: an unknown flag used to be ignored, so `build --prot` quietly built and `check --jsno`
@@ -136,4 +137,31 @@ test('B4-106-8: every flag used in a command example in the README and the examp
     }
   }
   assert.ok(checked >= 4, `expected to find documented flags, found ${checked}`);
+});
+
+// B4-106-8 only scans four files and only some commands, and captures to end of line. This test
+// covers every page on the doc-criteria list, adds `remote` and `desktop`, and bounds each example
+// at its closing backtick, so prose after the span ("... and `serve --admin` then checks") is not
+// credited to the command before it.
+test('B4-106-9: every flag in a command example on every listed user page is accepted', () => {
+  const root = path.join(__dirname, '..');
+  const docs = [...new Set([...userDocFiles(root), 'README.md', 'docs/using.md', 'docs/install.md', 'examples/README.md'])];
+  // A deliberate example of a refused flag goes here as `file: exact line`, with a reason.
+  const ALLOWED = new Set([]);
+  const booleans = ['graph', 'json', 'quiet', 'no-color', 'yes', 'force', 'no-check', 'build', 'admin', 'check', 'pre', 'help', 'notices', 'background'];
+  let checked = 0;
+  for (const rel of docs) {
+    const text = fs.readFileSync(path.join(root, rel), 'utf8');
+    for (const line of text.split('\n')) {
+      if (ALLOWED.has(`${rel}: ${line.trim()}`)) continue;
+      const m = line.match(/gm-scriptorium\s+(init|check|build|serve|status|config|update|remote|desktop)\b([^`]*)/);
+      if (!m) continue;
+      for (const name of [...m[2].matchAll(/--([a-z][a-z-]*)/g)].map((x) => x[1])) {
+        const value = booleans.includes(name) ? true : 'x';
+        assert.doesNotThrow(() => validateFlags(m[1], { [name]: value }), `${rel}: ${m[1]} --${name} in: ${line.trim()}`);
+        checked++;
+      }
+    }
+  }
+  assert.ok(checked >= 35, `expected to find documented flags, found ${checked}`);
 });

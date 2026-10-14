@@ -31,9 +31,11 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+const { userDocFiles } = require('./helpers/doc-criteria');
 const SCOPED_FILES = [
   'README.md',
   'docs/README.md',
+  'docs/WRITING-DOCS.md',
   'CONTRIBUTING.md',
   'SECURITY.md',
   // D-AUD (S4b): the audience split adds the agent index, the agent folder, the developer guide
@@ -105,6 +107,15 @@ for (const relFile of SCOPED_FILES) {
     assert.deepEqual(brokenLinks(path.join(ROOT, relFile)), []);
   });
 }
+
+// Every page on the criteria table is checked, including pages SCOPED_FILES does not name.
+test('docs-links: every relative link in every page on the user-doc list resolves', () => {
+  const files = userDocFiles(ROOT);
+  assert.ok(files.length >= 9, `expected the user-doc list, found ${files.length} pages`);
+  for (const rel of files) {
+    assert.deepEqual(brokenLinks(path.join(ROOT, rel)), [], rel);
+  }
+});
 
 /** The ADR's own index link text, by the house convention: its H1 line with the leading `# `
  * removed. 0017 keeps its own colon (it was never written with a period) -- this function makes
