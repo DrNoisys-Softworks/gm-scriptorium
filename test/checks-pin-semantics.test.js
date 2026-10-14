@@ -324,6 +324,59 @@ test('L6 dirs: the vault-side list comes from configSources.vault.exclude_dirs, 
   assert.equal(scenesHit.severity, 'error');
 });
 
+test('L6 dirs: the vault-only ERROR message reads exactly as written (wording, #140)', () => {
+  const ctx = pinContext();
+  const hit = runExcludeDirsDivergence(ctx).find((f) => f.data && f.data.dir === 'Scenes' && !f.data.jsonOnly);
+  assert.equal(
+    hit.message,
+    '"Scenes" is excluded in _meta/vault-config.md (publish.exclude_dirs) but not in vault.config.json (excludeDirs). This folder holds pages or images that a site built before the exclusion could include. Until you add it to excludeDirs in vault.config.json as well, check reports this as an error and build refuses.',
+  );
+});
+
+test('L6 dirs: the JSON-only INFO message reads exactly as written (wording, #140)', () => {
+  const ctx = pinContext();
+  const hit = runExcludeDirsDivergence(ctx).find((f) => f.data && f.data.dir === 'Threads' && f.data.jsonOnly);
+  assert.equal(hit.severity, 'info');
+  assert.equal(
+    hit.message,
+    '"Threads" is excluded in vault.config.json (excludeDirs) but not in _meta/vault-config.md; builds still leave it out.',
+  );
+});
+
+test('L6 dirs: the vault-only WARN message (folder holds nothing) reads exactly as written (wording, #140)', () => {
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-l6-warn-'));
+  try {
+    const vaultCopy = path.join(scratch, 'vault');
+    fs.cpSync(PIN_VAULT, vaultCopy, { recursive: true });
+    fs.writeFileSync(
+      path.join(vaultCopy, '_meta', 'vault-config.md'),
+      '---\ntype: meta\npublish:\n  mode: player\n  exclude_dirs:\n    - Scenes\n    - Empty\n---\n\nScratch config for the WARN arm.\n',
+    );
+    const ctx = buildCheckContext({
+      campaign: 'pin-vault',
+      vaultPath: vaultCopy,
+      jsonConfig: { ...PIN_SITE_CONFIG, vaultPath: vaultCopy },
+    });
+    const hit = runExcludeDirsDivergence(ctx).find((f) => f.data && f.data.dir === 'Empty' && !f.data.jsonOnly);
+    assert.equal(hit.severity, 'warn');
+    assert.equal(
+      hit.message,
+      '"Empty" is excluded in _meta/vault-config.md (publish.exclude_dirs) but not in vault.config.json (excludeDirs). A fresh build leaves it out. Add it to excludeDirs in vault.config.json as well to clear this warning.',
+    );
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+test('L6 sections: the divergence message reads exactly as written (wording, #140)', () => {
+  const ctx = pinContext();
+  const hit = runExcludeSectionsDivergence(ctx).find((f) => f.data.section === 'DM Notes');
+  assert.equal(
+    hit.message,
+    '"## DM Notes" is one of the default excluded sections, but vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them, so it is no longer excluded and the heading renders in published output',
+  );
+});
+
 // --- L6 fields -------------------------------------------------------------
 
 test('L6 fields: pin defaults (including gm_notes and prep_notes) missing from the union fire WARN', () => {

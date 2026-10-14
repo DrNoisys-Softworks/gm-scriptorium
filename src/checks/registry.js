@@ -185,7 +185,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      "A vault-side publish.exclude_dirs entry never gates the scan; only vault.config.json's excludeDirs does (lib/scanner.js:77,264). ERROR if the vault-only directory would have contributed files to output.",
+      "A directory excluded in _meta/vault-config.md's publish.exclude_dirs but not in vault.config.json's excludeDirs. A fresh build honours both lists (lib/build.js scans with the unioned exclude_dirs via scanConfigFor), so this guards against a stale build made before the vault-side exclusion was added. ERROR if the directory holds pages or images that would publish without the exclusion, WARN otherwise; a vault.config.json-only entry is INFO.",
   },
   {
     id: 'config/exclude-fields-divergence',
@@ -322,7 +322,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'ADR 0044: text from an Obsidian %% comment, or a literal %% outside code, reached the built output (page, search index, backlinks, excerpts, or a JSON data island in a page; an island that cannot be parsed is itself an error). Reads the real built tree when a build exists (INFO when none), and the staging tree before the swap during build, where --force cannot override it.',
+      'ADR 0044: text from an Obsidian %% comment, or a literal %% outside code, reached the built output (page, search index, backlinks, excerpts, or a JSON data island in a page; an island that cannot be parsed is itself an error). Reads the real built tree when a build exists (INFO when none), and the staging tree before the swap during build, where nothing overrides it (ADR 0055).',
   },
   {
     id: 'graph/orphan',
