@@ -237,6 +237,16 @@ accepts. Releases before 1.0.0 are not signed (step 7).
     before 0.5.0 still fetches through the GitHub CLI, so this check needs `gh` signed in on the
     build machine.
 
+## The sample site
+
+The sample campaign is published at <https://drnoisys-softworks.github.io/gm-scriptorium/> by `.github/workflows/pages.yml`, on a push to `main` or a manual run, in the public repository only. The workflow runs `npm ci`, `npm run verify-generator` and `node scripts/sample-site.js`, uploads the `_site` folder and deploys it. The decision and its limits are in [ADR 0059](decisions/0059-hosted-sample-site.md).
+
+The script builds only `examples/the-long-lease`. Every path is a constant in the script, it takes no arguments, and it deletes nothing. It builds with a scratch copy of the pack that carries the site address, checks the output, copies it to `_site`, adds `leak-demo.html` (made by `scripts/leak-demo.js`) and sweeps the result for the withheld name and the GM note's text. Any failed step prints `SITE FAIL <step> <reason>` and exits 1, and nothing is uploaded.
+
+To reproduce it, work in a scratch copy of the repository (for example `git archive HEAD | tar -x -C <folder>`, then `npm ci` there), because the script refuses to run if `.sample-site` or `_site` already exists, and you delete those two folders yourself. Do not run it in your working checkout unless you mean to.
+
+The pinning tests are `test/pages-workflow.test.js` (the workflow file and the script's constants) and `test/sample-site.test.js` (the pipeline, each gate's control and the demo generator). The workflow is separate from `ci.yml`, which stays as it is.
+
 ## Push policy
 
 [COLLABORATING.md](COLLABORATING.md) holds this repository's push and branch rules.
