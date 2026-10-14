@@ -2290,6 +2290,18 @@ rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on eve
    - open tabs show "GM-Scriptorium has stopped" with "Start it again from the GM-Scriptorium icon in the system tray, or from the Start menu."
 3. During a preview build, Quit and Stop panel ask first, and Cancel is the default.
 
+### C196: errors with no console, the log, and changing ports
+
+[ADR 0057](../docs/decisions/0057-windows-desktop-app.md) sections 8 and 9. **Mark this OPEN: Linux tests prove the log scrub, the card and its write with a stand-in host (`test/admin-desktop-http.test.js`, `test/desktop-card-ui.dom.test.js`); the toasts, the port dialog, a real restart and the folder's access list can only be checked on Windows.** Isolate config as in C191: a scratch `SCRIPTORIUM_CONFIG`, never the real config, never `N:`.
+
+1. A malformed TOML config, and separately two campaigns with no default: N03 appears, the T05-style menu shows the one line, and the log has the same line.
+2. Hold 7400 with `gm-scriptorium serve --admin --port 7400` in a terminal, then start the app: T09 and N05.
+3. Click N05, enter 7410 and 7411, and Save and start. The panel opens on 7410, and the scratch config holds `port = 7410` under `[desktop]`.
+4. While the launcher file exists, copy its code value. Then search `desktop.log` and `desktop.log.1` with `findstr` for that code, for `token=` and for `password`: no hits.
+5. From the Overview "This PC's addresses" card, choose Change, enter 7400 and 7401, and Save and restart. The panel restarts and opens a new tab there, signed in. The old tab, reloaded, does not get in. Record `certutil -hashfile <scratch config> SHA256` before and after: the file changes, and only the `[desktop]` table differs.
+6. With remote access on (tailscale or proxy mode saved, started from the tray), the card is read-only: no Change button, and it names the remote ports and says "Remote access uses its own ports. Change them with gm-scriptorium remote set."
+7. In local mode, `icacls <panel>\logs` (the `panel` folder beside the scratch config) lists only your account, SYSTEM and Administrators. The folder is made by the host (`panel\logs\desktop.log`), and the inheritable list from ADR 0056 covers it.
+
 ### C205: remote mode under the background app
 
 ADR 0057 sections 5 and 8; ADR 0056.
