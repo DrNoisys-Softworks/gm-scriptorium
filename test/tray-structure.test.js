@@ -542,3 +542,58 @@ test('the stderr ring is drained and discarded: never written anywhere', () => {
     assert.equal(body.includes(word), false, word);
   }
 });
+
+// ---------------------------------------------------------------------------------------------
+// Owner ruling RV1: the sign-in local-only marker (ADR 0057 section 7 and "Protocol v1")
+// ---------------------------------------------------------------------------------------------
+
+const SIGNIN_LOCAL = 'signin-local';
+
+/** The body of the `"running"` branch of on_state, or null. */
+function runningBranch(code) {
+  const fn = functions(code).find((f) => f.name === 'on_state');
+  if (!fn) return null;
+  const body = code.slice(fn.start, fn.end);
+  const start = body.indexOf('strcmp(what, "running") == 0');
+  if (start < 0) return null;
+  const next = body.indexOf('} else if', start);
+  return body.slice(start, next < 0 ? body.length : next);
+}
+
+/** True when the branch compares the fifth field (args index 4) with the marker. */
+function readsMarkerFromFifthField(branch, marker) {
+  return new RegExp(`strcmp\\(\\s*arg\\(\\s*pl\\s*,\\s*4\\s*\\)\\s*,\\s*"${marker}"\\s*\\)\\s*==\\s*0`).test(branch);
+}
+
+test('RV1: tray.c holds "signin-local" exactly once, read from the fifth field of state running', () => {
+  const tray = CODE['tray.c'];
+  assert.equal(literals(tray).filter((l) => !l.wide && l.text === SIGNIN_LOCAL).length, 1);
+  const branch = runningBranch(tray);
+  assert.ok(branch, 'on_state has a "running" branch');
+  assert.equal(readsMarkerFromFifthField(branch, SIGNIN_LOCAL), true);
+  assert.match(branch, /g\.signin_local\s*=/);
+  for (const file of ['host.c', 'tray.h']) {
+    assert.equal(literals(CODE[file]).some((l) => l.text === SIGNIN_LOCAL), false, file);
+  }
+});
+
+test('RV1: ADR 0057 names the field exactly as pinned, in section 7 and in the state running line', () => {
+  const adr = fs.readFileSync(path.join(__dirname, '..', 'docs', 'decisions', '0057-windows-desktop-app.md'), 'utf8');
+  const s7 = adr.slice(adr.indexOf('## 7. Start with Windows'), adr.indexOf('## 8. Fixed ports'));
+  assert.ok(s7.length > 0);
+  assert.equal(s7.includes(`\`${SIGNIN_LOCAL}\``), true, 'section 7 names the field');
+  assert.match(s7, /optional last field of its `state running` line/);
+  assert.equal(adr.includes(`\`state  running  <campaign or setup>  <reach>  <address>  [${SIGNIN_LOCAL}]\``), true, 'Protocol v1 line');
+});
+
+test('positive control: a renamed marker or the wrong field is seen', () => {
+  const good = 'static void on_state(const struct proto_line *pl)\n{\n    if (strcmp(what, "running") == 0) {\n        g.signin_local = strcmp(arg(pl, 4), "signin-local") == 0;\n    } else if (x) {\n        y();\n    }\n}\n';
+  assert.equal(readsMarkerFromFifthField(runningBranch(stripComments(good)), SIGNIN_LOCAL), true);
+  const renamed = good.replace('"signin-local"', '"signin-only"');
+  assert.equal(readsMarkerFromFifthField(runningBranch(stripComments(renamed)), SIGNIN_LOCAL), false);
+  assert.equal(literals(stripComments(renamed)).filter((l) => l.text === SIGNIN_LOCAL).length, 0);
+  const wrongField = good.replace('arg(pl, 4)', 'arg(pl, 3)');
+  assert.equal(readsMarkerFromFifthField(runningBranch(stripComments(wrongField)), SIGNIN_LOCAL), false);
+  const elsewhere = good.replace('    } else if (x) {\n        y();', '    } else if (x) {\n        g.signin_local = strcmp(arg(pl, 4), "signin-local") == 0;').replace('        g.signin_local = strcmp(arg(pl, 4), "signin-local") == 0;\n    } else', '        z();\n    } else');
+  assert.equal(readsMarkerFromFifthField(runningBranch(stripComments(elsewhere)), SIGNIN_LOCAL), false);
+});
