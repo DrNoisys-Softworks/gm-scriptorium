@@ -90,6 +90,7 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
   let pollTimer = null;
   let phase = 'starting'; // starting | running | stopped | error
   let lastCampaign = '-';
+  let signinLocal = false; // the running panel is local-only because remote access is not confirmed at sign-in
   let quitting = false;
   let quitStarted = false;
   let wait = null; // { timer, wake }: a retry wait in progress
@@ -203,8 +204,11 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
       const localOnly = atSignin && !desktop.remoteAtSignin;
       const setup = Object.keys(config.campaigns || {}).length === 0;
       let local = false;
+      let suppressed = false; // a remote mode is saved, and this sign-in start is holding it back
       try {
-        local = localOnly || settingsLib.parseRemoteTable(config.remote).mode === 'local';
+        const savedMode = settingsLib.parseRemoteTable(config.remote).mode;
+        local = localOnly || savedMode === 'local';
+        suppressed = localOnly && savedMode !== 'local';
       } catch {
         local = false; // a remote table that does not parse: pass no ports and let the panel report it
       }
@@ -222,7 +226,7 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
         if (m) return { ok: false, kind: 'port', message: oneLine(human.replace(/^failed to start server:\s*/, '')), port: m[1], retryable: false };
         return { ok: false, kind: 'other', message: oneLine(human), retryable: false };
       }
-      return { ok: true, started };
+      return { ok: true, started, suppressed };
     } catch (err) {
       return { ok: false, ...classify(err) };
     }
@@ -281,6 +285,7 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
       }
       if (result.ok) {
         panel = result.started;
+        signinLocal = result.suppressed === true;
         break;
       }
       if (result.retryable && !isUser && attempt < retryDelaysMs.length) {
@@ -326,7 +331,10 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
 
   function sendRunning() {
     if (panel === null) return;
-    sendState('running', panel.ctx.campaign || 'setup', panel.settings.mode, addressOf(panel.ctx, panel.settings));
+    const fields = ['running', panel.ctx.campaign || 'setup', panel.settings.mode, addressOf(panel.ctx, panel.settings)];
+    // ADR 0057 section 7: the literal fifth field tells the helper to show "Remote access is off at sign-in".
+    if (signinLocal) fields.push('signin-local');
+    sendState(...fields);
   }
 
   async function stopOp() {

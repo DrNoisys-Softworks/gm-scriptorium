@@ -89,6 +89,7 @@ The accepted leftovers are those in [ADR 0028](0028-installer-and-first-run.md),
 - Until the GM confirms, a start at sign-in (`--background` from the `Run` value) runs the panel in local, this-PC-only mode. The tray header says "Remote access is off at sign-in. Start it from the tray to turn it on."
 - A start the GM makes themselves (shortcut, Start menu, tray Start panel, terminal) uses the saved remote mode, as before.
 - The confirmation is a per-machine flag kept with the desktop settings, written only through the one config writer. `remote off` clears it, and running `remote set` again with a different remote mode asks again, and withdraws the earlier yes on a No.
+- **How the helper knows.** When a start at sign-in is held back like this (a remote mode is saved and the confirmation is not), the host adds a fifth field, the literal `signin-local`, to its `state running` line, and the helper shows the header line above. In every other case the line has four fields.
 - **How it is built.** The host reads `remote_at_signin` at every start. A start at sign-in without it passes `localOnly` to the panel's start function, which then runs in local mode on the desktop ports whatever `[remote]` says. Every start the GM asks for, even in a host that was started with `--background`, leaves it off. The program cannot read the `Run` value (that needs a program on the spawner's list, which this decision does not add), so `remote set` asks whenever the helper sits beside the program on Windows, and a question that was not needed costs nothing, because the flag is read only at sign-in.
 
 Rejected:
@@ -202,7 +203,7 @@ This is normative. The host (`src/desktop/protocol.js`) and the helper both impl
 
 - `hello  1  <version>  <logDir>`. Always the first line. `1` is the protocol number, and `<version>` is the app version, which the helper compares exactly with its own.
 - `state  starting  <campaign or dash>  <detail>`. Where there is no campaign, `<campaign or dash>` is a lone `-`.
-- `state  running  <campaign or setup>  <reach>  <address>`. `reach` is one of `local`, `ssh`, `tailscale`, `proxy`, `direct`. `address` is `http://127.0.0.1:<port>` for `local` and `ssh`, and otherwise the configured `admin_url`.
+- `state  running  <campaign or setup>  <reach>  <address>  [signin-local]`. `reach` is one of `local`, `ssh`, `tailscale`, `proxy`, `direct`. `address` is `http://127.0.0.1:<port>` for `local` and `ssh`, and otherwise the configured `admin_url`.
 - `state  stopped  <campaign or dash>`.
 - `state  error  <kind>  <message>  [<port>]`. `kind` is one of `vault`, `port`, `config`, `other`.
 - `confirm  none|remote|build`. Sent in reply to `stop?` and `quit?`.

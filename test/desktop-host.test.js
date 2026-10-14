@@ -977,3 +977,33 @@ test('the real process is not touched: the redirect is undone and no handler is 
   assert.equal(process.listenerCount('uncaughtException'), before.un);
   assert.equal(process.listenerCount('unhandledRejection'), before.rej);
 });
+
+// --- the sign-in-local field on the running line (ADR 0057 section 7) ------------------------------------------------
+
+test('signin-local: the running line of a held-back sign-in start has it as the literal fifth field, and every other running line has four', async (t) => {
+  const held = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW) + REMOTE_TOML);
+  const a = startHost(t, held, { background: true });
+  assert.equal(await a.waitFor('state\trunning'), `state\trunning\tlease\tlocal\thttp://127.0.0.1:${PANEL_PORT}\tsignin-local`);
+  assert.equal((await a.waitFor('state\trunning')).split('\t').length, 6);
+  // After Stop and a start the GM makes, the panel runs in the saved mode and the field is gone.
+  a.send('stop');
+  await a.waitFor('state\tstopped');
+  a.send('start');
+  await a.waitCount('state\trunning', 2);
+  assert.ok(!a.lines().filter((l) => l.startsWith('state\trunning')).at(-1).includes('signin-local'));
+});
+
+test('signin-local: absent when the confirmation is set, when the GM started the host, and when the saved mode is local anyway', async (t) => {
+  const runningOf = async (cfg, opts) => {
+    const h = startHost(t, cfg, opts);
+    const line = await h.waitFor('state\trunning');
+    await h.stop();
+    return line.split('\t');
+  };
+  const confirmed = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, 'remote_at_signin = true\n') + REMOTE_TOML);
+  assert.equal((await runningOf(confirmed, { background: true })).length, 5);
+  const manual = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW) + REMOTE_TOML);
+  assert.equal((await runningOf(manual, {})).length, 5);
+  const plain = makeConfig(t, desktopToml());
+  assert.equal((await runningOf(plain, { background: true })).length, 5, 'a local config has nothing held back');
+});
