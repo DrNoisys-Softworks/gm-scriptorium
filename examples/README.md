@@ -4,6 +4,8 @@ This guide is for a GM who wants to see GM-Scriptorium build and serve a real-lo
 pointing it at their own vault. Everything in `the-long-lease/` is invented: the valley, the dragon,
 the people and the art. Copy it, break it, and build your own campaign from it.
 
+The built sample is online at <https://drnoisys-softworks.github.io/gm-scriptorium/>.
+
 A few words this guide uses: a **vault** is the folder of markdown pages a GM writes in; a
 **campaign pack** is the small bundle of settings and art inside a vault's `_meta/scriptorium/`
 folder that tells Scriptorium how to build that vault's site; a **slot** is one of the handful of
