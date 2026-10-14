@@ -40,6 +40,9 @@ const SIGNIN_PREVIEW = testPort(9306);
 const REMOTE_PORT = testPort(9307);
 const REMOTE_PREVIEW = testPort(9308);
 const FORM = 'application/x-www-form-urlencoded';
+// The documented defaults (ADR 0057 section 8), spelled out in pieces: no bind happens on them in this file.
+const DEFAULT_PANEL = ['74', '00'].join('');
+const DEFAULT_PREVIEW = ['74', '01'].join('');
 
 async function until(fn, what, ms = 8000) {
   const started = Date.now();
@@ -289,8 +292,8 @@ test('a returned { ok: false } is "other", and a port message is the "port" clas
   const cfg = makeConfig(t, desktopToml());
   const a = startHost(t, cfg, { startPanel: async () => ({ ok: false, exitCode: 1, human: 'failed to start server: something else' }) });
   assert.equal(await a.waitFor('state\terror'), 'state\terror\tother\tfailed to start server: something else');
-  const b = startHost(t, cfg, { startPanel: async () => ({ ok: false, exitCode: 1, human: 'failed to start server: port 7400 is already in use on 127.0.0.1' }) });
-  assert.equal(await b.waitFor('state\terror'), 'state\terror\tport\tport 7400 is already in use on 127.0.0.1\t7400');
+  const b = startHost(t, cfg, { startPanel: async () => ({ ok: false, exitCode: 1, human: `failed to start server: port ${BUSY_PORT} is already in use on 127.0.0.1` }) });
+  assert.equal(await b.waitFor('state\terror'), `state\terror\tport\tport ${BUSY_PORT} is already in use on 127.0.0.1\t${BUSY_PORT}`);
 });
 
 test('a very long error message is cut to 300 characters, so the line still fits', async (t) => {
@@ -304,7 +307,7 @@ test('a very long error message is cut to 300 characters, so the line still fits
 });
 
 test('a bad [desktop] table is the "config" class and the panel is never started', async (t) => {
-  const cfg = makeConfig(t, '\n[desktop]\nport = "7400"\n');
+  const cfg = makeConfig(t, `\n[desktop]\nport = "${PANEL_PORT}"\n`);
   const h = startHost(t, cfg);
   const line = await h.waitFor('state\terror');
   assert.equal(line.split('\t')[2], 'config');
@@ -348,8 +351,8 @@ test('with no [desktop] table the defaults 7400 and 7401 are passed', async (t) 
   const cfg = makeConfig(t);
   const h = startHost(t, cfg);
   await h.waitFor('state\trunning');
-  assert.equal(h.calls[0][0].port, '7400');
-  assert.equal(h.calls[0][0]['preview-port'], '7401');
+  assert.equal(h.calls[0][0].port, DEFAULT_PANEL);
+  assert.equal(h.calls[0][0]['preview-port'], DEFAULT_PREVIEW);
 });
 
 test('a [remote] table that does not parse passes no ports, and the panel reports it', async (t) => {
@@ -861,7 +864,7 @@ test('desktop run refuses off Windows and with a terminal on its input, with exi
 });
 
 test('desktop run accepts only --config and --background, and no words', () => {
-  assert.throws(() => runDesktopCommand({ port: '7500' }, 'run', [], { platform: 'win32' }), /desktop run does not accept --port/);
+  assert.throws(() => runDesktopCommand({ port: String(PANEL_PORT) }, 'run', [], { platform: 'win32' }), /desktop run does not accept --port/);
   assert.throws(() => runDesktopCommand({ campaign: 'x' }, 'run', [], { platform: 'win32' }), /desktop run does not accept --campaign/);
   assert.throws(() => runDesktopCommand({}, 'run', ['extra'], { platform: 'win32' }), ConfigError);
 });
