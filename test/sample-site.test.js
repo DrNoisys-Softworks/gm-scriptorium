@@ -90,6 +90,10 @@ test('S1: the pipeline passes and the steps are exactly prepare, build, check, s
   const stage = runA.lines[3].split(' ');
   assert.equal(Number(stage[3]), listFiles(path.join(rootA, '.sample-site', 'out')).length);
   assert.ok(Number(stage[3]) > 50, 'the sample site has far more than 50 files');
+  // The final note carries the number of files swept: every file in _site, the demo included.
+  const final = runA.lines[5].split(' ');
+  assert.equal(Number(final[3]), listFiles(path.join(rootA, '_site')).length);
+  assert.equal(Number(final[3]), Number(stage[3]) + 1);
 });
 
 test('S2: _site is the checked tree plus only leak-demo.html, and out never holds the demo', () => {
