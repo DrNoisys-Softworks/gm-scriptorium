@@ -98,12 +98,12 @@ Rejected:
 
 ## 8. Fixed ports
 
-A new `[desktop]` table in `config.toml` holds `port` (default 7400) and `preview_port` (default 7401), plus the sign-in confirmation in section 7. Any other key is refused, as with `[remote]`.
+A new `[desktop]` table in `config.toml` holds `port` (default 7400) and `preview_port` (default 7401), plus the sign-in confirmation in section 7, which is the key `remote_at_signin` (true or false, absent means false). Every key is optional, and any other key is refused, as with `[remote]`.
 
 - **Only the desktop app reads it, and only when the panel is local or in setup mode.** Remote modes keep their `[remote]` ports, and the desktop ports are ignored there. `serve --admin`, launch mode, portable copies and Linux keep ports picked by the operating system, so tests, terminals and portable copies are unchanged.
-- Each port is a TOML integer that passes the port check (1 to 65535), and the two must differ. Strings such as `"7400"` are refused.
+- Each port is a TOML integer that passes the port check (1 to 65535), and the two must differ once the defaults are filled in, so `port = 7401` alone is refused. Strings such as `"7400"` are refused. The reader is `parseDesktopTable` in `src/config/desktopsettings.js`.
 - `src/config/load.js` does not validate the table, so a bad entry never stops `check`, `build` and the rest. The desktop app reports it as a config error.
-- **Writers.** The command line writer is `gm-scriptorium desktop set --port N --preview-port N`, which Setup and the tray's ports dialog both run. The panel's ports card writes through `register.setDesktopPortsFromPanel` on the one fenced chain. Setup never writes TOML.
+- **Writers.** The command line writer is `gm-scriptorium desktop set --port N --preview-port N` (either flag may be left out and then keeps its current value), which Setup and the tray's ports dialog both run. It changes only the `[desktop]` table, through `writeConfigFile`, and exits 1 for a bad value and 3 for a malformed settings file. The sign-in confirmation has its own builder, `setRemoteAtSignin` in `src/config/write.js`, which sets it or clears it (`remote off` clears it) and is written the same way. The panel's ports card writes through `register.setDesktopPortsFromPanel` on the one fenced chain. Setup never writes TOML.
 - The ports dialog and Setup's port fields accept 1 to 5 digits only, checked before any command line is built.
 
 Rejected:
