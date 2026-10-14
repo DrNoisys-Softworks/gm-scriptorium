@@ -23,7 +23,11 @@ Status: accepted. Amends [ADR 0028](0028-installer-and-first-run.md) and [ADR 00
 
 There are now two files in the install folder: `gm-scriptorium.exe`, the program, and `gm-scriptorium-tray.exe`, the helper. The release carries the helper as the asset `gm-scriptorium-tray-win-x64.exe`.
 
-The helper is written in C17 against the Win32 interfaces only and built with the mingw-w64 cross compiler on the Debian release machine. It is a GUI-subsystem program, linked statically except for system libraries, stripped, with address-space randomisation, data execution prevention and high-entropy addresses on. It carries the same Lantern icon and version strings as the program.
+The helper is written in C17 against the Win32 interfaces only and built with the mingw-w64 cross compiler on the Debian release machine. It is a GUI-subsystem program, linked statically except for system libraries, stripped, with address-space randomisation, data execution prevention and high-entropy addresses on. It carries the same Lantern icon and version strings as the program, except that its internal and original file names are `gm-scriptorium-tray` and `gm-scriptorium-tray-win-x64.exe`.
+
+- **The build is gate 8 of `npm run package`.** `scripts/tray.js` compiles the helper after both program targets have passed, then checks the file it made: an x64 GUI program with those three protections, no symbol table, imports only from `KERNEL32`, `USER32`, `SHELL32`, `ADVAPI32`, `GDI32`, `COMCTL32` and `msvcrt`, a manifest that asks for no elevation and per-monitor DPI, and the branding. Any failure removes every output, and the helper's hash goes into `SHA256SUMS` beside the program's. Two builds of the same source give the same bytes.
+- **Everyone who packages needs mingw-w64**: the release machine, contributors and the public CI job, which installs the Debian packages `gcc-mingw-w64-x86-64-win32`, `binutils-mingw-w64-x86-64` and `mingw-w64-x86-64-dev`. Without them `npm run package` fails closed. The win32 thread model is required, because the posix one brings in the winpthread library.
+- **The helper starts programs in exactly four places**: the host (section 3), `desktop set` from the ports window (section 8), the command line window (section 10), and the separate copy `--handoff` starts (section 10). Each names its program by full path. A structure test pins all four, and pins every registry write to the two functions that own them.
 
 Rejected:
 
@@ -40,7 +44,8 @@ The helper starts the program as `gm-scriptorium.exe desktop run [--background]`
 
 - The host is started with `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_UNICODE_ENVIRONMENT`, an inherited environment, and the user's profile folder as the working directory. It has no console at all.
 - End of input on the host's standard input means quit. A broken output pipe means quit.
-- The host's standard error is drained by the helper into a small ring and discarded. It is never shown, never written to disk and never put in the registry.
+- The host's standard error is drained by the helper into an 8 KiB ring and discarded, so the pipe can never fill and stall the host. It is never shown, never written to disk and never put in the registry.
+- The helper reads the host's output on its own thread and drops any line the protocol calls malformed, including one over 1024 bytes, which is dropped whole rather than split.
 - Inside the host, `console.*` output and writes to `process.stdout` and `process.stderr` are redirected to the log when the host starts, by the command in `src/cli/desktop.js`. Protocol lines go only through the output stream captured before the redirect, so a stray print in the panel cannot corrupt the protocol.
 
 Rejected:
@@ -56,8 +61,9 @@ The helper takes a named mutex, `Local\GM-Scriptorium-tray`, and creates one hid
 
 - `dwData` is `0x47534354`. The payload is UTF-16 text, either `open` or `handoff`.
 - The reply is `1` for opened or started, `2` when the running copy is in an error state (it has shown the notification and opened the log folder), and `0` for refused.
-- `WM_CLOSE` sent to that window means quit now, with no confirm. The installer and uninstaller use this.
-- Double-clicking the icon sends `open`. If the panel is stopped, it is started first.
+- `WM_CLOSE` sent to that window means quit now, with no confirm. The installer and uninstaller use this. The helper gives the host up to 10 seconds, then ends it.
+- Double-clicking the icon sends `open`. If the panel is stopped, it is started first. In an error state a double-click shows the menu instead.
+- A second start at sign-in (`--background`) while a copy is running exits quietly and sends nothing.
 
 Rejected: a Node lock file plus a request file. It needs polling, and a crash leaves a stale lock.
 
@@ -69,7 +75,8 @@ Rejected: a Node lock file plus a request file. It needs polling, and a crash le
 - **Tabs after Stop, Start or Restart.** Start panel and Restart open a fresh signed-in tab, because the GM asked for them. A background retry does not open a tab. An old tab left open from before does not get back in; it shows the stopped or sign-in page, and Open panel gets a signed-in one.
 - **Stop panel** runs the launch stop path but keeps the host process and the icon. Restart is stop then start, and it re-reads the settings, so a change made in a terminal is picked up.
 - **Quit** runs the launch stop path (see [ADR 0028](0028-installer-and-first-run.md), "Launch mode"): remove the launcher file, close the listeners and the preview folder, `killAll`, and clear the launch-code store. Then the host says `bye` and exits.
-- **Confirm** before Quit or Stop panel only when remote access is on or the panel is busy (a preview build is running). Cancel is the default button. The host tells the helper which case applies with the `confirm` line.
+- **Confirm** before Quit or Stop panel only when remote access is on or the panel is busy (a preview build is running). Cancel is the default button. The host tells the helper which case applies with the `confirm` line. If no `confirm` line arrives within 5 seconds, Quit goes ahead and Stop panel is dropped, so a host that has stopped answering can always be quit.
+- **A host that ends on its own** (end of its output without a Quit) puts the tray in the error state, "The panel stopped unexpectedly." Try again starts a new host as a start the GM made.
 
 ## 6. End of session
 
@@ -81,12 +88,12 @@ The accepted leftovers are those in [ADR 0028](0028-installer-and-first-run.md),
 
 - The setting is the per-user `Run` value `GM-Scriptorium` under `HKCU`, set to `"<install>\gm-scriptorium-tray.exe" --background`. No machine-wide key is ever used.
 - **The helper is the only writer that sets it.** Setup runs `gm-scriptorium-tray.exe --autostart on` or `off`, and the tray menu tick does the same. The uninstaller deletes the value and the matching `StartupApproved` value, which is the one removal exception.
-- The state Task Manager shows (the `StartupApproved\Run` value, disabled when its first byte is `0x03`) is honoured. The menu tick reads it.
+- The state Task Manager shows (the `StartupApproved\Run` value, disabled when its first byte is `0x03`) is honoured. The menu tick reads it, and ticking it again in the tray marks that value enabled, so the tray and Task Manager agree.
 - Setup decides the tick's default (see the installer decision). Setup cannot read the remote mode, so on a PC that already has settings the default mirrors the current `Run` value, and an absent value means unticked.
 
 **Remote access at sign-in asks again.** Starting the panel with remote access at sign-in is a different decision from starting it in a browser tab. When `gm-scriptorium remote set` changes the mode to a remote mode (`tailscale`, `proxy` or `ssh`) while the `Run` value is present, it asks "Also start remote access when you sign in to Windows?". The default is No. In a non-interactive run, or with `--json`, it is treated as No and says so.
 
-- Until the GM confirms, a start at sign-in (`--background` from the `Run` value) runs the panel in local, this-PC-only mode. The tray header says "Remote access is off at sign-in. Start it from the tray to turn it on."
+- Until the GM confirms, a start at sign-in (`--background` from the `Run` value) runs the panel in local, this-PC-only mode. The tray header says "Remote access is off at sign-in. Start it from the tray to turn it on." The host tells the helper by adding `signin-local` as an optional last field of its `state running` line; the helper shows the header line only then.
 - A start the GM makes themselves (shortcut, Start menu, tray Start panel, terminal) uses the saved remote mode, as before.
 - The confirmation is a per-machine flag kept with the desktop settings, written only through the one config writer. `remote off` clears it, and running `remote set` again with a different remote mode asks again.
 
@@ -117,7 +124,10 @@ This amends [ADR 0028](0028-installer-and-first-run.md), "Launch mode": launch m
 ## 9. Errors without a console
 
 - **States.** The icon shows starting, running, stopped, update available, or an error. The error kinds are `vault`, `port`, `config` and `other`, each with a one-line message and, for `port`, the port number.
+- **The icon** is the Lantern from the helper's own resources, at the size Windows asks for. A badge drawn at run time marks the state: none while running, a ring while starting, grey when stopped, red with "!" for an error and blue when an update is available. The icon is not registered with a fixed identifier, so it keeps working when the install folder moves, and it is added again when Explorer restarts.
 - **Notifications** are the balloon kind (`NIF_INFO`), which Windows 10 and 11 show as toasts. **They have no buttons.** A click does the main action: try again, change ports, or view the patch notes. The other actions are in the tray menu.
+  - The first-run notification shows once per Windows user, and only on a start the GM made. The update notification shows once per version. Both are remembered in `HKCU\Software\GM-Scriptorium\Tray` (`FirstRunToast` and `UpdateToast`), which the uninstaller removes.
+  - A start-up failure shows its notification each time it happens. A second launch while the tray is in an error state shows it again and opens the log folder.
 - **The log** is `<panel folder>\logs\desktop.log`, rotated to `desktop.log.1` when it reaches 256 KiB. It uses a closed list of events (`host-start`, `panel-starting`, `panel-running`, `panel-stopped`, `panel-error`, `panel-warning`, `retry`, `op`, `quit`, `exit`, `uncaught`), and every field is scrubbed before writing. Lines are written through `appendPrivateLine`.
 - **It never holds a code, token, password or cookie.** This extends [ADR 0028](0028-installer-and-first-run.md), "The launch code and how it reaches the browser". The scrub replaces long token-like runs and anything after `token=`, `code=`, `password` or `cookie`. The folder's access list from [ADR 0056](0056-windows-panel-access-list.md) is the second layer: it is inheritable and applied at every panel start, so `logs` is covered, and in local mode only your account, SYSTEM and Administrators can list it.
 
@@ -148,7 +158,7 @@ This amends [ADR 0028](0028-installer-and-first-run.md), "Launch mode": launch m
 
 ## 12. Antivirus, SmartScreen and Smart App Control
 
-Before 1.0 nothing in the install is signed. Expected: a SmartScreen prompt on the downloaded installer, and no Defender detection of the program or the helper. Mitigations: the `Run` value is the only start-up mechanism (no scheduled task, no PowerShell), the helper uses ordinary imports from a short allowed list, nothing is packed, and the version information and manifest are real. Defender, SmartScreen and Smart App Control behaviour is recorded per binary in the Windows verification criteria.
+Before 1.0 nothing in the install is signed. Expected: a SmartScreen prompt on the downloaded installer, and no Defender detection of the program or the helper. Mitigations: the `Run` value is the only start-up mechanism (no scheduled task, no PowerShell), the helper uses ordinary imports from a short allowed list (the seven system libraries in section 2, checked at every build), it never touches the machine-wide registry, opens nothing but folders and the project's release pages, and makes no network connection, nothing is packed, and the version information and manifest are real. Defender, SmartScreen and Smart App Control behaviour is recorded per binary in the Windows verification criteria.
 
 A false positive is reported through Microsoft's submission portal; that is an action for the project owner. From 1.0 the helper is signed in the first signing pass, with the program and the uninstaller.
 
@@ -201,7 +211,7 @@ This is normative. The host (`src/desktop/protocol.js`) and the helper both impl
 
 - `hello  1  <version>  <logDir>`. Always the first line. `1` is the protocol number, and `<version>` is the app version, which the helper compares exactly with its own.
 - `state  starting  <campaign or dash>  <detail>`. Where there is no campaign, `<campaign or dash>` is a lone `-`.
-- `state  running  <campaign or setup>  <reach>  <address>`. `reach` is one of `local`, `ssh`, `tailscale`, `proxy`, `direct`. `address` is `http://127.0.0.1:<port>` for `local` and `ssh`, and otherwise the configured `admin_url`.
+- `state  running  <campaign or setup>  <reach>  <address>  [signin-local]`. `reach` is one of `local`, `ssh`, `tailscale`, `proxy`, `direct`. `address` is `http://127.0.0.1:<port>` for `local` and `ssh`, and otherwise the configured `admin_url`. The optional last field `signin-local` marks a start at sign-in that runs local-only because remote access at sign-in is not confirmed (section 7).
 - `state  stopped  <campaign or dash>`.
 - `state  error  <kind>  <message>  [<port>]`. `kind` is one of `vault`, `port`, `config`, `other`.
 - `confirm  none|remote|build`. Sent in reply to `stop?` and `quit?`.

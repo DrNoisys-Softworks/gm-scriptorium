@@ -2255,6 +2255,43 @@ rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on eve
 4. Append the planted name (`PLANTED_NAME`) in a paragraph to `out\index.html`. Run `check smoke --json`. It exits 2, the `counts` equal `EXPECTED.planted`, and there is exactly one `leak/l4-output-name` finding, naming `index.html`.
 5. Re-hash the real config.
 
+### C190 to C205: rules that hold for every desktop-app criterion
+
+Rules that hold for every criterion:
+- Each is **OPEN until run on the VM** against the 0.5.0 release candidate.
+- Isolate config: run `setx SCRIPTORIUM_CONFIG <scratch>\config.toml`, then sign out and in, so the tray inherits it. Never the real config, never `N:`.
+- Start with Windows stays off unless the criterion tests it.
+- Record `certutil -hashfile <scratch config> SHA256` before and after wherever the criterion says the config is unchanged.
+
+### C190: starting from the Start menu, the desktop shortcut and Finish gives no console window, a tray icon and a signed-in browser
+ADR 0057 sections 1 to 3.
+1. Finish with "Start GM-Scriptorium now" ticked.
+   - No console window appears at any point.
+   - In Process Explorer, `gm-scriptorium-tray.exe` is the parent of `gm-scriptorium.exe`, and `gm-scriptorium.exe` has no `conhost.exe` child.
+   - The browser opens on `http://127.0.0.1:7400`, signed in.
+   - The N01 toast shows once.
+2. Quit from the tray. Start again from the Start menu, then from the desktop shortcut. The browser opens signed in each time, and N01 does not show again.
+3. With no campaign registered, the browser opens on setup.
+
+### C192: a second launch reuses the running instance
+ADR 0057 section 4.
+1. With the app running, launch from the Start menu, the shortcut, Finish (re-run Setup) and the terminal. Each opens a new tab only.
+2. `netstat -ano` shows listeners on 7400 and 7401 for one `gm-scriptorium.exe` PID only.
+3. In an error state (C196 step 1), a launch shows the error toast and opens the log folder instead of starting a second copy.
+
+### C194: sign-out, restart and shutdown stop it cleanly
+ADR 0057 section 6.
+1. For each of sign-out, restart and shutdown, with the app running:
+   - no "this app is preventing shutdown" screen appears;
+   - after sign-in, the previous `desktop.log` ends with `quit` reason endsession, or shows only the accepted leftovers;
+   - the scratch config hash is unchanged.
+2. Ports 7400 and 7401 are free before the next start.
+
+### C203: the tray icon looks right
+ADR 0057 section 9.
+1. On light and dark taskbars, at 100% and 150% scaling, in the overflow and pinned, each badge state is readable. Tooltips read as T01 and T08. Menus are not clipped at 150%.
+2. `taskkill /f /im explorer.exe`, then start Explorer: the icon returns.
+
 ### C170: a bare `--force` is refused with one line, in the real win-x64 exe
 
 Issue #15, [ADR 0055](../docs/decisions/0055-force-split.md). **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match. Use a scratch copy of the-long-lease example vault, registered as campaign `c170` with an output folder `S\out` that does not exist.

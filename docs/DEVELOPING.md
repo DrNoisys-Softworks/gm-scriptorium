@@ -55,9 +55,9 @@ comes in through a pin bump (see "Pin bump procedure" in
 |---|---|
 | `npm test` | Runs the whole test suite with `node --test`. |
 | `npm run verify-generator` | The installed generator tree still matches `PIN.json`. |
-| `npm run package` | Builds both the win-x64 and linux-x64 targets into `dist/v<version>/`, with one combined `SHA256SUMS` covering both binaries and the notices file (see ADR 0001). |
+| `npm run package` | Builds both the win-x64 and linux-x64 targets and the Windows tray helper into `dist/v<version>/`, with one combined `SHA256SUMS` covering the three binaries and the notices file (see ADR 0001 and [ADR 0057](decisions/0057-windows-desktop-app.md)). It needs mingw-w64 on every machine that runs it (see gate 8). |
 
-`npm run package` runs seven gates for each target before it writes anything (the seventh applies to the Windows target only):
+`npm run package` runs seven gates for each target before it writes anything (the seventh applies to the Windows target only), then an eighth once both targets have passed:
 
 1. Generator-pin verification. It re-verifies the pin itself, not just through the script above.
 2. Notices freshness.
@@ -66,13 +66,14 @@ comes in through a pin bump (see "Pin bump procedure" in
 5. A startup self-test of the packaged build.
 6. Starter template verification: every file under `assets/vault-template/` must match its manifest's sha256 and token counts, with no unlisted file on disk. It fails closed, before the build starts.
 7. Windows branding (win-x64 only). Before the build, `scripts/winres.js` checks the pkg base binary against the hash pkg-fetch expects and writes a copy with the Lantern icon and the version strings; only the Windows build uses that copy. After the build, `node scripts/winres.js check` reads the exe back: one icon group with the eight sizes, exactly the eight version strings, and no Node.js value. This gate does not prove that Windows draws the icon or starts the exe; that is criterion C142. The startup self-test still proves nothing about win-x64.
+8. Tray helper (win-x64). `scripts/tray.js` cross-compiles `gm-scriptorium-tray-win-x64.exe` from `packaging/windows/tray/` with mingw-w64 and checks the file it made: an x64 GUI program with address-space randomisation, data execution prevention and high-entropy addresses, no symbol table, imports only from seven Windows system libraries, a manifest with `asInvoker` and per-monitor DPI, and the branding (`node scripts/winres.js check-tray`). It needs the Debian packages `gcc-mingw-w64-x86-64-win32`, `binutils-mingw-w64-x86-64` and `mingw-w64-x86-64-dev` (the win32 thread model, so no winpthread library) on the release machine, on a contributor's machine and in CI. Without them it fails closed. It proves nothing about how Windows runs the helper; that is criteria C190, C192, C194 and C203.
 
 If any target's gate fails, the run removes every binary it already produced and exits 1, so
 `dist/v<version>/` never holds a binary that `SHA256SUMS` doesn't cover. `--target` and `--out`
 still override to a single target.
 
 A change that touches packaging, notices or embedded assets is not shown to work by `npm test`
-alone. Run `npm run package`: five of its seven gates exist nowhere else.
+alone. Run `npm run package`: six of its eight gates exist nowhere else.
 
 ## Constraints that are tests, not preferences
 
@@ -98,6 +99,7 @@ than deciding alone.
 - `test/vault-create-structure.test.js`: `src/vault/vaultcreate.js` never deletes, renames, appends, truncates or uses a recursive `mkdirSync`, every `writeFileSync` in it is `flag: 'wx'`, it requires only `fs`, `path`, the error classes and the exclusions module, and `createVault` is named only in that file, `src/setup/register.js` and `src/cli/init.js`. See [ADR 0048](decisions/0048-new-campaign-vault.md).
 - `test/admin-campaign-fields.test.js`: every field the panel context carries is classified as belonging to the process or to one campaign, so a switch can never carry one campaign's state into another. See [ADR 0050](decisions/0050-several-campaigns.md).
 - `test/launch-structure.test.js`: the browser opener is named only in `src/proc/run.js` and `src/cli/launch.js`, launch code requires no other spawner, and every test that loads the launcher injects its opener, so no test opens a real browser. See [ADR 0028](decisions/0028-installer-and-first-run.md).
+- `test/tray-structure.test.js`: the tray helper's C source starts programs in exactly four named places, each by full path, writes the registry only from its Start with Windows and notification-state functions and never machine-wide, opens folders and web pages only with the `open` verb, loads no network, download or injection interface, and its protocol verb tables equal `HOST_VERBS` and `HELPER_VERBS` in `src/desktop/protocol.js`. See [ADR 0057](decisions/0057-windows-desktop-app.md).
 - `test/folders-structure.test.js`: the folder picker's listing lives in `src/setup` (so it is write-free), its one folder write is a single non-recursive create in `src/admin/foldercreate.js`, reached only from its own route, and every filesystem call goes through the shared bounded probe. See [ADR 0049](decisions/0049-folder-picker.md).
 - `test/test-ports-structure.test.js`: no test binds a fixed port outside that helper, and no two test files share one.
 - `src/util/exitcodes.js`: the exit-code table is frozen. 0 is OK, 1 is a Scriptorium bug, 2 is
