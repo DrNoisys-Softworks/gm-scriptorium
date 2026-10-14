@@ -10,6 +10,8 @@
  */
 
 const CHANNELS = Object.freeze(['stable', 'beta']);
+// The keys this module reads. test/docs-reference.test.js pins this list to the reads below.
+const UPDATE_KEYS = Object.freeze(['check', 'channel']);
 
 const UNREADABLE = Object.freeze({ readable: false, check: false, channel: null });
 
@@ -33,4 +35,4 @@ function parseUpdateTable(raw) {
   return { readable: true, check, channel };
 }
 
-module.exports = { CHANNELS, parseUpdateTable };
+module.exports = { CHANNELS, UPDATE_KEYS, parseUpdateTable };

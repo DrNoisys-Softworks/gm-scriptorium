@@ -28,6 +28,10 @@ Steps for a job you already have in mind.
 Facts to look up.
 
 - [Image slots](image-slots.md): which images a theme can show, and the sizes to prepare them at.
+- [The settings file (config.toml)](reference/config-toml.md): every key in the settings file, what it does, and what changes it.
+- [Environment variables](reference/environment-variables.md): every variable the program reads.
+- [Exit codes](reference/exit-codes.md): the five codes every command ends with, and what to do about each.
+- [Files and folders](reference/files-and-folders.md): what GM-Scriptorium keeps on your computer, and where.
 
 ## Explanation
 
