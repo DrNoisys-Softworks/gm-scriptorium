@@ -1,8 +1,12 @@
 'use strict';
 
 const fs = require('fs');
+const path = require('path');
 const { loadConfig } = require('./args');
 const { writeConfigFile } = require('./config');
+const { createPrompter } = require('./prompt');
+const { setRemoteAtSignin } = require('../config/write');
+const { parseDesktopTable } = require('../config/desktopsettings');
 const { createSecretReader } = require('./secretprompt');
 const { ConfigError, VaultUnreachableError } = require('../util/errors');
 const { EXIT_CODES } = require('../util/exitcodes');
@@ -17,6 +21,9 @@ const { createSessionStore } = require('../remote/sessions');
 const { createAuditLog } = require('../remote/audit');
 const { applyPanelAccess, accessWarning, accessSecretRefusal } = require('../remote/panelaccess');
 const { commandHelp } = require('./help');
+
+const SIGNIN_QUESTION = 'Also start remote access when you sign in to Windows? [y/N] ';
+const TRAY_NAME = 'gm-scriptorium-tray.exe';
 
 /*
  * V1.5a (docs/decisions/0029-remote-access.md section 9; SD-doc section 13): `gm-scriptorium remote
@@ -330,17 +337,62 @@ async function runAccount(args, paths, config, { stdin, stdout, now, panelAccess
 }
 
 /**
+ * Whether Start with Windows may be on for this copy. The Run value lives in the registry, which the
+ * program cannot read without adding a program to the spawner's list (ADR 0046), so this asks the
+ * nearest thing it can see: a Windows copy with the tray helper beside it. Asking when the value is
+ * absent costs one unneeded question, and the answer only matters at sign-in.
+ */
+function defaultRunValuePresent({ platform = process.platform, execPath = process.execPath } = {}) {
+  return platform === 'win32' && fs.existsSync(path.win32.join(path.win32.dirname(execPath), TRAY_NAME));
+}
+
+/**
+ * ADR 0057, section 7 ("Remote access at sign-in asks again"). When the mode changes to a remote mode,
+ * the sign-in confirmation is reset: asked when Start with Windows is on (default No; no terminal
+ * counts as No and says so), and cleared when it is not. A changed config comes back with the
+ * confirmation set or cleared through the one writer; nothing else in the config moves.
+ *
+ * @returns {Promise<{ config: object, note: string }>}
+ */
+async function applySigninChoice({ config, previous, parsed, stdin, stdout, runValuePresent }) {
+  if (parsed.mode === 'local' || parsed.mode === previous.mode) return { config, note: '' };
+  let confirmed = false;
+  let note = '';
+  if (runValuePresent()) {
+    if (stdin.isTTY) {
+      const prompter = createPrompter({ input: stdin, output: stdout });
+      try {
+        const answer = await prompter.ask(SIGNIN_QUESTION);
+        confirmed = answer !== null && /^\s*y(es)?\s*$/i.test(answer);
+      } finally {
+        prompter.close();
+      }
+    } else {
+      note = '\nRemote access will not start when you sign in to Windows (there was no terminal to ask). Run "gm-scriptorium remote set" again in a terminal to be asked.';
+    }
+  }
+  try {
+    const wasConfirmed = parseDesktopTable(config.desktop).remoteAtSignin;
+    if (wasConfirmed === confirmed) return { config, note };
+    return { config: setRemoteAtSignin(config, confirmed), note };
+  } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    return { config, note: `${note}\nwarning: the [desktop] settings could not be read, so the sign-in choice was not saved` };
+  }
+}
+
+/**
  * @param {object} flags parsed argv flags
  * @param {string|undefined} subcommand
  * @param {string[]} args positional arguments after the subcommand
- * @param {{ stdin?: NodeJS.ReadStream, stdout?: NodeJS.WriteStream, now?: () => number, panelAccess?: { platform?: string, env?: object, run?: Function } }} [deps]
+ * @param {{ stdin?: NodeJS.ReadStream, stdout?: NodeJS.WriteStream, now?: () => number, panelAccess?: { platform?: string, env?: object, run?: Function }, runValuePresent?: () => boolean }} [deps]
  * @returns {Promise<{ exitCode: number, human: string }>}
  */
 async function runRemoteCommand(
   flags,
   subcommand,
   args = [],
-  { stdin = process.stdin, stdout = process.stdout, now = Date.now, panelAccess = {} } = {},
+  { stdin = process.stdin, stdout = process.stdout, now = Date.now, panelAccess = {}, runValuePresent = defaultRunValuePresent } = {},
 ) {
   if (!SUBCOMMANDS.includes(subcommand)) {
     throw new ConfigError(`usage: gm-scriptorium remote ${SUBCOMMANDS.join(' | ')}`);
@@ -358,12 +410,13 @@ async function runRemoteCommand(
       }
       const { next, changed } = settingsLib.applyRemoteChange(config.remote, flags);
       const parsed = settingsLib.parseRemoteTable(next);
-      writeConfigFile(configPath, { ...config, remote: next });
+      const signin = await applySigninChoice({ config: { ...config, remote: next }, previous: settings, parsed, stdin, stdout, runValuePresent });
+      writeConfigFile(configPath, signin.config);
       const loose = changed.length > 0 ? await securePanel(paths, config, panelAccess) : '';
       const warning = changed.length > 0 ? auditCli(paths, now, { event: 'settings-change', changed, mode: parsed.mode }) : '';
       return {
         exitCode: EXIT_CODES.OK,
-        human: `${summary(parsed, paths, now)}\nchanges take effect the next time serve --admin starts${warning}${loose}`,
+        human: `${summary(parsed, paths, now)}\nchanges take effect the next time serve --admin starts${signin.note}${warning}${loose}`,
       };
     }
 
@@ -413,7 +466,15 @@ async function runRemoteCommand(
 
     case 'off': {
       assertPanelOutsideVaults(paths.panelDir, config);
-      if (config.remote !== undefined) writeConfigFile(configPath, { ...config, remote: { ...config.remote, mode: 'local' } });
+      // ADR 0057, section 7: turning remote access off also clears the sign-in confirmation. A [desktop] table
+      // that cannot be read is left alone, so this stays a way out.
+      let offConfig = config.remote !== undefined ? { ...config, remote: { ...config.remote, mode: 'local' } } : config;
+      try {
+        if (parseDesktopTable(config.desktop).remoteAtSignin) offConfig = setRemoteAtSignin(offConfig, false);
+      } catch (err) {
+        if (!(err instanceof ConfigError)) throw err;
+      }
+      if (offConfig !== config) writeConfigFile(configPath, offConfig);
       const loose = await securePanel(paths, config, panelAccess);
       sessionsOf(paths, now).revokeAll();
       if (fs.existsSync(paths.accountsFile)) passwordwrite.clearAccounts(paths.accountsFile, { now });

@@ -106,10 +106,10 @@ function checkLaunchTestFile(source) {
 
 // --- the opener is named in two files ---------------------------------------------------------------------
 
-test('openFile is named only in src/proc/run.js and src/cli/launch.js (nothing under src/ or bin/ else)', () => {
+test('openFile is named only in src/proc/run.js, src/cli/launch.js and src/desktop/host.js (nothing under src/ or bin/ else)', () => {
   const found = openerNamers([path.join(ROOT, 'src'), path.join(ROOT, 'bin')], ROOT);
   assert.ok(found.length >= 2);
-  assert.deepEqual(found, ['src/cli/launch.js', 'src/proc/run.js']);
+  assert.deepEqual(found, ['src/cli/launch.js', 'src/desktop/host.js', 'src/proc/run.js']);
 });
 
 test('positive control: a scratch tree that names the opener elsewhere is detected, a comment is not', () => {
@@ -203,7 +203,7 @@ test('the gate holds the only Origin: null comparison under src/, in one express
   assert.equal((gate.match(/'null'/g) || []).length, 1);
 });
 
-test('launchExchange is set from the code store in one place (the router) and the store is created in one place (launch mode)', () => {
+test('launchExchange is set from the code store in one place (the router), and the store is assigned and created only by launch mode and the desktop host (plus its own module)', () => {
   const router = stripCommentsSafe(fs.readFileSync(path.join(ROOT, 'src', 'admin', 'router.js'), 'utf8'));
   assert.equal((router.match(/launchExchange:\s*Boolean\(ctx\.launchCodes\)/g) || []).length, 1);
   assert.equal((router.match(/\blaunchExchange\s*:/g) || []).length, 1, 'only one key named launchExchange is passed to the gate');
@@ -214,8 +214,8 @@ test('launchExchange is set from the code store in one place (the router) and th
     if (/\.launchCodes\s*=[^=]/.test(stripped)) assigners.push(rel(ROOT, f));
     if (/\bcreateLaunchCodeStore\s*\(/.test(stripped)) creators.push(rel(ROOT, f));
   }
-  assert.deepEqual(assigners, ['src/cli/launch.js']);
-  assert.deepEqual(creators.sort(), ['src/cli/launch.js', 'src/launch/codes.js']);
+  assert.deepEqual(assigners, ['src/cli/launch.js', 'src/desktop/host.js']);
+  assert.deepEqual(creators.sort(), ['src/cli/launch.js', 'src/desktop/host.js', 'src/launch/codes.js']);
 });
 
 test('SIGHUP is named in the stop-signal list only, and POSIX gets it only through { hup: true }', () => {
