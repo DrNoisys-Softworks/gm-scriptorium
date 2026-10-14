@@ -2255,6 +2255,41 @@ rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on eve
 4. Append the planted name (`PLANTED_NAME`) in a paragraph to `out\index.html`. Run `check smoke --json`. It exits 2, the `counts` equal `EXPECTED.planted`, and there is exactly one `leak/l4-output-name` finding, naming `index.html`.
 5. Re-hash the real config.
 
+### C191: every tray menu item works
+
+[ADR 0057](../docs/decisions/0057-windows-desktop-app.md) sections 1, 5 and 11; [ADR 0028](../docs/decisions/0028-installer-and-first-run.md) section 7.
+
+**Mark this OPEN: Linux tests drive the host with a stand-in tray and a stand-in opener, and the panel in real browsers; only a real tray can be checked here.** Run it on the VM, or with a scratch config only: `setx SCRIPTORIUM_CONFIG <scratch>\config.toml`, then sign out and in. Never the real config, never `N:`. Remove the scratch variable when done.
+
+1. The header shows the version, campaign, "This PC only" and the address.
+2. Open panel opens a signed-in tab. Open preview opens the signed-in preview with the not-live strip. Its links reach the panel and the guide.
+3. Stop panel: tabs show the stopped page and the tooltip says "panel stopped". Start panel opens a fresh signed-in tab, and an old tab reloaded after Start does not get in (it shows the stopped or sign-in page). Double-clicking while stopped starts the panel and opens a tab.
+4. After `config set-default` in a terminal, Restart makes the panel show the new default.
+5. The Start with Windows tick adds and removes the `HKCU\...\Run` value `GM-Scriptorium`.
+6. Check for updates opens the panel with the Updates card in view and focused. Reload that tab: it does not scroll or focus again. On a desktop install, the update banner and card say to choose Open command line (Advanced) from the tray menu and run `gm-scriptorium update`.
+7. With a lower-version scratch build and a newer release:
+   - T06 shows "Update available: <v>";
+   - N04 appears once per version, and clicking it opens the release page on github.com;
+   - after a restart it does not show again for that version.
+8. Open command line (Advanced) opens a terminal in the user folder with the banner, and `gm-scriptorium status` works there with PATH unticked.
+9. Open log folder opens `<config folder>\panel\logs`.
+10. Quit.
+
+### C193: closing the browser keeps it running, Quit stops and tidies, and tabs show the stopped page
+
+[ADR 0057](../docs/decisions/0057-windows-desktop-app.md) section 5; [ADR 0028](../docs/decisions/0028-installer-and-first-run.md) section 6.
+
+**Mark this OPEN: Linux tests prove the stopped page and the first-run line in real browsers; the tray, the process and the ports can only be checked on Windows.** Isolate config as in C191.
+
+1. Close every browser window. The icon stays, and Open panel works. On a first run, the welcome line reads "This is your panel. Closing this tab doesn't stop GM-Scriptorium: it keeps running in the system tray, and its icon opens the panel again. Three good next steps:".
+2. Quit. All of these hold:
+   - no `gm-scriptorium` process remains;
+   - nothing listens on 7400 or 7401;
+   - no `launch-*.html` is in the panel folder;
+   - the preview folder is gone;
+   - open tabs show "GM-Scriptorium has stopped" with "Start it again from the GM-Scriptorium icon in the system tray, or from the Start menu."
+3. During a preview build, Quit and Stop panel ask first, and Cancel is the default.
+
 ### C205: remote mode under the background app
 
 ADR 0057 sections 5 and 8; ADR 0056.
