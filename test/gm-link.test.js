@@ -16,6 +16,7 @@ const { resolveVaultSite } = require('../src/cli/check');
 const { createAdminContext } = require('../src/admin/context');
 const preview = require('../src/admin/preview');
 const gmlink = require('../src/admin/gmlink');
+const previewstrip = require('../src/admin/previewstrip');
 const { GM_LINK_MARKER } = require('../src/build/gmmarker');
 
 /*
@@ -253,10 +254,11 @@ test('AC-05 (NFR02 with the link): a preview tree, minus the exact GM-link snipp
       assert.deepEqual(previewFiles, freshFiles, 'the two trees do not have the same file list');
 
       const snippet = gmlink.gmLinkSnippet(gmlink.gmLinkHref(ctx.adminPort));
+      const stripSnippet = previewstrip.previewStripSnippet(gmlink.gmLinkHref(ctx.adminPort));
       for (const rel of previewFiles) {
         if (rel.endsWith('.html')) {
           const previewText = fs.readFileSync(path.join(ctx.previewDir, rel), 'utf8');
-          const stripped = previewText.split(snippet).join('');
+          const stripped = previewText.split(snippet).join('').split(stripSnippet).join('');
           const freshText = fs.readFileSync(path.join(freshOut, rel), 'utf8');
           assert.equal(stripped, freshText, `byte mismatch (after stripping the GM-link snippet) at ${rel}`);
         } else {

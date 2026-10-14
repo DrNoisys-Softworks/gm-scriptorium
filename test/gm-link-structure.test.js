@@ -22,6 +22,7 @@ const ASSETS_DIR = path.join(ROOT, 'assets');
 const BUILD_ENTRY = path.join(ROOT, 'src', 'cli', 'build.js');
 const SERVE_ENTRY = path.join(ROOT, 'src', 'cli', 'serve.js');
 const GMLINK_FILE = path.join(ROOT, 'src', 'admin', 'gmlink.js');
+const PREVIEWSTRIP_FILE = path.join(ROOT, 'src', 'admin', 'previewstrip.js');
 
 const BUILTIN_NAMES = new Set(Module.builtinModules);
 
@@ -141,12 +142,34 @@ test("FR34(a): the module graph from src/cli/build.js does not reach src/admin/g
   assert.deepEqual(adminHits, [], `src/cli/build.js graph must not reach any file under src/admin/, found: ${adminHits.join(', ')}`);
 });
 
+test('the module graph from src/cli/build.js does not reach src/admin/previewstrip.js (the not-live strip)', () => {
+  assert.ok(!buildGraph.files.has(PREVIEWSTRIP_FILE), 'src/cli/build.js graph must not reach src/admin/previewstrip.js');
+});
+
 test('FR34(a) positive control: the module graph from src/cli/serve.js DOES reach src/admin/gmlink.js', () => {
   // Without this, a walker that resolves nothing (e.g. a broken relative-path resolver) would
   // also report "build.js does not reach gmlink.js" -- proving nothing (CLAUDE.md's "tests that
   // pass today and prove nothing" standard, and the brief's own "a graph test with no positive
   // control" example).
   assert.ok(serveGraph.files.has(GMLINK_FILE), 'src/cli/serve.js graph is expected to reach src/admin/gmlink.js (it is the real launch path for the panel)');
+});
+
+test('the module graph from src/cli/serve.js DOES reach src/admin/previewstrip.js (positive control for the check above)', () => {
+  assert.ok(serveGraph.files.has(PREVIEWSTRIP_FILE), 'src/cli/serve.js graph is expected to reach src/admin/previewstrip.js');
+});
+
+test('the strip literal "data-scriptorium-preview-strip" appears under src/ only in src/admin/previewstrip.js', () => {
+  const offenders = [];
+  for (const f of walkAllFiles(SRC_DIR)) {
+    if (!f.endsWith('.js')) continue;
+    if (fs.readFileSync(f, 'utf8').includes('data-scriptorium-preview-strip')) offenders.push(path.relative(ROOT, f).split(path.sep).join('/'));
+  }
+  assert.deepEqual(offenders, ['src/admin/previewstrip.js']);
+});
+
+test('no file under assets/ contains the strip literal', () => {
+  const offenders = walkAllFiles(ASSETS_DIR).filter((f) => fs.readFileSync(f).includes(Buffer.from('data-scriptorium-preview-strip', 'utf8')));
+  assert.deepEqual(offenders, []);
 });
 
 // --- SD-1's "the marker literal must live in exactly one file" -------------
