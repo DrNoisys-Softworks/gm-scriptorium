@@ -600,6 +600,17 @@ test('D12: markup in the GM note is escaped in the demo', () => {
   assert.ok(r.html.includes('&lt;script&gt;alert(1)&lt;/script&gt; &amp; more.'));
 });
 
+test('D14: the tag stripper leaves no angle bracket, even for nested or overlapping tags', () => {
+  for (const sub of [' ', '']) {
+    for (const input of ['<scr<script>ipt>alert(1)', '<<b>b>text', 'a <scr<script>ipt>x</scr</script>ipt> b', '<script>x</script>y', '<p>5 < 6 and 7 > 2</p>', '<scr<style>ipt>z']) {
+      const out = demoMod.stripTags(input, sub);
+      assert.equal(out.includes('<'), false, input);
+      assert.equal(out.includes('>'), false, input);
+    }
+  }
+  assert.equal(demoMod.stripTags('<p>Hello <em>there</em></p>', ' ').replace(/\s+/g, ' ').trim(), 'Hello there');
+});
+
 test('D13: buildLeakDemo writes nothing', () => {
   const v = vaultCopy();
   const s = siteCopy();

@@ -95,13 +95,27 @@ function decodeEntities(s) {
     .replace(/&amp;/g, '&');
 }
 
+/** Applies a replacement until the string stops changing, so overlapping fragments cannot survive. */
+function replaceUntilStable(text, re, sub) {
+  let prev;
+  let cur = text;
+  do {
+    prev = cur;
+    cur = cur.replace(re, sub);
+  } while (cur !== prev);
+  return cur;
+}
+
+/** Cuts out script and style blocks and every tag, then any stray angle bracket. Never leaves a "<". */
+function stripTags(html, sub) {
+  const noBlocks = replaceUntilStable(html, /<(script|style)\b[\s\S]*?<\/\1\s*>/gi, ' ');
+  const noTags = replaceUntilStable(noBlocks, /<[^>]*>/g, sub);
+  return noTags.replace(/[<>]/g, sub);
+}
+
 /** Page text, two ways (tags cut out with and without a space), decoded and whitespace-collapsed. */
 function pageTexts(html) {
-  const noScript = html.replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, ' ');
-  return [
-    collapse(decodeEntities(noScript.replace(/<[^>]*>/g, ' '))),
-    collapse(decodeEntities(noScript.replace(/<[^>]*>/g, ''))),
-  ];
+  return [collapse(decodeEntities(stripTags(html, ' '))), collapse(decodeEntities(stripTags(html, '')))];
 }
 
 /** The plain runs of a note excerpt: what is left after cutting out [[...]] links. */
@@ -241,6 +255,7 @@ module.exports = {
   withheldName,
   buildLeakDemo,
   excerptRuns,
+  stripTags,
   findGmText,
   hasNameToken,
 };
