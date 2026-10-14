@@ -6,6 +6,7 @@ const path = require('path');
 const { runBuildForContext } = require('../cli/build');
 const { ScriptoriumError } = require('../util/errors');
 const gmlink = require('./gmlink');
+const previewstrip = require('./previewstrip');
 const { EXIT_CODES } = require('../util/exitcodes');
 
 /*
@@ -72,7 +73,8 @@ function runPreviewBuild(ctx) {
 
 /**
  * FR33/SD-5: runs the same build runPreviewBuild does, then, only on a successful build, adds
- * the GM link to every preview page (src/admin/gmlink.js). The GM link is deliberately never
+ * the GM link to every preview page (src/admin/gmlink.js), then the not-live strip
+ * (src/admin/previewstrip.js, same rules). The GM link is deliberately never
  * added inside runPreviewBuild itself -- test/admin-preview.test.js's own NFR02 and FR29 tests
  * call runPreviewBuild directly and assert against an unpatched tree -- and it is added strictly
  * AFTER runBuildForContext returns, i.e. after FR34(b)'s unconditional output-gate marker check
@@ -87,6 +89,7 @@ function buildPreviewWithGmLink(ctx) {
   const result = runPreviewBuild(ctx);
   if (result.exitCode === EXIT_CODES.OK) {
     gmlink.injectGmLinks(ctx);
+    previewstrip.injectPreviewStrips(ctx);
   }
   return result;
 }
