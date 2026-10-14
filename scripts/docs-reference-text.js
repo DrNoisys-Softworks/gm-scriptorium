@@ -532,6 +532,158 @@ module.exports = deepFreeze({
     },
   },
 
+  'vault-publish': {
+    mode: {
+      type: 'text',
+      what: 'Which pages are published. `player` publishes only the pages ticked in `_meta/publish-manifest.md`. The panel shows this key but has no field to change it, because it decides what players can see. Change it in the panel\'s text editor, or by hand.',
+    },
+    exclude_fields: {
+      what: 'Frontmatter fields that are never published, on any page. Joined with `excludeFields` in `vault.config.json`; see how the two files combine, above.',
+    },
+    exclude_sections: {
+      what: 'Headings whose section is removed from every page, at any heading level. Joined with `excludeSections` in `vault.config.json`.',
+    },
+    exclude_dirs: {
+      what: 'Vault folders that are skipped completely. Joined with `excludeDirs` in `vault.config.json`. `check` compares the two lists and says if they differ.',
+    },
+    exclude_drafts: {
+      type: 'true or false',
+      what: 'A switch for leaving draft pages out of the site.',
+    },
+    exclude_callouts: {
+      type: 'true or false, or a list of text',
+      what: 'Whether callout blocks are removed from pages. When this key is absent, `excludeCallouts` in `vault.config.json` is used instead, and then the default.',
+    },
+    overrides: {
+      type: 'table',
+      default: 'No overrides',
+      what: 'Per-page exceptions to the hidden fields, under `overrides.fields`. An entry the generator cannot read is dropped.',
+    },
+    'theme.palette': {
+      type: 'table of colours',
+      default: 'The built-in colours',
+      what: 'The four site colours: `primary`, `accent`, `background` and `text`. The panel shows them but has no field to change them.',
+    },
+    'theme.fonts': {
+      type: 'table',
+      default: 'The system font',
+      what: 'The heading and body fonts, and where font files come from.',
+    },
+    'theme.genre': {
+      type: 'text',
+      default: 'None',
+      what: 'A genre preset for the generator\'s look, such as `scifi`.',
+    },
+    'theme.campaign_image': {
+      type: 'text',
+      default: 'None',
+      what: 'The path, inside the vault, of the campaign picture shown at the top of the landing page.',
+    },
+    banners: {
+      type: 'table',
+      default: 'None',
+      what: 'A picture at the top of a section\'s index page, keyed by the section\'s output folder, such as `locations`. A bare path, or a table with `image`, `link` and `alt`.',
+    },
+    landing: {
+      type: 'table',
+      default: 'The built-in landing page',
+      what: 'The landing page. The keys the panel knows are listed below as `landing.` keys; the generator reads more, which its README describes.',
+    },
+    'landing.featured_npcs': {
+      default: 'None',
+      what: 'Characters to feature on the landing page, by name.',
+    },
+    'landing.quick_links': {
+      default: 'None',
+      what: 'Pages to link to from the landing page, by name.',
+    },
+    'landing.max_npcs': {
+      what: 'How many characters the landing page shows. The panel accepts 0 to 100.',
+    },
+    four_oh_four: {
+      type: 'table',
+      default: 'The built-in not-found page',
+      what: 'The page shown for an address that does not exist.',
+    },
+    'four_oh_four.message': {
+      what: 'The line of text on the not-found page. The panel accepts 1 to 300 characters.',
+    },
+    'theme.tagline': {
+      type: 'text',
+      default: 'None',
+      panel: 'Title & tagline (edit)',
+      what: 'The one-line hook on the landing page. It is the only tagline the site shows; `landingTagline` in `vault.config.json` is no longer used.',
+    },
+  },
+
+  'vault-json': {
+    siteTitle: {
+      type: 'text',
+      what: 'The site\'s name, shown in the navigation bar and as the page title. New campaigns get the title you gave `init`, or the one in `campaign:` in `_meta/vault-config.md`.',
+      changedBy: 'The Title & tagline screen in the admin panel, `init`, or by hand',
+    },
+    landingTagline: {
+      type: 'text',
+      what: 'An older home of the tagline. The site no longer reads it; use `publish.theme.tagline`. The panel shows a value left here but never writes one.',
+      changedBy: '`init` writes it empty. By hand',
+    },
+    host: {
+      type: 'text',
+      what: 'Where the generator is told the site will be hosted: `github-pages`, or `cloudflare-pages`. It affects only the generator\'s deploy step. GM-Scriptorium does not read it.',
+      changedBy: '`init`, or by hand',
+    },
+    attachmentsDir: {
+      type: 'text',
+      what: 'The folder inside the vault that holds images.',
+      changedBy: '`init`, or by hand',
+    },
+    folderMap: {
+      type: 'table',
+      what: 'Which vault folder becomes which folder on the site. A map with no entries is allowed; the key must be there. New campaigns get the standard folders, and the generator\'s README lists them.',
+      changedBy: '`init`, or by hand',
+    },
+    excludeDirs: {
+      type: 'list of text',
+      what: 'Vault folders skipped completely. Joined with `publish.exclude_dirs`.',
+      changedBy: '`init`, or by hand',
+    },
+    excludeSections: {
+      type: 'list of text',
+      what: 'Headings whose section is removed from every page. Joined with `publish.exclude_sections`.',
+      changedBy: '`init`, or by hand',
+    },
+    excludeCallouts: {
+      type: 'true or false, or a list of text',
+      what: 'Whether callout blocks are removed. Used only when `publish.exclude_callouts` is absent from the vault file.',
+      changedBy: '`init`, or by hand',
+    },
+    backend: {
+      type: 'table',
+      what: 'Switches for the generator\'s optional site features: `statusBar` and `inbox`. New campaigns get both off.',
+      changedBy: '`init`, or by hand',
+    },
+    excludeFields: {
+      type: 'list of text',
+      what: 'Frontmatter fields that are never published. Joined with `publish.exclude_fields`. A new campaign has none here, and relies on the defaults.',
+      changedBy: 'By hand',
+    },
+    outputDir: {
+      type: 'text',
+      what: 'Where the generator would write if you ran it alone. GM-Scriptorium takes the output folder from the settings file instead, and `build` stops if this names the same folder, unless you pass `--force-out`. New campaigns do not get one.',
+      changedBy: 'By hand',
+    },
+    searchEnabled: {
+      type: 'true or false',
+      what: 'Set to `false` to build without the site search. Absent or anything else means search is on.',
+      changedBy: 'By hand',
+    },
+    vaultPath: {
+      type: 'text',
+      what: 'Where the generator would look for the vault if you ran it alone. GM-Scriptorium uses the vault from the settings file instead, and `check` says if this names a different folder. New campaigns do not get one.',
+      changedBy: 'By hand',
+    },
+  },
+
   'exit-codes': {
     0: {
       whatToDo: 'Nothing. Warnings are shown but do not stop anything.',

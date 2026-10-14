@@ -33,6 +33,7 @@ const TARGETS = Object.freeze([
   'docs/reference/files-and-folders.md',
   'docs/reference/command-line.md',
   'docs/reference/pack-toml.md',
+  'docs/reference/vault-config.md',
 ]);
 
 /** Which blocks each page holds, so a block in the wrong page, or a page missing one, is caught. */
@@ -42,6 +43,7 @@ const BLOCKS_BY_TARGET = Object.freeze({
   'docs/reference/files-and-folders.md': ['files'],
   'docs/reference/command-line.md': ['cli-commands', 'cli-global-flags', 'cli-flags', 'cli-subcommands'],
   'docs/reference/pack-toml.md': ['pack-top', 'pack-images', 'pack-labels', 'pack-timeline', 'pack-timeline-kinds', 'pack-timeline-columns', 'pack-recaps', 'pack-gm-link'],
+  'docs/reference/vault-config.md': ['vault-publish', 'vault-json'],
 });
 
 const BLOCK_NAMES = Object.freeze(Object.values(BLOCKS_BY_TARGET).flat());
@@ -86,12 +88,27 @@ const COLUMNS = {
     ['Flags it accepts', 'flags'],
     ['What it does', 'what'],
   ]),
+  'vault-publish': Object.freeze([
+    ['Key', 'key'],
+    ['Type', 'type'],
+    ['Default', 'default'],
+    ['In the panel', 'panel'],
+    ['What it does', 'what'],
+  ]),
+  'vault-json': Object.freeze([
+    ['Key', 'key'],
+    ['Type', 'type'],
+    ['Required', 'required'],
+    ['New campaigns get', 'newCampaigns'],
+    ['What it does', 'what'],
+    ['Changed by', 'changedBy'],
+  ]),
 };
 for (const name of BLOCK_NAMES) if (name.startsWith('config-') || name.startsWith('pack-')) COLUMNS[name] = CONFIG_COLUMNS;
 Object.freeze(COLUMNS);
 
 /** The columns whose values may come from the code. Text may give none of these for a key whose code fact has it. */
-const CODE_COLUMNS = Object.freeze(['type', 'default', 'allowed', 'meaning', 'commands', 'exits', 'takesValue', 'flags']);
+const CODE_COLUMNS = Object.freeze(['type', 'default', 'allowed', 'meaning', 'commands', 'exits', 'takesValue', 'flags', 'required', 'newCampaigns', 'panel']);
 
 const BEGIN_RE = /^<!-- BEGIN GENERATED ([a-z-]+): edit scripts\/docs-reference-text\.js, then run npm run docs-reference -->$/;
 const END_RE = /^<!-- END GENERATED ([a-z-]+) -->$/;
@@ -125,6 +142,11 @@ function codeFacts() {
   const packToml = require('../src/build/packtoml');
   const labels = require('../src/build/labels');
   const themes = require('../src/build/themes');
+  const { COVERED_PREFIXES } = require('../src/admin/vaultconfigeffects');
+  const { FIELD_SCHEMA, DISPLAY_PATHS } = require('../src/admin/vaultconfigfields');
+  const pinned = require('../src/generator/pinned');
+  const { composeVaultConfigJson } = require('../src/setup/scaffold');
+  const { assertScanKeysPresent } = require('../src/cli/check');
 
   const facts = {};
 
@@ -226,7 +248,115 @@ function codeFacts() {
     }),
   );
 
+  Object.assign(
+    facts,
+    vaultFacts({
+      COVERED_PREFIXES,
+      FIELD_SCHEMA,
+      DISPLAY_PATHS,
+      PUBLISH_DEFAULTS: pinned.PUBLISH_DEFAULTS,
+      scaffoldJson: JSON.parse(composeVaultConfigJson(pinned.readVaultConfigTemplate(), '')),
+      requiredKeys: requiredJsonKeys(assertScanKeysPresent),
+      readKeys: JSON_READ_KEYS,
+    }),
+  );
+
   return facts;
+}
+
+/**
+ * The keys the source reads from a vault.config.json, through `jsonConfig.`, `siteConfig.` or
+ * `userJsonConfig.`. A literal here because the source keeps no list; the test scans src/ both ways
+ * to keep it honest. A read through any other variable name is invisible to that scan.
+ */
+const JSON_READ_KEYS = Object.freeze([
+  'attachmentsDir',
+  'backend',
+  'excludeCallouts',
+  'excludeDirs',
+  'excludeFields',
+  'excludeSections',
+  'folderMap',
+  'outputDir',
+  'searchEnabled',
+  'siteTitle',
+  'vaultPath',
+]);
+
+/**
+ * The keys vault.config.json must have, read by asking the real validator (as cliFacts asks
+ * validateFlags): an empty config throws "is missing required key(s) a and b".
+ *
+ * @param {(config: object, file: string, campaign: string) => void} assertFn
+ * @returns {string[]} the required keys, or [] when an empty config passes
+ * @throws any error that is not a missing-keys message
+ */
+function requiredJsonKeys(assertFn) {
+  try {
+    assertFn({}, 'vault.config.json', 'probe');
+    return [];
+  } catch (e) {
+    const m = /is missing required keys? (.+)$/.exec(e.message);
+    if (m === null) throw e;
+    return m[1].split(' and ');
+  }
+}
+
+/** A string, number or boolean becomes its text, a non-empty array of strings its items joined by commas; anything else (null, empty, an object) has no code value. */
+function plainValue(v) {
+  if (typeof v === 'string' && v !== '') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'string')) return v.join(', ');
+  return undefined;
+}
+
+/**
+ * The vault-config.md and vault.config.json facts: which keys exist (the panel's lists, and the
+ * keys the program reads, writes or requires), their types where the panel names them, their
+ * defaults, and what a new campaign gets. The inputs are injected so the logic can be tested with
+ * scratch values.
+ *
+ * @returns {{ 'vault-publish': object[], 'vault-json': object[] }}
+ * @throws a publish path that does not start with "publish."
+ */
+function vaultFacts({ COVERED_PREFIXES, FIELD_SCHEMA, DISPLAY_PATHS, PUBLISH_DEFAULTS, scaffoldJson, requiredKeys, readKeys }) {
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  const TYPE_OF_KIND = { list: 'list of text', int: 'whole number', string: 'text' };
+  const strip = (p) => {
+    if (!p.startsWith('publish.')) throw new Error(`the path "${p}" does not start with "publish."`);
+    return p.slice('publish.'.length);
+  };
+  const schemaByKey = new Map(FIELD_SCHEMA.map((f) => [strip(f.path), f]));
+  const displayByKey = new Map(DISPLAY_PATHS.map((d) => [strip(d.path), d]));
+  const publishKeys = [...new Set([...COVERED_PREFIXES, ...FIELD_SCHEMA.map((f) => f.path), ...DISPLAY_PATHS.map((d) => d.path)].map(strip))];
+  const defaultAt = (key) => {
+    let v = PUBLISH_DEFAULTS;
+    for (const part of key.split('.')) {
+      if (v === null || typeof v !== 'object' || !own(v, part)) return undefined;
+      v = v[part];
+    }
+    return plainValue(v);
+  };
+  const publishRows = publishKeys.map((key) => {
+    const row = { key };
+    const field = schemaByKey.get(key);
+    const type = field === undefined ? undefined : TYPE_OF_KIND[field.kind];
+    if (type !== undefined) row.type = type;
+    const dflt = defaultAt(key);
+    if (dflt !== undefined) row.default = dflt;
+    if (field !== undefined) row.panel = `${field.label} (edit)`;
+    else if (displayByKey.has(key)) row.panel = `${displayByKey.get(key).label} (shown)`;
+    return row;
+  });
+
+  const jsonKeys = [...new Set([...Object.keys(scaffoldJson), ...requiredKeys, ...readKeys])];
+  const jsonRows = jsonKeys.map((key) => {
+    const row = { key, required: requiredKeys.includes(key) ? 'yes' : 'no' };
+    const v = own(scaffoldJson, key) ? plainValue(scaffoldJson[key]) : undefined;
+    if (v !== undefined) row.newCampaigns = v;
+    return row;
+  });
+  return { 'vault-publish': publishRows, 'vault-json': jsonRows };
 }
 
 /**
@@ -486,7 +616,7 @@ function main(argv, { root = ROOT, out = (s) => process.stdout.write(s), err = (
   }
 }
 
-module.exports = { TARGETS, BLOCKS_BY_TARGET, BLOCK_NAMES, COLUMNS, beginLine, endLine, blockNamesIn, codeFacts, cliFacts, subcommandFacts, packFacts, rows, renderBlock, fillBlocks, staleTargets, main };
+module.exports = { TARGETS, BLOCKS_BY_TARGET, BLOCK_NAMES, COLUMNS, beginLine, endLine, blockNamesIn, codeFacts, cliFacts, subcommandFacts, packFacts, vaultFacts, requiredJsonKeys, JSON_READ_KEYS, rows, renderBlock, fillBlocks, staleTargets, main };
 
 if (require.main === module) {
   process.exitCode = main(process.argv.slice(2));
