@@ -2263,7 +2263,7 @@ rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on eve
 2. After Quit, it prints the "Started" lines, the icon appears and `%ERRORLEVEL%` is 0. Close the terminal: the app keeps running (the terminal's job object does not take it down).
 3. Remote mode and the access list. ADR 0056 applies the access list to every remote mode, and mode ssh is the simplest to set up because it needs only fixed ports (no addresses, bind address, proxy or account). With the scratch config saved as in the isolation note, run these as two commands, then Quit the app:
    - `gm-scriptorium remote set --mode ssh --port 7410 --preview-port 7411`
-   - `gm-scriptorium remote show` (it must list no problems)
+   - `gm-scriptorium remote show` (it must print `ready: yes`; a `not ready:` line names the missing setting)
 
    Then run `gm-scriptorium` from a terminal. The panel starts, the app keeps running, and `icacls <panel folder>` (the `panel` folder beside the scratch config) lists only your account, SYSTEM and Administrators. Ownership of that list is worked out from `USERDOMAIN`, which the hand-off carries to the panel; the VM run of the earlier build showed the SSH harness session had `USERDOMAIN=WORKGROUP` while the interactive session had the machine name, so also do this step from the interactive session. Finish with `gm-scriptorium remote off`.
 4. With the panel stopped from the tray, `gm-scriptorium` starts it.
