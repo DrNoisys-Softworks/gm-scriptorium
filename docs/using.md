@@ -206,3 +206,5 @@ GM-Scriptorium keeps those notes off the site.
 
 For how a build decides what players see, and what these checks cannot see, read
 [How GM-Scriptorium decides what players see](explanation/what-players-see.md).
+
+To hide something from players, follow [Keep GM-only notes off the player site](how-to/hide-gm-content.md).

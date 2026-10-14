@@ -22,6 +22,8 @@ Steps for a job you already have in mind.
 - [Trying it safely](trying-it-safely.md): using the tool beside a campaign you care about, without touching your real config.
 - [Remote access](remote-access.md): using the admin panel from another device, safely, and what is and is not protected.
 - [Backing up your vault](backing-up-your-vault.md): how to keep your campaign notes safe, and why GM-Scriptorium does not do it for you.
+- [Keep GM-only notes off the player site](how-to/hide-gm-content.md): hiding a page, part of a page, a field, a relationship or a name, and checking the result.
+- [Add a Game master link to the player site](how-to/add-a-game-master-link.md): a link in the site footer back to your own admin panel, and why its address is public.
 
 ## Reference
 

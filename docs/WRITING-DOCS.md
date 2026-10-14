@@ -54,6 +54,8 @@ disagree.
 | [Trying it safely](trying-it-safely.md) | How-to guides | Linux (the Windows blocks have not been run) |
 | [Remote access](remote-access.md) | How-to guides | Not recorded |
 | [Backing up your vault](backing-up-your-vault.md) | How-to guides | Not recorded |
+| [Keep GM-only notes off the player site](how-to/hide-gm-content.md) | How-to guides | Linux (the Windows steps have not been run) |
+| [Add a Game master link to the player site](how-to/add-a-game-master-link.md) | How-to guides | Linux (the Windows steps have not been run) |
 | [Image slots](image-slots.md) | Reference | No steps |
 | [The settings file (config.toml)](reference/config-toml.md) | Reference | No steps |
 | [Environment variables](reference/environment-variables.md) | Reference | No steps |
