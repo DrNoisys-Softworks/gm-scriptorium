@@ -329,7 +329,7 @@ module.exports = deepFreeze({
       what: 'Manages the list of campaigns GM-Scriptorium knows about. It never needs the vault to be reachable.',
     },
     update: {
-      what: 'Downloads the newest release from GitHub and replaces this program with it. On an installed copy on Windows it replaces the tray helper beside it too, and nothing is replaced if either download fails. Quit the tray app and start it again afterwards.',
+      what: 'Downloads the newest release from GitHub and replaces this program with it. On an installed copy on Windows it replaces the tray helper beside it too, and nothing is replaced if either download fails. If the tray app is running, quit it and start it again afterwards.',
     },
     remote: {
       what: 'Changes how the admin panel can be reached from other devices, and manages the accounts that can sign in. See [Remote access](../remote-access.md).',
