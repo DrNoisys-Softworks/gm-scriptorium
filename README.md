@@ -6,7 +6,7 @@ leaves them out. Your GM notes stay on your computer and are never put on the si
 
 [Download](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases) for Windows or Linux, or [see the sample campaign online](https://drnoisys-softworks.github.io/gm-scriptorium/)
 and [what a leak check protects](https://drnoisys-softworks.github.io/gm-scriptorium/leak-demo.html).
-To build it yourself, read the [sample campaign guide](examples/README.md).
+To build it yourself, read the [sample campaign guide](examples/README.md) (`examples/the-long-lease`).
 
 ## How it works
 
