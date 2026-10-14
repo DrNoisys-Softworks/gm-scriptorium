@@ -83,7 +83,7 @@ async function settle() {
 
 for (const browserName of ['chromium', 'firefox']) {
   /** Runs `fn` with a fresh in-process panel and a browser. `desktop` false leaves the panel as a plain one. */
-  async function withPanel(t, { desktop = true, mode = 'local' }, fn) {
+  async function withPanel(t, { desktop = true, mode = 'local', updates = false }, fn) {
     const fx = makeCampaigns(t, ['alpha']);
     const result = await startAdminPanel({ admin: true, config: fx.configPath }, undefined, {
       emit() {},
@@ -91,7 +91,7 @@ for (const browserName of ['chromium', 'firefox']) {
       startPanelListener: async () => {
         throw new Error('no remote listener expected');
       },
-      updateDeps: { isPkg: false },
+      updateDeps: updates ? { isPkg: true, check: () => Promise.resolve({ state: 'current' }), currentVersion: '1.0.0' } : { isPkg: false },
     });
     assert.equal(result.ok, true, JSON.stringify(result));
     await settle();
@@ -261,9 +261,10 @@ for (const browserName of ['chromium', 'firefox']) {
     });
   });
 
-  test(`the card in ${browserName} survives the Overview being drawn again: still one card, ahead of Updates, with what was typed`, { skip: SKIP, timeout: 120000 }, async (t) => {
-    await withPanel(t, {}, async ({ open }) => {
+  test(`the card in ${browserName} survives the Overview being drawn again: still one card, below Updates, with what was typed`, { skip: SKIP, timeout: 120000 }, async (t) => {
+    await withPanel(t, { updates: true }, async ({ open }) => {
       const page = await open();
+      await page.waitForSelector('#updates');
       await page.locator('#desktop-ports [data-ctl="change"]').click();
       await page.locator('#pt-b').fill('7499');
       await page.evaluate(() => {
@@ -283,7 +284,8 @@ for (const browserName of ['chromium', 'firefox']) {
       const slotAt = order.indexOf('desktop-slot');
       assert.ok(slotAt >= 0, JSON.stringify(order));
       const updatesAt = order.indexOf('update-setting');
-      if (updatesAt >= 0) assert.ok(slotAt < updatesAt, JSON.stringify(order));
+      assert.ok(updatesAt >= 0, JSON.stringify(order));
+      assert.ok(slotAt > updatesAt, JSON.stringify(order));
     });
   });
 }

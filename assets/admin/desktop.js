@@ -225,6 +225,8 @@
   /** Redraws the card in its slot and puts focus on the control named `focus`, when it exists. */
   function paint(focus) {
     if (!snap || snap.desktop !== true || !slot || !slot.isConnected) return;
+    // Always the last thing on the Overview, below the Updates card, so filling it in late never moves a card the page has just scrolled to.
+    if (slot.parentNode.lastElementChild !== slot) slot.parentNode.appendChild(slot);
     while (slot.firstChild) slot.removeChild(slot.firstChild);
     var card = buildCard();
     slot.appendChild(card);
@@ -241,10 +243,10 @@
   });
 
   function mount(ovRest) {
-    // The slot is placed at once, before any answer, and always ahead of the Updates card, so the card's place in the Overview does not depend on which request finishes first.
+    // The slot is placed at once, before any answer; it moves to the end when the card is drawn.
     slot = el('div');
     slot.setAttribute('data-part', 'desktop-slot');
-    ovRest.insertBefore(slot, ovRest.querySelector('[data-part="update-setting"]'));
+    ovRest.appendChild(slot);
     var mine = slot;
     // The Overview was just drawn again: focus the card's control again only when the redraw left focus on the page itself.
     var again = focused && (!document.activeElement || document.activeElement === document.body) ? focused : undefined;
