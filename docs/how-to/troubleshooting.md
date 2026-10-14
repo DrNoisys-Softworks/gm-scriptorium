@@ -75,7 +75,7 @@ the settings for Caddy and nginx (sections 4 and 5), Tailscale (section 7) and a
 *Since 0.5.0.* From the computer that runs GM-Scriptorium, run `gm-scriptorium remote account reset <name>`. It
 needs no old password. Or run `gm-scriptorium remote off`, then add an account again and set the
 mode again. The one-time link printed when the panel starts on that computer still works either
-way. [Remote access](../remote-access.md) has the steps.
+way. [Other commands](../reference/remote-access.md#other-commands) has the steps.
 
 ### update cannot reach GitHub
 
@@ -101,8 +101,8 @@ has the details.
   reason in brackets, and the remote modes will not start. Read the reason, and check that the
   `panel` folder is a real folder in your own profile and not a link. Check that the `USERNAME`
   and `USERDOMAIN` variables are set too. If either is missing, the panel warns and remote access
-  will not start. [Remote access](../remote-access.md),
-  section 12, explains the rule.
+  will not start. [Files, permissions and backups](../reference/remote-access.md#files-permissions-and-backups)
+  explains the rule.
 
 ### The bare command took longer than 15 seconds
 

@@ -144,4 +144,4 @@ printf '%s\n' "$NEW_PASSWORD" | gm-scriptorium remote account add rook
 *Since 0.5.0.* Take the password from your own secret store at the moment you run the command, and
 never write it into the script. It must be at least 12 characters, or the command stops with exit
 code 1 and says so.
-[Remote access](../remote-access.md) explains accounts, and what remote access does and does not protect.
+[Remote access](../remote-access.md) has the setup, and [its reference page](../reference/remote-access.md) explains accounts and what remote access does and does not protect.
