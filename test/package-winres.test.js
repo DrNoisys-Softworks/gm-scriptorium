@@ -161,3 +161,46 @@ test('CLI check refuses a file that is not an exe', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// The tray helper (ADR 0057, section 2) carries the same strings, except its own internal and
+// original file names. Expected values typed here.
+test('versionStrings tray: only InternalName and OriginalFilename differ from the program', () => {
+  assert.deepEqual(winres.versionStrings('0.5.0', 'tray'), {
+    CompanyName: 'DrNoisys Softworks',
+    FileDescription: 'GM-Scriptorium',
+    FileVersion: '0.5.0',
+    InternalName: 'gm-scriptorium-tray',
+    LegalCopyright: 'DrNoisys Softworks. MIT licence.',
+    OriginalFilename: 'gm-scriptorium-tray-win-x64.exe',
+    ProductName: 'GM-Scriptorium',
+    ProductVersion: '0.5.0',
+  });
+  assert.equal(winres.versionStrings('0.5.0').OriginalFilename, 'gm-scriptorium-win-x64.exe', 'the default stays the program');
+  assert.throws(() => winres.versionStrings('0.5.0', 'other'), /bad-kind/);
+});
+
+function brandingFor(strings, fixed = [0, 5, 0, 0]) {
+  return { strings: [strings], fixed: [fixed], iconGroups: 1, iconSizes: [16, 20, 24, 32, 40, 48, 64, 256], iconCount: 8 };
+}
+const SIZES = [16, 20, 24, 32, 40, 48, 64, 256];
+
+test('judge tray: passes the tray strings and refuses the program strings on the helper', () => {
+  const trayStrings = winres.versionStrings('0.5.0', 'tray');
+  assert.equal(winres.judge(brandingFor(trayStrings), '0.5.0', SIZES, 'tray'), null);
+  assert.equal(winres.judge(brandingFor({ ...trayStrings, OriginalFilename: 'gm-scriptorium-win-x64.exe' }), '0.5.0', SIZES, 'tray'), 'version-value-OriginalFilename');
+  assert.equal(winres.judge(brandingFor({ ...trayStrings, InternalName: 'gm-scriptorium' }), '0.5.0', SIZES, 'tray'), 'version-value-InternalName');
+  assert.equal(winres.judge(brandingFor(trayStrings), '0.5.0', SIZES), 'version-value-InternalName', 'judged as the program, the helper strings fail');
+});
+
+test('CLI check-tray refuses a file that is not an exe', () => {
+  const dir = tmp();
+  try {
+    const f = path.join(dir, 'x.exe');
+    fs.writeFileSync(f, 'nope');
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'winres.js'), 'check-tray', f], { encoding: 'utf8' });
+    assert.equal(r.status, 1);
+    assert.match(r.stdout, /^WINRES-CHECK fail reason=/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

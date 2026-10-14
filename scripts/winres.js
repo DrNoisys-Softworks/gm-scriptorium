@@ -20,6 +20,8 @@
  * CLI:
  *   node scripts/winres.js brand <outPath>   writes a branded copy of the verified base
  *   node scripts/winres.js check <exe>       checks the branding of a finished exe
+ *   node scripts/winres.js check-tray <exe>  the same for the tray helper (scripts/tray.js), whose
+ *                                            version strings name gm-scriptorium-tray
  */
 
 const fs = require('fs');
@@ -50,18 +52,23 @@ class WinresError extends Error {
 /**
  * The eight string values, and nothing else. This replaces the whole table: no Node.js value
  * from the base binary survives.
+ *
+ * Kind 'tray' is the tray helper (ADR 0057, section 2): the same strings except its own internal
+ * and original file names. scripts/tray.js writes them into the helper's version resource.
  * @param {string} version a semver string, e.g. "0.4.0-rc.3"
+ * @param {'exe'|'tray'} [kind]
  * @returns {Record<string,string>}
  */
-function versionStrings(version) {
+function versionStrings(version, kind = 'exe') {
   if (parseVersion(version) === null) throw new WinresError('bad-version', String(version));
+  if (kind !== 'exe' && kind !== 'tray') throw new WinresError('bad-kind', String(kind));
   return {
     CompanyName: 'DrNoisys Softworks',
     FileDescription: 'GM-Scriptorium',
     FileVersion: version,
-    InternalName: 'gm-scriptorium',
+    InternalName: kind === 'tray' ? 'gm-scriptorium-tray' : 'gm-scriptorium',
     LegalCopyright: 'DrNoisys Softworks. MIT licence.',
-    OriginalFilename: 'gm-scriptorium-win-x64.exe',
+    OriginalFilename: kind === 'tray' ? 'gm-scriptorium-tray-win-x64.exe' : 'gm-scriptorium-win-x64.exe',
     ProductName: 'GM-Scriptorium',
     ProductVersion: version,
   };
@@ -213,16 +220,17 @@ async function readBranding(exePath) {
 
 /**
  * Judges a branding read against what package.json's version should have produced.
+ * @param {'exe'|'tray'} [kind] which set of version strings to expect (see versionStrings)
  * @returns {string|null} a failure reason, or null when it passes
  */
-function judge(branding, version, expectedSizes) {
+function judge(branding, version, expectedSizes, kind = 'exe') {
   if (branding.iconGroups !== 1) return `icon-groups=${branding.iconGroups}`;
   if (JSON.stringify(branding.iconSizes) !== JSON.stringify(expectedSizes)) {
     return `icon-sizes=${branding.iconSizes.join(',')}`;
   }
   if (branding.iconCount !== expectedSizes.length) return `icon-count=${branding.iconCount}`;
   if (branding.strings.length !== 1) return `version-resources=${branding.strings.length}`;
-  const want = versionStrings(version);
+  const want = versionStrings(version, kind);
   const got = branding.strings[0];
   if (JSON.stringify(Object.keys(got).sort()) !== JSON.stringify(Object.keys(want).sort())) {
     return `version-keys=${Object.keys(got).sort().join(',')}`;
@@ -254,10 +262,11 @@ async function main(argv) {
       return 1;
     }
   }
-  if (cmd === 'check' && target) {
+  if ((cmd === 'check' || cmd === 'check-tray') && target) {
     try {
       const branding = await readBranding(target);
-      const reason = judge(branding, packageVersion(), icoSizes(fs.readFileSync(ICO_PATH)));
+      const kind = cmd === 'check-tray' ? 'tray' : 'exe';
+      const reason = judge(branding, packageVersion(), icoSizes(fs.readFileSync(ICO_PATH)), kind);
       if (reason) {
         console.log(`WINRES-CHECK fail reason=${reason}`);
         return 1;
@@ -269,7 +278,7 @@ async function main(argv) {
       return 1;
     }
   }
-  console.error('usage: node scripts/winres.js brand <outPath> | check <exe>');
+  console.error('usage: node scripts/winres.js brand <outPath> | check <exe> | check-tray <exe>');
   return 1;
 }
 
