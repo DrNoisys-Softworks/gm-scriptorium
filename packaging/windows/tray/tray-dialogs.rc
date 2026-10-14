@@ -1,0 +1,30 @@
+/*
+ * Resources of gm-scriptorium-tray.exe (ADR 0057, section 2): the Lantern icon, the manifest
+ * (asInvoker, per-monitor DPI, common controls 6 for TaskDialogIndirect and LoadIconMetric) and
+ * the change-ports window (frame T10). The version resource is written by scripts/tray.js.
+ */
+#include <windows.h>
+#include "tray.h"
+
+IDI_LANTERN ICON "gm-scriptorium.ico"
+
+1 24 "tray.manifest"
+
+IDD_PORTS DIALOGEX 0, 0, 268, 152
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_APPWINDOW
+CAPTION "GM-Scriptorium: change ports"
+FONT 9, "Segoe UI", 400, 0, 1
+BEGIN
+    ICON "", IDC_PORTS_ICON, 10, 10, 21, 20
+    LTEXT "", IDC_PORTS_TITLE, 40, 10, 218, 20
+    LTEXT "Pick other ports for the panel and its preview on this PC.", -1, 40, 32, 218, 10
+    LTEXT "Panel port", -1, 40, 50, 64, 10
+    EDITTEXT IDC_PORT_PANEL, 110, 48, 56, 13, ES_NUMBER | ES_AUTOHSCROLL | WS_TABSTOP
+    LTEXT "Preview port", -1, 40, 68, 64, 10
+    EDITTEXT IDC_PORT_PREVIEW, 110, 66, 56, 13, ES_NUMBER | ES_AUTOHSCROLL | WS_TABSTOP
+    LTEXT "", IDC_PORTS_NOTE, 40, 86, 218, 20
+    LTEXT "", IDC_PORTS_ERROR, 40, 108, 218, 18
+    DEFPUSHBUTTON "Save and start", IDOK, 132, 130, 70, 14
+    PUSHBUTTON "Cancel", IDCANCEL, 208, 130, 50, 14
+END

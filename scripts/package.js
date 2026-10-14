@@ -108,6 +108,9 @@ const DEBUG_MAX_BUFFER = 200 * 1024 * 1024;
 
 const WIN_TARGET = 'node22-win-x64';
 const WINRES_PATH = path.join(ROOT, 'scripts', 'winres.js');
+// Gate 8 (ADR 0057, section 2): the tray helper, built and checked by scripts/tray.js.
+const TRAY_SCRIPT = path.join(ROOT, 'scripts', 'tray.js');
+const TRAY_ASSET = 'gm-scriptorium-tray-win-x64.exe';
 
 /**
  * The environment for one pkg invocation (I2a-1). Only the win-x64 build is given
@@ -364,6 +367,32 @@ function buildTarget({ target, outPath }) {
 }
 
 /**
+ * Gate 8 (ADR 0057, section 2): builds and checks the Windows tray helper with scripts/tray.js,
+ * which needs mingw-w64 and fails closed without it. Runs as a child process, like the branding
+ * check. A helper left at `outPath` by an earlier run is replaced, the way pkg replaces its own
+ * outputs; scripts/tray.js itself never overwrites.
+ *
+ * @param {string} outPath
+ * @returns {{ ok: true, outPath: string, assetName: string, hash: string } | { ok: false }}
+ */
+function buildTray(outPath) {
+  fs.rmSync(outPath, { force: true });
+  try {
+    const out = execFileSync(process.execPath, [TRAY_SCRIPT, 'build', '--out', outPath], { cwd: ROOT, encoding: 'utf8', env: pkgEnvFor('', null) });
+    process.stdout.write(out);
+  } catch (err) {
+    if (err.stdout) process.stdout.write(err.stdout);
+    if (err.stderr) process.stderr.write(err.stderr);
+    console.error('package: refusing to ship, the tray helper (gate 8) did not build and pass its checks; it needs mingw-w64 (see docs/DEVELOPING.md)');
+    fs.rmSync(outPath, { force: true });
+    return { ok: false };
+  }
+  const hash = crypto.createHash('sha256').update(fs.readFileSync(outPath)).digest('hex');
+  console.log(`packaged ${outPath}`);
+  return { ok: true, outPath, assetName: TRAY_ASSET, hash };
+}
+
+/**
  * Runs the build. With neither `target` nor `out` given, builds every entry in TARGETS (the
  * default: both win-x64 and linux-x64) into dist/v<version>/ and writes ONE SHA256SUMS
  * covering both binaries plus THIRD-PARTY-NOTICES.txt (P5a-FR01). Passing either `target` or
@@ -376,10 +405,18 @@ function buildTarget({ target, outPath }) {
  * directory never contains a stray, unlisted, unverified binary left over from before the
  * failure.
  *
+ * In the default mode the tray helper is built last, after both targets have passed (gate 8), and
+ * its line follows theirs in SHA256SUMS. A tray failure removes every output too. Single-target
+ * mode builds no helper.
+ *
  * @param {{ target?: string, out?: string }} [opts]
+ * @param {{ buildTarget?: Function, buildTray?: Function, exit?: Function, outDir?: string }} [deps]
+ *   injected by test/tray-build.test.js; `outDir` replaces dist/v<version>/ in the default mode
  */
-function run(opts = {}) {
+function run(opts = {}, deps = {}) {
+  const { buildTarget: build = buildTarget, buildTray: tray = buildTray, exit = process.exit, outDir: outDirOverride } = deps;
   const overriding = opts.target !== undefined || opts.out !== undefined;
+  const defaultDir = outDirOverride || DEFAULT_OUT_DIR;
   const plan = overriding
     ? [
         {
@@ -387,15 +424,28 @@ function run(opts = {}) {
           outPath: path.resolve(opts.out || defaultOutPathFor(opts.target || DEFAULT_TARGET)),
         },
       ]
-    : TARGETS.map((t) => ({ target: t.target, outPath: path.join(DEFAULT_OUT_DIR, t.assetName) }));
+    : TARGETS.map((t) => ({ target: t.target, outPath: path.join(defaultDir, t.assetName) }));
 
   const built = [];
   for (const { target, outPath } of plan) {
-    const result = buildTarget({ target, outPath });
+    const result = build({ target, outPath });
     if (!result.ok) {
       for (const b of built) fs.rmSync(b.outPath, { force: true });
       fs.rmSync(outPath, { force: true });
-      process.exit(1);
+      exit(1);
+      return;
+    }
+    built.push(result);
+  }
+
+  if (!overriding) {
+    const trayPath = path.join(defaultDir, TRAY_ASSET);
+    const result = tray(trayPath);
+    if (!result.ok) {
+      for (const b of built) fs.rmSync(b.outPath, { force: true });
+      fs.rmSync(trayPath, { force: true });
+      exit(1);
+      return;
     }
     built.push(result);
   }
@@ -429,8 +479,10 @@ if (require.main === module) {
 
 module.exports = {
   buildInvocation,
+  buildTray,
   pkgEnvFor,
   run,
+  TRAY_ASSET,
   parseArgs,
   TARGETS,
   DEFAULT_TARGET,
