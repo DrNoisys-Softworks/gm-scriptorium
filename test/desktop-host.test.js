@@ -423,7 +423,7 @@ test('RV1, real panel: a sign-in start with remote saved and no confirmation lis
     },
   });
   const line = await h.waitFor('state\trunning');
-  assert.equal(line, `state\trunning\tlease\tlocal\thttp://127.0.0.1:${SIGNIN_PORT}`);
+  assert.equal(line, `state\trunning\tlease\tlocal\thttp://127.0.0.1:${SIGNIN_PORT}\tsignin-local`);
   assert.equal(started.settings.mode, 'local');
   assert.equal(started.ctx.adminPort, SIGNIN_PORT);
   assert.equal(started.ctx.previewPort, SIGNIN_PREVIEW);
