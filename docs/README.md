@@ -20,7 +20,7 @@ Steps for a job you already have in mind.
   Windows warning, updating, and building from source.
 - [Using GM-Scriptorium](using.md): what a vault needs, every command, and the leak checks.
 - [Trying it safely](trying-it-safely.md): using the tool beside a campaign you care about, without touching your real config.
-- [Remote access](remote-access.md): using the admin panel from another device, safely, and what is and is not protected.
+- [Remote access](remote-access.md): using the admin panel from another device, safely.
 - [Backing up your vault](backing-up-your-vault.md): how to keep your campaign notes safe, and why GM-Scriptorium does not do it for you.
 - [Start a new campaign](how-to/start-a-new-campaign.md): set up your first campaign, with a vault you already have or a new one, in the admin panel or on the command line.
 - [Add another campaign, and switch between them](how-to/add-another-campaign.md): add a second campaign, move the panel between campaigns, choose the default and take one off the list.
@@ -39,6 +39,7 @@ Facts to look up.
 - [The campaign pack file (pack.toml)](reference/pack-toml.md): every key in a campaign's pack file, what it does, and what changes it.
 - [The vault's publish settings (vault-config.md and vault.config.json)](reference/vault-config.md): the keys GM-Scriptorium reads, shows or changes in the two files, how they combine, and which the panel edits.
 - [Check messages](reference/check-messages.md): every message id `check` and `build` can print, what it means and what to do.
+- [Remote access: accounts, sign-in and what is protected](reference/remote-access.md): the account and sign-in rules, the audit log, what is and is not protected, and the files remote access keeps.
 
 ## Explanation
 
