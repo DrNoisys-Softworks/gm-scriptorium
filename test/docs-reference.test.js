@@ -289,7 +289,13 @@ test('the environment variables page lists exactly the names the source reads, b
   for (const name of ONEDRIVE_VARS) scanned.add(name);
   const page = pageEnvNames(read('docs/reference/environment-variables.md'));
   assert.equal(new Set(page).size, page.length, 'a name appears twice on the page');
-  assert.deepEqual([...scanned].sort(), [...page].sort());
+  const missing = [...scanned].filter((n) => !page.includes(n));
+  const extra = page.filter((n) => !scanned.has(n));
+  assert.deepEqual(
+    { missing, extra },
+    { missing: [], extra: [] },
+    `the source reads ${missing.join(", ") || "nothing new"} (missing from the page) and the page lists ${extra.join(", ") || "nothing extra"} (not read): add a row to docs/reference/environment-variables.md, or remove the read`,
+  );
 });
 
 // ---- UPDATE_KEYS ----
@@ -338,4 +344,12 @@ test('the four pages and every text string carry no private path, host name or a
   const bad = /C:\\Users|\/home\/|\/mnt\/|\b(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+/;
   for (const rel of PAGES) assert.doesNotMatch(read(rel), bad, rel);
   for (const s of allStrings(textFile)) assert.doesNotMatch(s, bad, s);
+});
+
+test('a cell with backslashes and pipes: a lone backslash stays, a pipe is escaped, a backslash before a pipe is doubled', () => {
+  const text = { 'config-match': { platform: { default: '\\bS(\\d+)\\b | x', what: 'a\\|b', changedBy: 'C:\\dir' } } };
+  assert.equal(
+    gen.renderBlock('config-match', { facts: SCRATCH_FACTS, text }).split('\n')[2],
+    '| `platform` | text | \\bS(\\d+)\\b \\| x | - | a\\\\\\|b | C:\\dir |',
+  );
 });

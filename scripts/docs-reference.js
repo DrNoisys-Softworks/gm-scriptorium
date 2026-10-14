@@ -199,7 +199,9 @@ function rows(block, { facts = codeFacts(), text = require('./docs-reference-tex
 function cell(value, where) {
   const s = value === undefined || value === null || value === '' ? '-' : String(value);
   if (/[\r\n]/.test(s)) throw new Error(`${where}: a table cell must not contain a newline`);
-  return s.replace(/\|/g, '\\|');
+  // A pipe becomes \| . Backslashes right before it are doubled first, so \| in the source stays a backslash then a cell break.
+  // A backslash anywhere else is left alone, so a regex in a code span (\bS(\d+)\b) shows as written.
+  return s.replace(/(\\*)\|/g, (m, slashes) => `${slashes}${slashes}\\|`);
 }
 
 /** Wraps a comma-separated list in backticks, item by item. `direct (reserved)` becomes `direct` (reserved). */

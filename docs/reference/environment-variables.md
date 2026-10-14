@@ -36,7 +36,7 @@ and does nothing else.
 
 Programs that GM-Scriptorium starts get a short list of variables, not your whole environment, and
 the variables that hold AI service keys are always removed
-([ADR 0046](../decisions/0046-one-process-spawner.md)).
+([the decision on what child programs receive](../decisions/0046-one-process-spawner.md)).
 
 Passwords are never read from the environment. `remote account` and `remote password` ask for one
 with nothing echoed, or read it from standard input when there is no terminal.
