@@ -31,7 +31,7 @@ Rejected:
 - **Rust for the windows-gnu target.** `rustup` is not packaged by the Debian project, so the toolchain is harder to vet.
 - **A PowerShell script that draws the icon.** It runs into Constrained Language Mode and the antimalware scan interface, and it would need PowerShell added to `SYSTEM_COMMANDS` in [ADR 0046](0046-one-process-spawner.md).
 - **Tauri or Electron.** This reverses the rejected alternative "Electron or Tauri" in [ADR 0028](0028-installer-and-first-run.md), and it is a second runtime to ship and patch.
-- **A Node native addon.** The packaging risk found on 2026-09-17: the single-file build cannot load it reliably.
+- **A Node native addon.** It needs a `.node` file extracted at run time and an addon cross-built for Windows, the same kind of packaging risk the project avoids.
 - **Flipping the packaged program to the GUI subsystem.** It breaks the command line's exit-code contract and still gives no tray.
 
 ## 3. How they talk
@@ -45,7 +45,7 @@ The helper starts the program as `gm-scriptorium.exe desktop run [--background]`
 
 Rejected:
 
-- **A named pipe.** Named pipes sit under the network amendment to [ADR 0024](0024-ai-connections.md), and the structure test would have to allow them.
+- **A named pipe.** [ADR 0024](0024-ai-connections.md), "Network posture", and the net-structure test allow only two files to load a network module, and `net`, which provides named pipes, is one of those modules.
 - **HTTP to the panel.** Egress is limited to GitHub.
 - **`CREATE_NO_WINDOW`.** A hidden console still receives logoff and shutdown control events that the Node runtime does not map, so Windows could end the host before it had stopped cleanly.
 - **A Job object with kill-on-close.** It would also kill the browser that `rundll32` starts for the host.
