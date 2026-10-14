@@ -386,7 +386,7 @@ test('startAdminPanel resolves while the check never settles, and the check is f
   };
   // Every listener that opens is closed at the end, so a panel that never resolves cannot keep the process alive.
   const handles = [];
-  t.after(() => Promise.all(handles.map((h) => h.close())));
+  t.after(() => Promise.allSettled(handles.map((h) => Promise.resolve().then(() => h.close()))));
   const started = startAdminPanel({ admin: true, config: fx.configPath }, undefined, {
     emit() {},
     startLocalListener: async (...a) => {
