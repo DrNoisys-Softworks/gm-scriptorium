@@ -64,6 +64,37 @@ async function axeViolations(page) {
   });
 }
 
+/**
+ * Forced click on a row the page may rebuild mid-click. Opening the switcher draws the rows twice (from cache, then
+ * when the refresh lands), and Playwright reports a node removed between its scroll and its click-point lookup as
+ * "Element is not visible" (not "not attached"), which a forced click never retries. So: click the element on screen,
+ * and only if that handle is no longer connected look the row up again. A failure on a row that is still attached is
+ * thrown at once. The detach check reads isConnected on the clicked handle, never the error text. One overall bound.
+ */
+async function clickReplacedRow(locator, boundMs = 15000) {
+  const deadline = Date.now() + boundMs;
+  let replaced = 0;
+  const left = () => Math.max(1, deadline - Date.now());
+  while (Date.now() < deadline) {
+    try {
+      await locator.waitFor({ state: 'visible', timeout: left() });
+      const handle = await locator.elementHandle({ timeout: left() });
+      try {
+        await handle.click({ force: true, timeout: left() });
+        return;
+      } catch (err) {
+        if (await handle.evaluate((node) => node.isConnected).catch(() => true)) throw err;
+        replaced++;
+      } finally {
+        await handle.dispose().catch(() => {});
+      }
+    } catch (err) {
+      if (!replaced || err.name !== 'TimeoutError' || Date.now() < deadline) throw err;
+    }
+  }
+  throw new Error(`${locator} kept being replaced: still not clickable after ${boundMs} ms (${replaced} rebuilds seen)`);
+}
+
 const WIDTHS = [
   { width: 1440, height: 900 },
   { width: 1280, height: 800 },
@@ -386,8 +417,7 @@ for (const browserName of ['chromium', 'firefox']) {
         await pop(page, size).waitFor({ state: 'visible' });
         assert.equal((await pop(page, size).locator('.cs-msg.is-lock').textContent()).trim(), reason);
         const betaRow = pop(page, size).locator('[data-campaign="beta"]');
-        await betaRow.waitFor({ state: 'visible', timeout: 15000 });
-        await betaRow.click({ force: true });
+        await clickReplacedRow(betaRow);
         assert.deepEqual(posts, [], 'a disabled row sends nothing');
         if (!SKIP_AXE) assert.deepEqual(await axeViolations(page), [], `--vault switcher at ${size.width}`);
         await page.keyboard.press('Escape');
