@@ -392,7 +392,14 @@ test('startAdminPanel resolves while the check never settles, and the check is f
     },
     updateDeps: { isPkg: true, check: wrapped, currentVersion: '1.0.0' },
   });
-  const result = await started;
+  let bound;
+  const result = await Promise.race([
+    started,
+    new Promise((resolve) => {
+      bound = setTimeout(() => resolve('timeout'), 5000);
+    }),
+  ]).finally(() => clearTimeout(bound));
+  assert.notEqual(result, 'timeout', 'startAdminPanel did not resolve within 5 s while the check never settles: something awaits the check');
   resolvedAt = ++tick;
   t.after(() => result.stop());
   assert.equal(result.ok, true);

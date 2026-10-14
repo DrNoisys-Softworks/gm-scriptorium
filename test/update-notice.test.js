@@ -779,3 +779,30 @@ test('stop aborts the signal that was passed to the check, and a second stop is 
   assert.equal(signal.aborted, true);
   n.stop();
 });
+
+test('a failing, a rejecting and a throwing check write nothing to the console', async (t) => {
+  const written = [];
+  const names = ['log', 'info', 'warn', 'error', 'debug'];
+  const real = {};
+  for (const n of names) {
+    real[n] = console[n];
+    console[n] = (...a) => written.push(`${n}: ${a.join(' ')}`);
+  }
+  t.after(() => names.forEach((n) => (console[n] = real[n])));
+  const replies = [
+    new Error('rejected'),
+    () => {
+      throw new Error('thrown');
+    },
+    prerequisite('unreachable'),
+  ];
+  for (const reply of replies) {
+    const { n } = rig(t, { outcomes: [reply] });
+    await n.start();
+    assert.equal(n.snapshot().state, 'failed');
+    n.stop();
+  }
+  const ok = rig(t, { outcomes: [AVAILABLE] });
+  await ok.n.start();
+  assert.deepEqual(written, []);
+});
