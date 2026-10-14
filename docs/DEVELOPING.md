@@ -274,7 +274,8 @@ unreviewed commit, because an earlier step failed and the trailing `git push` ra
   never by line number. Keep internal work codes, slice names and role names out of prose. Leave
   out em dashes, emojis and promised dates, and use ">" rather than arrows. A decision record
   opens with a Summary of 3 to 6 plain sentences: what changed for a GM or contributor, the
-  decision, the main rejected alternative, and any limit a user will hit.
+  decision, the main rejected alternative, and any limit a user will hit. Pages for GMs also meet the criteria in
+  [Writing the user documentation](WRITING-DOCS.md).
 - Material for AI assistants (working rules, onboarding, the Windows runbook) lives in `.agents/`,
   reached through `AGENTS.md`. Keep it out of the human documents.
 - Windows-side behaviour is verified only through the runbook at

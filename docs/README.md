@@ -4,17 +4,37 @@ This page lists every document written for a human reader: GMs running GM-Script
 contributors, and anyone working on the upstream generator. It doesn't include planning notes or
 the guides written for AI assistants, apart from one pointer to them under Contributing.
 
-## Using
+The pages for GMs are in four groups, by what you want to do.
+
+## Tutorial
+
+Learn by doing, from the start.
+
+- [The Long Lease: a sample campaign](../examples/README.md): a small invented campaign to copy, build and serve before you point the tool at your own vault.
+
+## How-to guides
+
+Steps for a job you already have in mind.
 
 - [Install, update and build from source](install.md): downloading and verifying a release, the
   Windows warning, updating, and building from source.
 - [Using GM-Scriptorium](using.md): what a vault needs, every command, and the leak checks.
 - [Trying it safely](trying-it-safely.md): using the tool beside a campaign you care about, without touching your real config.
-- [Privacy](privacy.md): what the tool sends over the network, and what it never does.
-- [Why, and how this relates to gm-apprentice](about.md): the reasoning and the upstream credit.
-- [Image slots](image-slots.md): which images a theme can show, and the sizes to prepare them at.
 - [Remote access](remote-access.md): using the admin panel from another device, safely, and what is and is not protected.
 - [Backing up your vault](backing-up-your-vault.md): how to keep your campaign notes safe, and why GM-Scriptorium does not do it for you.
+
+## Reference
+
+Facts to look up.
+
+- [Image slots](image-slots.md): which images a theme can show, and the sizes to prepare them at.
+
+## Explanation
+
+Why the tool works the way it does.
+
+- [Privacy](privacy.md): what the tool sends over the network, and what it never does.
+- [Why, and how this relates to gm-apprentice](about.md): the reasoning and the upstream credit.
 
 ## Contributing
 
@@ -24,6 +44,7 @@ the guides written for AI assistants, apart from one pointer to them under Contr
 - [Collaborating with the upstream generator](COLLABORATING.md): where this project depends on the
   upstream generator's behaviour, and the ground rules for changes near that boundary.
 - [Security policy](../SECURITY.md): how to report a vulnerability.
+- [Writing the user documentation](WRITING-DOCS.md): the criteria every page for GMs meets, and the list of those pages.
 
 If you work with an AI coding assistant, point it at [`AGENTS.md`](../AGENTS.md).
 
