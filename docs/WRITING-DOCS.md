@@ -61,6 +61,7 @@ disagree.
 | [Files and folders](reference/files-and-folders.md) | Reference | No steps |
 | [The command line](reference/command-line.md) | Reference | No steps |
 | [Privacy](privacy.md) | Explanation | No steps |
+| [How GM-Scriptorium decides what players see](explanation/what-players-see.md) | Explanation | No steps |
 | [Why, and how this relates to gm-apprentice](about.md) | Explanation | No steps |
 
 ## Generated tables
