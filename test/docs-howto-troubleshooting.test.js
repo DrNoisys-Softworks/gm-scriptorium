@@ -50,7 +50,7 @@ function messageFragments(pageText) {
       continue;
     }
     if (!inMessages || !line.trim().startsWith('|')) continue;
-    const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|');
+    const cells = line.trim().split('|').slice(1, -1);
     const first = cells[0].trim();
     if (first === 'What you see' || /^[-:\s]*$/.test(first)) continue;
     for (const m of first.matchAll(/`([^`]+)`/g)) out.push(m[1]);

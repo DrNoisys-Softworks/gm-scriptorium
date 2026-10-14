@@ -41,7 +41,7 @@ of doing something else.
 ## Read results with --json
 
 `check`, `build`, `status` and `serve` accept `--json`. Instead of text, they print data. Other
-commands ignore it.
+commands ignore it, except `init`, which refuses it.
 
 ```
 gm-scriptorium check lease --json

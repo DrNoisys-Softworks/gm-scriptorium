@@ -20,7 +20,7 @@ Find the words that match your message in the first column.
 | `config file not found` | The file you gave with `--config` does not exist. | Fix the path. To start a new settings file there, run `gm-scriptorium config add` with the same `--config`. |
 | `config is not valid TOML` | The settings file has a typing slip, often from a hand edit. The message shows the line. | Open it with `gm-scriptorium config edit` and fix that line. [The settings file](../reference/config-toml.md) shows what each part looks like. |
 | `configured vault path does not exist` | The vault folder is not where the settings file says. It may have moved, or its drive may not be connected. | Fix the path with `gm-scriptorium config add`, or connect the drive. On a new computer, see [Move to another computer](move-to-another-computer.md). |
-| `it is not a gm-apprentice vault` | The folder exists but has no `_meta/vault-config.md`, so it is not a vault GM-Scriptorium can read. | Check you chose the vault folder and not one inside it. To make a new vault, run `gm-scriptorium init --new-vault <folder> --system none`. |
+| `it is not a gm-apprentice vault` | The folder exists but has no `_meta/vault-config.md`, so it is not a vault GM-Scriptorium can read. | Check you chose the vault folder and not one inside it. To make a new vault, run `gm-scriptorium init --new-vault <folder> --system none --name lease`. |
 | `has no vault configured` | The campaign is in the settings file without a vault folder. | Add the vault with `gm-scriptorium config add lease --vault <folder> --out <folder>`. |
 | `has no site config` | The vault is registered, but nothing says how its site should look. A plain `config add` leaves it this way. | Run `gm-scriptorium init` to create the settings, or set `site_config` or `pack` on the campaign. |
 | `has no output folder` | The campaign has nowhere to put the built site. | Pass `--out <folder>` for one run, or save one with `gm-scriptorium config add lease --vault <folder> --out <folder>`. |
@@ -55,8 +55,9 @@ leak checks cannot see](../explanation/what-players-see.md#what-the-leak-checks-
 
 ### The browser did not open
 
-*Since 0.5.0.* When you run `gm-scriptorium` on its own, press O in its window to open the browser
-again. If it still cannot be opened, the window prints the panel link instead. On Linux, a browser
+*Since 0.5.0.* When you run `gm-scriptorium` on its own and it runs the panel in the terminal
+(a portable copy, Linux, or a run with `--config`), press O in that window to open the browser
+again. An installed Windows copy hands the job to its background app instead; see the last item below. If it still cannot be opened, the window prints the panel link instead. On Linux, a browser
 installed as a snap cannot always read the file the command leaves for it, and the command does not
 notice. Run `gm-scriptorium serve --admin` and use the link it prints. To open the panel, see
 [open the admin panel](../using.md#quick-start).
@@ -71,7 +72,7 @@ the settings for Caddy and nginx (sections 4 and 5), Tailscale (section 7) and a
 
 ### I forgot every remote password
 
-From the computer that runs GM-Scriptorium, run `gm-scriptorium remote account reset <name>`. It
+*Since 0.5.0.* From the computer that runs GM-Scriptorium, run `gm-scriptorium remote account reset <name>`. It
 needs no old password. Or run `gm-scriptorium remote off`, then add an account again and set the
 mode again. The one-time link printed when the panel starts on that computer still works either
 way. [Remote access](../remote-access.md) has the steps.
@@ -90,7 +91,7 @@ has the details.
   your download.
 - **OneDrive.** *Since 0.5.0.* Setup tells you when a vault folder syncs with OneDrive. That works,
   but let OneDrive finish syncing before you open the vault on another computer.
-- **A network share or a mapped drive.** Setup says it cannot reach the folder within a few seconds.
+- **A network share or a mapped drive.** *Since 0.5.0.* Setup says it cannot reach the folder within a few seconds.
   Check that the share is online, then check again. A command may say a mapped drive "may not be
   mapped in this session". A mapped drive belongs to one sign-in session, so a window started as administrator
   may not have it. Run the command from a normal window.
