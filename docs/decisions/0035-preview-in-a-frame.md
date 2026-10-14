@@ -169,3 +169,28 @@ Copies of the site (`docs/decisions/0039-preview-copies.md`) are served from the
 address under a reserved prefix, and every response there carries the same `frame-ancestors`
 header. The panel's `frame-src` allowance and the frame sandbox are unchanged. Every copy frame is
 built by the same single code path as every other frame.
+
+## Addendum: the not-live strip
+
+Every preview page now starts with a yellow, striped strip that says "Preview only, not your live
+site." and "Only you can see this page. Players see what you publish." It has two plain links: "Back
+to the panel" (the same address the GM link uses, so it follows the active mode) and "How to
+publish". The strip is there so nobody mistakes the preview for what players can see.
+
+- **Preview pages only.** It is added by the same step as the GM link
+  (`buildPreviewWithGmLink` in `src/admin/preview.js`), after a successful build, straight after
+  the opening `<body>` tag, behind its own marker (so a second run adds nothing). It is never added
+  by `runPreviewBuild` and `src/cli/build.js` cannot reach `src/admin/previewstrip.js`; a test
+  builds the sample vault with the real command and finds none of its bytes in any output file.
+- **No script, no config.** It is markup and one scoped `<style>`, which the preview's
+  `frame-ancestors`-only policy allows. The "How to publish" address is a fixed constant in the
+  module (the documentation index, `docs/README.md`, until the publishing guide exists), never read
+  from config or the request.
+- **Looks right on the themed site.** The Haze theme lays its top bar over the landing hero; one
+  rule drops the bar to sit just under the strip on that page.
+- **Inside the panel's frame it is informational.** The frame sandbox (above) allows neither
+  top-level navigation nor pop-ups, so the two links work when the preview is opened in its own
+  tab, which is what the tray's "Open preview" does. Inside the panel's frame the panel is already
+  on screen.
+- **Evidence.** `src/admin/previewstrip.js`, `src/admin/preview.js`: `buildPreviewWithGmLink`,
+  `test/preview-strip.test.js`, `test/preview-strip.dom.test.js`, `test/gm-link-structure.test.js`.
