@@ -384,9 +384,8 @@ test('startAdminPanel resolves while the check never settles, and the check is f
     firstCallAt = firstCallAt === null ? ++tick : firstCallAt;
     return check(args);
   };
-  // Every listener that opens is closed at the end, so a panel that never resolves cannot keep the process alive.
+  // If the panel never resolves, its listeners are closed before the assertion fails, so the run ends and the message is reported.
   const handles = [];
-  t.after(() => Promise.allSettled(handles.map((h) => Promise.resolve().then(() => h.close()))));
   const started = startAdminPanel({ admin: true, config: fx.configPath }, undefined, {
     emit() {},
     startLocalListener: async (...a) => {
@@ -406,6 +405,7 @@ test('startAdminPanel resolves while the check never settles, and the check is f
       bound = setTimeout(() => resolve('timeout'), 5000);
     }),
   ]).finally(() => clearTimeout(bound));
+  if (result === 'timeout') await Promise.all(handles.map((h) => h.close()));
   assert.notEqual(result, 'timeout', 'startAdminPanel did not resolve within 5 s while the check never settles: something awaits the check');
   resolvedAt = ++tick;
   t.after(() => result.stop());
