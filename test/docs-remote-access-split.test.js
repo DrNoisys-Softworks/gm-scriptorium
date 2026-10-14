@@ -34,8 +34,7 @@ function linkTargets(text) {
 }
 
 function stripFragment(target) {
-  const i = target.indexOf('#');
-  return i === -1 ? target : target.slice(0, i);
+  return target.split('#')[0];
 }
 
 function headings(lines) {
