@@ -34,6 +34,7 @@ const TARGETS = Object.freeze([
   'docs/reference/command-line.md',
   'docs/reference/pack-toml.md',
   'docs/reference/vault-config.md',
+  'docs/reference/check-messages.md',
 ]);
 
 /** Which blocks each page holds, so a block in the wrong page, or a page missing one, is caught. */
@@ -44,6 +45,7 @@ const BLOCKS_BY_TARGET = Object.freeze({
   'docs/reference/command-line.md': ['cli-commands', 'cli-global-flags', 'cli-flags', 'cli-subcommands'],
   'docs/reference/pack-toml.md': ['pack-top', 'pack-images', 'pack-labels', 'pack-timeline', 'pack-timeline-kinds', 'pack-timeline-columns', 'pack-recaps', 'pack-gm-link'],
   'docs/reference/vault-config.md': ['vault-publish', 'vault-json'],
+  'docs/reference/check-messages.md': ['check-messages'],
 });
 
 const BLOCK_NAMES = Object.freeze(Object.values(BLOCKS_BY_TARGET).flat());
@@ -103,12 +105,19 @@ const COLUMNS = {
     ['What it does', 'what'],
     ['Changed by', 'changedBy'],
   ]),
+  'check-messages': Object.freeze([
+    ['ID', 'key'],
+    ['Severity', 'severity'],
+    ['Runs in', 'runs'],
+    ['What it means', 'what'],
+    ['What to do', 'action'],
+  ]),
 };
 for (const name of BLOCK_NAMES) if (name.startsWith('config-') || name.startsWith('pack-')) COLUMNS[name] = CONFIG_COLUMNS;
 Object.freeze(COLUMNS);
 
 /** The columns whose values may come from the code. Text may give none of these for a key whose code fact has it. */
-const CODE_COLUMNS = Object.freeze(['type', 'default', 'allowed', 'meaning', 'commands', 'exits', 'takesValue', 'flags', 'required', 'newCampaigns', 'panel']);
+const CODE_COLUMNS = Object.freeze(['type', 'default', 'allowed', 'meaning', 'commands', 'exits', 'takesValue', 'flags', 'required', 'newCampaigns', 'panel', 'severity', 'runs']);
 
 const BEGIN_RE = /^<!-- BEGIN GENERATED ([a-z-]+): edit scripts\/docs-reference-text\.js, then run npm run docs-reference -->$/;
 const END_RE = /^<!-- END GENERATED ([a-z-]+) -->$/;
@@ -147,6 +156,7 @@ function codeFacts() {
   const pinned = require('../src/generator/pinned');
   const { composeVaultConfigJson } = require('../src/setup/scaffold');
   const { assertScanKeysPresent } = require('../src/cli/check');
+  const { CHECKS } = require('../src/checks/registry');
 
   const facts = {};
 
@@ -261,7 +271,41 @@ function codeFacts() {
     }),
   );
 
+  facts['check-messages'] = checkFacts({ CHECKS, buildIds: BUILD_FINDING_IDS });
+
   return facts;
+}
+
+/**
+ * The finding ids the build makes outside the check registry, with the severity each is made at.
+ * A literal here because the source keeps no list; the test scans src/ for id literals to keep the
+ * ids honest. The severity is copied by hand (a test compares it with the source).
+ */
+const BUILD_FINDING_IDS = Object.freeze([Object.freeze({ id: 'build/gm-link-marker', severity: 'error' })]);
+
+/**
+ * The check-messages facts: every finding id a GM can see, with its severity and where it runs.
+ * The inputs are injected so the logic can be tested with scratch values. A severity that can
+ * change per finding is marked "(varies)". The ids of the registry come first, then the build's.
+ *
+ * @param {{ CHECKS: object[], buildIds: { id: string, severity: string }[] }} input
+ * @returns {{ key: string, severity: string, runs: string }[]}
+ * @throws a finding id that appears twice
+ */
+function checkFacts({ CHECKS, buildIds }) {
+  const seen = new Set();
+  const once = (id) => {
+    if (seen.has(id)) throw new Error(`duplicate finding id "${id}"`);
+    seen.add(id);
+    return id;
+  };
+  const fromRegistry = CHECKS.map((c) => ({
+    key: once(c.id),
+    severity: c.defaultSeverity.toUpperCase() + (c.dynamicSeverity ? ' (varies)' : ''),
+    runs: c.requiresFlag ? `check ${c.requiresFlag} only` : 'check and build',
+  }));
+  const fromBuild = buildIds.map((b) => ({ key: once(b.id), severity: b.severity.toUpperCase(), runs: 'build only' }));
+  return [...fromRegistry, ...fromBuild];
 }
 
 /**
@@ -616,7 +660,7 @@ function main(argv, { root = ROOT, out = (s) => process.stdout.write(s), err = (
   }
 }
 
-module.exports = { TARGETS, BLOCKS_BY_TARGET, BLOCK_NAMES, COLUMNS, beginLine, endLine, blockNamesIn, codeFacts, cliFacts, subcommandFacts, packFacts, vaultFacts, requiredJsonKeys, JSON_READ_KEYS, rows, renderBlock, fillBlocks, staleTargets, main };
+module.exports = { TARGETS, BLOCKS_BY_TARGET, BLOCK_NAMES, COLUMNS, beginLine, endLine, blockNamesIn, codeFacts, cliFacts, subcommandFacts, packFacts, vaultFacts, requiredJsonKeys, JSON_READ_KEYS, checkFacts, BUILD_FINDING_IDS, rows, renderBlock, fillBlocks, staleTargets, main };
 
 if (require.main === module) {
   process.exitCode = main(process.argv.slice(2));
