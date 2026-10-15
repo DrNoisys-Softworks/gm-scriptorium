@@ -24,7 +24,8 @@
     "package": "node scripts/package.js",
     "installer": "node scripts/installer.js",
     "verify-generator": "node scripts/generator-pin.js verify",
-    "docs-reference": "node scripts/docs-reference.js"
+    "docs-reference": "node scripts/docs-reference.js",
+    "docs-screenshots": "node scripts/docs-screenshots.js"
   },
   "pkg": {
     "assets": [
