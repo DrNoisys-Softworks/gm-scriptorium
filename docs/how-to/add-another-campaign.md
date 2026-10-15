@@ -18,7 +18,7 @@ name one.
 2. Press **Add a campaign**. It is on the Campaigns screen, under Setup, and at the bottom of the
    campaign list at the top of the panel.
 
-<!-- screenshot: how-to/add-a-campaign.png -->
+![The Add another campaign page at the vault question, with an existing vault folder typed in and a note that it is a vault.](../images/how-to/add-a-campaign.png)
 
 3. Say whether you already have a vault or want a new one, then answer the questions. They are the
    same as in [start a new campaign](start-a-new-campaign.md), with the same checks. The panel also refuses a
@@ -41,7 +41,7 @@ switches the whole panel to it, from this computer or from a remote browser. If 
 changes on the page, the panel asks before it switches. A browser tab left open on the old campaign shows a banner and asks you to reload before
 it lets you change anything.
 
-<!-- screenshot: how-to/campaign-switcher.png -->
+![The campaign switcher open in the side bar, listing both campaigns with the links Add a campaign and Manage campaigns below them.](../images/how-to/campaign-switcher.png)
 
 A panel that was started with the `--vault` flag cannot switch. The panel tells you why. Restart it
 without `--vault` to switch.
@@ -50,7 +50,7 @@ without `--vault` to switch.
 
 Open **Campaigns** under Setup. Each campaign shows its vault and output folders.
 
-<!-- screenshot: how-to/campaigns-screen.png -->
+![The Campaigns screen, listing two campaigns with the one the panel is on marked, and the Add a campaign button.](../images/how-to/campaigns-screen.png)
 
 - **Set as default** makes that campaign the one that opens when you do not name one.
 - **Remove from GM-Scriptorium** takes it off the list. That is all it does: the vault, the pack, the

@@ -18,7 +18,7 @@ overwrites or removes anything.
    then press **Start**. The first asks five questions. The second asks six, because it also makes
    the vault.
 
-<!-- screenshot: how-to/setup-new-vault.png -->
+![The setup question that asks where the new vault folder should go, with a folder typed in and a note that a new folder will be created.](../images/how-to/setup-new-vault.png)
 
 3. Answer the questions. Each answer is checked as you go, and the panel shows the reason when it
    refuses one.
@@ -38,7 +38,7 @@ overwrites or removes anything.
 4. Read the review screen. It lists what will be written. Nothing is written before it, apart from
    a folder you made with **New folder**.
 
-<!-- screenshot: how-to/setup-review.png -->
+![The last setup screen, which lists every answer for a new campaign called lease and offers the button that creates it.](../images/how-to/setup-review.png)
 
 5. Press **Build my first preview**, or **Set up without building**. Setup then writes the same pack
    files and registers the same campaign as `gm-scriptorium init --yes` does. With a preview, it builds
