@@ -3,6 +3,7 @@
 const { buildCheckContext } = require('../checks/context');
 const { collectWithheldNames } = require('../checks/leak/l4');
 const { scanOutputTree, scanSearchIndex } = require('../checks/leak/outputscan');
+const { scanExcludedDirsInOutput } = require('../checks/leak/l2');
 const { collectComments, scanCommentsInOutput } = require('../checks/leak/commentscan');
 const { createFinding, sortFindings } = require('../report/finding');
 const { GM_LINK_MARKER, findGmLinkMarker } = require('./gmmarker');
@@ -15,7 +16,8 @@ const { GM_LINK_MARKER, findGmLinkMarker } = require('./gmmarker');
  * turn off. It runs unconditionally, against the STAGING tree the command
  * is actually about to publish, every single build, with no way to skip it
  * (only `runAtomicBuild`'s `force` argument can override the RESULT, never
- * the scan itself).
+ * the scan itself). It covers the withheld-name and index-term scans, and (ADR 0060) the
+ * excluded-folder scan, leak/l2-excluded-dir-in-output.
  */
 
 /**
@@ -35,6 +37,15 @@ function scanStagingOutput({ vaultPath, jsonConfig, stagingOut, campaign }) {
   const findings = [
     ...scanOutputTree({ outDir: stagingOut, campaign, withheld }),
     ...scanSearchIndex({ outDir: stagingOut, campaign, withheld }),
+    // ADR 0060: leak/l2 is deferred in the pre-build check and judged here, on the tree about to be
+    // swapped in, with the same folder lists and always-excluded folders a standalone `check` uses.
+    ...scanExcludedDirsInOutput({
+      outDir: stagingOut,
+      campaign,
+      jsonConfig: ctx.jsonConfig,
+      publishConfig: ctx.publishSet.publishConfig,
+      allCandidatePages: ctx.allCandidatePages,
+    }),
   ];
   return sortFindings(findings);
 }
