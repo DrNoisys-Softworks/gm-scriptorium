@@ -1038,8 +1038,8 @@ module.exports = deepFreeze({
       action: 'Add the heading named in the message to your list if it should still be hidden.',
     },
     'config/exclude-dirs-divergence': {
-      what: 'A folder is hidden in one config file but not in the other. A fresh build honours both lists, so a folder hidden only in `_meta/vault-config.md` is left out of a new build. The warning guards against a stale build made before that was added. It is an ERROR when the folder holds pages or images that the older site could include, a WARN when it does not, and an INFO when only `vault.config.json` lists it.',
-      action: 'Add the folder to the list the message says is missing it, so both files agree. Until you do, an ERROR here refuses a `build`.',
+      what: 'A folder is hidden in one config file but not in the other. A fresh build honours both lists, so a folder hidden only in `_meta/vault-config.md` is still left out of a new build. A stale build made before you hid it can still hold its pages, and `leak/l2-excluded-dir-in-output` reports those. This is a WARN when only `_meta/vault-config.md` lists the folder, and an INFO when only `vault.config.json` lists it.',
+      action: 'Add the folder to the list the message says is missing it, so both files agree. This warning never stops a `build`.',
     },
     'config/exclude-fields-divergence': {
       what: 'One of the built-in hidden fields (such as `gm_notes`) is no longer filtered, because one of your config files gives its own `exclude_fields` list. A list you give replaces the built-in one.',
@@ -1062,8 +1062,8 @@ module.exports = deepFreeze({
       action: 'Create `_meta/publish-manifest.md` with a `## Publishing` heading and one line for each page players may see. The sample campaign has a complete one.',
     },
     'leak/l2-excluded-dir-in-output': {
-      what: 'A page or image in the built site came from a folder you hide, or from one of the always-excluded folders. It is an INFO line instead when there is no build yet to look at.',
-      action: 'Rebuild after fixing the folder lists. If it persists, read the message for the file, and check `excludeDirs` and `publish.exclude_dirs`.',
+      what: 'A page or image in the built site came from a folder you hide, or from one of the always-excluded folders. It is an INFO line instead when there is no build yet to look at. `build` runs this on the new site before it goes live, not on the old site it replaces, and nothing overrides it.',
+      action: 'Build again: a fresh build leaves hidden folders out and replaces the old site. If the line is still there, read the message for the file, and check `excludeDirs` and `publish.exclude_dirs`.',
     },
     'leak/l3-unpublished-link': {
       what: 'A published page links to a note that is not published, so the link shows as plain text. It is an ERROR when that note is marked `withheld: true`, which means the link may give away a secret, and a WARN otherwise.',

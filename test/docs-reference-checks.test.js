@@ -200,6 +200,20 @@ test('the rows for the two refusals nothing overrides say so, and the stale excl
   assert.match(dirs.what, /stale build/);
 });
 
+test('the exclude-dirs row reads exactly as written and claims no error or refusal (#141)', () => {
+  const dirs = textFile[BLOCK]['config/exclude-dirs-divergence'];
+  assert.equal(
+    dirs.what,
+    'A folder is hidden in one config file but not in the other. A fresh build honours both lists, so a folder hidden only in `_meta/vault-config.md` is still left out of a new build. A stale build made before you hid it can still hold its pages, and `leak/l2-excluded-dir-in-output` reports those. This is a WARN when only `_meta/vault-config.md` lists the folder, and an INFO when only `vault.config.json` lists it.',
+  );
+  assert.equal(
+    dirs.action,
+    'Add the folder to the list the message says is missing it, so both files agree. This warning never stops a `build`.',
+  );
+  assert.doesNotMatch(dirs.what, /ERROR|refus/);
+  assert.doesNotMatch(dirs.action, /ERROR|refus/);
+});
+
 test('every id has a non-empty "what it means" and "what to do"', () => {
   for (const id of IDS) {
     const entry = textFile[BLOCK][id];

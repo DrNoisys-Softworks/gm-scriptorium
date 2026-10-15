@@ -93,9 +93,11 @@ function runExcludeSectionsDivergence(ctx) {
  * scanConfigFor, and matches). This check's remaining value is defense-in-depth against a STALE
  * build made before the vault-side exclusion was added, or against any other code path that
  * still reads jsonConfig.excludeDirs raw: ctx.allCandidatePages (unfiltered by exclude_dirs, see
- * its own doc comment) stands in for "what a pre-exclusion build could have produced." ERROR if
- * this vault-only exclusion's directory has real page content that a stale build could have
- * shipped; WARN otherwise. JSON-only entries are INFO (they take effect either way).
+ * its own doc comment) stands in for "what a pre-exclusion build could have produced." Every
+ * vault-only entry is a WARN (ADR 0060): fires only picks the message's extra sentence and sets
+ * data.appliesInOutput, because a fresh build already leaves the folder out and leak/l2 reads the
+ * real output (and, inside build, the staging tree) for anything a stale build left behind.
+ * JSON-only entries are INFO (they take effect either way).
  */
 function runExcludeDirsDivergence(ctx) {
   const jsonList = ctx.jsonConfig.excludeDirs || [];
@@ -117,14 +119,14 @@ function runExcludeDirsDivergence(ctx) {
     findings.push(
       createFinding({
         id: 'config/exclude-dirs-divergence',
-        severity: fires ? 'error' : 'warn',
+        severity: 'warn',
         category: 'config',
         campaign: ctx.campaign,
         message: `"${dir}" is excluded in _meta/vault-config.md (publish.exclude_dirs) but not in vault.config.json (excludeDirs).${
           fires
-            ? ' This folder holds pages or images that a site built before the exclusion could include. Until you add it to excludeDirs in vault.config.json as well, check reports this as an error and build refuses.'
-            : ' A fresh build leaves it out. Add it to excludeDirs in vault.config.json as well to clear this warning.'
-        }`,
+            ? ' This folder holds pages or images. A fresh build leaves it out, but a site built before the exclusion may still hold its files until you build again.'
+            : ' A fresh build leaves it out.'
+        } Add it to excludeDirs in vault.config.json as well to clear this warning.`,
         data: { dir, appliesInOutput: fires },
       }),
     );
