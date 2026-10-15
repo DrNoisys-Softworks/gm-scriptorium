@@ -93,6 +93,7 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
   let pollTimer = null;
   let phase = 'starting'; // starting | running | stopped | error
   let lastCampaign = '-';
+  let signinConfirmed = false; // remote access at sign-in is confirmed for THIS computer (ADR 0057, section 7)
   let signinLocal = false; // the running panel is local-only because remote access is not confirmed at sign-in
   let quitting = false;
   let quitStarted = false;
@@ -204,8 +205,9 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
       const { config } = loadConfig({ config: configPath });
       const desktop = parseDesktopTable(config.desktop);
       // RV1 (ADR 0057, section 7): a start at sign-in runs this-PC-only unless the GM confirmed remote access.
+      const confirmed = confirmedHere(config.desktop, hostname(), platform);
       // The answer counts only on the computer that gave it (a copied settings folder carries it to another PC).
-      const localOnly = atSignin && !confirmedHere(config.desktop, hostname(), platform);
+      const localOnly = atSignin && !confirmed;
       const setup = Object.keys(config.campaigns || {}).length === 0;
       let local = false;
       let suppressed = false; // a remote mode is saved, and this sign-in start is holding it back
@@ -230,7 +232,7 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
         if (m) return { ok: false, kind: 'port', message: oneLine(human.replace(/^failed to start server:\s*/, '')), port: m[1], retryable: false };
         return { ok: false, kind: 'other', message: oneLine(human), retryable: false };
       }
-      return { ok: true, started, suppressed };
+      return { ok: true, started, suppressed, confirmed };
     } catch (err) {
       return { ok: false, ...classify(err) };
     }
@@ -290,6 +292,7 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
       if (result.ok) {
         panel = result.started;
         signinLocal = result.suppressed === true;
+        signinConfirmed = result.confirmed === true;
         break;
       }
       if (result.retryable && !isUser && attempt < retryDelaysMs.length) {
@@ -338,6 +341,9 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
     const fields = ['running', panel.ctx.campaign || 'setup', panel.settings.mode, addressOf(panel.ctx, panel.settings)];
     // ADR 0057 section 7: the literal fifth field tells the helper to show "Remote access is off at sign-in".
     if (signinLocal) fields.push('signin-local');
+    // Always the last field: a separate fact, found by its `signin=` prefix, so older readers that only look for
+    // `signin-local` as the fifth field are not disturbed.
+    fields.push(signinConfirmed ? 'signin=confirmed' : 'signin=unconfirmed');
     sendState(...fields);
   }
 
