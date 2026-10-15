@@ -452,7 +452,7 @@ const MENU_LABELS = [
   'Update available: ',
   'Start with Windows',
   'Remote access is on, including at sign-in.',
-  'Remote access is on. At sign-in it starts on this PC only until you confirm.',
+  'Remote access is set up. At sign-in it starts on this PC only until you confirm.',
   'Open command line (Advanced)',
   'Open log folder',
   'Quit GM-Scriptorium',
@@ -604,7 +604,7 @@ test('positive control: a renamed marker or the wrong field is seen', () => {
 // ---------------------------------------------------------------------------------------------
 
 const T03_CONFIRMED = 'Remote access is on, including at sign-in.';
-const T03_UNCONFIRMED = 'Remote access is on. At sign-in it starts on this PC only until you confirm.';
+const T03_UNCONFIRMED = 'Remote access is set up. At sign-in it starts on this PC only until you confirm.';
 
 /** The statement in build_menu that adds the line held in the named constant, or null. */
 function t03Statement(code, constant) {
@@ -634,8 +634,9 @@ test('T03: the two ruled lines are defined once each, word for word, and the old
   assert.equal(wide.filter((t) => t === T03_CONFIRMED).length, 1);
   assert.equal(wide.filter((t) => t === T03_UNCONFIRMED).length, 1);
   assert.match(tray, /static const wchar_t T03_CONFIRMED_TEXT\[\] = L"Remote access is on, including at sign-in\.";/);
-  assert.match(tray, /static const wchar_t T03_UNCONFIRMED_TEXT\[\] = L"Remote access is on\. At sign-in it starts on this PC only until you confirm\.";/);
+  assert.match(tray, /static const wchar_t T03_UNCONFIRMED_TEXT\[\] = L"Remote access is set up\. At sign-in it starts on this PC only until you confirm\.";/);
   assert.equal(tray.includes('so it also listens for other devices from sign-in'), false);
+  assert.equal(tray.includes('Remote access is on. At sign-in'), false, 'the T03 wording before the T03b ruling is gone');
 });
 
 test('T03: not confirmed (signin-local) shows its line first; remote and confirmed shows the other; both only with Start with Windows ticked', () => {

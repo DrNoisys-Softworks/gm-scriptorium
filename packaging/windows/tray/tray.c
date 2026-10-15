@@ -67,7 +67,7 @@ static const wchar_t SIGNIN_LOCAL_TEXT[] = L"Remote access is off at sign-in. St
 /* Owner ruling T03: the line under Start with Windows when remote access is on, confirmed for sign-in
  * or not yet (the host's signin-local marker). */
 static const wchar_t T03_CONFIRMED_TEXT[] = L"Remote access is on, including at sign-in.";
-static const wchar_t T03_UNCONFIRMED_TEXT[] = L"Remote access is on. At sign-in it starts on this PC only until you confirm.";
+static const wchar_t T03_UNCONFIRMED_TEXT[] = L"Remote access is set up. At sign-in it starts on this PC only until you confirm.";
 
 static struct {
     HINSTANCE inst;
