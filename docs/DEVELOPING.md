@@ -107,6 +107,7 @@ than deciding alone.
   codes.** User mistakes are mapped onto these (see "Exit codes for user errors" below). A cleanup or delete failure must never change the code a user sees. Copy the pattern in
   `src/build/run.js` (best-effort removal, swallowed, commented), tested in
   `test/build-output-gate.test.js`, which injects `EBUSY` through an `fs.rmSync` monkeypatch.
+- `test/docs-reference.test.js`, `test/docs-reference-cli.test.js`, `test/docs-reference-pack.test.js`, `test/docs-reference-vault.test.js` and `test/docs-reference-checks.test.js`: the reference pages in `docs/reference/` match the code. A new settings key, exit code, environment variable, file kept beside the config, command, flag, subcommand, pack.toml key, a vault-config.md key the panel knows, a vault.config.json key the program reads, writes or requires, or a check id fails them until it has its text in `scripts/docs-reference-text.js` (or a row on the environment variables page) and `npm run docs-reference` has been run.
 - **No new runtime dependency without saying so explicitly.** Anything new forces a regeneration
   of the notices and a licence re-audit (see [Licence provenance](PROVENANCE.md)).
 
@@ -197,7 +198,8 @@ accepts. Releases before 1.0.0 are not signed (step 7).
    version bump fails `npm run package` until the notices are regenerated.** That is deliberate.
    Confirm the diff is only the version line and the timestamp.
 3. Run `npm test`, `npm run verify-generator` and `npm run package`. All three must pass.
-   `npm run package` builds both `gm-scriptorium-win-x64.exe` and `gm-scriptorium-linux-x64`.
+   `npm run package` builds `gm-scriptorium-win-x64.exe`, the tray helper
+   `gm-scriptorium-tray-win-x64.exe` (ADR 0057) and `gm-scriptorium-linux-x64`.
 4. Commit the bump with the regenerated notices.
 5. In the public repository, run `node scripts/public-guard.js release <previous tag>` with the
    private lists configured (for the first public release, use the public root commit). It must
@@ -205,18 +207,22 @@ accepts. Releases before 1.0.0 are not signed (step 7).
 6. Rebuild both executables after the release commit, from a cleared `dist/`, and check the build
    timestamp is later than the commit. A stale binary from an earlier commit has nearly shipped
    here.
-7. Sign the Windows executable. Maintainers sign `gm-scriptorium-win-x64.exe` with the project's
-   code-signing certificate, timestamped, on a Windows machine, because the signing key needs a
-   person present. `SHA256SUMS` is regenerated after signing, so it covers the signed bytes.
+7. Sign the Windows executables. Maintainers sign `gm-scriptorium-win-x64.exe` and the tray helper
+   `gm-scriptorium-tray-win-x64.exe` with the project's code-signing certificate, timestamped, on a
+   Windows machine, because the signing key needs a person present. `SHA256SUMS` is regenerated after signing, so it covers the signed bytes.
    Check the signature on Windows before anything is published, using criterion C141 part A in the
    Windows verification runbook. Signing applies to every release from 1.0.0, including its release
    candidates. Releases before 1.0.0 skip this step and C141, ship unsigned, and their release
    notes say so. See [ADR 0051](decisions/0051-code-signing.md), "Amended: releases are signed from 1.0".
-8. Create the release as a prerelease, with both binaries, `THIRD-PARTY-NOTICES.txt` and the one
-   combined `SHA256SUMS`. Every release goes up as a prerelease first, even one that will become
+8. Create the release as a prerelease, with every binary (the Windows program, the tray helper
+   `gm-scriptorium-tray-win-x64.exe` and the Linux program), `THIRD-PARTY-NOTICES.txt` and the one
+   combined `SHA256SUMS`. **Every Windows release must carry the tray helper and list it in
+   `SHA256SUMS`**: `update` on an installed copy downloads both programs and refuses to replace
+   either if the helper is missing, so a release without it cannot be installed by `update` (ADR 0057,
+   section 11). Every release goes up as a prerelease first, even one that will become
    latest, so nobody running a plain `update` gets it before the Windows checks pass.
 9. Download the assets back off the release page and re-hash every one of them before announcing
-   anything.
+   anything, the tray helper included.
 10. Have the Windows checks run on the release, using the Windows verification runbook at
     `.agents/windows-verification.md`. Promote the release to latest only when they pass.
     An `X.Y.Z` release is promoted once they pass, signed or not, below 1.0.0. From 1.0.0 it is
@@ -233,11 +239,25 @@ accepts. Releases before 1.0.0 are not signed (step 7).
     against a real published release. `test/update-linux.test.js` and
     `test/update-packaged-guard.test.js` cover the pieces (the ELF check, the packaged-only guard,
     the 0755 mode) with injected dependencies, not a real download and self-replace.
+    `update` on an installed Windows copy replaces the program and the tray helper together.
+    `test/update-tray.test.js` covers that with injected downloads and real files in a scratch
+    folder, and only the Windows runbook (C201) proves it on a real copy. Before promoting, confirm
+    the release's `SHA256SUMS` has a line for `gm-scriptorium-tray-win-x64.exe`.
     After promoting, also run a plain `update --check` (no `--pre`) from the previous release's
     Linux binary, in a scratch folder with its own config. It must name the new tag. Plain `update`
     is what most people run, and it sees only the release marked latest. A previous release from
     before 0.5.0 still fetches through the GitHub CLI, so this check needs `gh` signed in on the
     build machine.
+
+## The sample site
+
+The sample campaign is published at <https://drnoisys-softworks.github.io/gm-scriptorium/> by `.github/workflows/pages.yml`, on a push to `main` or a manual run, in the public repository only. The workflow runs `npm ci`, `npm run verify-generator` and `node scripts/sample-site.js`, uploads the `_site` folder and deploys it. The decision and its limits are in [ADR 0059](decisions/0059-hosted-sample-site.md).
+
+The script builds only `examples/the-long-lease`. Every path is a constant in the script, it takes no arguments, and it deletes nothing. It builds with a scratch copy of the pack that carries the site address, checks the output, copies it to `_site`, adds `leak-demo.html` (made by `scripts/leak-demo.js`) and sweeps the result for the withheld name and the GM note's text. Any failed step prints `SITE FAIL <step> <reason>` and exits 1, and nothing is uploaded.
+
+To reproduce it, work in a scratch copy of the repository (for example `git archive HEAD | tar -x -C <folder>`, then `npm ci` there), because the script refuses to run if `.sample-site` or `_site` already exists, and you delete those two folders yourself. Do not run it in your working checkout unless you mean to.
+
+The pinning tests are `test/pages-workflow.test.js` (the workflow file and the script's constants) and `test/sample-site.test.js` (the pipeline, each gate's control and the demo generator). The workflow is separate from `ci.yml`, which stays as it is.
 
 ## Push policy
 
@@ -266,7 +286,8 @@ unreviewed commit, because an earlier step failed and the trailing `git push` ra
   never by line number. Keep internal work codes, slice names and role names out of prose. Leave
   out em dashes, emojis and promised dates, and use ">" rather than arrows. A decision record
   opens with a Summary of 3 to 6 plain sentences: what changed for a GM or contributor, the
-  decision, the main rejected alternative, and any limit a user will hit.
+  decision, the main rejected alternative, and any limit a user will hit. Pages for GMs also meet the criteria in
+  [Writing the user documentation](WRITING-DOCS.md).
 - Material for AI assistants (working rules, onboarding, the Windows runbook) lives in `.agents/`,
   reached through `AGENTS.md`. Keep it out of the human documents.
 - Windows-side behaviour is verified only through the runbook at

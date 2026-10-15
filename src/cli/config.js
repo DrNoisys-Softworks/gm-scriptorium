@@ -17,6 +17,10 @@ const { EXIT_CODES } = require('../util/exitcodes');
  * reachability check (which warns, never blocks, on failure).
  */
 
+// The subcommands handled below, read by scripts/docs-reference.js. The switch does not use it, because a
+// guard would change error ordering (loadConfig runs first); test/docs-reference-cli.test.js pins it to the case labels.
+const SUBCOMMANDS = Object.freeze(['list', 'add', 'remove', 'set-default', 'path', 'edit']);
+
 function runConfigCommand(flags, subcommand, args, { env = process.env, spawnEditor = spawnSync } = {}) {
   // `remove` loads leniently so a malformed entry (which makes every other command refuse to
   // load the config) can still be removed, instead of forcing a hand edit of the TOML.
@@ -121,4 +125,4 @@ function runConfigCommand(flags, subcommand, args, { env = process.env, spawnEdi
   }
 }
 
-module.exports = { runConfigCommand, writeConfigFile };
+module.exports = { runConfigCommand, writeConfigFile, SUBCOMMANDS };

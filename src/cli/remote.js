@@ -435,4 +435,4 @@ function remoteHelp(sub) {
   return commandHelp('remote', sub).replace(/\n$/, '');
 }
 
-module.exports = { runRemoteCommand, remoteHelp, MODE_LABEL };
+module.exports = { runRemoteCommand, remoteHelp, MODE_LABEL, SUBCOMMANDS, ACCOUNT_VERBS, ALLOWED_FLAGS };

@@ -4,17 +4,55 @@ This page lists every document written for a human reader: GMs running GM-Script
 contributors, and anyone working on the upstream generator. It doesn't include planning notes or
 the guides written for AI assistants, apart from one pointer to them under Contributing.
 
-## Using
+The pages for GMs are in four groups, by what you want to do.
+
+## Tutorial
+
+Learn by doing, from the start.
+
+- [The Long Lease: a sample campaign](../examples/README.md): a small invented campaign to copy, build and serve before you point the tool at your own vault.
+
+## How-to guides
+
+Steps for a job you already have in mind.
 
 - [Install, update and build from source](install.md): downloading and verifying a release, the
   Windows warning, updating, and building from source.
 - [Using GM-Scriptorium](using.md): what a vault needs, every command, and the leak checks.
 - [Trying it safely](trying-it-safely.md): using the tool beside a campaign you care about, without touching your real config.
-- [Privacy](privacy.md): what the tool sends over the network, and what it never does.
-- [Why, and how this relates to gm-apprentice](about.md): the reasoning and the upstream credit.
-- [Image slots](image-slots.md): which images a theme can show, and the sizes to prepare them at.
-- [Remote access](remote-access.md): using the admin panel from another device, safely, and what is and is not protected.
+- [Remote access](remote-access.md): using the admin panel from another device, safely.
 - [Backing up your vault](backing-up-your-vault.md): how to keep your campaign notes safe, and why GM-Scriptorium does not do it for you.
+- [Start a new campaign](how-to/start-a-new-campaign.md): set up your first campaign, with a vault you already have or a new one, in the admin panel or on the command line.
+- [Add another campaign, and switch between them](how-to/add-another-campaign.md): add a second campaign, move the panel between campaigns, choose the default and take one off the list.
+- [Change how your site looks and the words it uses](how-to/change-the-look-and-vocabulary.md): the theme, the pictures, the title and tagline, and the vocabulary.
+- [Move to another computer](how-to/move-to-another-computer.md): copying your settings, fixing the paths, and sharing one vault between two computers.
+- [Use the command line and scripts](how-to/use-the-command-line-and-scripts.md): giving a script its own settings, reading results as data, acting on exit codes, and setting a password without a prompt.
+- [Troubleshooting](how-to/troubleshooting.md): what the common messages mean and what to do, and the problems that come with no message.
+- [Keep GM-only notes off the player site](how-to/hide-gm-content.md): hiding a page, part of a page, a field, a relationship or a name, and checking the result.
+- [Add a Game master link to the player site](how-to/add-a-game-master-link.md): a link in the site footer back to your own admin panel, and why its address is public.
+
+## Reference
+
+Facts to look up.
+
+- [Image slots](image-slots.md): which images a theme can show, and the sizes to prepare them at.
+- [The settings file (config.toml)](reference/config-toml.md): every key in the settings file, what it does, and what changes it.
+- [Environment variables](reference/environment-variables.md): every variable the program reads.
+- [Exit codes](reference/exit-codes.md): the five codes every command ends with, and what to do about each.
+- [Files and folders](reference/files-and-folders.md): what GM-Scriptorium keeps on your computer, and where.
+- [The command line](reference/command-line.md): every command, flag and subcommand, and the exit codes each command returns.
+- [The campaign pack file (pack.toml)](reference/pack-toml.md): every key in a campaign's pack file, what it does, and what changes it.
+- [The vault's publish settings (vault-config.md and vault.config.json)](reference/vault-config.md): the keys GM-Scriptorium reads, shows or changes in the two files, how they combine, and which the panel edits.
+- [Check messages](reference/check-messages.md): every message id `check` and `build` can print, what it means and what to do.
+- [Remote access: accounts, sign-in and what is protected](reference/remote-access.md): the account and sign-in rules, the audit log, what is and is not protected, and the files remote access keeps.
+
+## Explanation
+
+Why the tool works the way it does.
+
+- [Privacy](privacy.md): what the tool sends over the network, and what it never does.
+- [How GM-Scriptorium decides what players see](explanation/what-players-see.md): which pages publish, what is cut from them, and what the leak checks cannot see.
+- [Why, and how this relates to gm-apprentice](about.md): the reasoning and the upstream credit.
 
 ## Contributing
 
@@ -24,6 +62,7 @@ the guides written for AI assistants, apart from one pointer to them under Contr
 - [Collaborating with the upstream generator](COLLABORATING.md): where this project depends on the
   upstream generator's behaviour, and the ground rules for changes near that boundary.
 - [Security policy](../SECURITY.md): how to report a vulnerability.
+- [Writing the user documentation](WRITING-DOCS.md): the criteria every page for GMs meets, and the list of those pages.
 
 If you work with an AI coding assistant, point it at [`AGENTS.md`](../AGENTS.md).
 
@@ -84,6 +123,7 @@ the way.
 - [0055. `--force` is split, and no flag overrides the output-leak scan](decisions/0055-force-split.md): `build --force-check` builds despite check errors, `build --force-out` builds into the site config's own output folder, nothing overrides the output-leak scan, and a bare `--force` exits 1 with one line.
 - [0056. An owner-only access list on the panel folder on Windows](decisions/0056-windows-panel-access-list.md): On Windows the program sets the `panel` folder's access list to your account, SYSTEM and Administrators on every panel start and before any `remote` command writes there, using `icacls` from System32 through the one process spawner, and the remote modes refuse to start if it cannot.
 - [0057. The Windows desktop app](decisions/0057-windows-desktop-app.md): Installed Windows copies run in the background with a system tray icon and no console window, a small native helper owns the icon, the single running copy, sign-out and Start with Windows and talks to the program over pipes, the panel uses fixed addresses (7400 and 7401 by default, which the GM can change), and remote access never starts at sign-in until the GM confirms it.
+- [0059. The sample campaign is published to GitHub Pages, built only from the sample](decisions/0059-hosted-sample-site.md): A separate workflow builds and checks the sample from one fixed path and publishes it with a generated leak demo page, nothing is uploaded if any gate fails, and the 404 notices link breaks at nested missing addresses.
 
 ## Licensing
 

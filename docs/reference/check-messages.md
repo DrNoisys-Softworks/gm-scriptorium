@@ -1,0 +1,81 @@
+# Check messages
+
+This page is for a GM who has run `gm-scriptorium check` or `gm-scriptorium build` and wants to know what one of its messages means and what to do about it. The table below is generated from the program itself, so it lists every message id this version can print. Its severity and "Runs in" columns come from the code. The other two columns are written by hand.
+
+## Reading a line of output
+
+`check` prints one line for each finding, like this:
+
+```
+ERROR leak/l4-hidden-name Locations/Harbour.md  Locations/Harbour.md: withheld name "Ottoline Pardew" (from Characters/NPCs/Ottoline Pardew.md) appears in published text
+```
+
+The line has the severity in capitals, the message id, the file and line when there is one, then the message. Some findings add a second, indented line that quotes the text around the problem. A summary line with the three counts comes last.
+
+The id is the stable part. The wording of a message can change between versions, but an id is never renumbered or reused, so search this page for the id. With `--json`, `check` prints the same findings as data, each with an `id`, a `severity`, a `path`, a `line` and a `message`.
+
+## Severity
+
+- **ERROR** means a problem serious enough to stop a build, such as a secret that could reach players. `check` exits with code 2 if there is any ERROR (see [exit codes](exit-codes.md)), and `build` refuses to start.
+- **WARN** means something that is probably a mistake. It is shown but stops nothing.
+- **INFO** is for your information. It is also what a check says when it has nothing to look at yet, such as the built site before the first build.
+
+A severity marked "(varies)" depends on what the check finds. The row says when.
+
+## Where each check runs
+
+Most checks run in both `check` and `build`. `build` runs the checks first and refuses on an ERROR, unless you pass `--force-check`. With `--no-check`, `build` skips the checks, so "check and build" is a simplification for that case. The built site is scanned separately, before it goes live, and nothing overrides that scan ([ADR 0055](../decisions/0055-force-split.md)).
+
+The four `graph/` checks are off unless you run `check --graph`. They are hygiene hints, never errors.
+
+One id, `build/gm-link-marker`, is made only by `build`.
+
+## Lines that are not checks
+
+A line that starts with `ERROR rendering` and names a page comes from the site generator while it builds, not from a check. It has no id here. Read the page it names.
+
+## What the checks cannot see
+
+A clean run is not clearance. The checks look for hidden names and headings, not for a secret that is given away in other words. For what they miss, read the section [What the leak checks cannot see](../explanation/what-players-see.md#what-the-leak-checks-cannot-see) in the page on how GM-Scriptorium decides what players see.
+
+<!-- BEGIN GENERATED check-messages: edit scripts/docs-reference-text.js, then run npm run docs-reference -->
+| ID | Severity | Runs in | What it means | What to do |
+|---|---|---|---|---|
+| `frontmatter/non-yaml-language` | ERROR | check and build | A note opens its frontmatter with a fence that names a language other than YAML, or its first line after the opening `---` has no line break within 65536 bytes, so the language cannot be confirmed. GM-Scriptorium will not read or build that note, because frontmatter in another language can run code. | Open the note and make the first lines plain YAML between two lines of `---`. Nothing overrides this refusal, not even `--force-check` or `--no-check`. |
+| `frontmatter/parse-error` | ERROR | check and build | A note's frontmatter is not valid YAML, so the site generator would skip the note without a word. This check reports it instead of letting the page vanish. | Fix the YAML at the top of the note. The message gives the parser's reason. Common causes are an unclosed quote or a colon in an unquoted value. |
+| `frontmatter/missing-type` | ERROR | check and build | A note has no `type:` in its frontmatter. The generator skips such a note, so it never reaches the site, and nothing else says so. | Add a `type:` line, such as `type: npc`, if the note should be on the site. If it is not meant for the site, move it into a folder listed in `excludeDirs`. |
+| `census/type` | INFO | check and build | A count of the typed notes in your vault, and how many of each type. It is information, not a problem. | Nothing. Glance at it to see that the counts look right. |
+| `census/unrecognised-type` | WARN | check and build | A note has a `type:` that is not one of the types the vault knows: the ones in `_meta/entity-types.md`, the folder mapping table, and `character-story`. The generator may not place the note where you expect. | Fix a misspelt type, or add the new type to `_meta/entity-types.md`. |
+| `census/session-wrap-hub-unpublished` | WARN | check and build | A published Wrap-Up is linked to a session note that is not published. The site then has no session page for it: no session badges, no Latest Session recap, and nothing on the timeline or in Connections. | Publish the session note, or keep the recap as a session note instead of a Wrap-Up. |
+| `census/session-wrap-link-unpaired` | WARN | check and build | A published Wrap-Up links to a session, but the link matches more than one note, or a note in another chapter. It is not paired with any session. | Make the link name exactly one session note. |
+| `census/session-wrap-learned-missing` | WARN | check and build | A session note has a learned-items list, but the Wrap-Up paired with it does not. Once they are paired, the session note's body is not published, so those items never reach the timeline. | Move the learned-items list into the Wrap-Up. |
+| `staleness/story-behind-pc` | WARN | check and build | A character's `_Story` note says it is as of an earlier session than the character's main page, so the story has fallen behind. Only whole numbers in `asOfSession` count. | Update the story note, then raise its `asOfSession` to match the main page. |
+| `link/unresolved` | ERROR | check and build | A `[[link]]` points at a name that no note has, as a file name or as an alias. On the site it would be a dead link or plain text. | Correct the spelling, or add the missing note, or give a note that alias. |
+| `link/in-code` | INFO | check and build | A `[[link]]` inside a code span or code block does not resolve. Inside code it would not become a link anyway, so this is only a note. | Nothing, unless you meant a real link. Then take it out of the code. |
+| `link/ambiguous-target` | ERROR | check and build | Two or more notes answer to the same `[[name]]`, so a link to it could land on either. The message lists the files. | Rename one of the notes, or change its aliases, so each name belongs to one note. |
+| `relationship/missing-required` | WARN | check and build | A note's type needs a kind of relationship that the note does not have, according to the "Required relationships" table in `_meta/entity-types.md`. It reports a single INFO line instead if that file or table is missing. | Add the relationship to the note, or change the table if the rule is wrong for your campaign. |
+| `relationship/unknown-predicate` | WARN | check and build | A relationship uses a word that is not in `_meta/relationship-types.md`. The site still shows it, but features that match exact words, such as a faction's member list, will not recognise it. It reports a single INFO line instead if the word list cannot be read. | Use the word the message suggests, or add your word to the Types table in `_meta/relationship-types.md`. |
+| `vault/unmapped-directory` | WARN | check and build | A folder has no entry in `folderMap` in `vault.config.json`, so the generator drops every note in it without saying so. | Add the folder to `folderMap` if its notes belong on the site. If not, list it in `excludeDirs`. |
+| `config/exclude-sections-divergence` | WARN (varies) | check and build | One of the built-in hidden headings (such as GM Notes) is no longer hidden, because one of your config files gives its own `exclude_sections` list. The built-in list applies only when neither file gives a list of its own. It is an ERROR when that heading really appears on a published page, and a WARN when it does not. | Add the heading named in the message to your list if it should still be hidden. |
+| `config/exclude-dirs-divergence` | WARN (varies) | check and build | A folder is hidden in one config file but not in the other. A fresh build honours both lists, so a folder hidden only in `_meta/vault-config.md` is left out of a new build. The warning guards against a stale build made before that was added. It is an ERROR when the folder holds pages or images that the older site could include, a WARN when it does not, and an INFO when only `vault.config.json` lists it. | Add the folder to the list the message says is missing it, so both files agree. Until you do, an ERROR here refuses a `build`. |
+| `config/exclude-fields-divergence` | WARN | check and build | One of the built-in hidden fields (such as `gm_notes`) is no longer filtered, because one of your config files gives its own `exclude_fields` list. A list you give replaces the built-in one. | Add the field named in the message to your `exclude_fields` list. |
+| `config/site-vault-path-mismatch` | WARN | check and build | The site config's `vaultPath` points at a different folder from the vault GM-Scriptorium is using. The vault from your settings file wins, so this is reported and nothing stops. | Remove `vaultPath` from the site config, or point it at the vault you mean. |
+| `config/pack-shadowed` | WARN | check and build | The campaign sets the older `site_config` key and also has a campaign pack. `site_config` wins, so the pack is ignored. | Remove `site_config` from the campaign in the settings file to build from the pack. |
+| `config/theme-scheme-mismatch` | INFO | check and build | The theme in `pack.toml` is made for a light or dark palette, but the palette in `_meta/vault-config.md` is the other kind. Text and backgrounds may clash. | Set `publish.theme.palette.background` in `_meta/vault-config.md`, or choose another theme in `pack.toml`. |
+| `leak/l1-no-manifest` | ERROR | check and build | The mode is `player` but `_meta/publish-manifest.md` is missing. In player mode that file decides which pages are published and which images are copied, so without it every file in the attachments folder would be copied. | Create `_meta/publish-manifest.md` with a `## Publishing` heading and one line for each page players may see. The sample campaign has a complete one. |
+| `leak/l2-excluded-dir-in-output` | ERROR | check and build | A page or image in the built site came from a folder you hide, or from one of the always-excluded folders. It is an INFO line instead when there is no build yet to look at. | Rebuild after fixing the folder lists. If it persists, read the message for the file, and check `excludeDirs` and `publish.exclude_dirs`. |
+| `leak/l3-unpublished-link` | WARN (varies) | check and build | A published page links to a note that is not published, so the link shows as plain text. It is an ERROR when that note is marked `withheld: true`, which means the link may give away a secret, and a WARN otherwise. | Publish the note, remove the link, or leave it if plain text is fine. For an ERROR, take the link out. |
+| `leak/l4-hidden-name` | ERROR | check and build | The name of a note marked `withheld: true` (its file name, title or a distinctive alias) appears in the text of a published page, its story note, or its published frontmatter. Players would read it. | Rewrite the sentence, or put it under a hidden heading or in a `gm-only` block. There is no way to suppress this check. |
+| `leak/l4-name-collision` | ERROR | check and build | A withheld note's name is the same as the title or alias of a published page, so the hidden-name check cannot search for it. It also fires when the withheld note is itself published. | Rename one of them, or stop publishing the withheld note. The message names both files. |
+| `leak/l4-output-name` | ERROR | check and build | The name of a withheld note appears in the built site, in a place the source check cannot see: a relationship graph label, an index card, an excerpt, or an image file name. It is an INFO line instead when there is no build yet. `build` runs this on the new site before it goes live, and nothing overrides it. | Find the source of the name from the message, change it, and build again. |
+| `leak/l4-index-term` | ERROR (varies) | check and build | The name of a withheld note can be found in the site's search index, as the name or its possessive or plural form. It is a WARN when the search index cannot be read or is a kind the check does not understand, and an INFO when there is no search index (searching is off). `build` runs this on the new site before it goes live, and nothing overrides it. | Remove the name from the published text it came from, then build again. If search is off on purpose, ignore the INFO. |
+| `leak/l5-gm-heading-survives` | ERROR | check and build | A heading that should be hidden is still on a published page. A hidden heading in an unusual form, such as bold or inside a list, can slip past the generator's exact match. It also fires when a `gm-only` marker is left in the output, when a heading cannot be read, and when a handout's Keeper heading survives. | Write the heading exactly as it appears in your `exclude_sections` list, such as a plain `## GM Notes`, or move the text out of the published page. |
+| `leak/l6-comment-withheld` | INFO | check and build | A published page has one or more Obsidian `%%comments%%`. The build removes every comment before the site is made, so this only tells you text is being withheld. | Nothing. Check that the lines it lists are the ones you meant to hide. |
+| `leak/l6-comment-unterminated` | WARN | check and build | A `%%` comment is opened and never closed. To be safe, the build hides everything from it to the end of the file. | Add the closing `%%` where the comment should end. |
+| `leak/l6-comment-in-output` | ERROR | check and build | Text from a `%%comment%%`, or a stray `%%`, reached the built site, including its search index and data. If a data block cannot be read, that is an ERROR too. `build` runs this on the new site before it goes live, and nothing overrides it (ADR 0055). | Fix the note the message names, then build again. Nothing overrides this refusal, so the site is not changed until it is clean. |
+| `graph/orphan` | WARN | check --graph only | A note has no relationships to any other. It is not always a mistake. | Add a relationship if the note should be linked into the campaign. Otherwise ignore it. |
+| `graph/hub-overload` | WARN | check --graph only | A note has 12 or more relationships, so it may be doing too much. It is not always a mistake. | Consider splitting the note. Otherwise ignore it. |
+| `graph/generic-relationship-type` | WARN | check --graph only | A relationship uses a vague word that tells the reader little. If your vault has a relationship word list, the unknown word is reported once by `relationship/unknown-predicate` and not here. | Use a more specific word if one fits. |
+| `graph/double-stored-edge` | WARN | check --graph only | The same relationship is stored on both notes, which is redundant. | Remove it from one of the two notes. |
+| `build/gm-link-marker` | ERROR | build only | A file in the new site contains the marker the admin panel uses for the GM link. A GM link must never be published. Only `build` makes this, and nothing overrides it (ADR 0055). | Remove the marker from the source it came from, such as a note that pasted it in, then build again. The message names the file. |
+<!-- END GENERATED check-messages -->

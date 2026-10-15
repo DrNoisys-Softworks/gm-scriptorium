@@ -4,6 +4,8 @@ This guide is for a GM who wants to see GM-Scriptorium build and serve a real-lo
 pointing it at their own vault. Everything in `the-long-lease/` is invented: the valley, the dragon,
 the people and the art. Copy it, break it, and build your own campaign from it.
 
+The built sample is online at <https://drnoisys-softworks.github.io/gm-scriptorium/>.
+
 A few words this guide uses: a **vault** is the folder of markdown pages a GM writes in; a
 **campaign pack** is the small bundle of settings and art inside a vault's `_meta/scriptorium/`
 folder that tells Scriptorium how to build that vault's site; a **slot** is one of the handful of
@@ -68,9 +70,9 @@ background images (the banner, the ground texture, the paper texture) a theme ca
 See `../docs/image-slots.md` for the full list of slots a theme can draw, and the sizes to prepare
 art at.
 
-**The withheld NPC.** One character in this vault, Ottoline Pardew, is marked `withheld: true` in
-`_meta/publish-manifest.md`. Her page never builds, and her name is kept out of every page a player
-can read. Try this: open `Characters/NPCs/Orpiment.md` and type a sentence naming her on the line
+**The withheld NPC.** One character in this vault, Ottoline Pardew, is marked `withheld: true` in her
+own page's frontmatter, and listed under Excluded in `_meta/publish-manifest.md`. Her page never
+builds, and her name is kept out of every page a player can read. Try this: open `Characters/NPCs/Orpiment.md` and type a sentence naming her on the line
 right under the `# Orpiment` heading, such as `Ottoline Pardew was seen here.` Then run `check`
 again. It refuses to pass (exit code 2), because that is exactly what the leak checks exist to
 catch. Put the same sentence at the very bottom of the file and `check` passes, because everything

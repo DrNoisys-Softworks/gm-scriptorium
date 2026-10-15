@@ -75,7 +75,7 @@ function runExcludeSectionsDivergence(ctx) {
         severity: fires ? 'error' : 'warn',
         category: 'config',
         campaign: ctx.campaign,
-        message: `"## ${section}" is one of the pin's default excluded sections, but vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them (lib/config.js:192-246, :414-416), so it is no longer excluded${
+        message: `"## ${section}" is one of the default excluded sections, but vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them, so it is no longer excluded${
           fires ? ' and the heading renders in published output' : ''
         }`,
         data: { section, appliesInOutput: fires },
@@ -120,8 +120,10 @@ function runExcludeDirsDivergence(ctx) {
         severity: fires ? 'error' : 'warn',
         category: 'config',
         campaign: ctx.campaign,
-        message: `"${dir}" is excluded in _meta/vault-config.md's publish.exclude_dirs, but the scan (lib/scanner.js:77,264) only ever reads vault.config.json:excludeDirs${
-          fires ? ', and this directory did contribute files to what would publish' : ''
+        message: `"${dir}" is excluded in _meta/vault-config.md (publish.exclude_dirs) but not in vault.config.json (excludeDirs).${
+          fires
+            ? ' This folder holds pages or images that a site built before the exclusion could include. Until you add it to excludeDirs in vault.config.json as well, check reports this as an error and build refuses.'
+            : ' A fresh build leaves it out. Add it to excludeDirs in vault.config.json as well to clear this warning.'
         }`,
         data: { dir, appliesInOutput: fires },
       }),
@@ -136,7 +138,7 @@ function runExcludeDirsDivergence(ctx) {
         severity: 'info',
         category: 'config',
         campaign: ctx.campaign,
-        message: `"${dir}" is excluded in vault.config.json only; it takes effect (that is the only list scanVault reads)`,
+        message: `"${dir}" is excluded in vault.config.json (excludeDirs) but not in _meta/vault-config.md; builds still leave it out.`,
         data: { dir, jsonOnly: true },
       }),
     );

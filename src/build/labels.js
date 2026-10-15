@@ -45,6 +45,11 @@ const DEFAULT_LABELS = Object.freeze({
 
 const LABEL_KEYS = Object.freeze(Object.keys(DEFAULT_LABELS));
 
+// The keys of one [[timeline.kinds]] entry and of [recaps]. Named so the reference page
+// (docs/reference/pack-toml.md) reads the same lists the parser checks.
+const KIND_ENTRY_KEYS = Object.freeze(['key', 'label', 'glyph', 'aliases', 'before']);
+const RECAPS_KEYS = Object.freeze(['learned_heading']);
+
 const TL_CLIENT_LABEL_KEYS = Object.freeze(['learned_lens', 'learned_legend', 'story_lens', 'chapter']);
 const CX_CLIENT_LABEL_KEYS = Object.freeze([
   'recap',
@@ -210,7 +215,7 @@ function parseKinds(val, warnings, T, c) {
     }
 
     for (const k2 of Object.keys(entry)) {
-      if (!['key', 'label', 'glyph', 'aliases', 'before'].includes(k2)) {
+      if (!KIND_ENTRY_KEYS.includes(k2)) {
         warnings.push(`${T}: [[timeline.kinds]] #${n} unrecognised key "${k2}" (ignored)`);
       }
     }
@@ -348,7 +353,7 @@ function parseRecapsTable(val, warnings, T, c) {
     : DEFAULT_LEARNED_HEADING;
 
   for (const k of Object.keys(val)) {
-    if (k !== 'learned_heading') warnings.push(`${T}: [recaps] unrecognised key "${k}" (ignored)`);
+    if (!RECAPS_KEYS.includes(k)) warnings.push(`${T}: [recaps] unrecognised key "${k}" (ignored)`);
   }
 
   return { learnedHeading };
@@ -476,6 +481,9 @@ module.exports = {
   PATH_DATA_RE,
   KIND_KEY_RE,
   RESERVED_KIND_KEYS,
+  KIND_ENTRY_KEYS,
+  TIMELINE_KEYS,
+  RECAPS_KEYS,
   TL_CLIENT_LABEL_KEYS,
   CX_CLIENT_LABEL_KEYS,
 };
