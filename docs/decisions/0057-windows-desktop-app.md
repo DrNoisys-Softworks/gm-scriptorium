@@ -94,6 +94,7 @@ The accepted leftovers are those in [ADR 0028](0028-installer-and-first-run.md),
 **Remote access at sign-in asks again.** Starting the panel with remote access at sign-in is a different decision from starting it in a browser tab. When `gm-scriptorium remote set` changes the mode to a remote mode (`tailscale`, `proxy` or `ssh`) while the `Run` value is present, it asks "Also start remote access when you sign in to Windows?". The default is No. In a non-interactive run, or with `--json`, it is treated as No and says so.
 
 - Until the GM confirms, a start at sign-in (`--background` from the `Run` value) runs the panel in local, this-PC-only mode. The tray header says "Remote access is off at sign-in. Start it from the tray to turn it on." The host tells the helper by adding `signin-local` as an optional last field of its `state running` line; the helper shows the header line only then.
+- With Start with Windows ticked, the line under it in the tray menu says which case applies: "Remote access is on. At sign-in it starts on this PC only until you confirm." when the `signin-local` marker came, and "Remote access is on, including at sign-in." when the panel is running in a remote mode without it.
 - A start the GM makes themselves (shortcut, Start menu, tray Start panel, terminal) uses the saved remote mode, as before.
 - The confirmation is a per-machine flag kept with the desktop settings, written only through the one config writer. `remote off` clears it, and running `remote set` again with a different remote mode asks again.
 

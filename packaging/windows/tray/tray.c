@@ -64,6 +64,10 @@ static const wchar_t CMD_ARGS_TAIL[] =
 
 static const wchar_t MISMATCH_TEXT[] = L"Quit GM-Scriptorium and start it again from the Start menu to finish updating.";
 static const wchar_t SIGNIN_LOCAL_TEXT[] = L"Remote access is off at sign-in. Start it from the tray to turn it on.";
+/* Owner ruling T03: the line under Start with Windows when remote access is on, confirmed for sign-in
+ * or not yet (the host's signin-local marker). */
+static const wchar_t T03_CONFIRMED_TEXT[] = L"Remote access is on, including at sign-in.";
+static const wchar_t T03_UNCONFIRMED_TEXT[] = L"Remote access is on. At sign-in it starts on this PC only until you confirm.";
 
 static struct {
     HINSTANCE inst;
@@ -1004,7 +1008,8 @@ static HMENU build_menu(void)
         add_sep(m);
         add_item(m, IDM_UPDATES, updates, on);
         AppendMenuW(m, MF_STRING | (autostart ? MF_CHECKED : 0), IDM_AUTOSTART, L"Start with Windows");
-        if (remote_on() && autostart) add_item(m, IDM_INERT, L"Remote access is on, so it also listens for other devices from sign-in.", 0);
+        if (autostart && g.signin_local) add_item(m, IDM_INERT, T03_UNCONFIRMED_TEXT, 0);
+        else if (autostart && remote_on()) add_item(m, IDM_INERT, T03_CONFIRMED_TEXT, 0);
         add_sep(m);
         add_item(m, IDM_CMD, L"Open command line (Advanced)", cmd_ok);
         add_item(m, IDM_LOGS, L"Open log folder", 1);

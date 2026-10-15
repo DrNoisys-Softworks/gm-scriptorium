@@ -451,7 +451,8 @@ const MENU_LABELS = [
   'Check for updates',
   'Update available: ',
   'Start with Windows',
-  'Remote access is on, so it also listens for other devices from sign-in.',
+  'Remote access is on, including at sign-in.',
+  'Remote access is on. At sign-in it starts on this PC only until you confirm.',
   'Open command line (Advanced)',
   'Open log folder',
   'Quit GM-Scriptorium',
@@ -596,4 +597,63 @@ test('positive control: a renamed marker or the wrong field is seen', () => {
   assert.equal(readsMarkerFromFifthField(runningBranch(stripComments(wrongField)), SIGNIN_LOCAL), false);
   const elsewhere = good.replace('    } else if (x) {\n        y();', '    } else if (x) {\n        g.signin_local = strcmp(arg(pl, 4), "signin-local") == 0;').replace('        g.signin_local = strcmp(arg(pl, 4), "signin-local") == 0;\n    } else', '        z();\n    } else');
   assert.equal(readsMarkerFromFifthField(runningBranch(stripComments(elsewhere)), SIGNIN_LOCAL), false);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Owner ruling T03 ("two-lines"): the line under Start with Windows when remote access is on
+// ---------------------------------------------------------------------------------------------
+
+const T03_CONFIRMED = 'Remote access is on, including at sign-in.';
+const T03_UNCONFIRMED = 'Remote access is on. At sign-in it starts on this PC only until you confirm.';
+
+/** The statement in build_menu that adds the line held in the named constant, or null. */
+function t03Statement(code, constant) {
+  const fn = functions(code).find((f) => f.name === 'build_menu');
+  if (!fn) return null;
+  const body = blankLiterals(code.slice(fn.start, fn.end));
+  const lines = body.split('\n').filter((l) => l.includes(`add_item(m, IDM_INERT, ${constant}, 0)`));
+  return lines.length === 1 ? lines[0].trim() : null;
+}
+
+function t03Ok(code) {
+  const unconfirmed = t03Statement(code, 'T03_UNCONFIRMED_TEXT');
+  const confirmed = t03Statement(code, 'T03_CONFIRMED_TEXT');
+  if (!unconfirmed || !confirmed) return false;
+  const fn = functions(code).find((f) => f.name === 'build_menu');
+  const body = code.slice(fn.start, fn.end);
+  return (
+    /^if \(autostart && g\.signin_local\) add_item/.test(unconfirmed) &&
+    /^else if \(autostart && remote_on\(\)\) add_item/.test(confirmed) &&
+    body.indexOf(unconfirmed) < body.indexOf(confirmed)
+  );
+}
+
+test('T03: the two ruled lines are defined once each, word for word, and the old line is gone', () => {
+  const tray = CODE['tray.c'];
+  const wide = literals(tray).filter((l) => l.wide).map((l) => l.text);
+  assert.equal(wide.filter((t) => t === T03_CONFIRMED).length, 1);
+  assert.equal(wide.filter((t) => t === T03_UNCONFIRMED).length, 1);
+  assert.match(tray, /static const wchar_t T03_CONFIRMED_TEXT\[\] = L"Remote access is on, including at sign-in\.";/);
+  assert.match(tray, /static const wchar_t T03_UNCONFIRMED_TEXT\[\] = L"Remote access is on\. At sign-in it starts on this PC only until you confirm\.";/);
+  assert.equal(tray.includes('so it also listens for other devices from sign-in'), false);
+});
+
+test('T03: not confirmed (signin-local) shows its line first; remote and confirmed shows the other; both only with Start with Windows ticked', () => {
+  assert.equal(t03Ok(CODE['tray.c']), true);
+});
+
+test('positive control: swapped lines, a missing tick check or a lost signin-local check is seen', () => {
+  const good = [
+    'static HMENU build_menu(void)',
+    '{',
+    '        if (autostart && g.signin_local) add_item(m, IDM_INERT, T03_UNCONFIRMED_TEXT, 0);',
+    '        else if (autostart && remote_on()) add_item(m, IDM_INERT, T03_CONFIRMED_TEXT, 0);',
+    '}',
+    '',
+  ].join('\n');
+  assert.equal(t03Ok(stripComments(good)), true);
+  const swapped = good.replace('T03_UNCONFIRMED_TEXT, 0);\n', 'T03_X, 0);\n').replace('T03_CONFIRMED_TEXT', 'T03_UNCONFIRMED_TEXT').replace('T03_X', 'T03_CONFIRMED_TEXT');
+  assert.equal(t03Ok(stripComments(swapped)), false);
+  assert.equal(t03Ok(stripComments(good.replace('if (autostart && g.signin_local)', 'if (g.signin_local)'))), false);
+  assert.equal(t03Ok(stripComments(good.replace('if (autostart && g.signin_local)', 'if (autostart && remote_on())'))), false);
 });
