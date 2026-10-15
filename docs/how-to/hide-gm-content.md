@@ -36,7 +36,7 @@ A page's frontmatter holds fields such as `occupation` or `secrets`. A field nam
 4. Under **Hidden fields**, choose **+ add**, type the field's name and press Enter.
 5. Choose **Review and save**. The panel shows the change and the result of a check on an edited copy. Choose **Back up and save**. It keeps a copy of the file outside the vault first.
 
-<!-- screenshot: how-to/vault-config-fields.png -->
+![The vault settings screen in its fields layout, grouping each setting by how much it can expose to players.](../images/how-to/vault-config-fields.png)
 
 You can also add the name to `exclude_fields` under `publish:` in `_meta/vault-config.md` by hand. The campaign's `vault.config.json` can have its own list, and the two lists are joined. Both are in [the vault's publish settings](../reference/vault-config.md).
 
@@ -58,7 +58,7 @@ If the name is already used in published pages, `check` stops with exit code 2 a
 
 To see it work on a new page, open `Characters/NPCs/Orpiment.md` in a copy of the sample and type `Ottoline Pardew was seen here.` on the line under the `# Orpiment` heading. `check` exits with code 2 and prints `leak/l4-hidden-name`. Put the same sentence under `## GM Notes` instead and it passes, because that section is cut.
 
-<!-- screenshot: how-to/check-leak-found.png -->
+![The Check screen after a run that found a hidden character’s name on a page players can read, listed as an error.](../images/how-to/check-leak-found.png)
 
 Names shorter than three characters, and generic aliases such as "the Landlady", are not searched for. The full list is in the explanation page's "Withheld names" section.
 
