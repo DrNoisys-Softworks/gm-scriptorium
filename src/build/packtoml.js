@@ -18,6 +18,11 @@ const { validateExternalUrl } = require('../setup/validate');
 
 const PACK_TOML_FILE = 'pack.toml';
 
+// The keys the parser accepts, named so the reference page (docs/reference/pack-toml.md) reads the
+// same lists. An unlisted key is only a warning.
+const PACK_TOP_LEVEL_KEYS = Object.freeze(['theme', 'images', 'labels', 'timeline', 'recaps', 'gm_link']);
+const GM_LINK_KEYS = Object.freeze(['url']);
+
 function hasOwn(obj, key) {
   return Object.prototype.hasOwnProperty.call(obj, key);
 }
@@ -85,7 +90,7 @@ function parseGmLink(raw, { T, c, warnings }) {
   const table = raw.gm_link;
   if (typeof table !== 'object' || table === null || Array.isArray(table)) fail('must be a table');
   for (const k of Object.keys(table)) {
-    if (k !== 'url') warnings.push(`${T}: [gm_link] unrecognised key "${k}" (ignored)`);
+    if (!GM_LINK_KEYS.includes(k)) warnings.push(`${T}: [gm_link] unrecognised key "${k}" (ignored)`);
   }
   if (!hasOwn(table, 'url')) fail('needs url = "https://..."');
   let origin;
@@ -138,7 +143,7 @@ function parsePackToml(text, { tomlPath, campaign = null, registry = THEMES }) {
   }
 
   for (const k of Object.keys(raw)) {
-    if (k !== 'theme' && k !== 'images' && k !== 'labels' && k !== 'timeline' && k !== 'recaps' && k !== 'gm_link') {
+    if (!PACK_TOP_LEVEL_KEYS.includes(k)) {
       warnings.push(`${T}: unrecognised key "${k}" (ignored)`);
     }
   }
@@ -198,4 +203,4 @@ function loadPackToml(siteDir, { campaign = null, registry = THEMES } = {}) {
   return parsePackToml(text, { tomlPath, campaign, registry });
 }
 
-module.exports = { PACK_TOML_FILE, parsePackToml, loadPackToml };
+module.exports = { PACK_TOML_FILE, PACK_TOP_LEVEL_KEYS, GM_LINK_KEYS, parsePackToml, loadPackToml };

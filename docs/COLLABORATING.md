@@ -591,7 +591,9 @@ plus `npm pack` would produce) and is not proven safe for a package with `bundle
 11. If bundled dependencies changed, regenerate notices (`npm run notices`) and re-audit provenance
     for every bundled `name@version` and licence; run `npm audit --omit=dev --json`, bundled
     entries included (a scratch package audit if npm skips them).
-12. Re-run `npm test` and `npm run package` in full.
+12. Re-run `npm test` and `npm run package` in full. If the docs-reference tests fail after a bump, run
+    `npm run docs-reference`, read the diff on `docs/reference/vault-config.md`, and check that its
+    upstream links name the new tag.
 13. Amend `docs/decisions/0005-generator-pin.md` with the new pin, the dependency-set deltas, and
     the packaging proof result.
 

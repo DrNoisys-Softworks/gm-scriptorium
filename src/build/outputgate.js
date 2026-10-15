@@ -63,7 +63,7 @@ function scanGmLinkMarker({ stagingOut, campaign }) {
       category: 'build',
       campaign,
       outputPath: rel,
-      message: `${rel} contains the admin panel's GM link marker "${GM_LINK_MARKER}"; a GM link is never published, and --force cannot override this`,
+      message: `${rel} contains the admin panel's GM link marker "${GM_LINK_MARKER}"; a GM link is never published, and nothing overrides this refusal`,
     }),
   );
   return sortFindings(findings);
@@ -71,7 +71,7 @@ function scanGmLinkMarker({ stagingOut, campaign }) {
 
 /**
  * ADR 0044: a SEPARATE scan, like scanGmLinkMarker, so it can never reach `force`'s override. The
- * GM wrote %%...%% to hide text; a build that publishes it is refused whatever --force says.
+ * GM wrote %%...%% to hide text; a build that publishes it is refused, and nothing overrides that (ADR 0055).
  *
  * @param {object} opts same as scanStagingOutput
  * @returns {import('../report/finding').Finding[]} sorted, may be empty

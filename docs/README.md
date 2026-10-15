@@ -20,8 +20,16 @@ Steps for a job you already have in mind.
   Windows warning, updating, and building from source.
 - [Using GM-Scriptorium](using.md): what a vault needs, every command, and the leak checks.
 - [Trying it safely](trying-it-safely.md): using the tool beside a campaign you care about, without touching your real config.
-- [Remote access](remote-access.md): using the admin panel from another device, safely, and what is and is not protected.
+- [Remote access](remote-access.md): using the admin panel from another device, safely.
 - [Backing up your vault](backing-up-your-vault.md): how to keep your campaign notes safe, and why GM-Scriptorium does not do it for you.
+- [Start a new campaign](how-to/start-a-new-campaign.md): set up your first campaign, with a vault you already have or a new one, in the admin panel or on the command line.
+- [Add another campaign, and switch between them](how-to/add-another-campaign.md): add a second campaign, move the panel between campaigns, choose the default and take one off the list.
+- [Change how your site looks and the words it uses](how-to/change-the-look-and-vocabulary.md): the theme, the pictures, the title and tagline, and the vocabulary.
+- [Move to another computer](how-to/move-to-another-computer.md): copying your settings, fixing the paths, and sharing one vault between two computers.
+- [Use the command line and scripts](how-to/use-the-command-line-and-scripts.md): giving a script its own settings, reading results as data, acting on exit codes, and setting a password without a prompt.
+- [Troubleshooting](how-to/troubleshooting.md): what the common messages mean and what to do, and the problems that come with no message.
+- [Keep GM-only notes off the player site](how-to/hide-gm-content.md): hiding a page, part of a page, a field, a relationship or a name, and checking the result.
+- [Add a Game master link to the player site](how-to/add-a-game-master-link.md): a link in the site footer back to your own admin panel, and why its address is public.
 
 ## Reference
 
@@ -33,12 +41,17 @@ Facts to look up.
 - [Exit codes](reference/exit-codes.md): the five codes every command ends with, and what to do about each.
 - [Files and folders](reference/files-and-folders.md): what GM-Scriptorium keeps on your computer, and where.
 - [The command line](reference/command-line.md): every command, flag and subcommand, and the exit codes each command returns.
+- [The campaign pack file (pack.toml)](reference/pack-toml.md): every key in a campaign's pack file, what it does, and what changes it.
+- [The vault's publish settings (vault-config.md and vault.config.json)](reference/vault-config.md): the keys GM-Scriptorium reads, shows or changes in the two files, how they combine, and which the panel edits.
+- [Check messages](reference/check-messages.md): every message id `check` and `build` can print, what it means and what to do.
+- [Remote access: accounts, sign-in and what is protected](reference/remote-access.md): the account and sign-in rules, the audit log, what is and is not protected, and the files remote access keeps.
 
 ## Explanation
 
 Why the tool works the way it does.
 
 - [Privacy](privacy.md): what the tool sends over the network, and what it never does.
+- [How GM-Scriptorium decides what players see](explanation/what-players-see.md): which pages publish, what is cut from them, and what the leak checks cannot see.
 - [Why, and how this relates to gm-apprentice](about.md): the reasoning and the upstream credit.
 
 ## Contributing

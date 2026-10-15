@@ -327,3 +327,22 @@ test('structural: run.js keeps its exact runAtomicBuild signature line, and call
     'no output gate may be called from inside an if() whose condition mentions gmLink',
   );
 });
+
+// --- #140: the refusal message says nothing overrides it, with no stale --force claim -----------
+
+test('#140: the build/gm-link-marker message reads exactly as written', () => {
+  const { scanGmLinkMarker } = require('../src/build/outputgate');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-gm-link-msg-'));
+  try {
+    fs.mkdirSync(path.join(root, 'notes'));
+    fs.writeFileSync(path.join(root, 'notes', 'fine.html'), '<html><body>data-scriptorium-gm-link</body></html>');
+    const findings = scanGmLinkMarker({ stagingOut: root, campaign: 'alpha' });
+    assert.equal(findings.length, 1);
+    assert.equal(
+      findings[0].message,
+      'notes/fine.html contains the admin panel\'s GM link marker "data-scriptorium-gm-link"; a GM link is never published, and nothing overrides this refusal',
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
