@@ -42,6 +42,7 @@ function scanStagingOutput({ vaultPath, jsonConfig, stagingOut, campaign }) {
     ...scanExcludedDirsInOutput({
       outDir: stagingOut,
       campaign,
+      vaultPath,
       jsonConfig: ctx.jsonConfig,
       publishConfig: ctx.publishSet.publishConfig,
       allCandidatePages: ctx.allCandidatePages,

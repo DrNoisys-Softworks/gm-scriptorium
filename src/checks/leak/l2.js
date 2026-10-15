@@ -5,6 +5,24 @@ const { createFinding } = require('../../report/finding');
 const read = require('../../vault/read');
 const { excludedDirUnion, excludedDirHit } = require('../../vault/exclusions');
 const { deferredInfo } = require('./outputscan');
+const { generatorImageCopies } = require('../../vault/imagecopies');
+
+const COPY_SEVERITY = Object.freeze({ cover: 'warn', banner: 'warn', 'banner-link': 'warn', 'found-banner': 'error' });
+
+function copyMessage(copy, o, h) {
+  const s = copy.sourceRel;
+  const d = copy.dir;
+  if (copy.kind === 'cover') {
+    return `${o} is the cover picture set in publish.theme.campaign_image, copied from ${s}, which is under excluded directory "${h}". It is published because the setting names it. To keep it hidden, move the picture out of that folder or change the setting.`;
+  }
+  if (copy.kind === 'banner') {
+    return `${o} is the banner set for "${d}" in the banners setting, copied from ${s}, which is under excluded directory "${h}". It is published because the setting names it. To keep it hidden, move the picture out of that folder or change the setting.`;
+  }
+  if (copy.kind === 'banner-link') {
+    return `${o} is the file the banner for "${d}" links to, set in the banners setting, copied from ${s}, which is under excluded directory "${h}". It is published because the setting names it. To keep it hidden, move the file out of that folder or change the setting.`;
+  }
+  return `${o} is the banner for "${d}", found automatically at ${s}, which is under excluded directory "${h}". No setting names it, so it is treated as a leak. Move it out of that folder, or set a banner for "${d}" in the banners setting.`;
+}
 
 /**
  * L2: an output file whose source lies inside a directory listed in the
@@ -57,6 +75,7 @@ function runExcludedDirInOutput(ctx) {
   return scanExcludedDirsInOutput({
     outDir: ctx.outputPath,
     campaign: ctx.campaign,
+    vaultPath: ctx.vaultPath,
     jsonConfig: ctx.jsonConfig,
     publishConfig: ctx.publishSet.publishConfig,
     allCandidatePages: ctx.allCandidatePages,
@@ -70,12 +89,13 @@ function runExcludedDirInOutput(ctx) {
  * @param {object} opts
  * @param {string} opts.outDir absolute, the built tree to read
  * @param {string} opts.campaign
+ * @param {string} opts.vaultPath absolute, the vault the site was built from (ADR 0061)
  * @param {object} opts.jsonConfig parsed vault.config.json
  * @param {object} opts.publishConfig the merged publish config (ctx.publishSet.publishConfig)
  * @param {Array<{relPath: string, outputPath: string}>} opts.allCandidatePages
  * @returns {import('../../report/finding').Finding[]}
  */
-function scanExcludedDirsInOutput({ outDir, campaign, jsonConfig, publishConfig, allCandidatePages }) {
+function scanExcludedDirsInOutput({ outDir, campaign, vaultPath, jsonConfig, publishConfig, allCandidatePages }) {
   const union = excludedDirUnion(jsonConfig, publishConfig);
 
   const findings = [];
@@ -104,20 +124,39 @@ function scanExcludedDirsInOutput({ outDir, campaign, jsonConfig, publishConfig,
     );
   }
 
-  // Images arm: everything under <output>/images, reconstructed back to
-  // <attachmentsDir>/<relPath> (scanAttachments' relPath shape). The
-  // campaign_image special case (images/<basename>, source outside
-  // attachmentsDir) is not reconstructed here; it is a rarer path and not
-  // part of the real vault's known leak.
+  // Images arm. A file the generator copied as the cover picture or a section banner (same
+  // destination and identical bytes, src/vault/imagecopies.js) is judged by the file it was really
+  // copied from (ADR 0061): nothing when that file is not hidden, a WARN when the GM named it in a
+  // setting, an ERROR for an auto-found _banner.*. Every other file is reconstructed back to
+  // <attachmentsDir>/<relPath> (scanAttachments' relPath shape) and judged exactly as before.
   const attachmentsDir = jsonConfig.attachmentsDir || '_attachments';
   const imagesDir = path.join(outDir, 'images');
   if (read.pathExists(imagesDir)) {
+    const copies = generatorImageCopies(vaultPath, jsonConfig);
     (function walk(dir, relFromImages) {
       for (const entry of read.listDir(dir)) {
         const full = path.join(dir, entry.name);
         const rel = relFromImages ? `${relFromImages}/${entry.name}` : entry.name;
         if (entry.isDirectory) {
           walk(full, rel);
+          continue;
+        }
+        const copy = copies.get(`images/${rel}`);
+        if (copy && read.readBytes(full).equals(read.readBytes(copy.sourceAbs))) {
+          const sourceHit = excludedDirHit(copy.sourceRel, union);
+          if (sourceHit) {
+            findings.push(
+              createFinding({
+                id: 'leak/l2-excluded-dir-in-output',
+                severity: COPY_SEVERITY[copy.kind],
+                category: 'leak',
+                campaign,
+                path: copy.sourceRel,
+                outputPath: `images/${rel}`,
+                message: copyMessage(copy, `images/${rel}`, sourceHit),
+              }),
+            );
+          }
           continue;
         }
         const sourceRel = `${attachmentsDir}/${rel}`;

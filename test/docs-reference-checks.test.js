@@ -252,3 +252,16 @@ test('the page renders the five columns, one row per id', () => {
   assert.equal(lines.length, 2 + IDS.length);
   assert.match(lines[2], /^\| `frontmatter\/non-yaml-language` \| ERROR \| check and build \| /);
 });
+
+test('T-R2: the l2 row reads ERROR (varies) and its text reads exactly as written (#154, a deliberate change from #141)', () => {
+  assert.deepEqual([byKey['leak/l2-excluded-dir-in-output'].severity, byKey['leak/l2-excluded-dir-in-output'].runs], ['ERROR (varies)', 'check and build']);
+  const l2 = textFile[BLOCK]['leak/l2-excluded-dir-in-output'];
+  assert.equal(
+    l2.what,
+    'A page or image in the built site came from a folder you hide, or from one of the always-excluded folders. It is an INFO line instead when there is no build yet to look at. `build` runs this on the new site before it goes live, not on the old site it replaces. A cover picture or section banner is judged by the file it was copied from: one you named in `publish.theme.campaign_image` or `banners` is a WARN and the build goes ahead, and a `_banner` picture the build found by itself is an ERROR. An ERROR stops `build`, and nothing overrides it.',
+  );
+  assert.equal(
+    l2.action,
+    'For a cover picture or banner you named, move the file out of the hidden folder or change the setting; building again does not change it. For a `_banner` picture, move it out of the hidden folder or set a banner for that section in `banners`. For anything else, build again: a fresh build leaves hidden folders out and replaces the old site. If the line is still there, read the message for the file, and check `excludeDirs` and `publish.exclude_dirs`.',
+  );
+});
