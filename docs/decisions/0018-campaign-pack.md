@@ -50,6 +50,8 @@ explicitly names, `_meta` included, because the GM asked for that specific file.
 reconstruct `campaign_image` from a built site (`src/checks/leak/l2.js:93-97`), a pre-existing,
 unrelated residual.
 
+**Amended by ADR 0061.** `leak/l2-excluded-dir-in-output` now works out where the generator copies the cover picture and section banners, and judges each copy by the file it came from. A cover picture or banner the GM names in `_meta` is still copied, as above, and `check` now reports it as a WARN.
+
 ## Output refusal is compatible (G2)
 
 - `assertSafeOutputDir` compares only the final output directory against the vault.
@@ -215,7 +217,8 @@ is exactly the kind of silent drift this whole mechanism exists to avoid introdu
   like any other unmapped markdown file would. The migration procedure above copies no Markdown for
   exactly this reason, but nothing stops a GM from adding some by hand.
 - The two pre-existing opt-in generator copies (`theme.campaign_image`, section banners) reaching into
-  `_meta` when a GM explicitly names a path there.
+  `_meta` when a GM explicitly names a path there. **Amended by ADR 0061:** they are still copied, and
+  `check` now reports each one as a WARN.
 - A convention directory that is itself a symlink pointing outside the vault. This ADR does no
   realpath containment on the pack directory itself; that is left for a later phase that also handles
   pack-relative image paths, where the same containment question comes up again.
@@ -241,3 +244,7 @@ is exactly the kind of silent drift this whole mechanism exists to avoid introdu
 
 The admin panel may also replace one existing vault file, `_meta/vault-config.md`, through its own
 chokepoint and only after a backup outside the vault. Nothing above is edited; see ADR 0033.
+
+## Amended by ADR 0061
+
+The leak check for hidden folders now judges a copied cover picture or section banner by the file it came from. A cover picture or banner the GM names under `_meta` is still published, and `check` reports it as a WARN; a `_banner` picture the build finds by itself in a hidden folder is an ERROR. See [ADR 0061](0061-banner-and-cover-sources.md).
