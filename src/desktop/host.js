@@ -5,7 +5,8 @@ const { StringDecoder } = require('string_decoder');
 const { startAdminPanel } = require('../cli/serve-admin');
 const { loadConfig } = require('../cli/args');
 const { resolveConfigPath } = require('../config/location');
-const { parseDesktopTable } = require('../config/desktopsettings');
+const os = require('os');
+const { parseDesktopTable, confirmedHere } = require('../config/desktopsettings');
 const settingsLib = require('../remote/settings');
 const { remotePaths } = require('../remote/paths');
 const { createLaunchCodeStore, codeKey } = require('../launch/codes');
@@ -80,6 +81,8 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
     pollMs = 60000,
     proc = process,
     pid = process.pid,
+    hostname = os.hostname,
+    platform = process.platform,
   } = deps;
   const configPath = deps.configPath || resolveConfigPath();
   const log = deps.log || createDesktopLog({ dir: path.join(remotePaths(configPath).panelDir, 'logs'), now });
@@ -201,7 +204,8 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
       const { config } = loadConfig({ config: configPath });
       const desktop = parseDesktopTable(config.desktop);
       // RV1 (ADR 0057, section 7): a start at sign-in runs this-PC-only unless the GM confirmed remote access.
-      const localOnly = atSignin && !desktop.remoteAtSignin;
+      // The answer counts only on the computer that gave it (a copied settings folder carries it to another PC).
+      const localOnly = atSignin && !confirmedHere(config.desktop, hostname(), platform);
       const setup = Object.keys(config.campaigns || {}).length === 0;
       let local = false;
       let suppressed = false; // a remote mode is saved, and this sign-in start is holding it back

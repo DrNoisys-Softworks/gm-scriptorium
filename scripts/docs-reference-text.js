@@ -222,7 +222,14 @@ module.exports = deepFreeze({
     remote_at_signin: {
       type: 'true or false',
       allowed: 'true, false',
-      what: 'Records that you agreed remote access may start when you sign in to Windows. Without it, the desktop app starts the panel for this computer only at sign-in, whatever mode is saved; a start you make yourself uses the saved mode. `remote set` asks "Also start remote access when you sign in to Windows?" when you switch to a remote mode (the default is No, and no terminal counts as No), and it asks again when you switch to a different remote mode. `remote off` clears it.',
+      what: 'Records that you agreed remote access may start when you sign in to Windows. Without it, the desktop app starts the panel for this computer only at sign-in, whatever mode is saved; a start you make yourself uses the saved mode. `remote set` asks "Also start remote access when you sign in to Windows?" when you switch to a remote mode (the default is No, and no terminal counts as No), and it asks again when you switch to a different remote mode. `remote off` clears it. It counts only on the computer named in `remote_at_signin_pc`.',
+      changedBy: 'The answer to the `remote set` question, and `remote off`',
+      since: '0.5.0',
+    },
+    remote_at_signin_pc: {
+      type: 'text',
+      allowed: 'A computer name',
+      what: 'The name of the computer where you agreed that remote access may start at sign-in. The answer in `remote_at_signin` counts only on that computer, so copying your settings folder to another PC does not carry your yes with it: there the desktop app starts for this computer only, and `remote set` asks again. An answer saved without a name counts as no. `remote set` writes it together with the answer, and `remote off` clears both. It is never written to the desktop app\'s log.',
       changedBy: 'The answer to the `remote set` question, and `remote off`',
       since: '0.5.0',
     },

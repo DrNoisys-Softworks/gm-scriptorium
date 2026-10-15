@@ -138,6 +138,7 @@ function startHost(t, cfg, opts = {}) {
     pollMs: 10,
     proc,
     pid: 4242,
+    hostname: () => 'PC-A', // a placeholder computer name
     ...(opts.deps || {}),
   };
   const origWrite = output.write.bind(output);
@@ -385,7 +386,7 @@ test('RV1: a start at sign-in with remote saved and no confirmation asks for a l
 });
 
 test('RV1: with the confirmation set, a start at sign-in uses the saved remote mode and no desktop ports', async (t) => {
-  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, 'remote_at_signin = true\n') + REMOTE_TOML);
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, 'remote_at_signin = true\nremote_at_signin_pc = "PC-A"\n') + REMOTE_TOML);
   const h = startHost(t, cfg, { background: true });
   await h.waitFor('state\trunning');
   assert.equal(h.calls[0][2].localOnly, false);
@@ -1000,7 +1001,7 @@ test('signin-local: absent when the confirmation is set, when the GM started the
     await h.stop();
     return line.split('\t');
   };
-  const confirmed = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, 'remote_at_signin = true\n') + REMOTE_TOML);
+  const confirmed = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, 'remote_at_signin = true\nremote_at_signin_pc = "PC-A"\n') + REMOTE_TOML);
   assert.equal((await runningOf(confirmed, { background: true })).length, 5);
   const manual = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW) + REMOTE_TOML);
   assert.equal((await runningOf(manual, {})).length, 5);
@@ -1029,4 +1030,50 @@ test('desktop run with NO injected version says hello with the version in packag
   assert.equal(fields[2], expected);
   stdin.end();
   await within(result, 'desktop run');
+});
+
+// --- RV1b: the answer counts only on the computer that gave it -------------------------------------------------------------
+
+const CONFIRMED_A = 'remote_at_signin = true\nremote_at_signin_pc = "PC-A"\n';
+
+test('RV1b: at sign-in the confirmation holds on the computer that gave it and not on another', async (t) => {
+  const here = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, CONFIRMED_A) + REMOTE_TOML);
+  const a = startHost(t, here, { background: true });
+  await a.waitFor('state\trunning');
+  assert.equal(a.calls[0][2].localOnly, false, 'PC-A: remote allowed');
+  const other = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, CONFIRMED_A) + REMOTE_TOML);
+  const b = startHost(t, other, { background: true, deps: { hostname: () => 'PC-B' } });
+  assert.ok((await b.waitFor('state\trunning')).endsWith('\tsignin-local'));
+  assert.equal(b.calls[0][2].localOnly, true, 'PC-B: this-PC-only');
+});
+
+test('RV1b: a legacy true with no computer name is local-only at sign-in', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, 'remote_at_signin = true\n') + REMOTE_TOML);
+  const h = startHost(t, cfg, { background: true });
+  await h.waitFor('state\trunning');
+  assert.equal(h.calls[0][2].localOnly, true);
+});
+
+test('RV1b: on Windows the computer name is compared without regard to case', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, CONFIRMED_A) + REMOTE_TOML);
+  const h = startHost(t, cfg, { background: true, deps: { hostname: () => 'pc-a', platform: 'win32' } });
+  await h.waitFor('state\trunning');
+  assert.equal(h.calls[0][2].localOnly, false);
+});
+
+test('RV1b: the computer name never reaches desktop.log or the output', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, CONFIRMED_A) + REMOTE_TOML);
+  const h = startHost(t, cfg, { background: true, deps: { hostname: () => 'PC-B' } });
+  await h.waitFor('state\trunning');
+  h.send('stop');
+  await h.waitFor('state\tstopped');
+  h.send('start');
+  await h.waitCount('state\trunning', 2);
+  await h.stop();
+  const log = fs.readFileSync(cfg.logFile, 'utf8');
+  assert.ok(log.split('\n').filter(Boolean).length >= 4, 'the log has lines to check');
+  for (const name of ['PC-A', 'PC-B']) {
+    assert.equal(log.includes(name), false, `${name} is not in the log`);
+    assert.equal(h.outLines.join('').includes(name), false, `${name} is not in the output`);
+  }
 });
