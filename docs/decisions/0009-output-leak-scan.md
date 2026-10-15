@@ -70,7 +70,7 @@ INFO saying the scan is deferred to this build's own staging tree, nothing is su
 still runs (against the tree the command is actually deciding about) and still gates the build; it is
 just not run twice against a tree about to be discarded. No CLI flag, config key, or environment
 variable reaches `deferOutputScan`, it is reachable from exactly one call site
-(`test/leak-output-scan.test.js`'s structural test greps for this).
+(`test/leak-output-scan.test.js`'s structural test greps for this). ADR 0060 adds `leak/l2-excluded-dir-in-output` to the deferred ids and to the staging scan; see "Amended by ADR 0060" below.
 
 **The scan always runs inside `runAtomicBuild`; `--force` overrides the result, never the scan.**
 `runAtomicBuild` gained required `campaign` and optional `force = false`. There is no parameter,
@@ -274,3 +274,7 @@ synthetic index built without that same removal would silently test the wrong pi
 ## Amended by ADR 0055
 
 `build --force` no longer exists. `--force-check` overrides check errors and `--force-out` overrides the output-folder collision guard, and neither reaches this scan: no command-line flag overrides a scan hit, and the product call site passes the literal `force: false` to `runAtomicBuild`. The sections above that describe `--force` overriding a scan hit describe the maintainer scripts' programmatic override, which the command line cannot reach. See [ADR 0055](0055-force-split.md).
+
+## Amended by ADR 0060
+
+`leak/l2-excluded-dir-in-output` now follows FR-16 too. The pre-build `check` inside `build` defers it, as it defers `leak/l4-output-name`, `leak/l4-index-term` and `leak/l6-comment-in-output`: one INFO saying the scan is deferred to this build's own staging tree, and no judgement of the output the build is about to replace. `scanStagingOutput` runs the same scan against the staging tree, with the union of `excludeDirs` and `publish.exclude_dirs` and the always-excluded folders, exactly as `check` does. A hit refuses the build like any other hit in this scan: no swap, `finalOut` unchanged, the staging tree removed, exit 2. The command line cannot override it (ADR 0055). Nothing the staging scan checked before was removed, and a standalone `check` still reports the scan as an ERROR against the real output. The accepted cost: if a build fails part-way, the old output keeps its stale pages and that build printed no `leak/l2-excluded-dir-in-output` ERROR; the next `check` shows it. See [ADR 0060](0060-hidden-folders-warn.md).
