@@ -12,13 +12,15 @@
  *   - leak/l3-unpublished-link: WARN unless the resolved target carries
  *     `withheld: true`, in which case ERROR (Decisions Addendum section 1
  *     narrows this from the Engineering Brief's flat ERROR).
- *   - config/exclude-sections-divergence and config/exclude-dirs-divergence:
- *     ERROR if the divergence actually reached rendered output, WARN
- *     otherwise (Engineering Brief section 7, "L6").
+ *   - config/exclude-sections-divergence: ERROR if the divergence actually reached rendered
+ *     output, WARN otherwise (Engineering Brief section 7, "L6").
+ *   - config/exclude-dirs-divergence: WARN for a vault-only entry, with or without content, INFO
+ *     for a vault.config.json-only entry (ADR 0060); its defaultSeverity is the upper bound, not
+ *     the lower one.
  *
- * For those, `defaultSeverity` names the *lower* bound (the severity used
- * when the check does not escalate), and `dynamicSeverity: true` flags that
- * the implementation may report a higher severity per finding. This is
+ * For those, `defaultSeverity` names the severity used when the check does not vary, and
+ * `dynamicSeverity: true` flags that the implementation may report a different severity per
+ * finding. This is
  * documented here so phase 2 does not have to rediscover it from the brief.
  *
  * `defaultEnabled: false` + `requiresFlag` marks the --graph checks: WARN
@@ -185,7 +187,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      "A directory excluded in _meta/vault-config.md's publish.exclude_dirs but not in vault.config.json's excludeDirs. A fresh build honours both lists (lib/build.js scans with the unioned exclude_dirs via scanConfigFor), so this guards against a stale build made before the vault-side exclusion was added. ERROR if the directory holds pages or images that would publish without the exclusion, WARN otherwise; a vault.config.json-only entry is INFO.",
+      "A directory excluded in _meta/vault-config.md's publish.exclude_dirs but not in vault.config.json's excludeDirs. A fresh build honours both lists (lib/build.js scans with the unioned exclude_dirs via scanConfigFor), so this is a WARN whether or not the directory holds pages or images (data.appliesInOutput says which); files a stale build left in real output are leak/l2-excluded-dir-in-output's to report. A vault.config.json-only entry is INFO.",
   },
   {
     id: 'config/exclude-fields-divergence',
@@ -239,7 +241,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      "A built page or image is sourced from a directory in the union of vault.config.json:excludeDirs and _meta/vault-config.md:publish.exclude_dirs, or under one of the pin's always-excluded directories (_meta, _Templates, _templates, personal; lib/publish-decision.js:46).",
+      "A built page or image is sourced from a directory in the union of vault.config.json:excludeDirs and _meta/vault-config.md:publish.exclude_dirs, or under one of the pin's always-excluded directories (_meta, _Templates, _templates, personal; lib/publish-decision.js:46). Reads the real built tree when a build exists (INFO when none). Inside build the pre-build check defers it (one INFO) and src/build/outputgate.js's scanStagingOutput runs it against the staging tree before the swap, where the command line cannot override it (ADR 0055).",
   },
   {
     id: 'leak/l3-unpublished-link',

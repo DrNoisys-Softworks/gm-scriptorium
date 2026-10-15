@@ -34,7 +34,7 @@ You need a campaign you can build, and an address for your own panel that starts
    gm-scriptorium build lease
    ```
 
-   <!-- screenshot: how-to/site-footer-gm-link.png -->
+   ![The foot of a published page, where the notices line ends with a Game master link.](../images/how-to/site-footer-gm-link.png)
 
    The footer ends with "Game master". It opens `https://scriptorium.home.arpa/?campaign=lease`, which is the address you wrote, then `/?campaign=` and the campaign's name.
 

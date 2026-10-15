@@ -4,6 +4,7 @@ const path = require('path');
 const { createFinding } = require('../../report/finding');
 const read = require('../../vault/read');
 const { excludedDirUnion, excludedDirHit } = require('../../vault/exclusions');
+const { deferredInfo } = require('./outputscan');
 
 /**
  * L2: an output file whose source lies inside a directory listed in the
@@ -29,8 +30,15 @@ const { excludedDirUnion, excludedDirHit } = require('../../vault/exclusions');
  * path is merely configured, whether or not anything has been built
  * there, which is what lets the two INFO messages below tell a user
  * whether they need to create the directory or just run `build`.
+ *
+ * ADR 0060 (amending ADR 0009, FR-16): inside `build` the pre-build check defers this
+ * check (one INFO) instead of judging the old output the build is about to replace.
+ * src/build/outputgate.js's scanStagingOutput runs scanExcludedDirsInOutput below against the
+ * staging tree instead. A standalone `check` is unchanged.
  */
 function runExcludedDirInOutput(ctx) {
+  if (ctx.deferOutputScan) return [deferredInfo('leak/l2-excluded-dir-in-output', ctx)];
+
   if (!ctx.outputPath) {
     const configuredButEmpty = Boolean(ctx.outputPathConfigured) && read.pathExists(ctx.outputPathConfigured);
     return [
@@ -46,27 +54,49 @@ function runExcludedDirInOutput(ctx) {
     ];
   }
 
-  const union = excludedDirUnion(ctx.jsonConfig, ctx.publishSet.publishConfig);
+  return scanExcludedDirsInOutput({
+    outDir: ctx.outputPath,
+    campaign: ctx.campaign,
+    jsonConfig: ctx.jsonConfig,
+    publishConfig: ctx.publishSet.publishConfig,
+    allCandidatePages: ctx.allCandidatePages,
+  });
+}
+
+/**
+ * The scan itself, taking its inputs directly so `build` can point it at the staging tree (ADR
+ * 0060) without a context that depends on an `index.html` being there. Returns unsorted findings.
+ *
+ * @param {object} opts
+ * @param {string} opts.outDir absolute, the built tree to read
+ * @param {string} opts.campaign
+ * @param {object} opts.jsonConfig parsed vault.config.json
+ * @param {object} opts.publishConfig the merged publish config (ctx.publishSet.publishConfig)
+ * @param {Array<{relPath: string, outputPath: string}>} opts.allCandidatePages
+ * @returns {import('../../report/finding').Finding[]}
+ */
+function scanExcludedDirsInOutput({ outDir, campaign, jsonConfig, publishConfig, allCandidatePages }) {
+  const union = excludedDirUnion(jsonConfig, publishConfig);
 
   const findings = [];
 
-  // Pages arm: every candidate page (ctx.allCandidatePages -- unfiltered by exclude_dirs, so a
+  // Pages arm: every candidate page (allCandidatePages -- unfiltered by exclude_dirs, so a
   // vault- or json-excluded directory's pages are still candidates here; see its own doc comment
   // in src/vault/publishset.js) that landed under an excluded-dir prefix, and genuinely exists in
   // output. computePublishedSet's own publishedPages is not used here: it now correctly matches
   // what a FRESH build would produce (excluded dirs never become pages at all), but this check's
   // whole point is catching a STALE build that predates an exclusion being added.
-  for (const page of ctx.allCandidatePages) {
+  for (const page of allCandidatePages) {
     const hit = excludedDirHit(page.relPath, union);
     if (!hit) continue;
-    const outFile = path.join(ctx.outputPath, page.outputPath);
+    const outFile = path.join(outDir, page.outputPath);
     if (!read.pathExists(outFile)) continue;
     findings.push(
       createFinding({
         id: 'leak/l2-excluded-dir-in-output',
         severity: 'error',
         category: 'leak',
-        campaign: ctx.campaign,
+        campaign,
         path: page.relPath,
         outputPath: page.outputPath,
         message: `${page.outputPath} is built from ${page.relPath}, which is under excluded directory "${hit}"`,
@@ -79,8 +109,8 @@ function runExcludedDirInOutput(ctx) {
   // campaign_image special case (images/<basename>, source outside
   // attachmentsDir) is not reconstructed here; it is a rarer path and not
   // part of the real vault's known leak.
-  const attachmentsDir = ctx.jsonConfig.attachmentsDir || '_attachments';
-  const imagesDir = path.join(ctx.outputPath, 'images');
+  const attachmentsDir = jsonConfig.attachmentsDir || '_attachments';
+  const imagesDir = path.join(outDir, 'images');
   if (read.pathExists(imagesDir)) {
     (function walk(dir, relFromImages) {
       for (const entry of read.listDir(dir)) {
@@ -98,7 +128,7 @@ function runExcludedDirInOutput(ctx) {
             id: 'leak/l2-excluded-dir-in-output',
             severity: 'error',
             category: 'leak',
-            campaign: ctx.campaign,
+            campaign,
             path: sourceRel,
             outputPath: `images/${rel}`,
             message: `images/${rel} is copied from ${sourceRel}, which is under excluded directory "${hit}"`,
@@ -111,4 +141,4 @@ function runExcludedDirInOutput(ctx) {
   return findings;
 }
 
-module.exports = { runExcludedDirInOutput };
+module.exports = { runExcludedDirInOutput, scanExcludedDirsInOutput };

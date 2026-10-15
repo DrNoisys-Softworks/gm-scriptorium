@@ -33,6 +33,8 @@ not optional.
 | `tailscale` | `127.0.0.1`, two fixed ports | `tailscale serve` on this computer | `tailscale serve` | a username and password |
 | `proxy` | an address you choose, plus `127.0.0.1`, two fixed ports | your reverse proxy and this computer (over 127.0.0.1 only, not its network address); every other machine is dropped before any HTTP | your proxy | a username and password |
 
+![The Remote access screen in local mode, showing that the panel is only reachable from this computer.](images/how-to/remote-access-screen.png)
+
 In `tailscale` and `proxy` mode the panel always also answers on `127.0.0.1`, so the one-time link
 printed when it starts keeps working on the machine itself. That is your way back in if you lose
 every password.
