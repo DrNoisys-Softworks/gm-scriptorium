@@ -5,6 +5,7 @@ const session = require('../session');
 const assets = require('../assets');
 const body = require('../body');
 const { browserFamily } = require('../../remote/audit');
+const { LANDINGS } = require('../../launch/launcherfile');
 
 /*
  * ADR 0028, section 7. POST /auth/launch: the one place a launch code is exchanged. The browser
@@ -18,6 +19,9 @@ const { browserFamily } = require('../../remote/audit');
  */
 
 const FORM = 'application/x-www-form-urlencoded';
+
+// ADR 0028 section 7 (S5): the landing a desktop tray command asked for lives this long after the exchange.
+const LANDING_TTL_MS = 15000;
 
 /** Every attempt that reaches here is audited, best effort, like a token sign-in (the code is never recorded). */
 function auditCodeSignin(req, ctx, kind, clientAddress, result) {
@@ -51,9 +55,14 @@ async function launchExchange(req, res, ctx, { kind, clientAddress }) {
   const result = await body.readBody(req, 1024);
   const contentType = String((req.headers && req.headers['content-type']) || '').split(';')[0].trim().toLowerCase();
   let presented = '';
+  let landing = null;
   if (result.ok && contentType === FORM) {
-    const value = new URLSearchParams(result.body.toString('utf8')).get('code');
+    const params = new URLSearchParams(result.body.toString('utf8'));
+    const value = params.get('code');
     presented = typeof value === 'string' ? value : '';
+    // A closed set: anything but a listed word is dropped, and the word is only ever compared, never echoed.
+    const to = params.get('to');
+    landing = LANDINGS.find((word) => word === to) || null;
   }
   const ok = presented !== '' && store.consume(presented) === true;
   auditCodeSignin(req, ctx, kind, clientAddress, ok ? 'ok' : 'refused');
@@ -61,6 +70,7 @@ async function launchExchange(req, res, ctx, { kind, clientAddress }) {
     refuse(res, result.ok ? {} : { Connection: 'close' });
     return;
   }
+  if (landing !== null) ctx.launchLanding = { to: landing, expiresAt: (ctx.clock || Date.now)() + LANDING_TTL_MS };
   respond.send(
     res,
     200,

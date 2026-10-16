@@ -15,6 +15,15 @@
   var failures = 0;
   var stopped = false;
   var timer = null;
+  // Cached while the panel is up: a stopped panel cannot be asked (S5). The server says it once, in /api/session.
+  var desktop = false;
+
+  function cacheDesktop() {
+    var s = A.store && A.store.get().session;
+    if (s) desktop = s.desktop === true;
+  }
+  cacheDesktop();
+  if (A.store) A.store.subscribe(cacheDesktop);
 
   function showStopped() {
     stopped = true;
@@ -41,7 +50,7 @@
     // One wording for every way the panel can stop (window closed, Ctrl+C, a signal, a service
     // manager): it names none of them. Mention a Start menu entry only once an installer adds one.
     A.setText(why, 'The panel and your preview are off. Everything you saved is on disk.');
-    A.setText(fine, 'Start it again to carry on.');
+    A.setText(fine, desktop ? 'Start it again from the GM-Scriptorium icon in the system tray, or from the Start menu.' : 'Start it again to carry on.');
     [crest, eyebrow, title, why, fine].forEach(function (n) {
       main.appendChild(n);
     });

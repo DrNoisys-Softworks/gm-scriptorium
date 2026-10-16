@@ -422,3 +422,103 @@ test('no file other than the launcher holds a code: the panel folder holds the l
   })(h.root);
   assert.deepEqual(holders, [path.relative(h.root, h.launcherFile())]);
 });
+
+// -- S5: the one-shot landing (ADR 0028 section 7, addendum). Expected values are written out by hand. --
+
+const { renderLauncher } = require('../src/launch/launcherfile');
+
+const CODE_16 = 'A'.repeat(16);
+
+test('renderLauncher: no landing adds no field; updates and preview add one hidden "to" field; anything else throws', () => {
+  const plain = renderLauncher({ port: 80, code: CODE_16 });
+  assert.equal(plain.includes('name="to"'), false);
+  assert.ok(plain.includes(`<input type="hidden" name="code" value="${CODE_16}">\n<noscript>`), 'unchanged bytes without a landing');
+  for (const to of ['updates', 'preview']) {
+    const html = renderLauncher({ port: 80, code: CODE_16, to });
+    assert.ok(html.includes(`<input type="hidden" name="code" value="${CODE_16}">\n<input type="hidden" name="to" value="${to}">\n<noscript>`), to);
+    assert.equal(html.split('name="to"').length, 2, 'one field only');
+  }
+  for (const bad of ['', 'Updates', 'updates ', '/', 'https://example.test/', '"><script>', null, 0, {}, ['updates']]) {
+    assert.throws(() => renderLauncher({ port: 80, code: CODE_16, to: bad }), /landing is not usable/, JSON.stringify(bad));
+  }
+});
+
+test('a landing word travels in the exchange: set after success, returned by /api/session once, then gone', async (t) => {
+  const h = await launchPanel(t);
+  const code = codeOf(h.opened[0].html);
+  const res = await h.post(code, { body: `code=${encodeURIComponent(code)}&to=updates` });
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body, LAUNCH_HTML, 'the response page is the same fixed page');
+  assert.deepEqual(h.panel.ctx.launchLanding && h.panel.ctx.launchLanding.to, 'updates');
+  const cookie = [].concat(res.headers['set-cookie'])[0].split(';')[0];
+  const first = JSON.parse((await request(h.port, { pathname: '/api/session', headers: { Cookie: cookie } })).body);
+  assert.equal(first.landing, 'updates');
+  assert.equal(first.desktop, false, 'launch mode is not the desktop app');
+  const second = JSON.parse((await request(h.port, { pathname: '/api/session', headers: { Cookie: cookie } })).body);
+  assert.equal(second.landing, null, 'one shot');
+  assert.equal(h.panel.ctx.launchLanding, null);
+});
+
+test('a landing is a closed set: an unknown, odd-cased, padded or repeated word is ignored, and the code is still spent', async (t) => {
+  const h = await launchPanel(t);
+  const bodies = ['to=Updates', 'to=updates%20', 'to=%2F', 'to=https%3A%2F%2Fexample.test%2F', 'to=%3Cscript%3E', 'to=', 'to=preview%00', 'to=__proto__'];
+  for (let i = 0; i < bodies.length; i++) {
+    h.input.write('o'); // a fresh code each time, so the outstanding limit never bites
+    await until(() => h.opened.length >= i + 2, 'the next open');
+    const code = codeOf(h.opened[i + 1].html);
+    const res = await h.post(code, { body: `code=${encodeURIComponent(code)}&${bodies[i]}` });
+    assert.equal(res.status, 200, bodies[i]);
+    assert.deepEqual(res.body, LAUNCH_HTML, `nothing of "${bodies[i]}" reaches the response`);
+    assert.equal(h.panel.ctx.launchLanding === undefined || h.panel.ctx.launchLanding === null, true, `no landing for ${bodies[i]}`);
+    assert.equal((await h.post(code)).status, 403, 'the code is spent either way');
+  }
+});
+
+test('a refused code never sets a landing, and the refusal page does not echo the word', async (t) => {
+  const h = await launchPanel(t);
+  const code = codeOf(h.opened[0].html);
+  const refusals = [
+    await h.post('B'.repeat(43), { body: `code=${'B'.repeat(43)}&to=updates` }), // unknown code
+    await h.post(code, { body: `to=updates` }), // no code
+    await h.post(code, { body: `code=${code}&to=updates`, headers: { 'Content-Type': 'text/plain' } }), // wrong type
+  ];
+  for (const r of refusals) {
+    assert.equal(r.status, 403);
+    assert.equal(r.body.toString('utf8').includes('updates'), false);
+  }
+  assert.equal(h.panel.ctx.launchLanding === undefined || h.panel.ctx.launchLanding === null, true);
+  // The good code still works afterwards, and with no word it sets nothing.
+  assert.equal((await h.post(code)).status, 200);
+  assert.equal(h.panel.ctx.launchLanding === undefined || h.panel.ctx.launchLanding === null, true);
+});
+
+test('a landing lasts 15 seconds: returned at +14999 ms, dropped at +15000 ms (injected clock), and cleared either way', async (t) => {
+  const base = Date.now();
+  const clock = { t: base, now: () => clock.t };
+  const h = await launchPanel(t, { clock });
+  const code = codeOf(h.opened[0].html);
+  const res = await h.post(code, { body: `code=${encodeURIComponent(code)}&to=preview` });
+  const cookie = [].concat(res.headers['set-cookie'])[0].split(';')[0];
+  clock.t = base + 14999;
+  assert.equal(JSON.parse((await request(h.port, { pathname: '/api/session', headers: { Cookie: cookie } })).body).landing, 'preview');
+
+  h.input.write('o');
+  await until(() => h.opened.length >= 2, 'the second open');
+  const second = codeOf(h.opened[1].html);
+  await h.post(second, { body: `code=${encodeURIComponent(second)}&to=updates` });
+  clock.t = base + 14999 + 15000;
+  assert.equal(JSON.parse((await request(h.port, { pathname: '/api/session', headers: { Cookie: cookie } })).body).landing, null, 'expired');
+  assert.equal(h.panel.ctx.launchLanding, null, 'and cleared');
+});
+
+test('the code is in no /api/session reply or exchange response, with or without a landing', async (t) => {
+  const h = await launchPanel(t);
+  const code = codeOf(h.opened[0].html);
+  const res = await h.post(code, { body: `code=${encodeURIComponent(code)}&to=updates` });
+  const cookie = [].concat(res.headers['set-cookie'])[0].split(';')[0];
+  const sess = await request(h.port, { pathname: '/api/session', headers: { Cookie: cookie } });
+  for (const r of [res, sess]) {
+    assert.equal(r.body.toString('latin1').includes(code), false);
+    assert.equal(JSON.stringify(r.headers).includes(code), false);
+  }
+});

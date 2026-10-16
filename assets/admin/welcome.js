@@ -55,7 +55,14 @@
     setText(h2, campaign + ' is set up.');
     left.appendChild(h2);
     var p = el('p');
-    setText(p, 'This is your panel. It runs on this computer while GM-Scriptorium is open. Three good next steps:');
+    // Under the desktop app the panel keeps running after its tab closes (ADR 0057 section 5).
+    var session = A.store && A.store.get().session;
+    setText(
+      p,
+      session && session.desktop === true
+        ? "This is your panel. Closing this tab doesn't stop GM-Scriptorium: it keeps running in the system tray, and its icon opens the panel again. Three good next steps:"
+        : 'This is your panel. It runs on this computer while GM-Scriptorium is open. Three good next steps:',
+    );
     left.appendChild(p);
     var ol = el('ol');
     ol.appendChild(item('preview', 'Look at your preview.', 'Only you can see it.'));

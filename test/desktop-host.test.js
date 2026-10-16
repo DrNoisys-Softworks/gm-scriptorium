@@ -535,6 +535,73 @@ test('open while stopped starts the panel and then opens a tab; open while runni
   assert.equal(h.calls.length, 2, 'the second open did not start a second panel');
 });
 
+/** What the launcher page's auto-submitting form would post: every hidden input, in order. */
+function formBodyOf(html) {
+  const pairs = [];
+  for (const m of html.matchAll(/<input type="hidden" name="([a-z]+)" value="([A-Za-z0-9_-]+)">/g)) pairs.push(`${m[1]}=${encodeURIComponent(m[2])}`);
+  return pairs.join('&');
+}
+
+test('S5: open updates and open preview put one landing field in the launcher; plain open, an unknown word and extra words put none', async (t) => {
+  const cfg = makeConfig(t, desktopToml());
+  const h = startHost(t, cfg);
+  await h.waitFor('state\trunning');
+  await until(() => h.opened.length >= 1, 'the start tab');
+  const toOf = (html) => [...html.matchAll(/name="to" value="([^"]*)"/g)].map((m) => m[1]);
+  assert.deepEqual(toOf(h.opened[0].html), [], 'the start tab has no landing');
+  const sends = [['open', 'updates'], ['open', 'preview'], ['open'], ['open', 'Updates'], ['open', '/etc/passwd'], ['open', 'updates', 'preview'], ['open', '']];
+  const expected = [['updates'], ['preview'], [], [], [], ['updates'], []];
+  for (let i = 0; i < sends.length; i++) {
+    h.send(...sends[i]);
+    await until(() => h.opened.length >= i + 2, `tab ${i + 2}`);
+    assert.deepEqual(toOf(h.opened[i + 1].html), expected[i], JSON.stringify(sends[i]));
+  }
+  assert.equal(h.calls.length, 1, 'no second panel');
+});
+
+test('S5: open updates while the panel is stopped starts it and then opens the tab with the landing', async (t) => {
+  const cfg = makeConfig(t, desktopToml());
+  const h = startHost(t, cfg);
+  await h.waitFor('state\trunning');
+  h.send('stop');
+  await h.waitFor('state\tstopped');
+  h.send('open', 'preview');
+  await h.waitCount('state\trunning', 2);
+  await until(() => h.opened.length >= 2, 'the tab after the start');
+  assert.ok(h.opened[1].html.includes('<input type="hidden" name="to" value="preview">'));
+});
+
+test('S5, real panel: the desktop host sets session.desktop; an open updates tab lands once, and a plain open lands nowhere', async (t) => {
+  const cfg = makeConfig(t, desktopToml());
+  const panels = [];
+  const h = startHost(t, cfg, {
+    startPanel: async (...args) => {
+      const p = await startAdminPanel(...args);
+      panels.push(p);
+      return p;
+    },
+  });
+  await h.waitFor('state\trunning');
+  await until(() => h.opened.length >= 1, 'the start tab');
+  const exchange = async (html) => {
+    const res = await request(PANEL_PORT, { method: 'POST', pathname: '/auth/launch', headers: { Origin: 'null', 'Content-Type': FORM }, body: formBodyOf(html) });
+    assert.equal(res.status, 200, res.body);
+    return [].concat(res.headers['set-cookie'])[0].split(';')[0];
+  };
+  const session = async (cookie) => JSON.parse((await request(PANEL_PORT, { pathname: '/api/session', headers: { Cookie: cookie } })).body);
+
+  const plain = await session(await exchange(h.opened[0].html));
+  assert.equal(plain.desktop, true);
+  assert.equal(plain.landing, null);
+
+  h.send('open', 'updates');
+  await until(() => h.opened.length >= 2, 'the updates tab');
+  const cookie = await exchange(h.opened[1].html);
+  assert.equal((await session(cookie)).landing, 'updates');
+  assert.equal((await session(cookie)).landing, null, 'one shot');
+  assert.ok(!JSON.stringify(plain).includes(codeOf(h.opened[0].html)), 'the code is never in the session');
+});
+
 test('from the error state, retry is a start the GM makes: it opens a tab and does not retry on its own', async (t) => {
   const cfg = makeConfig(t, desktopToml());
   const h = startHost(t, cfg, {

@@ -10,7 +10,7 @@ const { parseDesktopTable, confirmedHere } = require('../config/desktopsettings'
 const settingsLib = require('../remote/settings');
 const { remotePaths } = require('../remote/paths');
 const { createLaunchCodeStore, codeKey } = require('../launch/codes');
-const { writeLauncher, removeLauncher } = require('../launch/launcherfile');
+const { writeLauncher, removeLauncher, LANDINGS } = require('../launch/launcherfile');
 const procRun = require('../proc/run');
 const { ConfigError, VaultUnreachableError } = require('../util/errors');
 const { PROTOCOL_VERSION, MAX_LINE_BYTES, encodeLine, parseLine } = require('./protocol');
@@ -162,13 +162,16 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
     store = null;
   }
 
-  /** Mints a code, writes the launcher for it, and hands the file (never the code) to the opener. */
-  async function openBrowser() {
+  /**
+   * Mints a code, writes the launcher for it, and hands the file (never the code) to the opener.
+   * `to` is the closed landing set (ADR 0028 section 7): 'updates', 'preview' or nothing.
+   */
+  async function openBrowser(to) {
     if (panel === null || store === null) return;
     const code = store.mint();
     let file;
     try {
-      file = writeLauncher({ panelDir: panel.ctx.remote.paths.panelDir, config: panel.ctx.ctxInfo.config, pid, port: panel.ctx.adminPort, code });
+      file = writeLauncher({ panelDir: panel.ctx.remote.paths.panelDir, config: panel.ctx.ctxInfo.config, pid, port: panel.ctx.adminPort, code, to });
     } catch (err) {
       log.event('panel-warning', { text: `the browser could not be opened: ${oneLine(err && err.message ? err.message : err)}` });
       return;
@@ -268,11 +271,11 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
     }
   }
 
-  async function startOp({ user, open }) {
+  async function startOp({ user, open, to }) {
     if (quitting) return;
     if (panel !== null) {
       sendRunning();
-      if (open) await openBrowser();
+      if (open) await openBrowser(to);
       return;
     }
     abortStart = false;
@@ -333,7 +336,7 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
     stopPoll();
     pollTimer = setInterval(checkUpdates, pollMs);
     pollTimer.unref();
-    if (doOpen) await openBrowser();
+    if (doOpen) await openBrowser(to);
   }
 
   function sendRunning() {
@@ -404,6 +407,8 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
     const parsed = parseLine(text);
     if (parsed === null) return;
     const verb = parsed.verb;
+    // 'open updates' and 'open preview' (S5); any other word after open is ignored, so a plain open follows.
+    const to = verb === 'open' && LANDINGS.includes(parsed.args[0]) ? parsed.args[0] : undefined;
     switch (verb) {
       case 'stop?':
       case 'quit?':
@@ -435,7 +440,7 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
         else if (verb === 'open') {
           enqueue(() => {
             log.event('op', { name: 'open' });
-            return panel !== null ? openBrowser() : startOp({ user: true, open: true });
+            return panel !== null ? openBrowser(to) : startOp({ user: true, open: true, to });
           });
         } else {
           enqueue(() => {
