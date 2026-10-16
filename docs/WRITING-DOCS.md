@@ -22,7 +22,7 @@ Every page for GMs meets these.
   guess a platform.
 - **Mark what is new.** Anything newer than the latest published release carries the marker
   `*Since X.Y.Z.*`, with the version that first ships it. Add it in the same change as the
-  feature, and leave it in place afterwards.
+  feature, and leave it in place afterwards. A download that is not on the Releases page yet carries `*Coming in X.Y.Z.*` instead. A test checks this for a list of known terms.
 - **Pictures.** Put every picture under `docs/images/`, the only documentation folder the public
   guard accepts pictures in. Take it from the sample campaign, on a scratch config, never from
   your own campaign. Add its row to the guard's list of named images (`NAMED_IMAGE_RESIDUAL` in
