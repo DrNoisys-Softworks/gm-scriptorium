@@ -146,7 +146,7 @@ test('flags that do not belong to set are refused (--background is reserved for 
 
 test('no subcommand, an unknown one, or extra words give the usage line and exit 1', (t) => {
   const { configPath } = fixture(t);
-  for (const args of [['desktop'], ['desktop', 'run'], ['desktop', 'sett'], ['desktop', 'set', 'extra', '--port', '7500']]) {
+  for (const args of [['desktop'], ['desktop', 'sett'], ['desktop', 'set', 'extra', '--port', '7500']]) {
     const r = run(configPath, args);
     assert.equal(r.code, 1, args.join(' '));
     assert.equal(r.err, 'usage: gm-scriptorium desktop set [--port N] [--preview-port N]\n', args.join(' '));

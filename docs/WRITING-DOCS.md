@@ -29,6 +29,8 @@ Every page for GMs meets these.
   `scripts/public-guard.js`) only after a person has looked at the picture for names, paths and
   host names. Give each picture alt text. A page can mark where a picture will go with a line
   `<!-- screenshot: how-to/<name>.png -->` until the picture has been checked and added.
+  `npm run docs-screenshots -- --out <folder outside the repository> --root <scratch folder>` takes the
+  pictures from the sample campaign; a person checks each one before it is added.
 - **Keep paths stable.** Once a page is linked from the admin panel or from a release note, its
   path does not change. The panel's publish link already points at `docs/README.md`. If a page
   has to move, leave a stub at the old path with a link to the new one.

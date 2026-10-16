@@ -630,6 +630,18 @@ int main(void)
             int a = 0, b = 0, c = 0, d = 0;
             if (sscanf(in + 2, "%d %d %d %d", &a, &b, &c, &d) != 4) { printf("BAD\n"); continue; }
             printf("%d\n", t03_line(a, b, c, d));
+        } else if (in[0] == 'R') {
+            /* A whole host line, read the way tray.c reads it: the protocol parser, signin-local as the
+             * fifth argument (pinned in tray-structure), signin_confirmed(), a remote reach, t03_line(). */
+            int n = unhex(in + 2, buf, sizeof buf);
+            struct proto_line pl;
+            if (n < 0 || !proto_parse_line(buf, (size_t)n, &pl) || !pl.is_host || pl.verb != HOST_STATE || pl.nargs < 4 || strcmp(pl.args[0], "running") != 0) { printf("NOT-RUNNING\n"); continue; }
+            size_t na = pl.nargs < TRAY_MAX_FIELDS ? pl.nargs : TRAY_MAX_FIELDS;
+            int sl = na > 4 && strcmp(pl.args[4], "signin-local") == 0;
+            int conf = signin_confirmed((const char *const *)pl.args, na);
+            const char *r = pl.args[2];
+            int remote = strcmp(r, "ssh") == 0 || strcmp(r, "tailscale") == 0 || strcmp(r, "proxy") == 0 || strcmp(r, "direct") == 0;
+            printf("%d %d %d %d\n", sl, conf, remote, t03_line(1, sl, remote, conf));
         }
         fflush(stdout);
     }
@@ -923,6 +935,78 @@ test('pure C: t03_line picks the line under Start with Windows for each case', {
       ['1 0 0 1', 0], ['1 0 0 0', 0],
     ];
     assert.deepEqual(harness(exe, cases.map(([a]) => `K ${a}`)), cases.map(([, v]) => String(v)));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// Contract: the real host (src/desktop/host.js) writes the running lines, the tray's C reads them
+// ---------------------------------------------------------------------------------------------
+
+const { PassThrough } = require('stream');
+const { EventEmitter } = require('events');
+const { runDesktopHost } = require('../src/desktop/host');
+const { writeConfigFile } = require('../src/config/write');
+const { scratchRoot, copySample } = require('./helpers/setup-fixtures');
+const { testPort } = require('./helpers/ports');
+
+const CONTRACT_PANEL = testPort(9476);
+const CONTRACT_PREVIEW = testPort(9477);
+const CONTRACT_REMOTE_PORT = testPort(9478);
+const CONTRACT_REMOTE_PREVIEW = testPort(9479);
+const CONTRACT_REMOTE = `\n[remote]\nmode = "tailscale"\nport = ${CONTRACT_REMOTE_PORT}\npreview_port = ${CONTRACT_REMOTE_PREVIEW}\nadmin_url = "https://scriptorium.home.arpa"\npreview_url = "https://preview.scriptorium.home.arpa"\n`;
+
+/** The first state running line main's host writes for this config, with a stand-in panel (no port is bound). */
+async function hostRunningLine(t, { extraDesktop = '', background, panelMode }) {
+  const root = scratchRoot(t);
+  const configPath = path.join(root, 'cfg', 'config.toml');
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  const vault = copySample(root, 'vault', { withPack: true });
+  writeConfigFile(configPath, { config_version: 1, default_campaign: 'lease', campaigns: { lease: { vault, output: path.join(root, 'site') } } });
+  fs.appendFileSync(configPath, `\n[desktop]\nport = ${CONTRACT_PANEL}\npreview_port = ${CONTRACT_PREVIEW}\n${extraDesktop}` + CONTRACT_REMOTE);
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let text = '';
+  output.on('data', (c) => { text += c; });
+  const settings = panelMode === 'local' ? { mode: 'local' } : { mode: panelMode, admin_url: 'https://scriptorium.home.arpa' };
+  const panel = () => ({
+    ok: true,
+    ctx: { campaign: 'lease', adminPort: CONTRACT_PANEL, previewPort: CONTRACT_PREVIEW, busy: null, remote: { paths: { panelDir: path.join(root, 'cfg', 'panel') } }, ctxInfo: { config: { campaigns: {} } }, updateNotice: { snapshot: () => ({ state: 'current', dismissed: false, latestTag: null, notesUrl: null }) } },
+    token: 'stand-in', settings, plan: {}, planned: {}, setup: false, stop: async () => {},
+  });
+  const proc = new EventEmitter();
+  proc.pid = 4243;
+  const run = runDesktopHost({ background }, {
+    input, output, env: { PATH: '/nonexistent' }, version: '0.0.0-test', startPanel: async () => panel(),
+    openFile: async () => ({ outcome: 'exited', exitCode: 0, signal: null }), killAll: async () => {},
+    configPath, retryDelaysMs: [5], pollMs: 10, proc, pid: 4243, hostname: () => 'PC-A',
+  });
+  const started = Date.now();
+  let line;
+  while (!(line = text.split('\n').find((l) => l.startsWith('state\trunning\t')))) {
+    if (Date.now() - started > 8000) throw new Error(`no running line (have ${JSON.stringify(text)})`);
+    await new Promise((r) => setTimeout(r, 5));
+  }
+  input.end();
+  await run;
+  return `${line}\n`;
+}
+
+test('contract: the tray reads the running lines main\'s host writes, and shows the ruled line for each case', { skip: haveCc ? false : 'no host C compiler (cc) on PATH' }, async (t) => {
+  const confirmed = await hostRunningLine(t, { extraDesktop: 'remote_at_signin = true\nremote_at_signin_pc = "PC-A"\n', background: true, panelMode: 'tailscale' });
+  const gmRemote = await hostRunningLine(t, { background: false, panelMode: 'tailscale' });
+  const signinLocal = await hostRunningLine(t, { background: true, panelMode: 'local' });
+  // The host side, as S2 defines it (ADR 0057 "Protocol v1")
+  assert.match(confirmed, /\tsignin=confirmed\n$/);
+  assert.equal(confirmed.includes('signin-local'), false);
+  assert.match(gmRemote, /\ttailscale\t[^\t]+\tsignin=unconfirmed\n$/);
+  assert.match(signinLocal, /\tlocal\thttp:\/\/127\.0\.0\.1:\d+\tsignin-local\tsignin=unconfirmed\n$/);
+  const dir = tmp();
+  try {
+    const exe = buildHarness(dir);
+    // signin-local, signin=confirmed, remote reach, t03_line: 1 "set up ... until you confirm", 2 "on, including at sign-in"
+    assert.deepEqual(harness(exe, [confirmed, gmRemote, signinLocal].map((l) => `R ${hx(l)}`)), ['0 1 1 2', '0 0 1 1', '1 0 0 1']);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

@@ -148,7 +148,7 @@ async function main() {
       case 'desktop': {
         const { runDesktopCommand } = require('../src/cli/desktop');
         const [subcommand, ...subArgs] = rest;
-        const result = runDesktopCommand(flags, subcommand, subArgs);
+        const result = await runDesktopCommand(flags, subcommand, subArgs);
         if (result.human) console.log(result.human);
         return result.exitCode;
       }

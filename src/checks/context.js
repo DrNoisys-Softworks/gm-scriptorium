@@ -47,8 +47,9 @@ function outputHasBuild(outputPath) {
  * @param {boolean} [opts.deferOutputScan] Track D2, FR-16: true only for the
  *   pre-build `check` `scriptorium build` runs internally (src/cli/build.js
  *   is the only caller that ever passes true — no CLI flag, config key, or
- *   env var reaches this). When true, leak/l4-output-name and
- *   leak/l4-index-term each emit exactly one INFO saying the scan is
+ *   env var reaches this). When true, leak/l4-output-name,
+ *   leak/l4-index-term, leak/l6-comment-in-output and
+ *   leak/l2-excluded-dir-in-output (ADR 0060) each emit exactly one INFO saying the scan is
  *   deferred to this build's own staging tree, instead of judging the OLD
  *   finalOut that build is about to replace. Nothing is suppressed: the
  *   real scan still runs and still gates, against the staging tree, via

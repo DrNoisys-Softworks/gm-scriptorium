@@ -23,7 +23,7 @@ saved only when you confirm.
    what a new campaign gets. Pick one and press **Review change**. The panel shows the line in
    `pack.toml` that will change. Read it, then press the save button to keep it.
 
-<!-- screenshot: how-to/theme-screen.png -->
+![The Theme screen, with a card for each theme the campaign can use and the button that builds a preview of each.](../images/how-to/theme-screen.png)
 
 ### Images
 
@@ -35,7 +35,7 @@ saved only when you confirm.
    A slot shows only where the theme or your own `overrides.css` draws it. [Image slots](../image-slots.md)
    says which do, and the sizes to prepare each picture at.
 
-<!-- screenshot: how-to/images-screen.png -->
+![The Images screen, showing the background image slots and the picture each one uses.](../images/how-to/images-screen.png)
 
 ### Title and tagline
 
@@ -46,7 +46,7 @@ saved only when you confirm.
    The panel keeps a copy of `_meta/vault-config.md` outside the vault before every save. Where each
    key lives is on [the vault's publish settings](../reference/vault-config.md).
 
-<!-- screenshot: how-to/title-and-tagline.png -->
+![The Title and tagline screen, with the site title and tagline fields.](../images/how-to/title-and-tagline.png)
 
 ### Vocabulary
 
@@ -56,7 +56,7 @@ saved only when you confirm.
 
    Every word you can change is listed on [the campaign pack file](../reference/pack-toml.md).
 
-<!-- screenshot: how-to/vocabulary-screen.png -->
+![The Vocabulary screen, listing the words the site uses and the campaign’s own wording for them.](../images/how-to/vocabulary-screen.png)
 
 ### Check, then look
 

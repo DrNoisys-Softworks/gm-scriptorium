@@ -200,6 +200,20 @@ test('the rows for the two refusals nothing overrides say so, and the stale excl
   assert.match(dirs.what, /stale build/);
 });
 
+test('the exclude-dirs row reads exactly as written and claims no error or refusal (#141)', () => {
+  const dirs = textFile[BLOCK]['config/exclude-dirs-divergence'];
+  assert.equal(
+    dirs.what,
+    'A folder is hidden in one config file but not in the other. A fresh build honours both lists, so a folder hidden only in `_meta/vault-config.md` is still left out of a new build. A stale build made before you hid it can still hold its pages, and `leak/l2-excluded-dir-in-output` reports those. This is a WARN when only `_meta/vault-config.md` lists the folder, and an INFO when only `vault.config.json` lists it.',
+  );
+  assert.equal(
+    dirs.action,
+    'Add the folder to the list the message says is missing it, so both files agree. This warning never stops a `build`.',
+  );
+  assert.doesNotMatch(dirs.what, /ERROR|refus/);
+  assert.doesNotMatch(dirs.action, /ERROR|refus/);
+});
+
 test('every id has a non-empty "what it means" and "what to do"', () => {
   for (const id of IDS) {
     const entry = textFile[BLOCK][id];
@@ -237,4 +251,17 @@ test('the page renders the five columns, one row per id', () => {
   assert.equal(lines[0], '| ID | Severity | Runs in | What it means | What to do |');
   assert.equal(lines.length, 2 + IDS.length);
   assert.match(lines[2], /^\| `frontmatter\/non-yaml-language` \| ERROR \| check and build \| /);
+});
+
+test('T-R2: the l2 row reads ERROR (varies) and its text reads exactly as written (#154, a deliberate change from #141)', () => {
+  assert.deepEqual([byKey['leak/l2-excluded-dir-in-output'].severity, byKey['leak/l2-excluded-dir-in-output'].runs], ['ERROR (varies)', 'check and build']);
+  const l2 = textFile[BLOCK]['leak/l2-excluded-dir-in-output'];
+  assert.equal(
+    l2.what,
+    'A page or image in the built site came from a folder you hide, or from one of the always-excluded folders. It is an INFO line instead when there is no build yet to look at. `build` runs this on the new site before it goes live, not on the old site it replaces. A cover picture or section banner is judged by the file it was copied from: one you named in `publish.theme.campaign_image` or `banners` is a WARN and the build goes ahead, and a `_banner` picture the build found by itself is an ERROR. An ERROR stops `build`, and nothing overrides it.',
+  );
+  assert.equal(
+    l2.action,
+    'For a cover picture or banner you named, move the file out of the hidden folder or change the setting; building again does not change it. For a `_banner` picture, move it out of the hidden folder or set a banner for that section in `banners`. For anything else, build again: a fresh build leaves hidden folders out and replaces the old site. If the line is still there, read the message for the file, and check `excludeDirs` and `publish.exclude_dirs`.',
+  );
 });

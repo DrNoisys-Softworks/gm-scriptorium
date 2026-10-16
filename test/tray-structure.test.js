@@ -584,7 +584,8 @@ test('RV1: ADR 0057 names the field exactly as pinned, in section 7 and in the s
   assert.ok(s7.length > 0);
   assert.equal(s7.includes(`\`${SIGNIN_LOCAL}\``), true, 'section 7 names the field');
   assert.match(s7, /optional last field of its `state running` line/);
-  assert.equal(adr.includes(`\`state  running  <campaign or setup>  <reach>  <address>  [${SIGNIN_LOCAL}]\``), true, 'Protocol v1 line');
+  // The Protocol v1 line as the host's side of the decision wrote it, with the signin= field last.
+  assert.equal(adr.includes(`\`state  running  <campaign or setup>  <reach>  <address>  [${SIGNIN_LOCAL}]  signin=confirmed|signin=unconfirmed\``), true, 'Protocol v1 line');
 });
 
 test('positive control: a renamed marker or the wrong field is seen', () => {

@@ -129,7 +129,7 @@ function savedRemoteMode(config) {
  *
  * @param {object} flags
  * @param {string} [campaignArg]
- * @param {{ emit?: Function, startLocalListener?: Function, startPanelListener?: Function, createToken?: () => string, now?: () => number, identity?: { user: string, host: string }, panelAccess?: { platform?: string, env?: object, run?: Function }, updateDeps?: { isPkg?: boolean, check?: Function, currentVersion?: string } }} [opts]
+ * @param {{ emit?: Function, startLocalListener?: Function, startPanelListener?: Function, createToken?: () => string, now?: () => number, identity?: { user: string, host: string }, panelAccess?: { platform?: string, env?: object, run?: Function }, updateDeps?: { isPkg?: boolean, check?: Function, currentVersion?: string }, localOnly?: boolean }} [opts]
  * @returns {Promise<{ ok: true, ctx: object, token: string, settings: object, plan: object, planned: object, setup: boolean, stop: () => Promise<void> } | { ok: false, exitCode: number, human: string }>}
  */
 async function startAdminPanel(
@@ -144,6 +144,7 @@ async function startAdminPanel(
     identity,
     panelAccess = {},
     updateDeps = {},
+    localOnly = false,
   } = {},
 ) {
   checkAllowlist(flags);
@@ -164,6 +165,8 @@ async function startAdminPanel(
     ctxInfo = resolveCampaignContext(flags, campaignArg);
     ({ vaultPath, site } = resolveVaultSite(ctxInfo));
     settings = settingsLib.parseRemoteTable(ctxInfo.config.remote);
+    // ADR 0057, section 7: the desktop host's start at sign-in runs this-PC-only until the GM confirms remote access.
+    if (localOnly) settings = { mode: 'local' };
     if (settings.mode !== 'local' && (flags.port !== undefined || flags['preview-port'] !== undefined)) {
       throw new ConfigError(
         `serve --admin: remote access (mode ${settings.mode}) uses the ports saved in its settings, so it does not accept --port or --preview-port`,
@@ -228,6 +231,7 @@ async function startAdminPanel(
   ctx.tickets = tickets;
   ctx.clock = now;
   ctx.signinBusy = false;
+  ctx.desktop = null; // the desktop host fills this in after a start (ADR 0057); null everywhere else
   // The update notice (ADR 0028 addendum): built here with no I/O. It starts after both listeners are up
   // (below), and `updateDeps` lets a test inject the check, the version and whether this is a packaged run.
   ctx.updateNotice = createUpdateNotice({

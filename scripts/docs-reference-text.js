@@ -222,8 +222,15 @@ module.exports = deepFreeze({
     remote_at_signin: {
       type: 'true or false',
       allowed: 'true, false',
-      what: 'Records that you agreed remote access may start when you sign in to Windows. GM-Scriptorium sets it only from your own answer to its question. Nothing in this version asks that question or reads it, so leave it out.',
-      changedBy: 'Nothing in this version',
+      what: 'Records that you agreed remote access may start when you sign in to Windows. Without it, the desktop app starts the panel for this computer only at sign-in, whatever mode is saved; a start you make yourself uses the saved mode. `remote set` asks "Also start remote access when you sign in to Windows?" when you switch to a remote mode (the default is No, and no terminal counts as No), and it asks again when you switch to a different remote mode. `remote off` clears it. It counts only on the computer named in `remote_at_signin_pc`.',
+      changedBy: 'The answer to the `remote set` question, and `remote off`',
+      since: '0.5.0',
+    },
+    remote_at_signin_pc: {
+      type: 'text',
+      allowed: 'A computer name',
+      what: 'The name of the computer where you agreed that remote access may start at sign-in. The answer in `remote_at_signin` counts only on that computer, so copying your settings folder to another PC does not carry your yes with it: there the desktop app starts for this computer only, and `remote set` asks again. An answer saved without a name counts as no. `remote set` writes it together with the answer, and `remote off` clears both. It is never written to the desktop app\'s log.',
+      changedBy: 'The answer to the `remote set` question, and `remote off`',
       since: '0.5.0',
     },
   },
@@ -577,12 +584,12 @@ module.exports = deepFreeze({
     'theme.campaign_image': {
       type: 'text',
       default: 'None',
-      what: 'The path, inside the vault, of the campaign picture shown at the top of the landing page.',
+      what: 'The path, inside the vault, of the campaign picture shown at the top of the landing page. The build copies it even from a hidden folder, because you named it, and `check` then gives a WARN (`leak/l2-excluded-dir-in-output`) so you know it is on the site.',
     },
     banners: {
       type: 'table',
       default: 'None',
-      what: 'A picture at the top of a section\'s index page, keyed by the section\'s output folder, such as `locations`. A bare path, or a table with `image`, `link` and `alt`.',
+      what: 'A picture at the top of a section\'s index page, keyed by the section\'s output folder, such as `locations`. A bare path, or a table with `image`, `link` and `alt`. A section with no entry uses a `_banner` picture, such as `_banner.png`, from its own vault folder. A picture or link you name here is copied even from a hidden folder, and `check` gives a WARN; a `_banner` picture in a hidden folder is an ERROR, and `build` refuses it (`leak/l2-excluded-dir-in-output`).',
     },
     landing: {
       type: 'table',
@@ -661,6 +668,11 @@ module.exports = deepFreeze({
       type: 'table',
       what: 'Switches for the generator\'s optional site features: `statusBar` and `inbox`. New campaigns get both off.',
       changedBy: '`init`, or by hand',
+    },
+    banners: {
+      type: 'table',
+      what: 'An older home of the section banners. The generator still uses an entry here for a section that `publish.banners` in `_meta/vault-config.md` does not mention. GM-Scriptorium reads it to tell a copied banner from an attachment.',
+      changedBy: 'By hand',
     },
     excludeFields: {
       type: 'list of text',
@@ -754,6 +766,21 @@ module.exports = deepFreeze({
       handEdit: 'No',
       since: '0.5.0',
     },
+    'panel/logs/': {
+      what: 'The Windows desktop app\'s log folder. It is private to your account.',
+      handEdit: 'No',
+      since: '0.5.0',
+    },
+    'panel/logs/desktop.log': {
+      what: 'What the Windows desktop app did: started, stopped, retried, and a plain one-line reason when something failed. It never holds a sign-in code, token, password or cookie, and it is never sent anywhere. At 256 KiB it moves to `desktop.log.1`.',
+      handEdit: 'No (read it if you like)',
+      since: '0.5.0',
+    },
+    'panel/logs/desktop.log.1': {
+      what: 'The previous `desktop.log`, kept when it reached 256 KiB. The next one replaces it.',
+      handEdit: 'No (delete it if you like)',
+      since: '0.5.0',
+    },
     'panel/launch-<number>.html': {
       what: 'The one-time sign-in page that opens your browser. It holds the sign-in code for under a minute and is deleted after use. The number is the program\'s process number.',
       handEdit: 'No',
@@ -791,7 +818,7 @@ module.exports = deepFreeze({
       what: 'Changes how the admin panel can be reached from other devices, and manages the accounts that can sign in. See [Remote access](../remote-access.md).',
     },
     desktop: {
-      what: 'Saves the two ports the Windows desktop app gives its panel and its preview.',
+      what: 'Saves the two ports the Windows desktop app gives its panel and its preview. The Windows tray app also runs `desktop run`, which is not meant to be typed.',
       since: '0.5.0',
     },
   },
@@ -895,7 +922,7 @@ module.exports = deepFreeze({
       since: '0.5.0',
     },
     'desktop --background': {
-      what: 'Belongs to a later subcommand; `desktop set` refuses it.',
+      what: 'For `desktop run`: the quiet start at sign-in, with no browser tab. `desktop set` refuses it.',
       since: '0.5.0',
     },
   },
@@ -929,7 +956,7 @@ module.exports = deepFreeze({
       what: 'Prints the remote-access settings for this computer: the mode, the addresses, where it listens, which accounts exist and whether it is ready to start. It never prints a secret.',
     },
     'remote set': {
-      what: 'Saves remote-access settings. Only https addresses are accepted, and every value is checked before anything is written. It takes effect the next time the admin panel starts.',
+      what: 'Saves remote-access settings. Only https addresses are accepted, and every value is checked before anything is written. It takes effect the next time the admin panel starts. On a Windows copy with the tray app, switching to a remote mode also asks whether remote access may start when you sign in to Windows (the default is No).',
     },
     'remote account add': {
       what: 'Adds an account: `remote account add <name>`. Names are 1 to 32 letters, digits, dots, hyphens or underscores. The password is asked for with nothing shown on screen, and must be at least 12 characters. There can be at most 8 accounts.',
@@ -962,7 +989,11 @@ module.exports = deepFreeze({
       what: 'Signs every remote device out at once, or with `--account` only the devices signed in as that account. A running panel notices straight away.',
     },
     'remote off': {
-      what: 'Returns the mode to `local`, signs every device out and clears every account.',
+      what: 'Returns the mode to `local`, signs every device out and clears every account. It also clears the sign-in answer for the Windows desktop app.',
+    },
+    'desktop run': {
+      what: 'The hidden background program the Windows tray app starts: `desktop run --background`. It runs the panel on the desktop ports and talks to the tray app over its standard input and output, so it is not meant to be typed and refuses to run in a terminal or off Windows. With `--background` (the start at sign-in) it is quiet, and it uses this computer only unless you agreed to remote access at sign-in.',
+      since: '0.5.0',
     },
     'desktop set': {
       what: 'Saves the two ports for the Windows desktop app: `desktop set --port 7500 --preview-port 7501`. Give at least one, and a port you leave out keeps its current value. They must be different whole numbers from 1 to 65535, and nothing is written until both are checked. It changes only the `[desktop]` part of the settings file.',
@@ -1038,8 +1069,8 @@ module.exports = deepFreeze({
       action: 'Add the heading named in the message to your list if it should still be hidden.',
     },
     'config/exclude-dirs-divergence': {
-      what: 'A folder is hidden in one config file but not in the other. A fresh build honours both lists, so a folder hidden only in `_meta/vault-config.md` is left out of a new build. The warning guards against a stale build made before that was added. It is an ERROR when the folder holds pages or images that the older site could include, a WARN when it does not, and an INFO when only `vault.config.json` lists it.',
-      action: 'Add the folder to the list the message says is missing it, so both files agree. Until you do, an ERROR here refuses a `build`.',
+      what: 'A folder is hidden in one config file but not in the other. A fresh build honours both lists, so a folder hidden only in `_meta/vault-config.md` is still left out of a new build. A stale build made before you hid it can still hold its pages, and `leak/l2-excluded-dir-in-output` reports those. This is a WARN when only `_meta/vault-config.md` lists the folder, and an INFO when only `vault.config.json` lists it.',
+      action: 'Add the folder to the list the message says is missing it, so both files agree. This warning never stops a `build`.',
     },
     'config/exclude-fields-divergence': {
       what: 'One of the built-in hidden fields (such as `gm_notes`) is no longer filtered, because one of your config files gives its own `exclude_fields` list. A list you give replaces the built-in one.',
@@ -1062,8 +1093,8 @@ module.exports = deepFreeze({
       action: 'Create `_meta/publish-manifest.md` with a `## Publishing` heading and one line for each page players may see. The sample campaign has a complete one.',
     },
     'leak/l2-excluded-dir-in-output': {
-      what: 'A page or image in the built site came from a folder you hide, or from one of the always-excluded folders. It is an INFO line instead when there is no build yet to look at.',
-      action: 'Rebuild after fixing the folder lists. If it persists, read the message for the file, and check `excludeDirs` and `publish.exclude_dirs`.',
+      what: 'A page or image in the built site came from a folder you hide, or from one of the always-excluded folders. It is an INFO line instead when there is no build yet to look at. `build` runs this on the new site before it goes live, not on the old site it replaces. A cover picture or section banner is judged by the file it was copied from: one you named in `publish.theme.campaign_image` or `banners` is a WARN and the build goes ahead, and a `_banner` picture the build found by itself is an ERROR. An ERROR stops `build`, and nothing overrides it.',
+      action: 'For a cover picture or banner you named, move the file out of the hidden folder or change the setting; building again does not change it. For a `_banner` picture, move it out of the hidden folder or set a banner for that section in `banners`. For anything else, build again: a fresh build leaves hidden folders out and replaces the old site. If the line is still there, read the message for the file, and check `excludeDirs` and `publish.exclude_dirs`.',
     },
     'leak/l3-unpublished-link': {
       what: 'A published page links to a note that is not published, so the link shows as plain text. It is an ERROR when that note is marked `withheld: true`, which means the link may give away a secret, and a WARN otherwise.',

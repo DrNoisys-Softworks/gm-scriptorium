@@ -89,14 +89,22 @@ test('l3, config divergence and the D2 index-term check are marked dynamicSeveri
   assert.equal(getCheck('leak/l4-index-term').dynamicSeverity, true);
 });
 
-test('config/exclude-dirs-divergence description reads exactly as written (#140)', () => {
+test('config/exclude-dirs-divergence description reads exactly as written (#141)', () => {
   assert.equal(
     getCheck('config/exclude-dirs-divergence').description,
-    "A directory excluded in _meta/vault-config.md's publish.exclude_dirs but not in vault.config.json's excludeDirs. A fresh build honours both lists (lib/build.js scans with the unioned exclude_dirs via scanConfigFor), so this guards against a stale build made before the vault-side exclusion was added. ERROR if the directory holds pages or images that would publish without the exclusion, WARN otherwise; a vault.config.json-only entry is INFO.",
+    "A directory excluded in _meta/vault-config.md's publish.exclude_dirs but not in vault.config.json's excludeDirs. A fresh build honours both lists (lib/build.js scans with the unioned exclude_dirs via scanConfigFor), so this is a WARN whether or not the directory holds pages or images (data.appliesInOutput says which); files a stale build left in real output are leak/l2-excluded-dir-in-output's to report. A vault.config.json-only entry is INFO.",
   );
 });
 
 test('no check description carries a bare --force claim (#140)', () => {
   const offenders = CHECKS.filter((c) => /--force(?![-a-z])/.test(c.description)).map((c) => c.id);
   assert.equal(offenders.join(','), '');
+});
+
+test('T-R1: leak/l2-excluded-dir-in-output is dynamicSeverity and its description reads exactly as written (#154)', () => {
+  assert.equal(getCheck('leak/l2-excluded-dir-in-output').dynamicSeverity, true);
+  assert.equal(
+    getCheck('leak/l2-excluded-dir-in-output').description,
+    "A built page or image is sourced from a directory in the union of vault.config.json:excludeDirs and _meta/vault-config.md:publish.exclude_dirs, or under one of the pin's always-excluded directories (_meta, _Templates, _templates, personal; lib/publish-decision.js:46). A file under images/ that is byte-identical to a cover picture or section banner the generator copies there (lib/build.js) is judged by that real source instead of being read back to the attachments folder: WARN when the GM named it in publish.theme.campaign_image or banners, ERROR when the banner was an auto-found _banner.* (ADR 0061). Reads the real built tree when a build exists (INFO when none). Inside build the pre-build check defers it (one INFO) and src/build/outputgate.js's scanStagingOutput runs it against the staging tree before the swap, where the command line cannot override it (ADR 0055).",
+  );
 });
