@@ -973,7 +973,7 @@ async function hostRunningLine(t, { extraDesktop = '', background, panelMode }) 
   const panel = () => ({
     ok: true,
     ctx: { campaign: 'lease', adminPort: CONTRACT_PANEL, previewPort: CONTRACT_PREVIEW, busy: null, remote: { paths: { panelDir: path.join(root, 'cfg', 'panel') } }, ctxInfo: { config: { campaigns: {} } }, updateNotice: { snapshot: () => ({ state: 'current', dismissed: false, latestTag: null, notesUrl: null }) } },
-    token: 'stand-in', settings, plan: {}, planned: {}, setup: false, stop: async () => {},
+    token: 'fake', settings, plan: {}, planned: {}, setup: false, stop: async () => {},
   });
   const proc = new EventEmitter();
   proc.pid = 4243;
