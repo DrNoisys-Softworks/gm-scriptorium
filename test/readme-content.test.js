@@ -25,9 +25,9 @@ function linkTargets(text) {
 
 function dashHits(text) {
   const hits = [];
-  if (text.indexOf('—') !== -1) hits.push('em dash');
-  if (text.indexOf('–') !== -1) hits.push('en dash');
-  if (text.indexOf('→') !== -1) hits.push('arrow');
+  if (text.indexOf('\u2014') !== -1) hits.push('em dash');
+  if (text.indexOf('\u2013') !== -1) hits.push('en dash');
+  if (text.indexOf('\u2192') !== -1) hits.push('arrow');
   return hits;
 }
 
@@ -85,7 +85,7 @@ test('RC7: the README no longer claims browser setup for the published release',
 });
 
 test('C1 control: dashHits finds all three planted characters', () => {
-  assert.deepEqual(dashHits('a — b – c → d'), ['em dash', 'en dash', 'arrow']);
+  assert.deepEqual(dashHits('a \u2014 b \u2013 c \u2192 d'), ['em dash', 'en dash', 'arrow']);
 });
 
 test('C2 control: link comparison is exact, so a missing trailing slash does not match', () => {
