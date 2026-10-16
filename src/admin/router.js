@@ -17,6 +17,7 @@ const remoteHandlers = require('./handlers/remote');
 const setupHandlers = require('./handlers/setup');
 const campaignHandlers = require('./handlers/campaigns');
 const updateHandlers = require('./handlers/updates');
+const desktopHandlers = require('./handlers/desktop');
 const launchHandlers = require('./handlers/launch');
 const folderHandlers = require('./handlers/folders');
 const setupmode = require('./setupmode');
@@ -112,6 +113,9 @@ const ADMIN_ROUTES = Object.freeze([
   { method: 'GET', path: '/api/update', auth: true, handler: updateHandlers.state },
   { method: 'POST', path: '/api/update/dismiss', auth: true, audit: true, handler: updateHandlers.dismiss },
   { method: 'POST', path: '/api/update/setting', auth: true, audit: true, handler: updateHandlers.setting },
+  // ADR 0057 section 8: the desktop app's ports card. The state, and the save (which restarts the panel on the new ports).
+  { method: 'GET', path: '/api/desktop', auth: true, handler: desktopHandlers.state },
+  { method: 'POST', path: '/api/desktop/ports', auth: true, audit: true, handler: desktopHandlers.savePorts },
 ]);
 
 /**

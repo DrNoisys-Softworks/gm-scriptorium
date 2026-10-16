@@ -850,6 +850,7 @@
     ovRest.appendChild(buildColumns(state, s, slotImageRel));
     ovRest.appendChild(buildWords(state, s));
     if (ScriptoriumAdmin.updates) ScriptoriumAdmin.updates.mount(ovHero, ovRest);
+    if (ScriptoriumAdmin.desktop) ScriptoriumAdmin.desktop.mount(ovRest);
   }
 
   // -- Check (FR-14, AC-02) -----------------------------------------------------------------------
