@@ -119,6 +119,18 @@ function sessionAccount(req, ctx, kind) {
   return null;
 }
 
+/**
+ * ADR 0028 section 7 (S5): the one-shot landing a desktop tray command asked for. It is returned once,
+ * and cleared whether or not it had expired, so a second tab or a reload never lands again.
+ * @returns {'updates' | 'preview' | null}
+ */
+function takeLanding(ctx) {
+  const held = ctx.launchLanding;
+  if (!held) return null;
+  ctx.launchLanding = null;
+  return held.expiresAt > (ctx.clock || Date.now)() ? held.to : null;
+}
+
 /** GET /api/session. */
 function apiSession(req, res, ctx, { kind } = {}) {
   const payload = {
@@ -129,6 +141,8 @@ function apiSession(req, res, ctx, { kind } = {}) {
     previewPort: ctx.previewPort,
     access: sessionAccess(ctx, kind),
     launch: Boolean(ctx.launchCodes),
+    desktop: Boolean(ctx.desktop),
+    landing: takeLanding(ctx),
     account: sessionAccount(req, ctx, kind),
   };
   respond.send(res, 200, respond.adminHeaders({ 'Content-Type': 'application/json; charset=utf-8' }), JSON.stringify(payload));

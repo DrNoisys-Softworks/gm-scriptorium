@@ -23,18 +23,23 @@ const { writePrivateFileAtomic } = require('../remote/privatefile');
 const LAUNCH_SCRIPT = "document.getElementById('f').submit();";
 const SCRIPT_HASH = crypto.createHash('sha256').update(LAUNCH_SCRIPT, 'utf8').digest('base64');
 
+// The closed set of places the first tab can land (ADR 0028 section 7, S5). The launcher carries one
+// of these words, never a path or a URL; the exchange ignores anything else.
+const LANDINGS = Object.freeze(['updates', 'preview']);
+
 /** @param {string} panelDir @param {number} pid */
 function launcherPath(panelDir, pid) {
   return path.join(panelDir, `launch-${pid}.html`);
 }
 
 /**
- * @param {{ port: number, code: string }} info
- * @returns {string} the fixed HTML with the port and the code filled in
+ * @param {{ port: number, code: string, to?: 'updates' | 'preview' }} info
+ * @returns {string} the fixed HTML with the port, the code and the landing word filled in
  */
-function renderLauncher({ port, code }) {
+function renderLauncher({ port, code, to }) {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('renderLauncher: the port is not usable');
   if (typeof code !== 'string' || !/^[A-Za-z0-9_-]{16,128}$/.test(code)) throw new Error('renderLauncher: the code is not usable');
+  if (to !== undefined && !LANDINGS.includes(to)) throw new Error('renderLauncher: the landing is not usable');
   const origin = `http://127.0.0.1:${port}`;
   const csp = `default-src 'none'; script-src 'sha256-${SCRIPT_HASH}'; form-action ${origin}; base-uri 'none'`;
   return `<!doctype html>
@@ -47,7 +52,7 @@ function renderLauncher({ port, code }) {
 </head>
 <body>
 <form id="f" method="post" action="${origin}/auth/launch">
-<input type="hidden" name="code" value="${code}">
+<input type="hidden" name="code" value="${code}">${to === undefined ? '' : `\n<input type="hidden" name="to" value="${to}">`}
 <noscript><p>Continue to GM-Scriptorium.</p><button type="submit">Continue</button></noscript>
 </form>
 <script>${LAUNCH_SCRIPT}</script>
@@ -60,13 +65,13 @@ function renderLauncher({ port, code }) {
  * Writes the launcher (atomically, 0600, in the 0700 panel folder) after checking that the folder is
  * not inside any registered campaign's vault.
  *
- * @param {{ panelDir: string, config: object, pid: number, port: number, code: string }} info
+ * @param {{ panelDir: string, config: object, pid: number, port: number, code: string, to?: string }} info
  * @returns {string} the file written
  */
-function writeLauncher({ panelDir, config, pid, port, code }) {
+function writeLauncher({ panelDir, config, pid, port, code, to }) {
   assertNotInsideAnyVault(panelDir, config);
   const file = launcherPath(panelDir, pid);
-  writePrivateFileAtomic(file, renderLauncher({ port, code }));
+  writePrivateFileAtomic(file, renderLauncher({ port, code, to }));
   return file;
 }
 
@@ -79,4 +84,4 @@ function removeLauncher(file) {
   }
 }
 
-module.exports = { LAUNCH_SCRIPT, SCRIPT_HASH, launcherPath, renderLauncher, writeLauncher, removeLauncher };
+module.exports = { LANDINGS, LAUNCH_SCRIPT, SCRIPT_HASH, launcherPath, renderLauncher, writeLauncher, removeLauncher };
