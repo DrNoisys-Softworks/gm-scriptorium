@@ -6,7 +6,8 @@ const { loadConfig } = require('./args');
 const { writeConfigFile } = require('./config');
 const { createPrompter } = require('./prompt');
 const { setRemoteAtSignin } = require('../config/write');
-const { parseDesktopTable } = require('../config/desktopsettings');
+const { parseDesktopTable, confirmedHere } = require('../config/desktopsettings');
+const os = require('os');
 const { createSecretReader } = require('./secretprompt');
 const { ConfigError, VaultUnreachableError } = require('../util/errors');
 const { EXIT_CODES } = require('../util/exitcodes');
@@ -354,8 +355,11 @@ function defaultRunValuePresent({ platform = process.platform, execPath = proces
  *
  * @returns {Promise<{ config: object, note: string }>}
  */
-async function applySigninChoice({ config, previous, parsed, stdin, stdout, runValuePresent }) {
-  if (parsed.mode === 'local' || parsed.mode === previous.mode) return { config, note: '' };
+async function applySigninChoice({ config, previous, parsed, stdin, stdout, runValuePresent, computer, platform }) {
+  if (parsed.mode === 'local') return { config, note: '' };
+  // An answer given on another computer (or before the name was kept) does not count here, so it is asked again.
+  const stale = config.desktop !== undefined && config.desktop !== null && config.desktop.remote_at_signin === true && !confirmedHere(config.desktop, computer, platform);
+  if (parsed.mode === previous.mode && !stale) return { config, note: '' };
   let confirmed = false;
   let note = '';
   if (runValuePresent()) {
@@ -372,9 +376,11 @@ async function applySigninChoice({ config, previous, parsed, stdin, stdout, runV
     }
   }
   try {
-    const wasConfirmed = parseDesktopTable(config.desktop).remoteAtSignin;
-    if (wasConfirmed === confirmed) return { config, note };
-    return { config: setRemoteAtSignin(config, confirmed), note };
+    const saved = parseDesktopTable(config.desktop);
+    const hadAnswer = saved.remoteAtSignin || (config.desktop !== undefined && config.desktop.remote_at_signin_pc !== undefined);
+    const here = confirmedHere(config.desktop, computer, platform);
+    if (confirmed ? here : !hadAnswer) return { config, note };
+    return { config: setRemoteAtSignin(config, confirmed, confirmed ? computer : undefined), note };
   } catch (err) {
     if (!(err instanceof ConfigError)) throw err;
     return { config, note: `${note}\nwarning: the [desktop] settings could not be read, so the sign-in choice was not saved` };
@@ -385,14 +391,14 @@ async function applySigninChoice({ config, previous, parsed, stdin, stdout, runV
  * @param {object} flags parsed argv flags
  * @param {string|undefined} subcommand
  * @param {string[]} args positional arguments after the subcommand
- * @param {{ stdin?: NodeJS.ReadStream, stdout?: NodeJS.WriteStream, now?: () => number, panelAccess?: { platform?: string, env?: object, run?: Function }, runValuePresent?: () => boolean }} [deps]
+ * @param {{ stdin?: NodeJS.ReadStream, stdout?: NodeJS.WriteStream, now?: () => number, panelAccess?: { platform?: string, env?: object, run?: Function }, runValuePresent?: () => boolean, hostname?: () => string, platform?: string }} [deps]
  * @returns {Promise<{ exitCode: number, human: string }>}
  */
 async function runRemoteCommand(
   flags,
   subcommand,
   args = [],
-  { stdin = process.stdin, stdout = process.stdout, now = Date.now, panelAccess = {}, runValuePresent = defaultRunValuePresent } = {},
+  { stdin = process.stdin, stdout = process.stdout, now = Date.now, panelAccess = {}, runValuePresent = defaultRunValuePresent, hostname = os.hostname, platform = process.platform } = {},
 ) {
   if (!SUBCOMMANDS.includes(subcommand)) {
     throw new ConfigError(`usage: gm-scriptorium remote ${SUBCOMMANDS.join(' | ')}`);
@@ -410,7 +416,7 @@ async function runRemoteCommand(
       }
       const { next, changed } = settingsLib.applyRemoteChange(config.remote, flags);
       const parsed = settingsLib.parseRemoteTable(next);
-      const signin = await applySigninChoice({ config: { ...config, remote: next }, previous: settings, parsed, stdin, stdout, runValuePresent });
+      const signin = await applySigninChoice({ config: { ...config, remote: next }, previous: settings, parsed, stdin, stdout, runValuePresent, computer: hostname(), platform });
       writeConfigFile(configPath, signin.config);
       const loose = changed.length > 0 ? await securePanel(paths, config, panelAccess) : '';
       const warning = changed.length > 0 ? auditCli(paths, now, { event: 'settings-change', changed, mode: parsed.mode }) : '';
@@ -470,7 +476,8 @@ async function runRemoteCommand(
       // that cannot be read is left alone, so this stays a way out.
       let offConfig = config.remote !== undefined ? { ...config, remote: { ...config.remote, mode: 'local' } } : config;
       try {
-        if (parseDesktopTable(config.desktop).remoteAtSignin) offConfig = setRemoteAtSignin(offConfig, false);
+        const saved = parseDesktopTable(config.desktop);
+        if (saved.remoteAtSignin || (config.desktop && config.desktop.remote_at_signin_pc !== undefined)) offConfig = setRemoteAtSignin(offConfig, false);
       } catch (err) {
         if (!(err instanceof ConfigError)) throw err;
       }

@@ -32,6 +32,9 @@ const TARGETS = Object.freeze([
   'docs/reference/exit-codes.md',
   'docs/reference/files-and-folders.md',
   'docs/reference/command-line.md',
+  'docs/reference/pack-toml.md',
+  'docs/reference/vault-config.md',
+  'docs/reference/check-messages.md',
 ]);
 
 /** Which blocks each page holds, so a block in the wrong page, or a page missing one, is caught. */
@@ -40,6 +43,9 @@ const BLOCKS_BY_TARGET = Object.freeze({
   'docs/reference/exit-codes.md': ['exit-codes'],
   'docs/reference/files-and-folders.md': ['files'],
   'docs/reference/command-line.md': ['cli-commands', 'cli-global-flags', 'cli-flags', 'cli-subcommands'],
+  'docs/reference/pack-toml.md': ['pack-top', 'pack-images', 'pack-labels', 'pack-timeline', 'pack-timeline-kinds', 'pack-timeline-columns', 'pack-recaps', 'pack-gm-link'],
+  'docs/reference/vault-config.md': ['vault-publish', 'vault-json'],
+  'docs/reference/check-messages.md': ['check-messages'],
 });
 
 const BLOCK_NAMES = Object.freeze(Object.values(BLOCKS_BY_TARGET).flat());
@@ -84,12 +90,34 @@ const COLUMNS = {
     ['Flags it accepts', 'flags'],
     ['What it does', 'what'],
   ]),
+  'vault-publish': Object.freeze([
+    ['Key', 'key'],
+    ['Type', 'type'],
+    ['Default', 'default'],
+    ['In the panel', 'panel'],
+    ['What it does', 'what'],
+  ]),
+  'vault-json': Object.freeze([
+    ['Key', 'key'],
+    ['Type', 'type'],
+    ['Required', 'required'],
+    ['New campaigns get', 'newCampaigns'],
+    ['What it does', 'what'],
+    ['Changed by', 'changedBy'],
+  ]),
+  'check-messages': Object.freeze([
+    ['ID', 'key'],
+    ['Severity', 'severity'],
+    ['Runs in', 'runs'],
+    ['What it means', 'what'],
+    ['What to do', 'action'],
+  ]),
 };
-for (const name of BLOCK_NAMES) if (name.startsWith('config-')) COLUMNS[name] = CONFIG_COLUMNS;
+for (const name of BLOCK_NAMES) if (name.startsWith('config-') || name.startsWith('pack-')) COLUMNS[name] = CONFIG_COLUMNS;
 Object.freeze(COLUMNS);
 
 /** The columns whose values may come from the code. Text may give none of these for a key whose code fact has it. */
-const CODE_COLUMNS = Object.freeze(['type', 'default', 'allowed', 'meaning', 'commands', 'exits', 'takesValue', 'flags']);
+const CODE_COLUMNS = Object.freeze(['type', 'default', 'allowed', 'meaning', 'commands', 'exits', 'takesValue', 'flags', 'required', 'newCampaigns', 'panel', 'severity', 'runs']);
 
 const BEGIN_RE = /^<!-- BEGIN GENERATED ([a-z-]+): edit scripts\/docs-reference-text\.js, then run npm run docs-reference -->$/;
 const END_RE = /^<!-- END GENERATED ([a-z-]+) -->$/;
@@ -121,6 +149,15 @@ function codeFacts() {
   const desktopCli = require('../src/cli/desktop');
   const configCli = require('../src/cli/config');
   const { ADMIN_ALLOWED_FLAGS } = require('../src/cli/serve-admin');
+  const packToml = require('../src/build/packtoml');
+  const labels = require('../src/build/labels');
+  const themes = require('../src/build/themes');
+  const { COVERED_PREFIXES } = require('../src/admin/vaultconfigeffects');
+  const { FIELD_SCHEMA, DISPLAY_PATHS } = require('../src/admin/vaultconfigfields');
+  const pinned = require('../src/generator/pinned');
+  const { composeVaultConfigJson } = require('../src/setup/scaffold');
+  const { assertScanKeysPresent } = require('../src/cli/check');
+  const { CHECKS } = require('../src/checks/registry');
 
   const facts = {};
 
@@ -206,7 +243,195 @@ function codeFacts() {
     adminAllowed: ADMIN_ALLOWED_FLAGS,
   });
 
+  Object.assign(
+    facts,
+    packFacts({
+      PACK_TOP_LEVEL_KEYS: packToml.PACK_TOP_LEVEL_KEYS,
+      DEFAULT_THEME: themes.DEFAULT_THEME,
+      THEMES: themes.THEMES,
+      SLOT_NAMES: themes.SLOT_NAMES,
+      DEFAULT_LABELS: labels.DEFAULT_LABELS,
+      DEFAULT_VOCAB: labels.DEFAULT_VOCAB,
+      TIMELINE_KEYS: labels.TIMELINE_KEYS,
+      KIND_ENTRY_KEYS: labels.KIND_ENTRY_KEYS,
+      GLYPH_NAMES: labels.GLYPH_NAMES,
+      RECAPS_KEYS: labels.RECAPS_KEYS,
+      GM_LINK_KEYS: packToml.GM_LINK_KEYS,
+    }),
+  );
+
+  Object.assign(
+    facts,
+    vaultFacts({
+      COVERED_PREFIXES,
+      FIELD_SCHEMA,
+      DISPLAY_PATHS,
+      PUBLISH_DEFAULTS: pinned.PUBLISH_DEFAULTS,
+      scaffoldJson: JSON.parse(composeVaultConfigJson(pinned.readVaultConfigTemplate(), '')),
+      requiredKeys: requiredJsonKeys(assertScanKeysPresent),
+      readKeys: JSON_READ_KEYS,
+    }),
+  );
+
+  facts['check-messages'] = checkFacts({ CHECKS, buildIds: BUILD_FINDING_IDS });
+
   return facts;
+}
+
+/**
+ * The finding ids the build makes outside the check registry, with the severity each is made at.
+ * A literal here because the source keeps no list; the test scans src/ for id literals to keep the
+ * ids honest. The severity is copied by hand (a test compares it with the source).
+ */
+const BUILD_FINDING_IDS = Object.freeze([Object.freeze({ id: 'build/gm-link-marker', severity: 'error' })]);
+
+/**
+ * The check-messages facts: every finding id a GM can see, with its severity and where it runs.
+ * The inputs are injected so the logic can be tested with scratch values. A severity that can
+ * change per finding is marked "(varies)". The ids of the registry come first, then the build's.
+ *
+ * @param {{ CHECKS: object[], buildIds: { id: string, severity: string }[] }} input
+ * @returns {{ key: string, severity: string, runs: string }[]}
+ * @throws a finding id that appears twice
+ */
+function checkFacts({ CHECKS, buildIds }) {
+  const seen = new Set();
+  const once = (id) => {
+    if (seen.has(id)) throw new Error(`duplicate finding id "${id}"`);
+    seen.add(id);
+    return id;
+  };
+  const fromRegistry = CHECKS.map((c) => ({
+    key: once(c.id),
+    severity: c.defaultSeverity.toUpperCase() + (c.dynamicSeverity ? ' (varies)' : ''),
+    runs: c.requiresFlag ? `check ${c.requiresFlag} only` : 'check and build',
+  }));
+  const fromBuild = buildIds.map((b) => ({ key: once(b.id), severity: b.severity.toUpperCase(), runs: 'build only' }));
+  return [...fromRegistry, ...fromBuild];
+}
+
+/**
+ * The keys the source reads from a vault.config.json, through `jsonConfig.`, `siteConfig.` or
+ * `userJsonConfig.`. A literal here because the source keeps no list; the test scans src/ both ways
+ * to keep it honest. A read through any other variable name is invisible to that scan.
+ */
+const JSON_READ_KEYS = Object.freeze([
+  'attachmentsDir',
+  'backend',
+  'excludeCallouts',
+  'excludeDirs',
+  'excludeFields',
+  'excludeSections',
+  'folderMap',
+  'outputDir',
+  'searchEnabled',
+  'siteTitle',
+  'vaultPath',
+]);
+
+/**
+ * The keys vault.config.json must have, read by asking the real validator (as cliFacts asks
+ * validateFlags): an empty config throws "is missing required key(s) a and b".
+ *
+ * @param {(config: object, file: string, campaign: string) => void} assertFn
+ * @returns {string[]} the required keys, or [] when an empty config passes
+ * @throws any error that is not a missing-keys message
+ */
+function requiredJsonKeys(assertFn) {
+  try {
+    assertFn({}, 'vault.config.json', 'probe');
+    return [];
+  } catch (e) {
+    const m = /is missing required keys? (.+)$/.exec(e.message);
+    if (m === null) throw e;
+    return m[1].split(' and ');
+  }
+}
+
+/** A string, number or boolean becomes its text, a non-empty array of strings its items joined by commas; anything else (null, empty, an object) has no code value. */
+function plainValue(v) {
+  if (typeof v === 'string' && v !== '') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === 'string')) return v.join(', ');
+  return undefined;
+}
+
+/**
+ * The vault-config.md and vault.config.json facts: which keys exist (the panel's lists, and the
+ * keys the program reads, writes or requires), their types where the panel names them, their
+ * defaults, and what a new campaign gets. The inputs are injected so the logic can be tested with
+ * scratch values.
+ *
+ * @returns {{ 'vault-publish': object[], 'vault-json': object[] }}
+ * @throws a publish path that does not start with "publish."
+ */
+function vaultFacts({ COVERED_PREFIXES, FIELD_SCHEMA, DISPLAY_PATHS, PUBLISH_DEFAULTS, scaffoldJson, requiredKeys, readKeys }) {
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  const TYPE_OF_KIND = { list: 'list of text', int: 'whole number', string: 'text' };
+  const strip = (p) => {
+    if (!p.startsWith('publish.')) throw new Error(`the path "${p}" does not start with "publish."`);
+    return p.slice('publish.'.length);
+  };
+  const schemaByKey = new Map(FIELD_SCHEMA.map((f) => [strip(f.path), f]));
+  const displayByKey = new Map(DISPLAY_PATHS.map((d) => [strip(d.path), d]));
+  const publishKeys = [...new Set([...COVERED_PREFIXES, ...FIELD_SCHEMA.map((f) => f.path), ...DISPLAY_PATHS.map((d) => d.path)].map(strip))];
+  const defaultAt = (key) => {
+    let v = PUBLISH_DEFAULTS;
+    for (const part of key.split('.')) {
+      if (v === null || typeof v !== 'object' || !own(v, part)) return undefined;
+      v = v[part];
+    }
+    return plainValue(v);
+  };
+  const publishRows = publishKeys.map((key) => {
+    const row = { key };
+    const field = schemaByKey.get(key);
+    const type = field === undefined ? undefined : TYPE_OF_KIND[field.kind];
+    if (type !== undefined) row.type = type;
+    const dflt = defaultAt(key);
+    if (dflt !== undefined) row.default = dflt;
+    if (field !== undefined) row.panel = `${field.label} (edit)`;
+    else if (displayByKey.has(key)) row.panel = `${displayByKey.get(key).label} (shown)`;
+    return row;
+  });
+
+  const jsonKeys = [...new Set([...Object.keys(scaffoldJson), ...requiredKeys, ...readKeys])];
+  const jsonRows = jsonKeys.map((key) => {
+    const row = { key, required: requiredKeys.includes(key) ? 'yes' : 'no' };
+    const v = own(scaffoldJson, key) ? plainValue(scaffoldJson[key]) : undefined;
+    if (v !== undefined) row.newCampaigns = v;
+    return row;
+  });
+  return { 'vault-publish': publishRows, 'vault-json': jsonRows };
+}
+
+/**
+ * The pack.toml facts that come from the parser's own constants. The inputs are injected so the
+ * logic can be tested with scratch values. A regular expression's default is its source in a code
+ * span; renderBlock escapes any pipe in it.
+ *
+ * @returns {object} the eight pack-* blocks
+ */
+function packFacts({ PACK_TOP_LEVEL_KEYS, DEFAULT_THEME, THEMES, SLOT_NAMES, DEFAULT_LABELS, DEFAULT_VOCAB, TIMELINE_KEYS, KIND_ENTRY_KEYS, GLYPH_NAMES, RECAPS_KEYS, GM_LINK_KEYS }) {
+  const code = (re) => '`' + re.source + '`';
+  const timelineDefault = {
+    kinds: DEFAULT_VOCAB.kinds.map((k) => k.key).join(', '),
+    weights: DEFAULT_VOCAB.weights.join(', '),
+    session_token: code(DEFAULT_VOCAB.sessionToken),
+    segment_units: code(DEFAULT_VOCAB.segmentUnits),
+  };
+  return {
+    'pack-top': PACK_TOP_LEVEL_KEYS.map((key) =>
+      key === 'theme' ? { key, default: DEFAULT_THEME, allowed: Object.keys(THEMES).sort().join(', ') } : { key },
+    ),
+    'pack-images': SLOT_NAMES.map((key) => ({ key })),
+    'pack-labels': Object.keys(DEFAULT_LABELS).map((key) => ({ key, default: DEFAULT_LABELS[key] })),
+    'pack-timeline': TIMELINE_KEYS.map((key) => (timelineDefault[key] === undefined ? { key } : { key, default: timelineDefault[key] })),
+    'pack-timeline-kinds': KIND_ENTRY_KEYS.map((key) => (key === 'glyph' ? { key, allowed: GLYPH_NAMES.join(', ') } : { key })),
+    'pack-timeline-columns': Object.keys(DEFAULT_VOCAB.columns).map((key) => ({ key, default: DEFAULT_VOCAB.columns[key].join(', ') })),
+    'pack-recaps': RECAPS_KEYS.map((key) => (key === 'learned_heading' ? { key, default: DEFAULT_VOCAB.learnedHeading } : { key })),
+    'pack-gm-link': GM_LINK_KEYS.map((key) => ({ key })),
+  };
 }
 
 /**
@@ -437,7 +662,7 @@ function main(argv, { root = ROOT, out = (s) => process.stdout.write(s), err = (
   }
 }
 
-module.exports = { TARGETS, BLOCKS_BY_TARGET, BLOCK_NAMES, COLUMNS, beginLine, endLine, blockNamesIn, codeFacts, cliFacts, subcommandFacts, rows, renderBlock, fillBlocks, staleTargets, main };
+module.exports = { TARGETS, BLOCKS_BY_TARGET, BLOCK_NAMES, COLUMNS, beginLine, endLine, blockNamesIn, codeFacts, cliFacts, subcommandFacts, packFacts, vaultFacts, requiredJsonKeys, JSON_READ_KEYS, checkFacts, BUILD_FINDING_IDS, rows, renderBlock, fillBlocks, staleTargets, main };
 
 if (require.main === module) {
   process.exitCode = main(process.argv.slice(2));

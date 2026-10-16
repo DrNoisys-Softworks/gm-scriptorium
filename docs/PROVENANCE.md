@@ -1229,3 +1229,23 @@ turned into shapes so the picture needs no font at run time.
 
 The two BMP files are binary, so the public-guard residual classes now include them as well as the icon.
 They hold no text a guard list could match beyond the image data.
+
+## Documentation screenshots, 2026-10-16
+
+The pictures in `docs/images/how-to/` were taken by `scripts/docs-screenshots.js` with Playwright and Chromium, from the sample campaign on a scratch config, and each was checked by a person before it was added. They are original to this project and covered by the project's MIT licence.
+
+| File | sha256 |
+|---|---|
+| `docs/images/how-to/setup-new-vault.png` | `ba1a881a6b05b33894eb1dca2309f464a47340f800aaa30d8ee66296bb5db3e3` |
+| `docs/images/how-to/setup-review.png` | `2148c6f3efb3da576ea668f38cc86818b238e2efcf2b8ac281f020dc0d98dce2` |
+| `docs/images/how-to/campaigns-screen.png` | `311420788be56266ba979dec19dbbdec8acbfbc000b8bbb8814360a798de130e` |
+| `docs/images/how-to/add-a-campaign.png` | `cefabbfaad3047bd7550199bac7929d202b9653469794f4ca2c8386e45c8f935` |
+| `docs/images/how-to/campaign-switcher.png` | `53b39dae3ccac4722af24821b7f99a5128e2ad69a02d45f05654b2caf289204a` |
+| `docs/images/how-to/theme-screen.png` | `6d54a152600ed8e609f61d54851e1faf1a2b03d42bf5fb63392c24c5598ccc3e` |
+| `docs/images/how-to/images-screen.png` | `0cbbe7bcede4dba427a03200226b946bbbb4e31c68c26cf1d8ba6ac6d9eecf5f` |
+| `docs/images/how-to/title-and-tagline.png` | `84ae1240e78ae465d66c644ca7827fc5df74c678a51db800eb437997359c0da9` |
+| `docs/images/how-to/vocabulary-screen.png` | `e7a43d56bd887d6e4b46dc88e3930d96534387cdc90be3ebab6d8494e692a383` |
+| `docs/images/how-to/vault-config-fields.png` | `ba5bbe756dc1a27e90ad92cb552eb9a360da8070819d57be66240f991686a155` |
+| `docs/images/how-to/check-leak-found.png` | `cd7553ef12151a507c253ee66f30a0542c00080a0846eefe285ae42f1315c3ce` |
+| `docs/images/how-to/site-footer-gm-link.png` | `a2ae36583c9a6e58258681be01b0839e3aef0f30f83dce8660cc0cc2f63a1e81` |
+| `docs/images/how-to/remote-access-screen.png` | `7559b3a1f4568bb83b5a5ddac79ec6b838aafb1a93db63c68ba21620e7eece9d` |

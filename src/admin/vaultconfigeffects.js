@@ -595,6 +595,7 @@ function summarizeChange(prevData, nextData) {
 
 module.exports = {
   PRIVACY_LIST_PATHS,
+  COVERED_PREFIXES,
   PATH_GROUPS,
   computeEffects,
   summarizeChange,

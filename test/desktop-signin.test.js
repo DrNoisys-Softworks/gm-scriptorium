@@ -47,9 +47,13 @@ function streams({ tty, answer }) {
   return { stdin, stdout, text: () => text };
 }
 
-async function set(configPath, flags, { tty = false, answer, present = true } = {}) {
+// Two obvious placeholder computers; no real name is ever used.
+const PC_A = 'PC-A';
+const PC_B = 'PC-B';
+
+async function set(configPath, flags, { tty = false, answer, present = true, pc = PC_A, platform = 'linux' } = {}) {
   const s = streams({ tty, answer });
-  const result = await runRemoteCommand({ config: configPath, ...flags }, 'set', [], { stdin: s.stdin, stdout: s.stdout, panelAccess: PANEL_ACCESS, runValuePresent: () => present });
+  const result = await runRemoteCommand({ config: configPath, ...flags }, 'set', [], { stdin: s.stdin, stdout: s.stdout, panelAccess: PANEL_ACCESS, runValuePresent: () => present, hostname: () => pc, platform });
   return { ...result, asked: s.text().includes(QUESTION), prompt: s.text() };
 }
 
@@ -61,7 +65,7 @@ test('an explicit yes, with Start with Windows on, saves the confirmation in [de
   assert.equal(r.exitCode, 0);
   assert.ok(r.asked, 'the question was put');
   assert.equal(read(configPath).remote.mode, 'ssh');
-  assert.deepEqual(read(configPath).desktop, { remote_at_signin: true });
+  assert.deepEqual(read(configPath).desktop, { remote_at_signin: true, remote_at_signin_pc: PC_A });
 });
 
 test('"yes" in any case counts; anything else, an empty answer, and a closed terminal are No', async (t) => {
@@ -142,7 +146,7 @@ test('only the [remote] and [desktop] tables change; the ports already saved in 
   const after = read(configPath);
   assert.deepEqual(after.campaigns, before.campaigns);
   assert.deepEqual(after.update, before.update);
-  assert.deepEqual(after.desktop, { port: 9500, preview_port: 9501, remote_at_signin: true });
+  assert.deepEqual(after.desktop, { port: 9500, preview_port: 9501, remote_at_signin: true, remote_at_signin_pc: PC_A });
 });
 
 test('a [desktop] table that cannot be read does not stop remote set: the mode is saved and a warning says the choice was not', async (t) => {
@@ -154,7 +158,7 @@ test('a [desktop] table that cannot be read does not stop remote set: the mode i
   assert.match(r.human, /the \[desktop\] settings could not be read, so the sign-in choice was not saved/);
 });
 
-test('remote off clears the confirmation, keeps the saved ports, and drops [desktop] when nothing else is in it', async (t) => {
+test('remote off clears the confirmation and the computer name, keeps the saved ports, and drops [desktop] when nothing else is in it', async (t) => {
   const withPorts = fixture(t, '\n[remote]\nmode = "ssh"\nport = 9600\npreview_port = 9601\n\n[desktop]\nport = 9500\npreview_port = 9501\nremote_at_signin = true\n');
   const r = await runRemoteCommand({ config: withPorts.configPath }, 'off', [], { panelAccess: PANEL_ACCESS });
   assert.equal(r.exitCode, 0);
@@ -185,4 +189,87 @@ test('remote off is still a way out when [desktop] cannot be read', async (t) =>
   assert.equal(r.exitCode, 0);
   assert.equal(read(configPath).remote.mode, 'local');
   assert.equal(read(configPath).desktop.remote_at_signin, 'yes please', 'a table it cannot read is left alone');
+});
+
+// --- RV1b: the answer counts only on the computer that gave it ---------------------------------------------------------
+
+const SAVED_A = '\n[remote]\nmode = "ssh"\nport = 9600\npreview_port = 9601\n\n[desktop]\nremote_at_signin = true\nremote_at_signin_pc = "PC-A"\n';
+
+test('RV1b: the name of the computer that said yes is saved next to the answer', async (t) => {
+  const { configPath } = fixture(t);
+  await set(configPath, SSH, { tty: true, answer: 'y\n', pc: PC_B });
+  assert.deepEqual(read(configPath).desktop, { remote_at_signin: true, remote_at_signin_pc: PC_B });
+});
+
+test('RV1b: on the same computer the saved answer holds, so a change of port asks nothing', async (t) => {
+  const { configPath } = fixture(t, SAVED_A);
+  const r = await set(configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'n\n', pc: PC_A });
+  assert.equal(r.asked, false);
+  assert.deepEqual(read(configPath).desktop, { remote_at_signin: true, remote_at_signin_pc: PC_A });
+});
+
+test('RV1b: on another computer the question is asked again even with the same mode, and a No clears both keys', async (t) => {
+  const { configPath } = fixture(t, SAVED_A);
+  const r = await set(configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'n\n', pc: PC_B });
+  assert.ok(r.asked, 'asked on the other computer');
+  assert.equal(read(configPath).desktop, undefined);
+});
+
+test('RV1b: on another computer a Yes replaces the name with this computer', async (t) => {
+  const { configPath } = fixture(t, SAVED_A);
+  await set(configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'y\n', pc: PC_B });
+  assert.deepEqual(read(configPath).desktop, { remote_at_signin: true, remote_at_signin_pc: PC_B });
+});
+
+test('RV1b: a legacy true with no computer name counts as no, so it is asked again', async (t) => {
+  const { configPath } = fixture(t, '\n[remote]\nmode = "ssh"\nport = 9600\npreview_port = 9601\n\n[desktop]\nremote_at_signin = true\n');
+  const r = await set(configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'y\n' });
+  assert.ok(r.asked);
+  assert.deepEqual(read(configPath).desktop, { remote_at_signin: true, remote_at_signin_pc: PC_A });
+});
+
+test('RV1b: with no terminal, a stale answer from another computer is cleared and the output says why', async (t) => {
+  const { configPath } = fixture(t, SAVED_A);
+  const r = await set(configPath, { port: '9610', 'preview-port': '9611' }, { tty: false, pc: PC_B });
+  assert.equal(r.asked, false);
+  assert.equal(read(configPath).desktop, undefined);
+  assert.match(r.human, /will not start when you sign in to Windows \(there was no terminal to ask\)/);
+});
+
+test('RV1b: names are compared without regard to case on Windows, and exactly elsewhere', async (t) => {
+  const win = fixture(t, SAVED_A);
+  const w = await set(win.configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'n\n', pc: 'pc-a', platform: 'win32' });
+  assert.equal(w.asked, false, 'win32: pc-a is PC-A');
+  const nix = fixture(t, SAVED_A);
+  const n = await set(nix.configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'n\n', pc: 'pc-a', platform: 'linux' });
+  assert.ok(n.asked, 'linux: pc-a is not PC-A');
+});
+
+test('RV1b: remote off clears the answer and the computer name together', async (t) => {
+  const { configPath } = fixture(t, SAVED_A);
+  await runRemoteCommand({ config: configPath }, 'off', [], { panelAccess: PANEL_ACCESS });
+  assert.equal(read(configPath).desktop, undefined);
+  const named = fixture(t, '\n[desktop]\nport = 9500\npreview_port = 9501\nremote_at_signin_pc = "PC-A"\n');
+  await runRemoteCommand({ config: named.configPath }, 'off', [], { panelAccess: PANEL_ACCESS });
+  assert.deepEqual(read(named.configPath).desktop, { port: 9500, preview_port: 9501 }, 'a leftover name is cleared too');
+});
+
+test('RV1b: a bad computer name in [desktop] is refused with one line', () => {
+  const { parseDesktopTable } = require('../src/config/desktopsettings');
+  for (const bad of [5, true, '', '   ', 'a\nb', 'x'.repeat(300)]) {
+    assert.throws(() => parseDesktopTable({ remote_at_signin_pc: bad }), /^ConfigError: desktop: remote_at_signin_pc must be the name of a computer$|desktop: remote_at_signin_pc must be the name of a computer/);
+  }
+  assert.doesNotThrow(() => parseDesktopTable({ remote_at_signin_pc: 'PC-A' }));
+});
+
+test('RV1b: confirmedHere is true only for a true answer naming this computer', () => {
+  const { confirmedHere } = require('../src/config/desktopsettings');
+  assert.equal(confirmedHere({ remote_at_signin: true, remote_at_signin_pc: PC_A }, PC_A), true);
+  assert.equal(confirmedHere({ remote_at_signin: true, remote_at_signin_pc: PC_A }, PC_B), false);
+  assert.equal(confirmedHere({ remote_at_signin: true }, PC_A), false, 'legacy');
+  assert.equal(confirmedHere({ remote_at_signin: false, remote_at_signin_pc: PC_A }, PC_A), false);
+  assert.equal(confirmedHere({ remote_at_signin_pc: PC_A }, PC_A), false);
+  assert.equal(confirmedHere(undefined, PC_A), false);
+  assert.equal(confirmedHere({ remote_at_signin: true, remote_at_signin_pc: PC_A }, ''), false);
+  assert.equal(confirmedHere({ remote_at_signin: true, remote_at_signin_pc: PC_A }, undefined), false);
 });

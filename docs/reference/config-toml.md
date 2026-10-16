@@ -100,7 +100,8 @@ environment variable to its name. A name that does not exist also exits 3.
 ## Remote access: `[remote]`
 
 Remote access lets you use the admin panel from another device. [Remote access](../remote-access.md)
-explains the modes and what each one protects. The table here lists the keys. Use `gm-scriptorium
+explains the modes and how to set them up, and [Remote access: accounts, sign-in and what is protected](remote-access.md)
+says what each one protects. The table here lists the keys. Use `gm-scriptorium
 remote set` to change them where you can, because it checks every value before it writes anything.
 Changing `--mode` drops the old addresses unless you give new ones in the same command.
 
@@ -152,5 +153,6 @@ change a table it cannot read.
 |---|---|---|---|---|---|
 | `port` | whole number | 7400 | 1 to 65535 | *Since 0.5.0.* The panel's port for the Windows desktop app ([ADR 0057](../decisions/0057-windows-desktop-app.md), section 8). In this version only `desktop set` reads and writes it. It must differ from `preview_port`. | `desktop set --port` |
 | `preview_port` | whole number | 7401 | 1 to 65535 | *Since 0.5.0.* The preview's port for the Windows desktop app ([ADR 0057](../decisions/0057-windows-desktop-app.md), section 8). In this version only `desktop set` reads and writes it. | `desktop set --preview-port` |
-| `remote_at_signin` | true or false | false | `true`, `false` | *Since 0.5.0.* Records that you agreed remote access may start when you sign in to Windows. Without it, the desktop app starts the panel for this computer only at sign-in, whatever mode is saved; a start you make yourself uses the saved mode. `remote set` asks "Also start remote access when you sign in to Windows?" when you switch to a remote mode (the default is No, and no terminal counts as No), and it asks again when you switch to a different remote mode. `remote off` clears it. | The answer to the `remote set` question, and `remote off` |
+| `remote_at_signin` | true or false | false | `true`, `false` | *Since 0.5.0.* Records that you agreed remote access may start when you sign in to Windows. Without it, the desktop app starts the panel for this computer only at sign-in, whatever mode is saved; a start you make yourself uses the saved mode. `remote set` asks "Also start remote access when you sign in to Windows?" when you switch to a remote mode (the default is No, and no terminal counts as No), and it asks again when you switch to a different remote mode. `remote off` clears it. It counts only on the computer named in `remote_at_signin_pc`. | The answer to the `remote set` question, and `remote off` |
+| `remote_at_signin_pc` | text | - | A computer name | *Since 0.5.0.* The name of the computer where you agreed that remote access may start at sign-in. The answer in `remote_at_signin` counts only on that computer, so copying your settings folder to another PC does not carry your yes with it: there the desktop app starts for this computer only, and `remote set` asks again. An answer saved without a name counts as no. `remote set` writes it together with the answer, and `remote off` clears both. It is never written to the desktop app's log. | The answer to the `remote set` question, and `remote off` |
 <!-- END GENERATED config-desktop -->

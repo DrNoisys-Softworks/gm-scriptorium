@@ -88,3 +88,15 @@ test('l3, config divergence and the D2 index-term check are marked dynamicSeveri
   assert.equal(getCheck('config/exclude-dirs-divergence').dynamicSeverity, true);
   assert.equal(getCheck('leak/l4-index-term').dynamicSeverity, true);
 });
+
+test('config/exclude-dirs-divergence description reads exactly as written (#141)', () => {
+  assert.equal(
+    getCheck('config/exclude-dirs-divergence').description,
+    "A directory excluded in _meta/vault-config.md's publish.exclude_dirs but not in vault.config.json's excludeDirs. A fresh build honours both lists (lib/build.js scans with the unioned exclude_dirs via scanConfigFor), so this is a WARN whether or not the directory holds pages or images (data.appliesInOutput says which); files a stale build left in real output are leak/l2-excluded-dir-in-output's to report. A vault.config.json-only entry is INFO.",
+  );
+});
+
+test('no check description carries a bare --force claim (#140)', () => {
+  const offenders = CHECKS.filter((c) => /--force(?![-a-z])/.test(c.description)).map((c) => c.id);
+  assert.equal(offenders.join(','), '');
+});

@@ -21,7 +21,8 @@ const { validatePort } = require('../setup/validate');
  */
 
 const DESKTOP_DEFAULTS = Object.freeze({ port: 7400, previewPort: 7401 });
-const DESKTOP_KEYS = Object.freeze(['port', 'preview_port', 'remote_at_signin']);
+const DESKTOP_KEYS = Object.freeze(['port', 'preview_port', 'remote_at_signin', 'remote_at_signin_pc']);
+const MAX_COMPUTER_NAME = 255;
 
 function isPlainObject(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -38,6 +39,37 @@ function readPort(raw, key) {
   const label = `desktop: ${key}`;
   if (!Number.isInteger(raw)) throw new ConfigError(`${label} must be a whole number from 1 to 65535`);
   return validatePort(raw, label);
+}
+
+function readComputerName(raw) {
+  // eslint-disable-next-line no-control-regex
+  if (typeof raw !== 'string' || raw.trim() === '' || raw.length > MAX_COMPUTER_NAME || /[\u0000-\u001f\u007f]/.test(raw)) {
+    throw new ConfigError('desktop: remote_at_signin_pc must be the name of a computer');
+  }
+  return raw;
+}
+
+/** One computer name, compared the way the platform compares them (Windows names ignore case). */
+function sameComputer(a, b, platform = process.platform) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const x = a.trim();
+  const y = b.trim();
+  if (x === '' || y === '') return false;
+  return platform === 'win32' ? x.toLowerCase() === y.toLowerCase() : x === y;
+}
+
+/**
+ * Whether the sign-in confirmation (section 7) was given on THIS computer. It counts only when
+ * `remote_at_signin` is true and `remote_at_signin_pc` names this computer: a settings folder copied to
+ * another PC carries the answer but not the computer, and a true with no name (written before the name
+ * was kept) counts as no. A table that cannot be read counts as no.
+ *
+ * @param {unknown} raw the value of `config.desktop`
+ * @param {string} computer this computer's name
+ */
+function confirmedHere(raw, computer, platform = process.platform) {
+  if (!isPlainObject(raw) || raw.remote_at_signin !== true) return false;
+  return sameComputer(raw.remote_at_signin_pc, computer, platform);
 }
 
 /**
@@ -57,6 +89,7 @@ function parseDesktopTable(raw) {
   if (raw.remote_at_signin !== undefined && typeof raw.remote_at_signin !== 'boolean') {
     throw new ConfigError('desktop: remote_at_signin must be true or false');
   }
+  if (raw.remote_at_signin_pc !== undefined) readComputerName(raw.remote_at_signin_pc);
   if (port === previewPort) throw new ConfigError('desktop: the panel and preview ports must differ');
   return {
     port,
@@ -66,4 +99,4 @@ function parseDesktopTable(raw) {
   };
 }
 
-module.exports = { DESKTOP_DEFAULTS, DESKTOP_KEYS, parseDesktopTable };
+module.exports = { DESKTOP_DEFAULTS, DESKTOP_KEYS, parseDesktopTable, confirmedHere, sameComputer };
