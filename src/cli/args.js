@@ -43,12 +43,13 @@ const COMMAND_FLAGS = Object.freeze({
   // (src/cli/remote.js), so a flag meant for `set` is refused by `show`.
   remote: [...COMMON_FLAGS, 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy', 'port', 'preview-port', 'account'],
   // The Windows desktop app (ADR 0057, section 8): `desktop set` writes the [desktop] ports. --background is
-  // for `desktop run` (a later slice); `desktop set` refuses it itself.
-  desktop: [...COMMON_FLAGS, 'port', 'preview-port', 'background'],
+  // for `desktop run` (a later slice); `desktop set` refuses it itself. --remote-at-signin and --yes are for
+  // `desktop set --remote-at-signin on|off [--yes]` (section 7).
+  desktop: [...COMMON_FLAGS, 'port', 'preview-port', 'background', 'remote-at-signin', 'yes'],
 });
 // Of the accepted flags, the ones that need a value after them (`update --version <tag>` is the one
 // place --version takes a value; elsewhere it is the boolean that prints the version).
-const VALUE_FLAGS = new Set(['campaign', 'config', 'vault', 'out', 'site-config', 'port', 'host', 'name', 'title', 'theme', 'new-vault', 'system', 'preview-port', 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy', 'account']);
+const VALUE_FLAGS = new Set(['campaign', 'config', 'vault', 'out', 'site-config', 'port', 'host', 'name', 'title', 'theme', 'new-vault', 'system', 'preview-port', 'mode', 'admin-url', 'preview-url', 'bind', 'trusted-proxy', 'account', 'remote-at-signin']);
 
 function editDistance(a, b) {
   const prev = Array.from({ length: b.length + 1 }, (_, j) => j);

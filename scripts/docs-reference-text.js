@@ -222,15 +222,15 @@ module.exports = deepFreeze({
     remote_at_signin: {
       type: 'true or false',
       allowed: 'true, false',
-      what: 'Records that you agreed remote access may start when you sign in to Windows. Without it, the desktop app starts the panel for this computer only at sign-in, whatever mode is saved; a start you make yourself uses the saved mode. `remote set` asks "Also start remote access when you sign in to Windows?" when you switch to a remote mode (the default is No, and no terminal counts as No), and it asks again when you switch to a different remote mode. `remote off` clears it. It counts only on the computer named in `remote_at_signin_pc`.',
-      changedBy: 'The answer to the `remote set` question, and `remote off`',
+      what: 'Records that remote access may start when you sign in to Windows on this PC. Without it, the desktop app starts the panel for this computer only at sign-in, whatever mode is saved; a start you make yourself uses the saved mode. Turn it on or off with "Remote access at sign-in" in the menu of the GM-Scriptorium icon in the system tray, which asks before it turns it on, or with `desktop set --remote-at-signin on` or `off`. `remote set` clears it when you switch to a different remote mode, and so does `remote off`. It counts only on the computer named in `remote_at_signin_pc`.',
+      changedBy: 'The tray menu or `desktop set --remote-at-signin`; `remote set` to a different remote mode and `remote off` clear it',
       since: '0.5.0',
     },
     remote_at_signin_pc: {
       type: 'text',
       allowed: 'A computer name',
-      what: 'The name of the computer where you agreed that remote access may start at sign-in. The answer in `remote_at_signin` counts only on that computer, so copying your settings folder to another PC does not carry your yes with it: there the desktop app starts for this computer only, and `remote set` asks again. An answer saved without a name counts as no. `remote set` writes it together with the answer, and `remote off` clears both. It is never written to the desktop app\'s log.',
-      changedBy: 'The answer to the `remote set` question, and `remote off`',
+      what: 'The name of the computer where remote access at sign-in was turned on. `remote_at_signin` counts only on that computer, so copying your settings folder to another PC does not carry the setting with it: there the desktop app starts for this computer only, and the tray item shows unticked until you tick it there, which replaces the name. A setting saved without a name counts as off. It is written and cleared together with `remote_at_signin`. It is never written to the desktop app\'s log.',
+      changedBy: 'The tray menu or `desktop set --remote-at-signin`; `remote set` to a different remote mode and `remote off` clear it',
       since: '0.5.0',
     },
   },
@@ -818,7 +818,7 @@ module.exports = deepFreeze({
       what: 'Changes how the admin panel can be reached from other devices. *Since 0.5.0.* It also manages the accounts that can sign in. See [Remote access](../remote-access.md).',
     },
     desktop: {
-      what: 'Saves the two ports the Windows desktop app gives its panel and its preview. The Windows tray app also runs `desktop run`, which is not meant to be typed.',
+      what: 'Saves the settings of the Windows desktop app: its two ports, and whether remote access may start at sign-in. The Windows tray app also runs `desktop run`, which is not meant to be typed.',
       since: '0.5.0',
     },
   },
@@ -921,6 +921,14 @@ module.exports = deepFreeze({
       what: 'For `desktop set`: the port the Windows desktop app gives its preview. See `[desktop]` in [the settings file](config-toml.md).',
       since: '0.5.0',
     },
+    'desktop --remote-at-signin': {
+      what: 'For `desktop set`: `on` or `off`, whether remote access may start when you sign in to Windows on this PC. `on` asks first at a terminal, and the default is No. Give it on its own, without `--port` or `--preview-port`. See `remote_at_signin` in [the settings file](config-toml.md).',
+      since: '0.5.0',
+    },
+    'desktop --yes': {
+      what: 'For `desktop set --remote-at-signin on`: answers yes to the question, for a script. With no terminal and without it, `on` is refused and nothing changes.',
+      since: '0.5.0',
+    },
     'desktop --background': {
       what: 'For `desktop run`: the quiet start at sign-in, with no browser tab. `desktop set` refuses it.',
       since: '0.5.0',
@@ -956,7 +964,7 @@ module.exports = deepFreeze({
       what: 'Prints the remote-access settings for this computer: the mode, the addresses, where it listens and whether it is ready to start. *Since 0.5.0.* It also lists which accounts exist. It never prints a secret.',
     },
     'remote set': {
-      what: 'Saves remote-access settings. Only https addresses are accepted, and every value is checked before anything is written. It takes effect the next time the admin panel starts. *Since 0.5.0.* On a Windows copy with the tray app, switching to a remote mode also asks whether remote access may start when you sign in to Windows (the default is No).',
+      what: 'Saves remote-access settings. Only https addresses are accepted, and every value is checked before anything is written. It takes effect the next time the admin panel starts. *Since 0.5.0.* On a Windows copy with the tray app, switching to a different remote mode turns remote access at sign-in off and says where to turn it back on. It never asks.',
     },
     'remote account add': {
       what: 'Adds an account: `remote account add <name>`. Names are 1 to 32 letters, digits, dots, hyphens or underscores. The password is asked for with nothing shown on screen, and must be at least 12 characters. There can be at most 8 accounts.',
@@ -996,7 +1004,7 @@ module.exports = deepFreeze({
       since: '0.5.0',
     },
     'desktop set': {
-      what: 'Saves the two ports for the Windows desktop app: `desktop set --port 7500 --preview-port 7501`. Give at least one, and a port you leave out keeps its current value. They must be different whole numbers from 1 to 65535, and nothing is written until both are checked. It changes only the `[desktop]` part of the settings file.',
+      what: 'Saves the two ports for the Windows desktop app: `desktop set --port 7500 --preview-port 7501`. Give at least one, and a port you leave out keeps its current value. They must be different whole numbers from 1 to 65535, and nothing is written until both are checked. It changes only the `[desktop]` part of the settings file. With `--remote-at-signin on` or `off` instead, it saves whether remote access may start when you sign in to Windows on this PC; `on` asks first at a terminal unless you add `--yes`.',
       since: '0.5.0',
     },
     'serve --admin': {

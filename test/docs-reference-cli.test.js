@@ -62,7 +62,7 @@ test('cli-global-flags: the eleven flags, and which take a value', () => {
   );
 });
 
-test('cli-flags: the 29 own flags in order, update --version being the one override', () => {
+test('cli-flags: the 31 own flags in order, update --version being the one override', () => {
   const rows = gen.codeFacts()['cli-flags'];
   assert.deepEqual(rows.map((r) => r.key), [
     'init --name', 'init --title', 'init --theme', 'init --yes', 'init --new-vault', 'init --system',
@@ -71,9 +71,9 @@ test('cli-flags: the 29 own flags in order, update --version being the one overr
     'serve --build', 'serve --port', 'serve --host', 'serve --admin', 'serve --preview-port',
     'update --check', 'update --pre', 'update --version',
     'remote --mode', 'remote --admin-url', 'remote --preview-url', 'remote --bind', 'remote --trusted-proxy', 'remote --port', 'remote --preview-port', 'remote --account',
-    'desktop --port', 'desktop --preview-port', 'desktop --background',
+    'desktop --port', 'desktop --preview-port', 'desktop --background', 'desktop --remote-at-signin', 'desktop --yes',
   ]);
-  const no = ['init --yes', 'check --graph', 'build --force-out', 'build --force-check', 'build --no-check', 'serve --build', 'serve --admin', 'update --check', 'update --pre', 'desktop --background'];
+  const no = ['init --yes', 'check --graph', 'build --force-out', 'build --force-check', 'build --no-check', 'serve --build', 'serve --admin', 'update --check', 'update --pre', 'desktop --background', 'desktop --yes'];
   for (const r of rows) assert.equal(r.takesValue, no.includes(r.key) ? 'no' : 'yes', r.key);
   assert.equal(rows.find((r) => r.key === 'update --version').takesValue, 'yes');
 });
@@ -92,7 +92,7 @@ test('cli-subcommands: the 20 keys in order, and the flags the allow-lists give'
   const flags = Object.fromEntries(rows.map((r) => [r.key, r.flags]));
   assert.equal(flags['remote set'], '--config, --mode, --admin-url, --preview-url, --bind, --trusted-proxy, --port, --preview-port');
   assert.equal(flags['remote signout-all'], '--config, --account');
-  assert.equal(flags['desktop set'], '--config, --port, --preview-port');
+  assert.equal(flags['desktop set'], '--config, --port, --preview-port, --remote-at-signin, --yes');
   assert.equal(flags['serve --admin'], '--admin, --campaign, --config, --vault, --port, --preview-port, --json');
   assert.equal(flags['remote show'], '--config');
   for (const key of ['config list', 'config add', 'config remove', 'config set-default', 'config path', 'config edit']) {

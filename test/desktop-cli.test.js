@@ -204,3 +204,183 @@ test('help: desktop --help lists its flags and exit codes 0, 1, 3', () => {
   const top = spawnSync(process.execPath, [BIN, '--help'], { encoding: 'utf8', input: '' });
   assert.match(top.stdout, /^ {2}desktop {2}set \[--port N\] \[--preview-port N\]$/m);
 });
+
+// --- desktop set --remote-at-signin on|off [--yes] (ADR 0057 section 7, "Turning it on and off from the tray") --------------------
+
+const { PassThrough } = require('stream');
+const smol = require('smol-toml');
+
+// The wording, typed from the ADR and the help text.
+const SIGNIN_WARNING = 'Anyone your remote access setup lets through can reach the sign-in page whenever this PC is on.';
+const SIGNIN_QUESTION = 'Start remote access when you sign in to Windows? [y/N] ';
+const SIGNIN_NEEDS_YES = 'turning on remote access at sign-in asks first; run it in a terminal on this PC, or add --yes';
+const SIGNIN_ON = 'remote access at sign-in: on for this PC\nit takes effect the next time you sign in to Windows; a panel that is already running is not changed';
+const SIGNIN_OFF = 'remote access at sign-in: off\nthe next start at sign-in runs the panel for this PC only';
+
+const readParsed = (configPath) => JSON.parse(JSON.stringify(smol.parse(fs.readFileSync(configPath, 'utf8'))));
+const SAVED_PC_A = '\n[desktop]\nport = 7500\npreview_port = 7501\nremote_at_signin = true\nremote_at_signin_pc = "PC-A"\n';
+
+function signinStreams({ tty, answer }) {
+  const stdin = new PassThrough();
+  stdin.isTTY = tty;
+  if (answer !== undefined) stdin.write(answer);
+  if (answer === undefined && tty) stdin.end(); // a terminal that closes: no answer
+  const stdout = new PassThrough();
+  let text = '';
+  stdout.on('data', (c) => { text += c; });
+  return { stdin, stdout, text: () => text };
+}
+
+/** Runs `desktop set` in process; a throw (sync or async) comes back as { error }. */
+async function setSignin(configPath, extra, { tty = false, answer, pc = 'PC-A' } = {}) {
+  const s = signinStreams({ tty, answer });
+  try {
+    const result = await runDesktopCommand({ config: configPath, ...extra }, 'set', [], { stdin: s.stdin, stdout: s.stdout, hostname: () => pc });
+    return { result, stdout: s.text(), unread: String(s.stdin.read()) };
+  } catch (error) {
+    return { error, stdout: s.text(), unread: String(s.stdin.read()) };
+  }
+}
+
+test('D1: on --yes writes both keys with this PC, keeps the ports and every other table, and prints the two lines', async (t) => {
+  const { configPath } = fixture(t, `${REMOTE_TOML}${UPDATE_TOML}\n[desktop]\nport = 7500\npreview_port = 7501\n`);
+  const before = readParsed(configPath);
+  const r = await setSignin(configPath, { 'remote-at-signin': 'on', yes: true });
+  assert.equal(r.error, undefined);
+  assert.equal(r.result.exitCode, 0);
+  assert.equal(r.result.human, SIGNIN_ON);
+  const after = readParsed(configPath);
+  assert.deepEqual(after.desktop, { port: 7500, preview_port: 7501, remote_at_signin: true, remote_at_signin_pc: 'PC-A' });
+  assert.deepEqual(after.campaigns, before.campaigns);
+  assert.deepEqual(after.remote, before.remote);
+  assert.deepEqual(after.update, before.update);
+  assert.equal(r.stdout, '', 'nothing was asked');
+});
+
+test('D2: off clears both keys, keeps the ports, drops an emptied table, and prints the two lines', async (t) => {
+  const withPorts = fixture(t, SAVED_PC_A);
+  const a = await setSignin(withPorts.configPath, { 'remote-at-signin': 'off' });
+  assert.equal(a.error, undefined);
+  assert.equal(a.result.exitCode, 0);
+  assert.equal(a.result.human, SIGNIN_OFF);
+  assert.deepEqual(readParsed(withPorts.configPath).desktop, { port: 7500, preview_port: 7501 });
+  const only = fixture(t, '\n[desktop]\nremote_at_signin = true\nremote_at_signin_pc = "PC-A"\n');
+  const b = await setSignin(only.configPath, { 'remote-at-signin': 'off' });
+  assert.equal(b.result.human, SIGNIN_OFF);
+  assert.equal(readParsed(only.configPath).desktop, undefined);
+});
+
+test('D3: at a terminal on asks the warning and the question, and only y or yes in any case turns it on; every other answer cancels', async (t) => {
+  for (const answer of ['YES\n', 'Yes\n', 'y\n', 'yes\n']) {
+    const { configPath } = fixture(t);
+    const r = await setSignin(configPath, { 'remote-at-signin': 'on' }, { tty: true, answer });
+    assert.equal(r.error, undefined, JSON.stringify(answer));
+    assert.equal(r.result.human, SIGNIN_ON);
+    assert.equal(r.stdout, `${SIGNIN_WARNING}\n${SIGNIN_QUESTION}\n`, JSON.stringify(answer));
+    assert.deepEqual(readParsed(configPath).desktop, { remote_at_signin: true, remote_at_signin_pc: 'PC-A' });
+  }
+  for (const answer of ['n\n', '\n', 'no\n', 'sure\n', 'yy\n', undefined]) {
+    const { configPath } = fixture(t);
+    const before = fs.readFileSync(configPath);
+    const r = await setSignin(configPath, { 'remote-at-signin': 'on' }, { tty: true, answer });
+    assert.ok(r.error instanceof ConfigError, JSON.stringify(answer));
+    assert.equal(r.error.message, 'cancelled; nothing changed');
+    assert.deepEqual(fs.readFileSync(configPath), before, JSON.stringify(answer));
+    if (answer !== undefined) assert.equal(r.stdout, `${SIGNIN_WARNING}\n${SIGNIN_QUESTION}\n`, JSON.stringify(answer));
+  }
+});
+
+test('D4: on with no terminal and no --yes is refused with the one line, nothing is written and stdin is not read', async (t) => {
+  const { configPath } = fixture(t);
+  const before = fs.readFileSync(configPath);
+  const r = await setSignin(configPath, { 'remote-at-signin': 'on' }, { tty: false, answer: 'y\n' });
+  assert.ok(r.error instanceof ConfigError);
+  assert.equal(r.error.message, SIGNIN_NEEDS_YES);
+  assert.deepEqual(fs.readFileSync(configPath), before);
+  assert.equal(r.unread, 'y\n');
+  assert.equal(r.stdout, '');
+});
+
+test('D5: off with no terminal works and asks nothing', async (t) => {
+  const { configPath } = fixture(t, SAVED_PC_A);
+  const r = await setSignin(configPath, { 'remote-at-signin': 'off' }, { tty: false, answer: 'y\n' });
+  assert.equal(r.error, undefined);
+  assert.equal(r.result.human, SIGNIN_OFF);
+  assert.equal(r.unread, 'y\n');
+  assert.equal(r.stdout, '');
+});
+
+test('D6: a value that is not on or off, and a missing value, exit 1 with the whole line', (t) => {
+  const { configPath } = fixture(t);
+  const before = fs.readFileSync(configPath);
+  const bad = run(configPath, ['desktop', 'set', '--remote-at-signin', 'maybe']);
+  assert.equal(bad.code, 1, bad.out + bad.err);
+  assert.equal(bad.err, '--remote-at-signin must be on or off\n');
+  const missing = run(configPath, ['desktop', 'set', '--remote-at-signin']);
+  assert.equal(missing.code, 1, missing.out + missing.err);
+  assert.equal(missing.err, '--remote-at-signin needs a value: desktop --remote-at-signin <value>\n');
+  assert.deepEqual(fs.readFileSync(configPath), before);
+});
+
+test('D7: --remote-at-signin together with --port or --preview-port exits 1 and writes nothing', (t) => {
+  const { configPath } = fixture(t);
+  const before = fs.readFileSync(configPath);
+  for (const extra of [['--port', '7500'], ['--preview-port', '7501']]) {
+    const r = run(configPath, ['desktop', 'set', '--remote-at-signin', 'off', ...extra]);
+    assert.equal(r.code, 1, r.out + r.err);
+    assert.equal(r.err, 'desktop set: give --remote-at-signin on its own, not with --port or --preview-port\n');
+  }
+  assert.deepEqual(fs.readFileSync(configPath), before);
+});
+
+test('D8: --yes with the ports is refused', (t) => {
+  const { configPath } = fixture(t);
+  const before = fs.readFileSync(configPath);
+  const r = run(configPath, ['desktop', 'set', '--yes', '--port', '7500']);
+  assert.equal(r.code, 1, r.out + r.err);
+  assert.equal(r.err, 'desktop set: --yes only goes with --remote-at-signin\n');
+  assert.deepEqual(fs.readFileSync(configPath), before);
+});
+
+test('D9: an unreadable [desktop] table is refused before anything is asked, and nothing is written', async (t) => {
+  const { configPath } = fixture(t, '\n[desktop]\ncolour = 1\n');
+  const before = fs.readFileSync(configPath);
+  const r = await setSignin(configPath, { 'remote-at-signin': 'on' }, { tty: true, answer: 'y\n' });
+  assert.ok(r.error instanceof ConfigError);
+  assert.match(r.error.message, /unrecognised key "colour"/);
+  assert.deepEqual(fs.readFileSync(configPath), before);
+  assert.equal(r.stdout, '');
+  assert.equal(r.unread, 'y\n');
+});
+
+test('D10: a yes saved for another PC is replaced by this PC', async (t) => {
+  const { configPath } = fixture(t, '\n[desktop]\nremote_at_signin = true\nremote_at_signin_pc = "PC-B"\n');
+  const r = await setSignin(configPath, { 'remote-at-signin': 'on', yes: true }, { pc: 'PC-A' });
+  assert.equal(r.error, undefined);
+  assert.deepEqual(readParsed(configPath).desktop, { remote_at_signin: true, remote_at_signin_pc: 'PC-A' });
+});
+
+test('D11: on then off puts a canonical file back byte for byte', async (t) => {
+  const { configPath } = fixture(t, `${REMOTE_TOML}${UPDATE_TOML}\n[desktop]\nport = 7500\npreview_port = 7501\n`);
+  writeLib.writeConfigFile(configPath, smol.parse(fs.readFileSync(configPath, 'utf8')));
+  const bytes = fs.readFileSync(configPath);
+  await setSignin(configPath, { 'remote-at-signin': 'on', yes: true });
+  assert.notDeepEqual(fs.readFileSync(configPath), bytes, 'on changed the file');
+  await setSignin(configPath, { 'remote-at-signin': 'off' });
+  assert.deepEqual(fs.readFileSync(configPath), bytes);
+});
+
+test('D12: the flags are accepted by desktop, --remote-at-signin takes a value, --yes does not, and the help names both', () => {
+  assert.deepEqual(COMMAND_FLAGS.desktop.filter((f) => ['remote-at-signin', 'yes'].includes(f)).sort(), ['remote-at-signin', 'yes']);
+  const { flags } = parseArgv(['desktop', 'set', '--remote-at-signin', 'on', '--yes']);
+  assert.equal(flags['remote-at-signin'], 'on');
+  assert.equal(flags.yes, true);
+  assert.doesNotThrow(() => validateFlags('desktop', flags));
+  assert.throws(
+    () => validateFlags('desktop', { 'remote-at-signin': true }),
+    (e) => e instanceof ConfigError && e.message === '--remote-at-signin needs a value: desktop --remote-at-signin <value>',
+  );
+  const text = commandHelp('desktop');
+  assert.ok(text.includes('--remote-at-signin'));
+  assert.ok(text.includes('--yes'));
+});

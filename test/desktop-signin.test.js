@@ -15,13 +15,16 @@ const guard = installLoopbackGuard();
 test.after(() => guard.assertClean({ minConnects: 0 }));
 
 /*
- * ADR 0057, section 7 ("Remote access at sign-in asks again"): `remote set` asks "Also start remote
- * access when you sign in to Windows?" when it changes the mode to a remote mode while Start with
- * Windows is on; `remote off` clears the answer. Run in process with injected streams, so nothing
- * touches a terminal, a registry or a real config.
+ * ADR 0057, section 7 ("Turning it on and off from the tray"): `remote set` never asks. A change to a
+ * different remote mode clears remote access at sign-in and, when the tray helper sits beside the program,
+ * says where the tray item is; `remote off` clears it too. Turning it on is the tray's tick box and
+ * `desktop set --remote-at-signin on` (test/desktop-cli.test.js). Run in process with injected streams,
+ * so nothing touches a terminal, a registry or a real config.
  */
 
-const QUESTION = 'Also start remote access when you sign in to Windows?';
+// The line `remote set` adds when the helper sits beside the program, typed from the ADR.
+const TRAY_POINTER = '\nRemote access does not start when you sign in to Windows. To change that on this PC, tick "Remote access at sign-in" in the menu of the GM-Scriptorium icon in the system tray, or run "gm-scriptorium desktop set --remote-at-signin on".';
+const PANEL_WARNING = '\nwarning: the [desktop] settings could not be read, so remote access at sign-in was left as it was';
 const PANEL_ACCESS = { platform: 'linux', env: {} };
 
 function fixture(t, extraToml = '') {
@@ -54,108 +57,94 @@ const PC_B = 'PC-B';
 async function set(configPath, flags, { tty = false, answer, present = true, pc = PC_A, platform = 'linux' } = {}) {
   const s = streams({ tty, answer });
   const result = await runRemoteCommand({ config: configPath, ...flags }, 'set', [], { stdin: s.stdin, stdout: s.stdout, panelAccess: PANEL_ACCESS, runValuePresent: () => present, hostname: () => pc, platform });
-  return { ...result, asked: s.text().includes(QUESTION), prompt: s.text() };
+  return { ...result, stdoutText: s.text(), unread: String(s.stdin.read()) };
 }
 
 const SSH = { mode: 'ssh' };
 
-test('an explicit yes, with Start with Windows on, saves the confirmation in [desktop] through the config writer', async (t) => {
-  const { configPath } = fixture(t);
-  const r = await set(configPath, SSH, { tty: true, answer: 'y\n' });
-  assert.equal(r.exitCode, 0);
-  assert.ok(r.asked, 'the question was put');
-  assert.equal(read(configPath).remote.mode, 'ssh');
-  assert.deepEqual(read(configPath).desktop, { remote_at_signin: true, remote_at_signin_pc: PC_A });
-});
-
-test('"yes" in any case counts; anything else, an empty answer, and a closed terminal are No', async (t) => {
-  for (const [answer, expected] of [['YES\n', true], ['Yes\n', true], ['n\n', false], ['\n', false], ['no\n', false], ['sure\n', false], ['yy\n', false], [undefined, false]]) {
-    const { configPath } = fixture(t);
-    const r = await set(configPath, SSH, { tty: true, answer });
-    assert.ok(r.asked, JSON.stringify(answer));
-    assert.equal(read(configPath).desktop === undefined ? false : read(configPath).desktop.remote_at_signin === true, expected, JSON.stringify(answer));
-  }
-});
-
-test('no terminal (or --json style piping) is treated as No, writes nothing, and says so', async (t) => {
-  const { configPath } = fixture(t);
-  const r = await set(configPath, SSH, { tty: false });
-  assert.equal(r.exitCode, 0);
-  assert.equal(r.asked, false, 'nothing to ask on');
-  assert.equal(read(configPath).desktop, undefined);
-  assert.match(r.human, /Remote access will not start when you sign in to Windows \(there was no terminal to ask\)/);
-});
-
-test('with Start with Windows off, nothing is asked and nothing is saved', async (t) => {
-  const { configPath } = fixture(t);
-  const r = await set(configPath, SSH, { tty: true, answer: 'y\n', present: false });
-  assert.equal(r.asked, false);
-  assert.equal(read(configPath).desktop, undefined);
-  assert.doesNotMatch(r.human, /sign in to Windows/);
-});
-
-test('on a machine with no tray helper beside the program, the real check says "off" and nothing is asked', async (t) => {
+test('on a machine with no tray helper beside the program, the real check says "off": nothing is asked and no pointer is added', async (t) => {
   const { configPath } = fixture(t);
   const s = streams({ tty: true, answer: 'y\n' });
   const r = await runRemoteCommand({ config: configPath, ...SSH }, 'set', [], { stdin: s.stdin, stdout: s.stdout, panelAccess: PANEL_ACCESS });
   assert.equal(r.exitCode, 0);
-  assert.ok(!s.text().includes(QUESTION));
+  assert.equal(s.text(), '');
+  assert.equal(String(s.stdin.read()), 'y\n');
+  assert.equal(r.human.includes(TRAY_POINTER), false);
   assert.equal(read(configPath).desktop, undefined);
 });
 
-test('moving to a different remote mode asks again, and an answer of No withdraws the earlier yes', async (t) => {
+test('R1: remote set never asks, even at a terminal with an answer waiting; the mode is saved and no [desktop] table appears', async (t) => {
   const { configPath } = fixture(t);
-  await set(configPath, SSH, { tty: true, answer: 'y\n' });
-  assert.equal(read(configPath).desktop.remote_at_signin, true);
-  const r = await set(configPath, { mode: 'proxy', 'admin-url': 'https://scriptorium.home.arpa', 'preview-url': 'https://preview.scriptorium.home.arpa', 'trusted-proxy': '192.0.2.10', port: '9600', 'preview-port': '9601' }, { tty: true, answer: 'n\n' });
-  assert.equal(r.exitCode, 0, r.human);
-  assert.ok(r.asked, 'asked again');
-  assert.equal(read(configPath).remote.mode, 'proxy');
-  assert.equal(read(configPath).desktop, undefined, 'the table is dropped when it empties');
+  const r = await set(configPath, SSH, { tty: true, answer: 'y\n' });
+  assert.equal(r.exitCode, 0);
+  assert.equal(r.unread, 'y\n');
+  assert.equal(r.stdoutText, '');
+  assert.equal(read(configPath).remote.mode, 'ssh');
+  assert.equal(read(configPath).desktop, undefined);
 });
 
-test('moving to a different remote mode and saying yes again keeps the confirmation', async (t) => {
+test('R2: with the helper beside the program and no terminal, the output ends with the tray pointer and never says there was no terminal', async (t) => {
   const { configPath } = fixture(t);
-  await set(configPath, SSH, { tty: true, answer: 'y\n' });
-  const r = await set(configPath, { mode: 'tailscale', 'admin-url': 'https://panel.example-tailnet.ts.net', 'preview-url': 'https://panel.example-tailnet.ts.net:8443', port: '9600', 'preview-port': '9601' }, { tty: true, answer: 'yes\n' });
+  const r = await set(configPath, SSH, { tty: false, present: true });
+  assert.equal(r.exitCode, 0);
+  assert.equal(r.human.endsWith(TRAY_POINTER), true, r.human);
+  assert.equal(r.human.includes('there was no terminal to ask'), false);
+});
+
+test('R3: with no helper beside the program there is no pointer', async (t) => {
+  const { configPath } = fixture(t);
+  const r = await set(configPath, SSH, { tty: true, answer: 'y\n', present: false });
+  assert.equal(r.stdoutText, '');
+  assert.equal(r.human.includes(TRAY_POINTER), false);
+  assert.equal(r.human.includes('Remote access at sign-in'), false);
+  assert.equal(read(configPath).desktop, undefined);
+});
+
+const PROXY_FLAGS = { mode: 'proxy', 'admin-url': 'https://scriptorium.home.arpa', 'preview-url': 'https://preview.scriptorium.home.arpa', 'trusted-proxy': '192.0.2.10', port: '9600', 'preview-port': '9601' };
+
+test('R4: moving to a different remote mode clears a saved yes (both keys), asks nothing and drops the emptied table', async (t) => {
+  const { configPath } = fixture(t, SAVED_A);
+  const r = await set(configPath, PROXY_FLAGS, { tty: true, answer: 'y\n' });
   assert.equal(r.exitCode, 0, r.human);
-  assert.ok(r.asked);
-  assert.equal(read(configPath).desktop.remote_at_signin, true);
+  assert.equal(r.stdoutText, '');
+  assert.equal(r.unread, 'y\n');
+  assert.equal(read(configPath).remote.mode, 'proxy');
+  assert.equal(read(configPath).desktop, undefined);
+});
+
+test('R5: a mode change clears only the two keys: the saved ports, campaigns and [update] stay', async (t) => {
+  const { configPath } = fixture(t, '\n[desktop]\nport = 9500\npreview_port = 9501\nremote_at_signin = true\nremote_at_signin_pc = "PC-A"\n\n[update]\ncheck = false\n');
+  const before = read(configPath);
+  await set(configPath, SSH, { tty: true });
+  const after = read(configPath);
+  assert.deepEqual(after.desktop, { port: 9500, preview_port: 9501 });
+  assert.deepEqual(after.campaigns, before.campaigns);
+  assert.deepEqual(after.update, before.update);
 });
 
 test('changing something else while the mode stays the same asks nothing and leaves the answer alone', async (t) => {
-  const { configPath } = fixture(t);
-  await set(configPath, SSH, { tty: true, answer: 'y\n' });
-  const r = await set(configPath, { port: '9600', 'preview-port': '9601' }, { tty: true, answer: 'n\n' });
-  assert.equal(r.asked, false);
+  const { configPath } = fixture(t, SAVED_A);
+  const r = await set(configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'n\n' });
+  assert.equal(r.stdoutText, '');
+  assert.equal(r.unread, 'n\n');
   assert.equal(read(configPath).desktop.remote_at_signin, true);
-  assert.equal(read(configPath).remote.port, 9600);
+  assert.equal(read(configPath).remote.port, 9610);
 });
 
 test('going to local asks nothing', async (t) => {
-  const { configPath } = fixture(t);
-  await set(configPath, SSH, { tty: true, answer: 'y\n' });
+  const { configPath } = fixture(t, SAVED_A);
   const r = await set(configPath, { mode: 'local' }, { tty: true, answer: 'n\n' });
-  assert.equal(r.asked, false);
+  assert.equal(r.stdoutText, '');
+  assert.equal(r.unread, 'n\n');
 });
 
-test('only the [remote] and [desktop] tables change; the ports already saved in [desktop] stay', async (t) => {
-  const { configPath } = fixture(t, '\n[desktop]\nport = 9500\npreview_port = 9501\n\n[update]\ncheck = false\n');
-  const before = read(configPath);
-  await set(configPath, SSH, { tty: true, answer: 'y\n' });
-  const after = read(configPath);
-  assert.deepEqual(after.campaigns, before.campaigns);
-  assert.deepEqual(after.update, before.update);
-  assert.deepEqual(after.desktop, { port: 9500, preview_port: 9501, remote_at_signin: true, remote_at_signin_pc: PC_A });
-});
-
-test('a [desktop] table that cannot be read does not stop remote set: the mode is saved and a warning says the choice was not', async (t) => {
+test('a [desktop] table that cannot be read does not stop remote set: the mode is saved and a warning says the setting was left as it was', async (t) => {
   const { configPath } = fixture(t, '\n[desktop]\ncolour = 1\n');
   const r = await set(configPath, SSH, { tty: true, answer: 'y\n' });
   assert.equal(r.exitCode, 0);
   assert.equal(read(configPath).remote.mode, 'ssh');
   assert.deepEqual(read(configPath).desktop, { colour: 1 }, 'left as it was');
-  assert.match(r.human, /the \[desktop\] settings could not be read, so the sign-in choice was not saved/);
+  assert.equal(r.human.endsWith(`${TRAY_POINTER}${PANEL_WARNING}`), true, r.human);
 });
 
 test('remote off clears the confirmation and the computer name, keeps the saved ports, and drops [desktop] when nothing else is in it', async (t) => {
@@ -195,54 +184,26 @@ test('remote off is still a way out when [desktop] cannot be read', async (t) =>
 
 const SAVED_A = '\n[remote]\nmode = "ssh"\nport = 9600\npreview_port = 9601\n\n[desktop]\nremote_at_signin = true\nremote_at_signin_pc = "PC-A"\n';
 
-test('RV1b: the name of the computer that said yes is saved next to the answer', async (t) => {
-  const { configPath } = fixture(t);
-  await set(configPath, SSH, { tty: true, answer: 'y\n', pc: PC_B });
-  assert.deepEqual(read(configPath).desktop, { remote_at_signin: true, remote_at_signin_pc: PC_B });
-});
-
 test('RV1b: on the same computer the saved answer holds, so a change of port asks nothing', async (t) => {
   const { configPath } = fixture(t, SAVED_A);
   const r = await set(configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'n\n', pc: PC_A });
-  assert.equal(r.asked, false);
+  assert.equal(r.stdoutText, '');
   assert.deepEqual(read(configPath).desktop, { remote_at_signin: true, remote_at_signin_pc: PC_A });
 });
 
-test('RV1b: on another computer the question is asked again even with the same mode, and a No clears both keys', async (t) => {
+test('R7: on another computer a same-mode remote set leaves the stale answer alone and asks nothing (it is inert there)', async (t) => {
   const { configPath } = fixture(t, SAVED_A);
-  const r = await set(configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'n\n', pc: PC_B });
-  assert.ok(r.asked, 'asked on the other computer');
-  assert.equal(read(configPath).desktop, undefined);
+  const r = await set(configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'y\n', pc: PC_B });
+  assert.equal(r.stdoutText, '');
+  assert.equal(r.unread, 'y\n');
+  assert.deepEqual(read(configPath).desktop, { remote_at_signin: true, remote_at_signin_pc: PC_A });
 });
 
-test('RV1b: on another computer a Yes replaces the name with this computer', async (t) => {
-  const { configPath } = fixture(t, SAVED_A);
-  await set(configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'y\n', pc: PC_B });
-  assert.deepEqual(read(configPath).desktop, { remote_at_signin: true, remote_at_signin_pc: PC_B });
-});
-
-test('RV1b: a legacy true with no computer name counts as no, so it is asked again', async (t) => {
+test('R8: a legacy true with no computer name is left alone by a same-mode remote set', async (t) => {
   const { configPath } = fixture(t, '\n[remote]\nmode = "ssh"\nport = 9600\npreview_port = 9601\n\n[desktop]\nremote_at_signin = true\n');
   const r = await set(configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'y\n' });
-  assert.ok(r.asked);
-  assert.deepEqual(read(configPath).desktop, { remote_at_signin: true, remote_at_signin_pc: PC_A });
-});
-
-test('RV1b: with no terminal, a stale answer from another computer is cleared and the output says why', async (t) => {
-  const { configPath } = fixture(t, SAVED_A);
-  const r = await set(configPath, { port: '9610', 'preview-port': '9611' }, { tty: false, pc: PC_B });
-  assert.equal(r.asked, false);
-  assert.equal(read(configPath).desktop, undefined);
-  assert.match(r.human, /will not start when you sign in to Windows \(there was no terminal to ask\)/);
-});
-
-test('RV1b: names are compared without regard to case on Windows, and exactly elsewhere', async (t) => {
-  const win = fixture(t, SAVED_A);
-  const w = await set(win.configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'n\n', pc: 'pc-a', platform: 'win32' });
-  assert.equal(w.asked, false, 'win32: pc-a is PC-A');
-  const nix = fixture(t, SAVED_A);
-  const n = await set(nix.configPath, { port: '9610', 'preview-port': '9611' }, { tty: true, answer: 'n\n', pc: 'pc-a', platform: 'linux' });
-  assert.ok(n.asked, 'linux: pc-a is not PC-A');
+  assert.equal(r.stdoutText, '');
+  assert.deepEqual(read(configPath).desktop, { remote_at_signin: true });
 });
 
 test('RV1b: remote off clears the answer and the computer name together', async (t) => {
@@ -272,4 +233,6 @@ test('RV1b: confirmedHere is true only for a true answer naming this computer', 
   assert.equal(confirmedHere(undefined, PC_A), false);
   assert.equal(confirmedHere({ remote_at_signin: true, remote_at_signin_pc: PC_A }, ''), false);
   assert.equal(confirmedHere({ remote_at_signin: true, remote_at_signin_pc: PC_A }, undefined), false);
+  assert.equal(confirmedHere({ remote_at_signin: true, remote_at_signin_pc: 'PC-A' }, 'pc-a', 'win32'), true, 'win32: without regard to case');
+  assert.equal(confirmedHere({ remote_at_signin: true, remote_at_signin_pc: 'PC-A' }, 'pc-a', 'linux'), false, 'elsewhere: exactly');
 });
