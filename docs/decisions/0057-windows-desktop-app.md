@@ -9,7 +9,7 @@ Status: accepted. Amends [ADR 0028](0028-installer-and-first-run.md) and [ADR 00
 ## 1. What the GM gets
 
 - Starting GM-Scriptorium from a shortcut, from Finish in Setup, or from a terminal shows no console window. An icon appears in the system tray (the notification area by the clock; Windows may keep it under the `^` overflow arrow). Closing the browser does not stop the program.
-- The icon's menu has the version, the campaign and the address in a header. Under it are Open panel, Open preview, Stop panel and Start panel, Restart, Start with Windows, Check for updates, Open command line (Advanced), Open log folder and Quit.
+- The icon's menu has the version, the campaign and the address in a header. Under it are Open panel, Open preview, Stop panel and Start panel, Restart, Start with Windows, Remote access at sign-in (section 7), Check for updates, Open command line (Advanced), Open log folder and Quit.
 - The preview opened from the tray is marked in the menu as not the live site, and its tab says so.
 - Stop panel keeps the icon and pauses the panel. Start panel brings it back.
 - The browser opens when the GM starts the program themselves, and stays quiet at sign-in.
@@ -111,15 +111,19 @@ Rejected:
 - **The Startup folder.** The shortcut goes stale when the install folder moves.
 - **A Task Scheduler logon task.** It needs `schtasks` in `SYSTEM_COMMANDS`, looks more suspicious to antivirus software, and a GM cannot find it easily.
 - **Honouring the saved remote mode at every sign-in.** A GM who turned remote access on in a browser session would have the panel reachable from the network after every restart without ever having agreed to that.
+- **A checkbox on the panel's Remote access screen.** That screen is read-only by owner decision ([ADR 0029](0029-remote-access.md), section 9). A route limited to requests from this PC would not prove the person is at this PC either: in `ssh` mode a tunnelled browser arrives as a loopback request, because the gate decides the kind from the Host header. A panel checkbox that could only turn it off was rejected too, as a second control and a writer route for no gain.
+- **Keeping the `remote set` question with a stored "don't ask again".** It needs another `[desktop]` key and more cases to test, and it makes an exception to "a different remote mode clears it". One tick box is one thing to understand.
+- **Taking the change through the single-instance message.** Any program on this PC can send `WM_COPYDATA` to the helper's window, so that message carries only `open` and `handoff` (section 4).
+- **Having the helper run `desktop set --remote-at-signin`.** The host would still need a new line to read the setting again, so it would be two mechanisms for one change, and the menu would wait on a second program for up to 15 seconds.
 
 ## 8. Fixed ports
 
-A new `[desktop]` table in `config.toml` holds `port` (default 7400) and `preview_port` (default 7401), plus the sign-in confirmation in section 7, which is the key `remote_at_signin` (true or false, absent means false) together with `remote_at_signin_pc`, the name of the computer that gave the answer. Every key is optional, and any other key is refused, as with `[remote]`.
+A new `[desktop]` table in `config.toml` holds `port` (default 7400) and `preview_port` (default 7401), plus the sign-in confirmation in section 7, which is the key `remote_at_signin` (true or false, absent means false) together with `remote_at_signin_pc`, the name of the computer where it was turned on. Every key is optional, and any other key is refused, as with `[remote]`.
 
 - **Only the desktop app reads it, and only when the panel is local or in setup mode.** Remote modes keep their `[remote]` ports, and the desktop ports are ignored there. `serve --admin`, launch mode, portable copies and Linux keep ports picked by the operating system, so tests, terminals and portable copies are unchanged.
 - Each port is a TOML integer that passes the port check (1 to 65535), and the two must differ once the defaults are filled in, so `port = 7401` alone is refused. Strings such as `"7400"` are refused. The reader is `parseDesktopTable` in `src/config/desktopsettings.js`.
 - `src/config/load.js` does not validate the table, so a bad entry never stops `check`, `build` and the rest. The desktop app reports it as a config error.
-- **Writers.** The command line writer is `gm-scriptorium desktop set --port N --preview-port N` (either flag may be left out and then keeps its current value), which Setup and the tray's ports dialog both run. It changes only the `[desktop]` table, through `writeConfigFile`, and exits 1 for a bad value and 3 for a malformed settings file. The sign-in confirmation has its own builder, `setRemoteAtSignin` in `src/config/write.js`, which sets it or clears it (`remote off` clears it) and is written the same way. The panel's ports card writes through `register.setDesktopPortsFromPanel` on the one fenced chain. Setup never writes TOML.
+- **Writers.** The command line writer is `gm-scriptorium desktop set --port N --preview-port N` (either flag may be left out and then keeps its current value), which Setup and the tray's ports dialog both run. It changes only the `[desktop]` table, through `writeConfigFile`, and exits 1 for a bad value and 3 for a malformed settings file. The sign-in setting has its own builder, `setRemoteAtSignin` in `src/config/write.js`, which sets it or clears it and is written the same way. The host sets or clears it on the helper's `signin` line, and so does `desktop set --remote-at-signin on|off`; `remote off` and a `remote set` to a different remote mode clear it. No panel route reaches it (section 7). The panel's ports card writes through `register.setDesktopPortsFromPanel` on the one fenced chain. Setup never writes TOML.
 - **The ports card.** Under the desktop app the Overview has a "This PC's addresses" card. It shows the two addresses and a Change button. Saving posts `{ port, previewPort, configSha256 }` (two whole numbers and the 64-character sha256 of the settings file the page saw) to `POST /api/desktop/ports`, which writes them through `register.setDesktopPortsFromPanel` on the one fenced chain: a changed file is refused, nothing but the `[desktop]` table changes, and `[remote]` is never written. Once the reply is on its way the panel asks the host for a restart that opens the panel on the new ports in a new tab, with a fresh token (section 5). Outside the desktop app the route answers 409 `not-desktop` and the card is not drawn. In a remote mode it answers 409 `remote-mode` and the card is read-only: it shows the ports the panel is on and says "Remote access uses its own ports. Change them with gm-scriptorium remote set."
 - The ports dialog and Setup's port fields accept 1 to 5 digits only, checked before any command line is built.
 
@@ -139,7 +143,7 @@ This amends [ADR 0028](0028-installer-and-first-run.md), "Launch mode": launch m
 - **Notifications** are the balloon kind (`NIF_INFO`), which Windows 10 and 11 show as toasts. **They have no buttons.** A click does the main action: try again, change ports, or view the patch notes. The other actions are in the tray menu.
   - The first-run notification shows once per Windows user, and only on a start the GM made. The update notification shows once per version. Both are remembered in `HKCU\Software\GM-Scriptorium\Tray` (`FirstRunToast` and `UpdateToast`), which the uninstaller removes.
   - A start-up failure shows its notification each time it happens. A second launch while the tray is in an error state shows it again and opens the log folder.
-- **The log** is `<panel folder>\logs\desktop.log`, rotated to `desktop.log.1` when it reaches 256 KiB. It uses a closed list of events (`host-start`, `panel-starting`, `panel-running`, `panel-stopped`, `panel-error`, `panel-warning`, `retry`, `op`, `quit`, `exit`, `uncaught`), and every field is scrubbed before writing, and a value is cut at 500 characters. Lines are written through `appendPrivateLine`. Anything the panel prints (`console.*` and direct writes to standard output and error, which are redirected when the host starts) goes to the log as `panel-warning`, and so does each warning line the panel would have printed.
+- **The log** is `<panel folder>\logs\desktop.log`, rotated to `desktop.log.1` when it reaches 256 KiB. It uses a closed list of events (`host-start`, `panel-starting`, `panel-running`, `panel-stopped`, `panel-error`, `panel-warning`, `retry`, `op`, `quit`, `exit`, `uncaught`, `signin-setting`), and every field is scrubbed before writing, and a value is cut at 500 characters. `signin-setting` records a change made from the tray, as `to` (`on` or `off`) and `result` (`saved` or `failed`, with `reason` `settings` or `write` when it failed). It never holds the computer name. Lines are written through `appendPrivateLine`. Anything the panel prints (`console.*` and direct writes to standard output and error, which are redirected when the host starts) goes to the log as `panel-warning`, and so does each warning line the panel would have printed.
 - **The panel knows it runs under the desktop app.** `/api/session` carries `desktop: true` only when the host started the panel (launch mode and `serve --admin` say false). Two lines of copy change, and nothing else about the wording of the panel does: the one-time welcome says that closing the tab does not stop GM-Scriptorium and that it keeps running in the system tray, and the stopped page says to start it again from the GM-Scriptorium icon in the system tray, or from the Start menu. The stopped page cannot ask the panel anything, so it caches the flag while the panel is up. Copy for every other run is unchanged.
 - **It never holds a code, token, password or cookie.** This extends [ADR 0028](0028-installer-and-first-run.md), "The launch code and how it reaches the browser". The scrub replaces long token-like runs and anything after `token=`, `code=`, `password` or `cookie`. The folder's access list from [ADR 0056](0056-windows-panel-access-list.md) is the second layer: it is inheritable and applied at every panel start, so `logs` is covered, and in local mode only your account, SYSTEM and Administrators can list it.
 
@@ -181,11 +185,11 @@ A false positive is reported through Microsoft's submission portal; that is an a
 - [ADR 0046](0046-one-process-spawner.md): a new addendum, "The tray hand-off".
 - [ADR 0053](0053-windows-installer.md): superseded in part by the installer decision.
 - [ADR 0035](0035-preview-in-a-frame.md): an addendum for the not-live strip.
-- [ADR 0029](0029-remote-access.md), [ADR 0024](0024-ai-connections.md) and the net-structure test: unchanged.
+- [ADR 0029](0029-remote-access.md), [ADR 0024](0024-ai-connections.md) and the net-structure test: unchanged. The Remote access screen of ADR 0029 section 9 shows one more read-only line, "At sign-in on this PC", and stays read-only.
 
 ## Rejected alternatives
 
-Each section above lists the alternatives rejected for it. In short: Tauri, Electron, Go, Rust, a PowerShell tray, a Node native addon and a GUI-subsystem program for the helper (section 2); a named pipe, HTTP and a hidden console for the link (section 3); a lock file for single instance (section 4); a token that survives Stop and Start (section 5); the Startup folder, a scheduled task and honouring remote mode at every sign-in (section 7); `[remote].port` and fallback ports (section 8).
+Each section above lists the alternatives rejected for it. In short: Tauri, Electron, Go, Rust, a PowerShell tray, a Node native addon and a GUI-subsystem program for the helper (section 2); a named pipe, HTTP and a hidden console for the link (section 3); a lock file for single instance (section 4); a token that survives Stop and Start (section 5); the Startup folder, a scheduled task, honouring remote mode at every sign-in, and for remote access at sign-in a panel checkbox, a stored "don't ask again", the single-instance message and the helper running `desktop set` (section 7); `[remote].port` and fallback ports (section 8).
 
 ## Will catch / Will not catch, deliberately
 
@@ -196,7 +200,10 @@ Will catch:
 - An old helper with a new program, or the reverse, through the exact version in `hello`, and through `update` replacing both or neither (unit tests with injected downloads and a rename failure injected at each step).
 - A terminal hand-off that would give a second panel: a timeout never falls back, and only "nothing was started" does.
 - A stale session after Stop and Start, because the token changes.
-- Remote access starting at sign-in without the GM's say-so, because the panel runs local-only until the confirmation flag is set.
+- Remote access starting at sign-in without the GM's say-so, because the panel runs local-only until remote access at sign-in is on for this PC.
+- A panel request turning remote access at sign-in on, from another device, through a proxy or through an SSH tunnel. No module the panel loads names the writer except the writer itself, and a sweep of every panel POST in local, proxy and ssh modes, for each kind of request, leaves both keys byte for byte as they were (structure and behaviour tests, each with a positive control).
+- Another program on this PC turning it on through the helper's single-instance message, which accepts only `open` and `handoff`, or by a window message posted to the helper's window, because a menu choice is taken only from the menu's own return value (structure tests).
+- A copied settings folder carrying the setting to another PC, through the computer name.
 
 Will not catch, deliberately:
 
@@ -206,10 +213,14 @@ Will not catch, deliberately:
 - A helper that was ended by Task Manager. The host then sees end of input and quits, but a host that was ended hard leaves the accepted leftovers in section 6.
 - Anything about how Windows draws or schedules the icon and notifications. The Linux tests prove the protocol, the host and the build; the tray itself is checked only on Windows.
 - Notifications with buttons. They need a Windows Runtime toast, which a plain C helper cannot raise without a shortcut and an application identifier.
+- Code running as the same Windows user, in any shell including SSH. It can edit `config.toml` directly or run `desktop set --remote-at-signin on --yes`. The guarantee covers the panel's remote and tunnelled browser paths, not code running as the GM.
+- A program running as the GM that drives the menu or the confirm box with synthesized input.
+- A Remote Desktop session, which counts as being at this PC.
+- A change made with `desktop set` or `remote set` while the app is running. It shows in the tray tick only when the panel next starts; the panel's read-only line reads the file each time.
 
 ## Windows verification
 
-C190 to C205 in `.agents/windows-verification.md`, added by the slices that build each part, all OPEN until a person confirms them on a real Windows machine against the release candidate.
+C190 to C206 in `.agents/windows-verification.md`, added by the slices that build each part, all OPEN until a person confirms them on a real Windows machine against the release candidate.
 
 ## Protocol v1
 
