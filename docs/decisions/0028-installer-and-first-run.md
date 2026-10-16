@@ -193,3 +193,9 @@ A packaged panel now tells a GM when a newer version is out. This addendum recor
 - The check needs the program file's own network access to `api.github.com`, and ignores proxy settings like `update`.
 
 Windows verification is `.agents/windows-verification.md` criterion C149, which is **OPEN**: Linux tests drive the check with an injected stand-in and prove the timing, the console silence and the off switch from source, and nothing on Windows has run it.
+
+## Addendum: the Windows desktop app
+
+[ADR 0057](0057-windows-desktop-app.md) changes launch mode for installed Windows copies only. There the program runs hidden, started by a small tray helper, with no console, and the helper's menu replaces the keys in section 6. Section 6 stays as written for portable copies, Linux, `--config` and `serve --admin`, which keep a console and ports picked by the system.
+
+The host (`gm-scriptorium desktop run`) reuses sections 7 to 9 as they are: a one-time launch code in an owner-only launcher file, an opener that is never killed, and the stop path of section 9 (remove the launcher file, close the listeners and the preview folder, end spawned programs, clear the code store). It differs in three ways, all recorded in ADR 0057. Every start of the panel mints a new session token, so a cookie from before a Stop or Restart never works again. A tab opens only when the GM starts or restarts the panel, and not at sign-in. And the host keeps a log in the panel folder, scrubbed so that it never holds a code, token, password or cookie, which extends section 7.

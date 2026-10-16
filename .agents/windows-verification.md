@@ -2255,6 +2255,20 @@ rc.4 #9. CI runs `scripts/packaged-smoke.js` against the linux-x64 binary on eve
 4. Append the planted name (`PLANTED_NAME`) in a paragraph to `out\index.html`. Run `check smoke --json`. It exits 2, the `counts` equal `EXPECTED.planted`, and there is exactly one `leak/l4-output-name` finding, naming `index.html`.
 5. Re-hash the real config.
 
+### C205: remote mode under the background app
+
+ADR 0057 sections 5 and 8; ADR 0056.
+
+**Mark this OPEN: Linux tests drive the host with a stand-in tray and a stand-in opener; only a real tray, a real sign-in and a real access list can be checked here.** Run it on the VM, or with a scratch config only: `setx SCRIPTORIUM_CONFIG <scratch>\config.toml`, then sign out and in. Never the real config, never `N:`. Record `certutil -hashfile <scratch config> SHA256` where a step says the config is unchanged. RV1 steps 5 to 7 are added by the owner ruling on remote access at sign-in (ADR 0057 section 7).
+
+1. With tailscale or proxy mode saved, `icacls <panel>` shows only the account, SYSTEM and Administrators.
+2. T03 shows the mode and the address, plus the warning line under Start with Windows.
+3. The Quit confirm appears. Quit and Stop panel each close the remote listener (check `netstat`).
+4. The desktop ports are ignored, and the remote ports are used.
+5. RV1, not yet confirmed: with Start with Windows on and a remote mode saved but `remote_at_signin` absent, sign out and in. The panel listens on `127.0.0.1` only (`netstat` shows no other address on the desktop ports and nothing on the remote ports), no browser tab opens, and the tray header says "Remote access is off at sign-in. Start it from the tray to turn it on." Then use the tray's Start panel after Stop panel: the saved remote mode is used and a tab opens.
+6. RV1, confirmed: run `gm-scriptorium remote set --mode proxy ...` in a terminal, answer `y` to "Also start remote access when you sign in to Windows?", and sign out and in. The remote listener is up with no tab opened. Run `gm-scriptorium remote off`: `remote_at_signin` is gone from the `[desktop]` table, and the next sign-in is local only.
+7. Run `remote set` with piped input (no terminal): it says remote access will not start at sign-in and writes no confirmation. Run it again to a different remote mode with the flag set and answer `n`: the flag is removed.
+
 ### C197: the command line alongside the background app
 
 [ADR 0057](../docs/decisions/0057-windows-desktop-app.md) section 10; [ADR 0046](../docs/decisions/0046-one-process-spawner.md) addendum "The tray hand-off". **Mark this OPEN: Linux tests prove the logic only** (`test/desktop-handoff.test.js`, `test/proc-tray-handoff.test.js` and `test/update-tray.test.js`, all with fake helpers); nothing about the real helper, the terminal or the job object is shown without a Windows machine. Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG`, never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 10; the two must match. Remove the scratch `SCRIPTORIUM_CONFIG` variable when done.

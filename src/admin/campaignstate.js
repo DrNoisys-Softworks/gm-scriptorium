@@ -23,7 +23,7 @@ const CAMPAIGN_FIELDS = Object.freeze({
 
 const PROCESS_FIELDS = Object.freeze([
   'token', 'adminPort', 'previewPort', 'busy', 'access', 'remote', 'sessions', 'audit', 'lockout', 'tickets', 'clock', 'signinBusy',
-  'lastHashMs', 'setup', 'launchCodes', 'campaigns', 'folderDrives', 'updateNotice',
+  'lastHashMs', 'setup', 'launchCodes', 'campaigns', 'folderDrives', 'updateNotice', 'desktop',
 ]);
 
 /** The request header a page sends on every change, naming the campaign it was loaded for. */

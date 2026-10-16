@@ -23,6 +23,9 @@ relative to that folder. None of it is ever written inside a vault.
 | `panel-prefs.json` | How you set the admin panel up on this computer, such as its views and pane placement. | No (delete it to reset) |
 | `panel/welcome.json` | *Since 0.5.0.* The campaigns whose welcome message on the Overview has not been dismissed yet. | No |
 | `panel/update-check.json` | *Since 0.5.0.* When the panel last asked GitHub about a newer version, and what it found. | No |
+| `panel/logs/` | *Since 0.5.0.* The Windows desktop app's log folder. It is private to your account. | No |
+| `panel/logs/desktop.log` | *Since 0.5.0.* What the Windows desktop app did: started, stopped, retried, and a plain one-line reason when something failed. It never holds a sign-in code, token, password or cookie, and it is never sent anywhere. At 256 KiB it moves to `desktop.log.1`. | No (read it if you like) |
+| `panel/logs/desktop.log.1` | *Since 0.5.0.* The previous `desktop.log`, kept when it reached 256 KiB. The next one replaces it. | No (delete it if you like) |
 | `panel/launch-<number>.html` | *Since 0.5.0.* The one-time sign-in page that opens your browser. It holds the sign-in code for under a minute and is deleted after use. The number is the program's process number. | No |
 <!-- END GENERATED files -->
 

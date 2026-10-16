@@ -107,8 +107,8 @@ test('applyPanelAccess( is called only from the panel start and the remote CLI',
   assert.deepEqual(callers([SRC, path.join(ROOT, 'bin')]), [path.join('src', 'cli', 'remote.js'), path.join('src', 'cli', 'serve-admin.js')]);
 });
 
-test('the src/cli entry points that reach the private-file writer are exactly launch, remote, serve-admin and serve', () => {
-  assert.deepEqual(cliEntriesReachingPrivateFile(at('cli')), ['launch.js', 'remote.js', 'serve-admin.js', 'serve.js']);
+test('the src/cli entry points that reach the private-file writer are exactly desktop, launch, remote, serve-admin and serve', () => {
+  assert.deepEqual(cliEntriesReachingPrivateFile(at('cli')), ['desktop.js', 'launch.js', 'remote.js', 'serve-admin.js', 'serve.js']);
 });
 
 test('src/remote/panelaccess.js names no process environment and no process-starting module of its own', () => {
