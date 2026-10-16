@@ -254,17 +254,46 @@ test('required: the notices file is deleted only inside a block that tested both
   assert.match(before, /StrCmp \$2 1 0 notices_done\s+StrCmp \$3 1 0 notices_done/);
 });
 
-test('required: every PATH write is inside !ifdef WITH_PATH_OPTION, together with RegGetValueW', () => {
+const START_READ_RE =
+  /^\s*System::Call\s+'advapi32::RegGetValueW\(p 0x80000001, w "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run", w "GM-Scriptorium", i 0x1000ffff, p 0, p r\d, \*i 64 r\d\) i \.r\d'\s*$/;
+
+/** The RegGetValueW lines of `text` split into the PATH reads (w "Environment") and all others. */
+function splitRegGetValueW(text) {
+  const hits = findLines(text, /RegGetValueW/);
+  return { path: hits.filter((h) => /w "Environment"/.test(h.line)), others: hits.filter((h) => !/w "Environment"/.test(h.line)) };
+}
+
+test('required: every PATH write and PATH read is inside !ifdef WITH_PATH_OPTION, and the one other RegGetValueW is the Start with Windows read', () => {
   const writes = findLines(NSI, /^\s*(?:WriteReg\w+|DeleteRegValue|DeleteRegKey)\s+HKCU\s+"Environment"/);
   assert.ok(writes.length >= 2, 'expected the installer add and the uninstaller remove');
   for (const w of writes) assert.ok(w.conds.includes('ifdef WITH_PATH_OPTION'), `line ${w.n} writes PATH outside WITH_PATH_OPTION`);
-  const reads = findLines(NSI, /RegGetValueW/);
-  assert.ok(reads.length >= 1, 'RegGetValueW is the size and type read that guards every PATH write');
-  for (const r of reads) assert.ok(r.conds.includes('ifdef WITH_PATH_OPTION'), `line ${r.n} reads PATH outside WITH_PATH_OPTION`);
+  const { path: pathReads, others } = splitRegGetValueW(NSI);
+  assert.ok(pathReads.length >= 1, 'RegGetValueW is the size and type read that guards every PATH write');
+  for (const r of pathReads) assert.ok(r.conds.includes('ifdef WITH_PATH_OPTION'), `line ${r.n} reads PATH outside WITH_PATH_OPTION`);
+  assert.equal(others.length, 1, 'exactly one RegGetValueW that is not a PATH read');
+  const [one] = others;
+  assert.match(one.line, START_READ_RE);
+  assert.ok(one.conds.includes('ifndef EXTRACT_UNINSTALLER'), 'the Start with Windows read is in stage B');
+  assert.equal(one.conds.includes('ifdef WITH_PATH_OPTION'), false, 'and outside the PATH option');
+  const body = functionBody(NSI, 'GmAutostartRead');
+  assert.ok(body, 'Function GmAutostartRead not found');
+  assert.ok(body.split('\n').some((l) => l === one.line), 'the read sits inside Function GmAutostartRead');
+  assert.equal(/\b(?:WriteReg\w*|DeleteReg\w*)\b/.test(body), false, 'the read function writes and deletes nothing');
   // controls
   const bad = findLines('WriteRegExpandStr HKCU "Environment" "Path" "x"\n', /^\s*(?:WriteReg\w+|DeleteRegValue|DeleteRegKey)\s+HKCU\s+"Environment"/);
   assert.equal(bad.length, 1);
   assert.equal(bad[0].conds.includes('ifdef WITH_PATH_OPTION'), false);
+  const twoOthers = splitRegGetValueW(
+    [
+      `  ${one.line.trim()}`,
+      `  System::Call 'advapi32::RegGetValueW(p 0x80000001, w "Software\\Other", w "x", i 0x1000ffff, p 0, p r2, *i 64 r4) i .r0'`,
+    ].join('\n'),
+  );
+  assert.equal(twoOthers.others.length, 2);
+  const strayPath = splitRegGetValueW('System::Call \'advapi32::RegGetValueW(p 0x80000001, w "Environment", w "Path", i 0x1000ffff, *i .r1, p 0, *i .r2) i .r0\'\n');
+  assert.equal(strayPath.path.length, 1);
+  assert.equal(strayPath.path[0].conds.includes('ifdef WITH_PATH_OPTION'), false);
+  assert.equal(START_READ_RE.test(`  System::Call 'advapi32::RegGetValueW(p 0x80000001, w "Software\\Other", w "GM-Scriptorium", i 0x1000ffff, p 0, p r2, *i 64 r4) i .r0'`), false);
 });
 
 test('required: the PATH guard compares against NSIS_MAX_STRLEN and checks the value was not truncated', () => {
@@ -288,13 +317,17 @@ test('required: the newer-version warning defaults to Cancel', () => {
   assert.match(NSI, /nsExec::ExecToStack\s+'"\$INSTDIR\\gm-scriptorium\.exe" --version'/);
 });
 
-test('required: the shortcuts and the finish run start the exe with no arguments', () => {
+test('required: the shortcuts and the finish run start the tray app with no arguments', () => {
   assert.equal(findLines(NSI, /MUI_FINISHPAGE_RUN_PARAMETERS/).length, 0);
+  const run = findLines(NSI, /^\s*!define\s+MUI_FINISHPAGE_RUN\s+"\$INSTDIR\\gm-scriptorium-tray\.exe"\s*$/);
+  assert.equal(run.length, 1, 'the finish box starts the tray app, once');
+  assert.equal(/^\s*!define\s+MUI_FINISHPAGE_RUN\s+"\$INSTDIR\\gm-scriptorium-tray\.exe"\s*$/.test('!define MUI_FINISHPAGE_RUN "$INSTDIR\\gm-scriptorium.exe"'), false);
   const shortcuts = findLines(NSI, /^\s*CreateShortCut\b/);
   assert.equal(shortcuts.length, 2, 'Start menu and Desktop');
-  for (const s of shortcuts) {
-    assert.match(s.line, /CreateShortCut\s+"\$(?:SMPROGRAMS|DESKTOP)\\GM-Scriptorium\.lnk"\s+"\$INSTDIR\\gm-scriptorium\.exe"\s+""\s+"\$INSTDIR\\gm-scriptorium\.exe"\s+0\s*$/);
-  }
+  const re = /CreateShortCut\s+"\$(?:SMPROGRAMS|DESKTOP)\\GM-Scriptorium\.lnk"\s+"\$INSTDIR\\gm-scriptorium-tray\.exe"\s+""\s+"\$INSTDIR\\gm-scriptorium-tray\.exe"\s+0\s*$/;
+  for (const s of shortcuts) assert.match(s.line, re);
+  // control: a shortcut that targets the console program is refused
+  assert.equal(re.test('CreateShortCut "$SMPROGRAMS\\GM-Scriptorium.lnk" "$INSTDIR\\gm-scriptorium.exe" "" "$INSTDIR\\gm-scriptorium.exe" 0'), false);
 });
 
 test('required: the uninstall key carries the listed values and nothing about a version', () => {
@@ -307,6 +340,10 @@ test('required: the uninstall key carries the listed values and nothing about a 
     ['NoModify', /WriteRegDWORD\s+HKCU\s+"\$\{UNINST_KEY\}"\s+"NoModify"\s+1/],
     ['NoRepair', /WriteRegDWORD\s+HKCU\s+"\$\{UNINST_KEY\}"\s+"NoRepair"\s+1/],
     ['EstimatedSize', /WriteRegDWORD\s+HKCU\s+"\$\{UNINST_KEY\}"\s+"EstimatedSize"\s+\$\w+/],
+    ['StartMenuShortcut 1', /WriteRegDWORD\s+HKCU\s+"\$\{UNINST_KEY\}"\s+"StartMenuShortcut"\s+1\s*$/m],
+    ['StartMenuShortcut 0', /WriteRegDWORD\s+HKCU\s+"\$\{UNINST_KEY\}"\s+"StartMenuShortcut"\s+0\s*$/m],
+    ['DesktopShortcut 1', /WriteRegDWORD\s+HKCU\s+"\$\{UNINST_KEY\}"\s+"DesktopShortcut"\s+1\s*$/m],
+    ['DesktopShortcut 0', /WriteRegDWORD\s+HKCU\s+"\$\{UNINST_KEY\}"\s+"DesktopShortcut"\s+0\s*$/m],
   ]) {
     assert.match(NSI, re, name);
   }
@@ -506,4 +543,155 @@ test('tray: the running-copy probe also opens the tray app for writing, in both 
   // controls
   assert.equal(probe.test('FileOpen $0 "$INSTDIR\\gm-scriptorium-tray.exe" a'), true);
   assert.equal(probe.test('FileOpen $0 "$INSTDIR\\gm-scriptorium.exe" a'), false);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Commands, plug-ins, registry writes and the settings path (ADR 0058)
+// ---------------------------------------------------------------------------------------------
+
+const COMMAND_LINES = [
+  `nsExec::ExecToStack '"$INSTDIR\\gm-scriptorium.exe" --version'`,
+  `nsExec::ExecToLog '"$INSTDIR\\gm-scriptorium.exe" desktop set --port $gmPanelPort --preview-port $gmPreviewPort'`,
+  `ExecWait '"$INSTDIR\\gm-scriptorium-tray.exe" --autostart on' $0`,
+  `ExecWait '"$INSTDIR\\gm-scriptorium-tray.exe" --autostart off' $0`,
+];
+const COMMAND_RE = /(?:^|\s)(?:Exec|ExecWait)\s|nsExec::/;
+const SHELL_LINE = 'ExecShell "open" "${FEEDBACK_URL}"';
+
+/** The trimmed lines of `text` that start a program but are not one of the allowed lines. */
+function strayCommands(text) {
+  return text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => COMMAND_RE.test(l) && !COMMAND_LINES.some((c) => c === l));
+}
+
+test('commands: only the four allowed command lines start a program, each once, and ExecShell opens only the feedback form', () => {
+  assert.deepEqual(strayCommands(NSI), []);
+  const lines = NSI.split('\n').map((l) => l.trim());
+  for (const c of COMMAND_LINES) assert.equal(lines.filter((l) => l === c).length, 1, c);
+  const shells = lines.filter((l) => /\bExecShell\w*/.test(l));
+  assert.deepEqual(shells, [SHELL_LINE]);
+  // controls
+  assert.deepEqual(strayCommands(`nsExec::ExecToLog '"$INSTDIR\\gm-scriptorium.exe" desktop set --x on --yes'`).length, 1);
+  assert.deepEqual(strayCommands(`Exec '"$INSTDIR\\gm-scriptorium-tray.exe"'`).length, 1);
+  assert.deepEqual(strayCommands(COMMAND_LINES[2]), []);
+});
+
+test('no installer text, comment or argument names remote access or the sign-in setting', () => {
+  assert.equal(/remote/i.test(NSI_RAW), false);
+  assert.equal(/signin|sign-in|at_signin/i.test(NSI_RAW), false);
+  // controls
+  assert.equal(/remote/i.test('desktop set --Remote-at-signin on'), true);
+  assert.equal(/signin|sign-in|at_signin/i.test('a sign-in setting'), true);
+  assert.equal(/signin|sign-in|at_signin/i.test('remote_at_signin'), true);
+  assert.equal(/signin|sign-in|at_signin/i.test('when I sign in to Windows'), false);
+});
+
+const REG_TARGET_RE = /^\s*WriteReg\w+\s+HKCU\s+(?:"\$\{UNINST_KEY\}"|"Environment")\s/;
+
+test('registry: every WriteReg line targets the uninstall key or the user environment, never Run or StartupApproved', () => {
+  const writes = BOTH.split('\n').filter((l) => /^\s*WriteReg\w+/.test(l));
+  assert.ok(writes.length >= 10);
+  for (const w of writes) assert.match(w, REG_TARGET_RE, w.trim());
+  // controls
+  assert.equal(REG_TARGET_RE.test('WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "GM-Scriptorium" "x"'), false);
+  assert.equal(REG_TARGET_RE.test('WriteRegStr HKCU "${RUN_KEY}" "GM-Scriptorium" "x"'), false);
+  assert.equal(REG_TARGET_RE.test('WriteRegDWORD HKCU "${UNINST_KEY}" "NoModify" 1'), true);
+  assert.equal(REG_TARGET_RE.test('WriteRegExpandStr HKCU "Environment" "Path" "x"'), true);
+});
+
+const CONFIG_PATH_FORMS = [
+  'ReadEnvStr $gmConfigPath SCRIPTORIUM_CONFIG',
+  'StrCmp $gmConfigPath "" 0 +2',
+  'StrCpy $gmConfigPath "$APPDATA\\Scriptorium\\config.toml"',
+  'IfFileExists "$gmConfigPath" 0 +2',
+  'Var gmConfigPath',
+];
+const CONFIG_LABEL_RE = /^\s*\$\{NSD_CreateLabel\}\s+\S+\s+\S+\s+\S+\s+\S+\s+"Settings file: \$gmConfigPath"\s*$/;
+
+/** The trimmed lines naming $gmConfigPath (or its Var) that are not one of the allowed forms. */
+function strayConfigPathLines(text) {
+  return text
+    .split('\n')
+    .filter((l) => /gmConfigPath/.test(l))
+    .filter((l) => !CONFIG_PATH_FORMS.some((f) => f === l.trim()) && !CONFIG_LABEL_RE.test(l))
+    .map((l) => l.trim());
+}
+
+test('settings: the settings path is only looked for with IfFileExists and shown in one label, never opened', () => {
+  assert.deepEqual(strayConfigPathLines(NSI), []);
+  const lines = NSI.split('\n').map((l) => l.trim());
+  assert.equal(lines.filter((l) => l === 'IfFileExists "$gmConfigPath" 0 +2').length, 1);
+  assert.equal(lines.filter((l) => l === 'ReadEnvStr $gmConfigPath SCRIPTORIUM_CONFIG').length, 1);
+  assert.equal(NSI.split('\n').filter((l) => CONFIG_LABEL_RE.test(l)).length, 1);
+  // controls
+  assert.equal(strayConfigPathLines('FileOpen $0 "$gmConfigPath" r').length, 1);
+  assert.equal(strayConfigPathLines('CopyFiles "$gmConfigPath" "$TEMP"').length, 1);
+  assert.equal(strayConfigPathLines('  IfFileExists "$gmConfigPath" 0 +2').length, 0);
+  assert.equal(CONFIG_LABEL_RE.test('${NSD_CreateLabel} 0 0 100% 18u "Settings file: $gmConfigPath"'), true);
+  assert.equal(CONFIG_LABEL_RE.test('${NSD_CreateLabel} 0 0 100% 18u "Settings file: $gmConfigPath and more"'), false);
+});
+
+const PLUGIN_CALLS = ['System::Alloc', 'System::Call', 'System::Free', 'nsDialogs::Create', 'nsDialogs::Show', 'nsExec::ExecToLog', 'nsExec::ExecToStack'];
+const SYSTEM_LINES = [
+  `System::Call 'advapi32::RegGetValueW(p 0x80000001, w "Environment", w "Path", i 0x1000ffff, *i .r1, p 0, *i .r2) i .r0'`,
+  `System::Call '*$2(&i1 .r3)'`,
+  'System::Alloc 64',
+  'System::Free $2',
+];
+
+/** Plug-in calls (a word, two colons, a word at the start of a trimmed line) that are not allowed. */
+function strayPluginLines(text) {
+  const lines = text.split('\n').map((l) => l.trim());
+  return lines.filter((l) => {
+    const m = /^([A-Za-z]\w*::\w+)/.exec(l);
+    if (!m) return false;
+    if (!PLUGIN_CALLS.some((p) => p === m[1])) return true;
+    if (/^System::/.test(l)) return !(SYSTEM_LINES.some((f) => f === l) || START_READ_RE.test(l));
+    return false;
+  });
+}
+
+test('plug-ins: the plug-in calls are exactly the allowed set, and every System line is one of the allowed forms', () => {
+  assert.deepEqual(strayPluginLines(NSI), []);
+  const used = new Set(NSI.split('\n').map((l) => /^\s*([A-Za-z]\w*::\w+)/.exec(l)).filter(Boolean).map((m) => m[1]));
+  assert.deepEqual([...used].sort(), PLUGIN_CALLS.slice().sort());
+  // controls
+  assert.equal(strayPluginLines(`System::Call 'kernel32::CreateProcessW(p 0)'`).length, 1);
+  assert.equal(strayPluginLines(`System::Call 'shell32::ShellExecuteW(p 0)'`).length, 1);
+  assert.equal(strayPluginLines('NSISdl::download x y').length, 1);
+  assert.equal(strayPluginLines('System::Alloc 64').length, 0);
+});
+
+test('order: the Start with Windows switch runs only after the tray app is renamed into place', () => {
+  const lines = NSI.split('\n').map((l) => l.trim());
+  const rename = lines.findIndex((l) => l === 'Rename "$INSTDIR\\gm-scriptorium-tray.exe-setup.tmp" "$INSTDIR\\gm-scriptorium-tray.exe"');
+  assert.ok(rename > 0);
+  const switches = lines.map((l, i) => ({ l, i })).filter((x) => /--autostart/.test(x.l));
+  assert.equal(switches.length, 2);
+  for (const x of switches) assert.ok(rename < x.i, `${x.l} comes before the tray rename`);
+  const start = lines.findIndex((l) => l === 'Section "-Start with Windows"');
+  const end = lines.findIndex((l, i) => i > start && l === 'SectionEnd');
+  assert.ok(start > 0 && end > start);
+  for (const x of switches) assert.ok(x.i > start && x.i < end, `${x.l} is outside Section "-Start with Windows"`);
+  // control: the section that sits above the tray rename is reported
+  const early = ['Section "-Start with Windows"', "ExecWait '\"$INSTDIR\\x.exe\" --autostart on' $0", 'SectionEnd', 'Rename "a" "b"'];
+  assert.ok(early.findIndex((l) => l === 'Rename "a" "b"') > early.findIndex((l) => /--autostart/.test(l)));
+});
+
+test('options page: the components page and its leftovers are gone', () => {
+  const gone = [
+    'Setup always adds a Start menu shortcut. Tick anything else you want.',
+    'Always added. Find ${APP_NAME} by typing its name in Start.',
+    'Find it in the Start menu under G.',
+    'Open ${APP_NAME} now',
+    'or use the Start menu shortcut.',
+    'MUI_PAGE_COMPONENTS',
+    'MUI_COMPONENTSPAGE_TEXT_TOP',
+    'SectionIn',
+  ];
+  for (const g of gone) assert.equal(NSI_RAW.includes(g), false, `${g} is still in installer.nsi`);
+  // control: the check would see one
+  assert.equal('Section x\n  SectionIn RO\nSectionEnd'.includes('SectionIn'), true);
 });

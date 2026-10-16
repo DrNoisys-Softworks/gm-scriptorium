@@ -214,31 +214,58 @@ Function GmHeaderColors
 FunctionEnd
 
 Var gmWho
+Var gmHaveSettings
+Var gmConfigPath
+Var gmWantStart
+Var gmWantDesktop
+Var gmAutostart
+Var gmPanelPort
+Var gmPreviewPort
+Var gmAdvOpen
+Var gmCkStart
+Var gmCkDesktop
+Var gmCkAuto
+Var gmHelpStart
+Var gmHelpDesktop
+Var gmHelpAuto
+Var gmLblOff1
+Var gmLblOff2
+Var gmLblPanel
+Var gmEdPanel
+Var gmLblPreview
+Var gmEdPreview
+Var gmHelpPorts
+!ifdef WITH_PATH_OPTION
+  Var gmWantPath
+  Var gmCkPath
+  Var gmHelpPath
+!endif
 
 ; Welcome
 !define MUI_WELCOMEPAGE_TITLE "Welcome to ${APP_NAME} ${VERSION} Setup"
-!define MUI_WELCOMEPAGE_TEXT "Setup will install ${APP_NAME} $gmWho. You don't need administrator permission.$\r$\n$\r$\n${APP_NAME} turns your gm-apprentice campaign vault into a website for your players. It runs on this PC, and nothing leaves it unless you publish.$\r$\n$\r$\nClick Next to continue."
+!define MUI_WELCOMEPAGE_TEXT "Setup will install ${APP_NAME} $gmWho. You don't need administrator permission.$\r$\n$\r$\n${APP_NAME} turns your gm-apprentice campaign vault into a website for your players. It runs quietly in the background on this PC, with an icon in the system tray, and nothing leaves it unless you publish.$\r$\n$\r$\nClick Next to continue."
 !insertmacro MUI_PAGE_WELCOME
 
 ; Where
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE DirLeave
 !insertmacro MUI_PAGE_DIRECTORY
 
-; Options
-!define MUI_PAGE_HEADER_TEXT "Choose Options"
-!define MUI_PAGE_HEADER_SUBTEXT "Pick what Setup adds for you."
-!define MUI_COMPONENTSPAGE_TEXT_TOP "Setup always adds a Start menu shortcut. Tick anything else you want."
-!define MUI_PAGE_CUSTOMFUNCTION_LEAVE OptionsLeave
-!insertmacro MUI_PAGE_COMPONENTS
+; Options: Setup's own page, so it can hold the port fields (ADR 0058). Every choice lives in a Var
+; that hidden sections read, so a silent install gets the same defaults as the pages.
+Page custom GmOptionsShow GmOptionsLeave
 
-; Progress
+; Existing settings: shown only when GmReadDefaults found a settings file. Setup never opens it.
+Page custom GmSettingsShow
+
+; Progress: the running-copy checks run just before it, so nothing is written first.
+!define MUI_PAGE_CUSTOMFUNCTION_PRE GmInstallPre
 !insertmacro MUI_PAGE_INSTFILES
 
-; Finish: the box is ticked, and starts the exe with no arguments so it opens in launch mode.
+; Finish: the box is ticked, and starts the tray app with no arguments.
 !define MUI_FINISHPAGE_TITLE "Completing ${APP_NAME} Setup"
-!define MUI_FINISHPAGE_TEXT "${APP_NAME} is installed. Find it in the Start menu under G.$\r$\n$\r$\nClick Finish to close Setup."
-!define MUI_FINISHPAGE_RUN "$INSTDIR\gm-scriptorium.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "Open ${APP_NAME} now"
+!define MUI_FINISHPAGE_TEXT "${APP_NAME} is installed.$\r$\n$\r$\nIt lives in the system tray, by the clock. Closing your browser doesn't stop it; use the icon's Quit when you want it off.$\r$\n$\r$\nClick Finish to close Setup."
+!define MUI_FINISHPAGE_RUN "$INSTDIR\gm-scriptorium-tray.exe"
+!define MUI_FINISHPAGE_RUN_TEXT "Start ${APP_NAME} now"
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_LANGUAGE "English"
@@ -252,7 +279,7 @@ Var gmWho
     Call GmPathRead
     StrCmp $gmPathState 0 path_create
     StrCmp $gmPathState 1 path_present
-    MessageBox MB_OK|MB_ICONINFORMATION "Setup didn't add ${APP_NAME} to your PATH, because your PATH list is too long to change safely. Nothing was changed.$\r$\n$\r$\n${APP_NAME} is installed and works as normal. To type gm-scriptorium in a terminal, add $INSTDIR to PATH yourself, or use the Start menu shortcut." /SD IDOK
+    MessageBox MB_OK|MB_ICONINFORMATION "Setup didn't add ${APP_NAME} to your PATH, because your PATH list is too long to change safely. Nothing was changed.$\r$\n$\r$\n${APP_NAME} is installed and works as normal. To type gm-scriptorium in a terminal, add $INSTDIR to PATH yourself, or choose Open command line (Advanced) from its icon in the system tray." /SD IDOK
     Return
 
     path_create:
@@ -301,8 +328,8 @@ Function DirLeave
     Abort
 FunctionEnd
 
-; Runs before anything is written. Called when Install is pressed and again at the top of the first
-; section, so a silent install (no pages) gets the same checks; $gmChecksDone stops a second prompt.
+; Runs before anything is written. Called just before the progress page and again at the top of the
+; first section, so a silent install (no pages) gets the same checks; $gmChecksDone stops a second prompt.
 ;   1. A newer GM-Scriptorium is already here: OK/Cancel, Cancel is the default.
 ;   2. A copy is running: Retry/Cancel until the probe can open the exe for writing.
 Function PreInstallChecks
@@ -361,13 +388,346 @@ Function PreInstallChecks
   checks_return:
 FunctionEnd
 
-Function OptionsLeave
+Function GmInstallPre
   Call PreInstallChecks
+FunctionEnd
+
+; What the tray menu's Start with Windows tick would show (ADR 0057 section 7): the Run value
+; exists and its StartupApproved value does not start with 0x03.
+Function GmAutostartRead
+  Push $0
+  Push $1
+  Push $2
+  Push $3
+  Push $4
+  StrCpy $gmAutostart 0
+  ClearErrors
+  ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "GM-Scriptorium"
+  IfErrors autostart_done
+  StrCpy $gmAutostart 1
+  System::Alloc 64
+  Pop $2
+  StrCmp $2 0 autostart_done
+  System::Call 'advapi32::RegGetValueW(p 0x80000001, w "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", w "GM-Scriptorium", i 0x1000ffff, p 0, p r2, *i 64 r4) i .r0'
+  IntCmp $0 0 +1 autostart_free autostart_free
+  IntCmp $4 1 +1 autostart_free +1
+  System::Call '*$2(&i1 .r3)'
+  IntCmp $3 3 +1 autostart_free autostart_free
+  StrCpy $gmAutostart 0
+  autostart_free:
+  System::Free $2
+  autostart_done:
+  Pop $4
+  Pop $3
+  Pop $2
+  Pop $1
+  Pop $0
+FunctionEnd
+
+; Computes every choice's starting value, in .onInit so a silent install gets them too. The settings
+; file is only looked for, never opened (ADR 0058 section 3).
+Function GmReadDefaults
+  Push $0
+  ReadEnvStr $gmConfigPath SCRIPTORIUM_CONFIG
+  StrCmp $gmConfigPath "" 0 +2
+  StrCpy $gmConfigPath "$APPDATA\Scriptorium\config.toml"
+  StrCpy $gmHaveSettings 0
+  IfFileExists "$gmConfigPath" 0 +2
+  StrCpy $gmHaveSettings 1
+
+  StrCpy $gmPanelPort 7400
+  StrCpy $gmPreviewPort 7401
+  !ifdef WITH_PATH_OPTION
+    StrCpy $gmWantPath 0
+  !endif
+
+  ; A shortcut box starts as the record Setup left says. With no record the Start menu box is ticked,
+  ; and the Desktop box only when a shortcut of that name is already there.
+  ClearErrors
+  ReadRegDWORD $0 HKCU "${UNINST_KEY}" "StartMenuShortcut"
+  IfErrors defaults_start_yes
+  StrCmp $0 1 defaults_start_yes defaults_start_no
+  defaults_start_yes:
+    StrCpy $gmWantStart 1
+    Goto defaults_start_done
+  defaults_start_no:
+    StrCpy $gmWantStart 0
+  defaults_start_done:
+
+  ClearErrors
+  ReadRegDWORD $0 HKCU "${UNINST_KEY}" "DesktopShortcut"
+  IfErrors defaults_desktop_new
+  StrCmp $0 1 defaults_desktop_yes defaults_desktop_no
+  defaults_desktop_new:
+    IfFileExists "$DESKTOP\GM-Scriptorium.lnk" defaults_desktop_yes defaults_desktop_no
+  defaults_desktop_yes:
+    StrCpy $gmWantDesktop 1
+    Goto defaults_desktop_done
+  defaults_desktop_no:
+    StrCpy $gmWantDesktop 0
+  defaults_desktop_done:
+
+  StrCmp $gmHaveSettings 1 defaults_auto_read
+  StrCpy $gmAutostart 1
+  Goto defaults_auto_done
+  defaults_auto_read:
+    Call GmAutostartRead
+  defaults_auto_done:
+  Pop $0
+FunctionEnd
+
+; Whether a port field holds a whole number from 1 to 65535: 1 to 5 digits, the first not 0 (NSIS
+; reads a leading 0 as octal), checked before any number is made of it. Takes the text on the stack
+; and leaves 1 (good) or 0 (refused).
+Function GmPortValid
+  Exch $0
+  Push $1
+  Push $2
+  Push $3
+  StrLen $1 $0
+  IntCmp $1 1 +1 port_bad +1
+  IntCmp $1 5 +1 +1 port_bad
+  StrCpy $3 $0 1
+  StrCmp $3 "0" port_bad
+  StrCpy $2 0
+  port_digit:
+    StrCpy $3 $0 1 $2
+    StrCmp $3 "0" port_next
+    StrCmp $3 "1" port_next
+    StrCmp $3 "2" port_next
+    StrCmp $3 "3" port_next
+    StrCmp $3 "4" port_next
+    StrCmp $3 "5" port_next
+    StrCmp $3 "6" port_next
+    StrCmp $3 "7" port_next
+    StrCmp $3 "8" port_next
+    StrCmp $3 "9" port_next
+    Goto port_bad
+  port_next:
+    IntOp $2 $2 + 1
+    IntCmp $2 $1 port_digits_done port_digit
+  port_digits_done:
+  IntOp $3 $0 + 0
+  IntCmp $3 65535 port_good port_good port_bad
+  port_good:
+    StrCpy $0 1
+    Goto port_end
+  port_bad:
+    StrCpy $0 0
+  port_end:
+  Pop $3
+  Pop $2
+  Pop $1
+  Exch $0
+FunctionEnd
+
+; Shows what the Advanced button and the three boxes call for: the help lines give way to the
+; Advanced controls when it is open, and the "start it from its folder" line shows when all three
+; boxes are off. There are two copies of that line so each view has its own place for it.
+Function GmOptionsRefresh
+  Push $0
+  Push $1
+  Push $2
+  ${NSD_GetState} $gmCkStart $0
+  ${NSD_GetState} $gmCkDesktop $1
+  ${NSD_GetState} $gmCkAuto $2
+  IntOp $0 $0 + $1
+  IntOp $0 $0 + $2
+  StrCmp $gmAdvOpen 1 refresh_open
+  ShowWindow $gmHelpStart ${SW_SHOW}
+  ShowWindow $gmHelpDesktop ${SW_SHOW}
+  ShowWindow $gmHelpAuto ${SW_SHOW}
+  ShowWindow $gmLblOff2 ${SW_HIDE}
+  ShowWindow $gmLblPanel ${SW_HIDE}
+  ShowWindow $gmEdPanel ${SW_HIDE}
+  ShowWindow $gmLblPreview ${SW_HIDE}
+  ShowWindow $gmEdPreview ${SW_HIDE}
+  ShowWindow $gmHelpPorts ${SW_HIDE}
+  !ifdef WITH_PATH_OPTION
+    ShowWindow $gmCkPath ${SW_HIDE}
+    ShowWindow $gmHelpPath ${SW_HIDE}
+  !endif
+  ShowWindow $gmLblOff1 ${SW_HIDE}
+  StrCmp $0 0 0 refresh_done
+  ShowWindow $gmLblOff1 ${SW_SHOW}
+  Goto refresh_done
+  refresh_open:
+    ShowWindow $gmHelpStart ${SW_HIDE}
+    ShowWindow $gmHelpDesktop ${SW_HIDE}
+    ShowWindow $gmHelpAuto ${SW_HIDE}
+    ShowWindow $gmLblOff1 ${SW_HIDE}
+    ShowWindow $gmLblPanel ${SW_SHOW}
+    ShowWindow $gmEdPanel ${SW_SHOW}
+    ShowWindow $gmLblPreview ${SW_SHOW}
+    ShowWindow $gmEdPreview ${SW_SHOW}
+    ShowWindow $gmHelpPorts ${SW_SHOW}
+    !ifdef WITH_PATH_OPTION
+      ShowWindow $gmCkPath ${SW_SHOW}
+      ShowWindow $gmHelpPath ${SW_SHOW}
+    !endif
+    ShowWindow $gmLblOff2 ${SW_HIDE}
+    StrCmp $0 0 0 refresh_done
+    ShowWindow $gmLblOff2 ${SW_SHOW}
+  refresh_done:
+  Pop $2
+  Pop $1
+  Pop $0
+FunctionEnd
+
+; The Advanced button, and the three boxes, call this; nsDialogs hands it the control's handle.
+Function GmOptionsClicked
+  Pop $0
+  Call GmOptionsRefresh
+FunctionEnd
+
+Function GmAdvancedClicked
+  Pop $0
+  StrCmp $gmAdvOpen 1 advanced_close
+  StrCpy $gmAdvOpen 1
+  Goto advanced_apply
+  advanced_close:
+    StrCpy $gmAdvOpen 0
+  advanced_apply:
+  Call GmOptionsRefresh
+FunctionEnd
+
+Function GmOptionsShow
+  !insertmacro MUI_HEADER_TEXT "Choose Options" "Pick what Setup adds for you."
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  StrCpy $gmAdvOpen 0
+
+  ${NSD_CreateCheckBox} 0 0 200u 10u "Start menu shortcut"
+  Pop $gmCkStart
+  ${NSD_CreateLabel} 12u 10u 240u 8u "Find ${APP_NAME} by typing its name in Start."
+  Pop $gmHelpStart
+  ${NSD_CreateCheckBox} 0 17u 100% 10u "Desktop shortcut"
+  Pop $gmCkDesktop
+  ${NSD_CreateLabel} 12u 27u 240u 8u "A shortcut on your desktop."
+  Pop $gmHelpDesktop
+  ${NSD_CreateCheckBox} 0 34u 100% 10u "Start ${APP_NAME} when I sign in to Windows"
+  Pop $gmCkAuto
+  ${NSD_CreateLabel} 12u 44u 240u 16u "It starts quietly in the system tray, with no window. Turn it off any time from its icon."
+  Pop $gmHelpAuto
+  ${NSD_CreateLabel} 0 62u 100% 16u "You'll need to start ${APP_NAME} from its folder: $INSTDIR"
+  Pop $gmLblOff1
+  ${NSD_CreateLabel} 0 44u 100% 16u "You'll need to start ${APP_NAME} from its folder: $INSTDIR"
+  Pop $gmLblOff2
+
+  !ifdef WITH_PATH_OPTION
+    ${NSD_CreateCheckBox} 0 63u 100% 10u "Add ${APP_NAME} to PATH"
+    Pop $gmCkPath
+    ${NSD_CreateLabel} 12u 73u 252u 33u "Lets you type gm-scriptorium in any terminal window, not just the one its tray icon opens. It changes PATH for you only, and the uninstaller takes it out again. Leave it off unless you use the command line."
+    Pop $gmHelpPath
+  !endif
+
+  ${NSD_CreateLabel} 0 110u 46u 10u "Panel port"
+  Pop $gmLblPanel
+  ${NSD_CreateNumber} 46u 108u 36u 12u "$gmPanelPort"
+  Pop $gmEdPanel
+  ${NSD_CreateLabel} 100u 110u 52u 10u "Preview port"
+  Pop $gmLblPreview
+  ${NSD_CreateNumber} 152u 108u 36u 12u "$gmPreviewPort"
+  Pop $gmEdPreview
+  ${NSD_Edit_SetTextLimit} $gmEdPanel 5
+  ${NSD_Edit_SetTextLimit} $gmEdPreview 5
+  StrCmp $gmHaveSettings 1 options_ports_locked
+  ${NSD_CreateLabel} 12u 122u 252u 8u "Change these only if another program already uses them."
+  Pop $gmHelpPorts
+  Goto options_ports_made
+  options_ports_locked:
+    ${NSD_SetText} $gmEdPanel ""
+    ${NSD_SetText} $gmEdPreview ""
+    EnableWindow $gmEdPanel 0
+    EnableWindow $gmEdPreview 0
+    ${NSD_CreateLabel} 12u 122u 252u 16u "Setup found your settings, so it keeps the ports saved there. Change them later on the panel's Overview."
+    Pop $gmHelpPorts
+  options_ports_made:
+
+  ${NSD_CreateButton} 206u 0 58u 13u "Advanced"
+  Pop $0
+  ${NSD_OnClick} $0 GmAdvancedClicked
+  ${NSD_OnClick} $gmCkStart GmOptionsClicked
+  ${NSD_OnClick} $gmCkDesktop GmOptionsClicked
+  ${NSD_OnClick} $gmCkAuto GmOptionsClicked
+
+  ${If} $gmWantStart == 1
+    ${NSD_Check} $gmCkStart
+  ${EndIf}
+  ${If} $gmWantDesktop == 1
+    ${NSD_Check} $gmCkDesktop
+  ${EndIf}
+  ${If} $gmAutostart == 1
+    ${NSD_Check} $gmCkAuto
+  ${EndIf}
+  !ifdef WITH_PATH_OPTION
+    ${If} $gmWantPath == 1
+      ${NSD_Check} $gmCkPath
+    ${EndIf}
+  !endif
+  Call GmOptionsRefresh
+
+  ; With no settings, this is the last page before the progress page.
+  StrCmp $gmHaveSettings 0 0 +3
+  GetDlgItem $0 $HWNDPARENT 1
+  SendMessage $0 ${WM_SETTEXT} 0 "STR:Install"
+  nsDialogs::Show
+FunctionEnd
+
+; Keeps the choices, and refuses the ports before any command line is built from them.
+Function GmOptionsLeave
+  ${NSD_GetState} $gmCkStart $gmWantStart
+  ${NSD_GetState} $gmCkDesktop $gmWantDesktop
+  ${NSD_GetState} $gmCkAuto $gmAutostart
+  !ifdef WITH_PATH_OPTION
+    ${NSD_GetState} $gmCkPath $gmWantPath
+  !endif
+  StrCmp $gmHaveSettings 1 leave_done
+  ${NSD_GetText} $gmEdPanel $0
+  ${NSD_GetText} $gmEdPreview $1
+  Push $0
+  Call GmPortValid
+  Pop $2
+  Push $1
+  Call GmPortValid
+  Pop $3
+  StrCmp $2 1 0 leave_refused
+  StrCmp $3 1 0 leave_refused
+  IntCmp $0 $1 leave_refused
+  StrCpy $gmPanelPort $0
+  StrCpy $gmPreviewPort $1
+  Goto leave_done
+  leave_refused:
+    MessageBox MB_OK|MB_ICONEXCLAMATION "Type a number from 1 to 65535 for each port, and make the two different."
+    Abort
+  leave_done:
+FunctionEnd
+
+Function GmSettingsShow
+  StrCmp $gmHaveSettings 1 +2
+  Abort
+  !insertmacro MUI_HEADER_TEXT "Your Campaigns" "Setup found your settings and won't change them."
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 18u "Settings file: $gmConfigPath"
+  Pop $0
+  ${NSD_CreateLabel} 0 26u 100% 10u "To add another campaign, use Campaigns in the panel."
+  Pop $0
+  GetDlgItem $0 $HWNDPARENT 1
+  SendMessage $0 ${WM_SETTEXT} 0 "STR:Install"
+  nsDialogs::Show
 FunctionEnd
 
 Function .onInit
   SetShellVarContext current
   StrCpy $gmChecksDone 0
+  Call GmReadDefaults
   ReadEnvStr $0 USERNAME
   StrCmp $0 "" 0 who_named
   StrCpy $gmWho "for you only"
@@ -441,39 +801,73 @@ Section "-Program files" SecMain
   WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize" $0
 SectionEnd
 
-Section "Start menu shortcut" SecStart
-  SectionIn RO
+Section "-Shortcuts"
   SetShellVarContext current
   SetOutPath "$PROFILE"
-  CreateShortCut "$SMPROGRAMS\GM-Scriptorium.lnk" "$INSTDIR\gm-scriptorium.exe" "" "$INSTDIR\gm-scriptorium.exe" 0
+  StrCmp $gmWantStart 1 shortcut_start_make
+  Delete "$SMPROGRAMS\GM-Scriptorium.lnk"
+  WriteRegDWORD HKCU "${UNINST_KEY}" "StartMenuShortcut" 0
+  Goto shortcut_start_done
+  shortcut_start_make:
+    CreateShortCut "$SMPROGRAMS\GM-Scriptorium.lnk" "$INSTDIR\gm-scriptorium-tray.exe" "" "$INSTDIR\gm-scriptorium-tray.exe" 0
+    WriteRegDWORD HKCU "${UNINST_KEY}" "StartMenuShortcut" 1
+  shortcut_start_done:
+  StrCmp $gmWantDesktop 1 shortcut_desktop_make
+  Delete "$DESKTOP\GM-Scriptorium.lnk"
+  WriteRegDWORD HKCU "${UNINST_KEY}" "DesktopShortcut" 0
+  Goto shortcut_desktop_done
+  shortcut_desktop_make:
+    CreateShortCut "$DESKTOP\GM-Scriptorium.lnk" "$INSTDIR\gm-scriptorium-tray.exe" "" "$INSTDIR\gm-scriptorium-tray.exe" 0
+    WriteRegDWORD HKCU "${UNINST_KEY}" "DesktopShortcut" 1
+  shortcut_desktop_done:
 SectionEnd
 
-Section /o "Desktop shortcut" SecDesktop
+; Start with Windows goes through the tray app's own switch, so the tray app is its only writer. It
+; runs only after the tray app is in place.
+Section "-Start with Windows"
   SetShellVarContext current
-  SetOutPath "$PROFILE"
-  CreateShortCut "$DESKTOP\GM-Scriptorium.lnk" "$INSTDIR\gm-scriptorium.exe" "" "$INSTDIR\gm-scriptorium.exe" 0
+  ClearErrors
+  StrCmp $gmAutostart 1 autostart_on
+  ExecWait '"$INSTDIR\gm-scriptorium-tray.exe" --autostart off' $0
+  Goto autostart_ran
+  autostart_on:
+    ExecWait '"$INSTDIR\gm-scriptorium-tray.exe" --autostart on' $0
+  autostart_ran:
+  IfErrors autostart_failed
+  StrCmp $0 0 autostart_done
+  autostart_failed:
+    DetailPrint "Start with Windows couldn't be changed. Use Start with Windows in the tray icon's menu."
+  autostart_done:
 SectionEnd
 
 !ifdef WITH_PATH_OPTION
-  Section /o "Add GM-Scriptorium to PATH" SecPath
+  Section "-PATH"
     SetShellVarContext current
+    StrCmp $gmWantPath 1 0 +2
     Call GmPathAdd
   SectionEnd
 !endif
 
-; Leave the working folder away from the install folder, so the exe the Finish box starts never has
-; its current folder inside the one the uninstaller will remove.
+; The ports go through the program's own `desktop set`, only when there are no settings yet and a
+; port is not the default one. That makes the settings file; Setup never writes it itself.
+Section "-Ports"
+  SetShellVarContext current
+  StrCmp $gmHaveSettings 0 0 ports_done
+  StrCmp $gmPanelPort 7400 0 ports_set
+  StrCmp $gmPreviewPort 7401 ports_done
+  ports_set:
+    nsExec::ExecToLog '"$INSTDIR\gm-scriptorium.exe" desktop set --port $gmPanelPort --preview-port $gmPreviewPort'
+    Pop $0
+    StrCmp $0 0 ports_done
+    DetailPrint "The ports couldn't be saved, so the panel uses 7400 and 7401. Change them later on the panel's Overview."
+  ports_done:
+SectionEnd
+
+; Leave the working folder away from the install folder, so the tray app the Finish box starts never
+; has its current folder inside the one the uninstaller will remove.
 Section "-Finish" SecFinish
   SetOutPath "$PROFILE"
 SectionEnd
-
-!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecStart} "Always added. Find ${APP_NAME} by typing its name in Start."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecDesktop} "A shortcut on your desktop."
-  !ifdef WITH_PATH_OPTION
-    !insertmacro MUI_DESCRIPTION_TEXT ${SecPath} "Lets you type gm-scriptorium in any terminal. Changes PATH for you only."
-  !endif
-!insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 !else
 
