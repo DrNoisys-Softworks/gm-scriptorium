@@ -36,6 +36,9 @@ Unicode true
   !ifndef NOTICES_IN
     !error "NOTICES_IN is required in the installer stage"
   !endif
+  !ifndef TRAY_IN
+    !error "TRAY_IN is required in the installer stage"
+  !endif
 !endif
 
 !include "MUI2.nsh"
@@ -342,6 +345,11 @@ Function PreInstallChecks
     FileOpen $0 "$INSTDIR\gm-scriptorium.exe" a
     IfErrors probe_busy
     FileClose $0
+    IfFileExists "$INSTDIR\gm-scriptorium-tray.exe" 0 checks_ok
+    ClearErrors
+    FileOpen $0 "$INSTDIR\gm-scriptorium-tray.exe" a
+    IfErrors probe_busy
+    FileClose $0
     Goto checks_ok
   probe_busy:
     MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "${APP_NAME} is open on this computer, so Setup can't replace it yet.$\r$\n$\r$\nClose the ${APP_NAME} window, then click Retry. Click Cancel to stop Setup without changing anything." /SD IDCANCEL IDRETRY probe_start
@@ -396,6 +404,28 @@ Section "-Program files" SecMain
     SetErrorLevel 2
     Abort
   exe_renamed:
+
+  ; The tray app is replaced the same way: beside its final name, then renamed into place.
+  File "/oname=gm-scriptorium-tray.exe-setup.tmp" "${TRAY_IN}"
+  IfFileExists "$INSTDIR\gm-scriptorium-tray.exe" 0 tray_rename
+  ClearErrors
+  Delete "$INSTDIR\gm-scriptorium-tray.exe"
+  IfFileExists "$INSTDIR\gm-scriptorium-tray.exe" tray_stuck tray_rename
+  tray_stuck:
+    Delete "$INSTDIR\gm-scriptorium-tray.exe-setup.tmp"
+    MessageBox MB_OK|MB_ICONSTOP "Setup couldn't save ${APP_NAME}'s tray app, so ${APP_NAME} may not start.$\r$\n$\r$\nQuit ${APP_NAME} if it is running, then run Setup again." /SD IDOK
+    SetErrorLevel 2
+    Abort
+  tray_rename:
+    ClearErrors
+    Rename "$INSTDIR\gm-scriptorium-tray.exe-setup.tmp" "$INSTDIR\gm-scriptorium-tray.exe"
+    IfErrors tray_rename_failed tray_renamed
+  tray_rename_failed:
+    Delete "$INSTDIR\gm-scriptorium-tray.exe-setup.tmp"
+    MessageBox MB_OK|MB_ICONSTOP "Setup couldn't save ${APP_NAME}'s tray app, so ${APP_NAME} may not start.$\r$\n$\r$\nQuit ${APP_NAME} if it is running, then run Setup again." /SD IDOK
+    SetErrorLevel 2
+    Abort
+  tray_renamed:
 
   File "/oname=THIRD-PARTY-NOTICES.txt" "${NOTICES_IN}"
   File "/oname=Uninstall GM-Scriptorium.exe" "${UNINSTALLER_IN}"
@@ -508,6 +538,11 @@ Function un.RunningCheck
     FileOpen $0 "$INSTDIR\gm-scriptorium.exe" a
     IfErrors running_busy
     FileClose $0
+    IfFileExists "$INSTDIR\gm-scriptorium-tray.exe" 0 running_ok
+    ClearErrors
+    FileOpen $0 "$INSTDIR\gm-scriptorium-tray.exe" a
+    IfErrors running_busy
+    FileClose $0
     Goto running_ok
   running_busy:
     MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "${APP_NAME} is open on this computer, so it can't be removed yet.$\r$\n$\r$\nClose the ${APP_NAME} window, then click Retry. Click Cancel to stop without removing anything." /SD IDCANCEL IDRETRY running_probe
@@ -592,6 +627,10 @@ Section Uninstall
   Delete "$INSTDIR\gm-scriptorium.exe.old-*"
   Delete "$INSTDIR\gm-scriptorium.exe-update-*.tmp"
   Delete "$INSTDIR\gm-scriptorium.exe-setup.tmp"
+  Delete "$INSTDIR\gm-scriptorium-tray.exe"
+  Delete "$INSTDIR\gm-scriptorium-tray.exe.old-*"
+  Delete "$INSTDIR\gm-scriptorium-tray.exe-update-*.tmp"
+  Delete "$INSTDIR\gm-scriptorium-tray.exe-setup.tmp"
 
   ; THIRD-PARTY-NOTICES.txt goes only when its first 40 lines say it is Scriptorium's own: the title
   ; line, and a line that starts with the version stamp.

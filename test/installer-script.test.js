@@ -35,6 +35,7 @@ function scratch(prefix = 'gm-installer-test-') {
 
 const EXE_BYTES = Buffer.concat([Buffer.from('MZ'), Buffer.from('signed-exe-bytes-0123456789-ABCDEFGHIJ'.repeat(40))]);
 const UNINST_BYTES = Buffer.concat([Buffer.from('MZ'), Buffer.from('signed-uninstaller-bytes-9876543210-zyxwvu'.repeat(40))]);
+const TRAY_BYTES = Buffer.concat([Buffer.from('MZ'), Buffer.from('signed-tray-bytes-ABCDEF-543210'.repeat(40))]);
 const NOTICES_BYTES = Buffer.from('Scriptorium: Third-Party Notices\nScriptorium version: 0.0.0\n');
 const MANIFEST_BYTES = Buffer.from('<requestedExecutionLevel level="asInvoker" uiAccess="false"/>');
 
@@ -42,10 +43,12 @@ function makeInputs(dir) {
   const exe = path.join(dir, 'gm-scriptorium.exe');
   const un = path.join(dir, 'uninst.exe');
   const notices = path.join(dir, 'notices.txt');
+  const tray = path.join(dir, 'tray.exe');
   fs.writeFileSync(exe, EXE_BYTES);
   fs.writeFileSync(un, UNINST_BYTES);
   fs.writeFileSync(notices, NOTICES_BYTES);
-  return { exe, un, notices };
+  fs.writeFileSync(tray, TRAY_BYTES);
+  return { exe, un, notices, tray };
 }
 
 /** Pulls `-DNAME=value` out of a makensis argument list. */
@@ -90,11 +93,18 @@ test('parseArgs: the uninstaller form', () => {
 
 test('parseArgs: the installer form', () => {
   const a = installer.parseArgs([
-    'installer', '--exe', '/tmp/a/e.exe', '--uninstaller', '/tmp/a/u.exe', '--notices', '/tmp/a/n.txt', '--out', '/tmp/a/s.exe',
+    'installer', '--exe', '/tmp/a/e.exe', '--uninstaller', '/tmp/a/u.exe', '--notices', '/tmp/a/n.txt', '--tray', '/tmp/a/t.exe', '--out', '/tmp/a/s.exe',
   ]);
   assert.deepEqual(a, {
-    mode: 'installer', exe: '/tmp/a/e.exe', uninstaller: '/tmp/a/u.exe', notices: '/tmp/a/n.txt', out: '/tmp/a/s.exe',
+    mode: 'installer', exe: '/tmp/a/e.exe', uninstaller: '/tmp/a/u.exe', notices: '/tmp/a/n.txt', tray: '/tmp/a/t.exe', out: '/tmp/a/s.exe',
   });
+});
+
+test('parseArgs: the installer form without --tray is a usage error', () => {
+  assert.throws(
+    () => installer.parseArgs(['installer', '--exe', '/tmp/a/e.exe', '--uninstaller', '/tmp/a/u.exe', '--notices', '/tmp/a/n.txt', '--out', '/tmp/a/s.exe']),
+    (e) => e.reason === 'usage' && /--tray is required/.test(e.message),
+  );
 });
 
 test('parseArgs: refuses a path with a space, quote, shell character or non-ASCII letter (bad-path)', () => {
@@ -129,7 +139,7 @@ test('parseArgs: a missing value, a missing required flag, an unknown flag or mo
 
 test('makensisArgs: the installer stage passes the inputs, the version and the PATH switch', () => {
   const args = installer.makensisArgs('installer', {
-    version: '0.4.0-rc.3', exe: '/tmp/a/e.exe', uninstaller: '/tmp/a/u.exe', notices: '/tmp/a/n.txt', out: '/tmp/a/s.exe',
+    version: '0.4.0-rc.3', exe: '/tmp/a/e.exe', uninstaller: '/tmp/a/u.exe', notices: '/tmp/a/n.txt', tray: '/tmp/a/t.exe', out: '/tmp/a/s.exe',
   });
   assert.equal(args[0], '-V2');
   assert.equal(args[1], '-WX');
@@ -139,6 +149,7 @@ test('makensisArgs: the installer stage passes the inputs, the version and the P
   assert.equal(defineOf(args, 'EXE_IN'), '/tmp/a/e.exe');
   assert.equal(defineOf(args, 'UNINSTALLER_IN'), '/tmp/a/u.exe');
   assert.equal(defineOf(args, 'NOTICES_IN'), '/tmp/a/n.txt');
+  assert.equal(defineOf(args, 'TRAY_IN'), '/tmp/a/t.exe');
   assert.equal(defineOf(args, 'OUTFILE'), '/tmp/a/s.exe');
   assert.equal(args.includes('-DEXTRACT_UNINSTALLER'), false);
   assert.equal(path.isAbsolute(args[args.length - 1]), true);
@@ -147,7 +158,7 @@ test('makensisArgs: the installer stage passes the inputs, the version and the P
 
 test('makensisArgs: the PATH switch is one option away from being dropped', () => {
   const args = installer.makensisArgs('installer', {
-    version: '1.0.0', exe: '/tmp/a/e.exe', uninstaller: '/tmp/a/u.exe', notices: '/tmp/a/n.txt', out: '/tmp/a/s.exe', withPath: false,
+    version: '1.0.0', exe: '/tmp/a/e.exe', uninstaller: '/tmp/a/u.exe', notices: '/tmp/a/n.txt', tray: '/tmp/a/t.exe', out: '/tmp/a/s.exe', withPath: false,
   });
   assert.equal(args.includes('-DWITH_PATH_OPTION'), false);
   assert.ok(args.includes('-DVERSION4=1.0.0.0'));
@@ -281,7 +292,7 @@ test('run: an input that does not exist is a bad-path, before makensis compiles'
   try {
     const exec = fakeExec();
     const r = await runCapture({
-      argv: ['installer', '--exe', path.join(dir, 'nope.exe'), '--uninstaller', path.join(dir, 'nope2.exe'), '--notices', path.join(dir, 'nope3.txt'), '--out', path.join(dir, 's.exe')],
+      argv: ['installer', '--exe', path.join(dir, 'nope.exe'), '--uninstaller', path.join(dir, 'nope2.exe'), '--notices', path.join(dir, 'nope3.txt'), '--tray', path.join(dir, 'nope4.exe'), '--out', path.join(dir, 's.exe')],
       exec,
       version: '0.4.0',
     });
@@ -307,7 +318,7 @@ function installerRun(dir, producer, extra = {}) {
     exec,
     go: () =>
       runCapture({
-        argv: ['installer', '--exe', inputs.exe, '--uninstaller', inputs.un, '--notices', inputs.notices, '--out', out],
+        argv: ['installer', '--exe', inputs.exe, '--uninstaller', inputs.un, '--notices', inputs.notices, '--tray', inputs.tray, '--out', out],
         exec,
         version: '0.4.0-rc.2',
       }),
@@ -317,7 +328,7 @@ function installerRun(dir, producer, extra = {}) {
 test('run installer: success prints the contract lines in order, with independently computed hashes', async () => {
   const dir = scratch();
   try {
-    const good = Buffer.concat([Buffer.from('MZstub'), EXE_BYTES, Buffer.from('|'), UNINST_BYTES, Buffer.from('|'), MANIFEST_BYTES]);
+    const good = Buffer.concat([Buffer.from('MZstub'), EXE_BYTES, Buffer.from('|'), UNINST_BYTES, Buffer.from('|'), TRAY_BYTES, Buffer.from('|'), MANIFEST_BYTES]);
     const t = installerRun(dir, () => good);
     const r = await t.go();
     assert.equal(r.code, 0, r.out.join('\n') + r.err.join('\n'));
@@ -326,8 +337,10 @@ test('run installer: success prints the contract lines in order, with independen
       `INPUT exe sha256=${sha(EXE_BYTES)}`,
       `INPUT uninstaller sha256=${sha(UNINST_BYTES)}`,
       `INPUT notices sha256=${sha(NOTICES_BYTES)}`,
+      `INPUT tray sha256=${sha(TRAY_BYTES)}`,
       'CONTAINS exe yes',
       'CONTAINS uninstaller yes',
+      'CONTAINS tray yes',
       'MANIFEST asInvoker yes',
       `INSTALLER sha256=${sha(good)} path=${t.out}`,
     ]);
@@ -340,7 +353,7 @@ test('run installer: success prints the contract lines in order, with independen
 test('run installer: an output lacking the exe bytes fails not-packed-exe, exits 1 and removes the output', async () => {
   const dir = scratch();
   try {
-    const t = installerRun(dir, () => Buffer.concat([Buffer.from('MZ'), UNINST_BYTES, MANIFEST_BYTES]));
+    const t = installerRun(dir, () => Buffer.concat([Buffer.from('MZ'), UNINST_BYTES, TRAY_BYTES, MANIFEST_BYTES]));
     const r = await t.go();
     assert.equal(r.code, 1);
     assert.ok(r.out.includes('FAIL not-packed-exe'));
@@ -354,7 +367,7 @@ test('run installer: an output lacking the exe bytes fails not-packed-exe, exits
 test('run installer: an output lacking the uninstaller bytes fails not-packed-uninstaller and removes the output', async () => {
   const dir = scratch();
   try {
-    const t = installerRun(dir, () => Buffer.concat([Buffer.from('MZ'), EXE_BYTES, MANIFEST_BYTES]));
+    const t = installerRun(dir, () => Buffer.concat([Buffer.from('MZ'), EXE_BYTES, TRAY_BYTES, MANIFEST_BYTES]));
     const r = await t.go();
     assert.equal(r.code, 1);
     assert.ok(r.out.includes('FAIL not-packed-uninstaller'));
@@ -364,10 +377,24 @@ test('run installer: an output lacking the uninstaller bytes fails not-packed-un
   }
 });
 
+test('run installer: an output lacking the tray bytes fails not-packed-tray, exits 1, removes the output and prints no INSTALLER line', async () => {
+  const dir = scratch();
+  try {
+    const t = installerRun(dir, () => Buffer.concat([Buffer.from('MZ'), EXE_BYTES, UNINST_BYTES, MANIFEST_BYTES]));
+    const r = await t.go();
+    assert.equal(r.code, 1);
+    assert.ok(r.out.includes('FAIL not-packed-tray'), r.out.join('|'));
+    assert.equal(r.out.some((l) => l.startsWith('INSTALLER ')), false);
+    assert.equal(fs.existsSync(t.out), false, 'the output file is removed');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('run installer: an output that is not asInvoker fails no-asinvoker and removes the output', async () => {
   const dir = scratch();
   try {
-    const t = installerRun(dir, () => Buffer.concat([Buffer.from('MZ'), EXE_BYTES, UNINST_BYTES, Buffer.from('level="requireAdministrator"')]));
+    const t = installerRun(dir, () => Buffer.concat([Buffer.from('MZ'), EXE_BYTES, UNINST_BYTES, TRAY_BYTES, Buffer.from('level="requireAdministrator"')]));
     const r = await t.go();
     assert.equal(r.code, 1);
     assert.ok(r.out.includes('FAIL no-asinvoker'));
@@ -388,7 +415,7 @@ test('run installer: makensis failing part-way is makensis-failed and leaves no 
       throw Object.assign(new Error('makensis exited 1'), { status: 1, stdout: 'error text', stderr: '' });
     };
     const r = await runCapture({
-      argv: ['installer', '--exe', inputs.exe, '--uninstaller', inputs.un, '--notices', inputs.notices, '--out', out],
+      argv: ['installer', '--exe', inputs.exe, '--uninstaller', inputs.un, '--notices', inputs.notices, '--tray', inputs.tray, '--out', out],
       exec,
       version: '0.4.0',
     });
@@ -406,7 +433,7 @@ test('run installer: makensis succeeding but writing nothing is makensis-failed'
     const inputs = makeInputs(dir);
     const out = path.join(dir, 'setup.exe');
     const r = await runCapture({
-      argv: ['installer', '--exe', inputs.exe, '--uninstaller', inputs.un, '--notices', inputs.notices, '--out', out],
+      argv: ['installer', '--exe', inputs.exe, '--uninstaller', inputs.un, '--notices', inputs.notices, '--tray', inputs.tray, '--out', out],
       exec: fakeExec(),
       version: '0.4.0',
     });
@@ -494,8 +521,11 @@ test('real makensis build: stage A then stage B on tiny dummies, packed bytes pr
   try {
     const dummyExe = path.join(dir, 'gm-scriptorium.exe');
     const notices = path.join(dir, 'THIRD-PARTY-NOTICES.txt');
+    const dummyTray = path.join(dir, 'gm-scriptorium-tray.exe');
     const exeBytes = Buffer.concat([Buffer.from('MZ'), crypto.randomBytes(48 * 1024)]);
+    const trayBytes = Buffer.concat([Buffer.from('MZ'), crypto.randomBytes(16 * 1024)]);
     fs.writeFileSync(dummyExe, exeBytes);
+    fs.writeFileSync(dummyTray, trayBytes);
     fs.writeFileSync(notices, NOTICES_BYTES);
 
     const uninst = path.join(dir, 'gm-scriptorium-uninstall.exe');
@@ -508,19 +538,20 @@ test('real makensis build: stage A then stage B on tiny dummies, packed bytes pr
     const setup = path.join(dir, 'gm-scriptorium-setup-win-x64.exe');
     const b = spawnSync(
       process.execPath,
-      [SCRIPT, 'installer', '--exe', dummyExe, '--uninstaller', uninst, '--notices', notices, '--out', setup],
+      [SCRIPT, 'installer', '--exe', dummyExe, '--uninstaller', uninst, '--notices', notices, '--tray', dummyTray, '--out', setup],
       { encoding: 'utf8', cwd: ROOT },
     );
     assert.equal(b.status, 0, b.stdout + b.stderr);
     const bLines = b.stdout.trim().split('\n');
     assert.match(bLines[0], /^MAKENSIS version=/);
-    assert.deepEqual(bLines.slice(1, 4), [
+    assert.deepEqual(bLines.slice(1, 5), [
       `INPUT exe sha256=${sha(exeBytes)}`,
       `INPUT uninstaller sha256=${sha(fs.readFileSync(uninst))}`,
       `INPUT notices sha256=${sha(NOTICES_BYTES)}`,
+      `INPUT tray sha256=${sha(trayBytes)}`,
     ]);
-    assert.deepEqual(bLines.slice(4, 7), ['CONTAINS exe yes', 'CONTAINS uninstaller yes', 'MANIFEST asInvoker yes']);
-    assert.equal(bLines[7], `INSTALLER sha256=${sha(fs.readFileSync(setup))} path=${setup}`);
+    assert.deepEqual(bLines.slice(5, 9), ['CONTAINS exe yes', 'CONTAINS uninstaller yes', 'CONTAINS tray yes', 'MANIFEST asInvoker yes']);
+    assert.equal(bLines[9], `INSTALLER sha256=${sha(fs.readFileSync(setup))} path=${setup}`);
 
     // an independent byte search: the file on disk really holds the exact inputs
     const setupBytes = fs.readFileSync(setup);
@@ -528,6 +559,7 @@ test('real makensis build: stage A then stage B on tiny dummies, packed bytes pr
     assert.ok(setupBytes.indexOf(exeBytes) >= 0, 'the installer holds the exe bytes');
     assert.ok(setupBytes.indexOf(uninstBytes) >= 0, 'the installer holds the uninstaller bytes');
     assert.ok(setupBytes.indexOf(NOTICES_BYTES) >= 0, 'the installer holds the notices text');
+    assert.ok(setupBytes.indexOf(trayBytes) >= 0, 'the installer holds the tray bytes');
 
     for (const [name, buf] of [['uninstaller', uninstBytes], ['installer', setupBytes]]) {
       assert.ok(buf.indexOf('level="asInvoker"') >= 0, `${name} manifest asks for asInvoker`);
@@ -551,7 +583,9 @@ test('real makensis build: stage B packs an uninstaller changed after stage A by
   try {
     const dummyExe = path.join(dir, 'gm-scriptorium.exe');
     const notices = path.join(dir, 'THIRD-PARTY-NOTICES.txt');
+    const dummyTray = path.join(dir, 'gm-scriptorium-tray.exe');
     fs.writeFileSync(dummyExe, Buffer.concat([Buffer.from('MZ'), crypto.randomBytes(2048)]));
+    fs.writeFileSync(dummyTray, Buffer.concat([Buffer.from('MZ'), crypto.randomBytes(1024)]));
     fs.writeFileSync(notices, NOTICES_BYTES);
     const uninst = path.join(dir, 'u.exe');
     const a = spawnSync(process.execPath, [SCRIPT, 'uninstaller', '--out', uninst], { encoding: 'utf8', cwd: ROOT });
@@ -559,9 +593,39 @@ test('real makensis build: stage B packs an uninstaller changed after stage A by
     const changed = Buffer.concat([fs.readFileSync(uninst), crypto.randomBytes(512)]);
     fs.writeFileSync(uninst, changed);
     const setup = path.join(dir, 's.exe');
-    const b = spawnSync(process.execPath, [SCRIPT, 'installer', '--exe', dummyExe, '--uninstaller', uninst, '--notices', notices, '--out', setup], { encoding: 'utf8', cwd: ROOT });
+    const b = spawnSync(process.execPath, [SCRIPT, 'installer', '--exe', dummyExe, '--uninstaller', uninst, '--notices', notices, '--tray', dummyTray, '--out', setup], { encoding: 'utf8', cwd: ROOT });
     assert.equal(b.status, 0, b.stdout + b.stderr);
     assert.ok(fs.readFileSync(setup).indexOf(changed) >= 0);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('real makensis build: both stages build with the PATH option dropped', { skip: haveMakensis() ? false : 'makensis is not on PATH on this machine (the release build host has it)' }, () => {
+  const dir = scratch();
+  try {
+    const dummyExe = path.join(dir, 'gm-scriptorium.exe');
+    const dummyTray = path.join(dir, 'gm-scriptorium-tray.exe');
+    const notices = path.join(dir, 'THIRD-PARTY-NOTICES.txt');
+    fs.writeFileSync(dummyExe, Buffer.concat([Buffer.from('MZ'), crypto.randomBytes(2048)]));
+    fs.writeFileSync(dummyTray, Buffer.concat([Buffer.from('MZ'), crypto.randomBytes(1024)]));
+    fs.writeFileSync(notices, NOTICES_BYTES);
+    const uninst = path.join(dir, 'u.exe');
+    const setup = path.join(dir, 's.exe');
+    const outA = [];
+    const errA = [];
+    const codeA = installer.run({ argv: ['uninstaller', '--out', uninst], withPath: false, stdout: (l) => outA.push(l), stderr: (l) => errA.push(l) });
+    assert.equal(codeA, 0, outA.join('\n') + errA.join('\n'));
+    const outB = [];
+    const errB = [];
+    const codeB = installer.run({
+      argv: ['installer', '--exe', dummyExe, '--uninstaller', uninst, '--notices', notices, '--tray', dummyTray, '--out', setup],
+      withPath: false,
+      stdout: (l) => outB.push(l),
+      stderr: (l) => errB.push(l),
+    });
+    assert.equal(codeB, 0, outB.join('\n') + errB.join('\n'));
+    assert.equal(outB.includes('CONTAINS tray yes'), true);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

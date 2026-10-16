@@ -6,7 +6,7 @@
  *
  *   node scripts/installer.js uninstaller --out <abs>/gm-scriptorium-uninstall.exe
  *   node scripts/installer.js installer --exe <abs exe> --uninstaller <abs uninstaller> \
- *        --notices <abs notices> --out <abs>/gm-scriptorium-setup-win-x64.exe
+ *        --notices <abs notices> --tray <abs tray> --out <abs>/gm-scriptorium-setup-win-x64.exe
  *
  * Two stages, because the uninstaller is signed before it is packed. Stage A compiles the script
  * with -DEXTRACT_UNINSTALLER, whose `!uninstfinalize` line copies the uninstaller makensis builds
@@ -21,11 +21,12 @@
  * Output lines (one per line, in this order; the release tooling reads them):
  *   MAKENSIS version=<makensis -VERSION>
  *   uninstaller: UNINSTALLER sha256=<h> path=<p>
- *   installer:   INPUT exe sha256=<h> / INPUT uninstaller sha256=<h> / INPUT notices sha256=<h>
- *                CONTAINS exe yes / CONTAINS uninstaller yes / MANIFEST asInvoker yes
+ *   installer:   INPUT exe sha256=<h> / INPUT uninstaller sha256=<h> / INPUT notices sha256=<h> /
+ *                INPUT tray sha256=<h>
+ *                CONTAINS exe yes / CONTAINS uninstaller yes / CONTAINS tray yes / MANIFEST asInvoker yes
  *                INSTALLER sha256=<h> path=<p>
  *   failure:     FAIL <reason>  (makensis-missing, makensis-failed, bad-path, out-exists,
- *                not-packed-exe, not-packed-uninstaller, no-asinvoker, bad-version, usage)
+ *                not-packed-exe, not-packed-uninstaller, not-packed-tray, no-asinvoker, bad-version, usage)
  *
  * `usage` is the one reason beyond the contract: a mode or flag this script does not know.
  */
@@ -69,12 +70,12 @@ function checkPath(value, flag) {
 
 const FLAGS = {
   uninstaller: ['out'],
-  installer: ['exe', 'uninstaller', 'notices', 'out'],
+  installer: ['exe', 'uninstaller', 'notices', 'tray', 'out'],
 };
 
 /**
  * @param {string[]} argv
- * @returns {{ mode: string, out: string, exe?: string, uninstaller?: string, notices?: string }}
+ * @returns {{ mode: string, out: string, exe?: string, uninstaller?: string, notices?: string, tray?: string }}
  * @throws {InstallerError} usage (unknown mode or flag, missing flag or value) or bad-path
  */
 function parseArgs(argv) {
@@ -98,7 +99,7 @@ function parseArgs(argv) {
  * The makensis argument list for one stage.
  *
  * @param {'installer'|'uninstaller'} mode
- * @param {{ version: string, out: string, exe?: string, uninstaller?: string, notices?: string,
+ * @param {{ version: string, out: string, exe?: string, uninstaller?: string, notices?: string, tray?: string,
  *   stageDir?: string, withPath?: boolean }} opts withPath defaults to true: the PATH option is
  *   compiled in, and is dropped for a build by passing false (ADR 0053, "The PATH option").
  * @returns {string[]}
@@ -110,7 +111,7 @@ function makensisArgs(mode, opts) {
   if (mode === 'uninstaller') {
     args.push('-DEXTRACT_UNINSTALLER', `-DUNINSTALLER_OUT=${opts.out}`, `-DOUTFILE=${path.join(opts.stageDir, 'stage-a-setup.exe')}`);
   } else {
-    args.push(`-DEXE_IN=${opts.exe}`, `-DUNINSTALLER_IN=${opts.uninstaller}`, `-DNOTICES_IN=${opts.notices}`, `-DOUTFILE=${opts.out}`);
+    args.push(`-DEXE_IN=${opts.exe}`, `-DUNINSTALLER_IN=${opts.uninstaller}`, `-DNOTICES_IN=${opts.notices}`, `-DTRAY_IN=${opts.tray}`, `-DOUTFILE=${opts.out}`);
   }
   args.push(NSI_PATH);
   return args;
@@ -177,6 +178,7 @@ function run({ argv = process.argv.slice(2), exec = defaultExec, version, withPa
       mustExist(args.exe, '--exe');
       mustExist(args.uninstaller, '--uninstaller');
       mustExist(args.notices, '--notices');
+      mustExist(args.tray, '--tray');
     }
 
     let makensisVersion;
@@ -190,12 +192,15 @@ function run({ argv = process.argv.slice(2), exec = defaultExec, version, withPa
     outFile = args.out;
     let exeBytes;
     let uninstBytes;
+    let trayBytes;
     if (args.mode === 'installer') {
       exeBytes = fs.readFileSync(args.exe);
       uninstBytes = fs.readFileSync(args.uninstaller);
       stdout(`INPUT exe sha256=${sha256(exeBytes)}`);
       stdout(`INPUT uninstaller sha256=${sha256(uninstBytes)}`);
       stdout(`INPUT notices sha256=${sha256(fs.readFileSync(args.notices))}`);
+      trayBytes = fs.readFileSync(args.tray);
+      stdout(`INPUT tray sha256=${sha256(trayBytes)}`);
     } else {
       stageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gm-scriptorium-installer-'));
     }
@@ -220,11 +225,13 @@ function run({ argv = process.argv.slice(2), exec = defaultExec, version, withPa
       return 0;
     }
 
-    const found = verifyPacked(args.out, { exe: exeBytes, uninstaller: uninstBytes });
+    const found = verifyPacked(args.out, { exe: exeBytes, uninstaller: uninstBytes, tray: trayBytes });
     if (!found.exe) throw new InstallerError('not-packed-exe');
     stdout('CONTAINS exe yes');
     if (!found.uninstaller) throw new InstallerError('not-packed-uninstaller');
     stdout('CONTAINS uninstaller yes');
+    if (!found.tray) throw new InstallerError('not-packed-tray');
+    stdout('CONTAINS tray yes');
     if (bytes.indexOf('level="asInvoker"') === -1) throw new InstallerError('no-asinvoker', 'the installer manifest');
     stdout('MANIFEST asInvoker yes');
     stdout(`INSTALLER sha256=${sha256(bytes)} path=${args.out}`);

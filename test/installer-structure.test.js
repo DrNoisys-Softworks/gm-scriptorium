@@ -110,6 +110,15 @@ function uninstallSection(text) {
   return m ? m[1] : null;
 }
 
+/** The lines of `Function <name>` up to its FunctionEnd, or null. The name is compared whole. */
+function functionBody(text, name) {
+  const lines = text.split('\n');
+  const start = lines.findIndex((l) => l.trim() === `Function ${name}`);
+  if (start === -1) return null;
+  const end = lines.findIndex((l, i) => i > start && /^\s*FunctionEnd\b/.test(l));
+  return end === -1 ? null : lines.slice(start + 1, end).join('\n');
+}
+
 // ---------------------------------------------------------------------------------------------
 // The comment stripper itself
 // ---------------------------------------------------------------------------------------------
@@ -134,6 +143,13 @@ test('stripNsisComments: drops ; and # comments and block comments, keeps them i
   assert.equal(out.includes('StrCmp $0 ";" +2'), true);
   assert.equal(out.includes('fine # really'), true);
   assert.equal(out.includes('keep'), true);
+});
+
+test('functionBody: returns the lines between Function and FunctionEnd, comparing the name whole', () => {
+  assert.equal(functionBody('Function un.X\n a\nFunctionEnd\n', 'un.X'), ' a');
+  assert.equal(functionBody('Function unAX\n a\nFunctionEnd\n', 'un.X'), null);
+  assert.equal(functionBody('Function un.XY\n a\nFunctionEnd\n', 'un.X'), null);
+  assert.equal(functionBody('Function un.X\n a\n', 'un.X'), null);
 });
 
 test('conditionsPerLine: ifdef, else and endif nest correctly', () => {
@@ -379,6 +395,10 @@ const ALLOWED_DELETES = new Set([
   '$INSTDIR\\gm-scriptorium.exe.old-*',
   '$INSTDIR\\gm-scriptorium.exe-update-*.tmp',
   '$INSTDIR\\gm-scriptorium.exe-setup.tmp',
+  '$INSTDIR\\gm-scriptorium-tray.exe',
+  '$INSTDIR\\gm-scriptorium-tray.exe.old-*',
+  '$INSTDIR\\gm-scriptorium-tray.exe-update-*.tmp',
+  '$INSTDIR\\gm-scriptorium-tray.exe-setup.tmp',
   '$INSTDIR\\THIRD-PARTY-NOTICES.txt',
   '$INSTDIR\\.gm-scriptorium-write-test',
   '$SMPROGRAMS\\GM-Scriptorium.lnk',
@@ -418,6 +438,10 @@ test('forbidden: the uninstall section removes the notices file, executables and
       '$INSTDIR\\THIRD-PARTY-NOTICES.txt',
       '$INSTDIR\\Uninstall GM-Scriptorium.exe',
       '$INSTDIR\\gm-scriptorium.exe',
+      '$INSTDIR\\gm-scriptorium-tray.exe',
+      '$INSTDIR\\gm-scriptorium-tray.exe-setup.tmp',
+      '$INSTDIR\\gm-scriptorium-tray.exe-update-*.tmp',
+      '$INSTDIR\\gm-scriptorium-tray.exe.old-*',
       '$INSTDIR\\gm-scriptorium.exe-setup.tmp',
       '$INSTDIR\\gm-scriptorium.exe-update-*.tmp',
       '$INSTDIR\\gm-scriptorium.exe.old-*',
@@ -442,7 +466,44 @@ test('version.nsh: pure string parsing, no registry, no file writes, no process 
 });
 
 test('the installer script gives its two build stages the defines installer.js passes', () => {
-  for (const name of ['VERSION', 'VERSION4', 'OUTFILE', 'EXTRACT_UNINSTALLER', 'UNINSTALLER_OUT', 'EXE_IN', 'UNINSTALLER_IN', 'NOTICES_IN', 'WITH_PATH_OPTION']) {
+  for (const name of ['VERSION', 'VERSION4', 'OUTFILE', 'EXTRACT_UNINSTALLER', 'UNINSTALLER_OUT', 'EXE_IN', 'UNINSTALLER_IN', 'NOTICES_IN', 'TRAY_IN', 'WITH_PATH_OPTION']) {
     assert.match(NSI, new RegExp(`\\b${name}\\b`), name);
   }
+});
+
+// ---------------------------------------------------------------------------------------------
+// The tray app is packed, replaced by temp file and rename, and probed (ADR 0058)
+// ---------------------------------------------------------------------------------------------
+
+test('tray: TRAY_IN is required in stage B only, and the tray File and Rename lines are present', () => {
+  const guard = findLines(NSI, /^\s*!ifndef\s+TRAY_IN\s*$/);
+  assert.equal(guard.length, 1);
+  assert.ok(guard[0].conds.includes('ifndef EXTRACT_UNINSTALLER'), '!ifndef TRAY_IN must sit in stage B');
+  const err = findLines(NSI, /^\s*!error\s+"TRAY_IN is required in the installer stage"\s*$/);
+  assert.equal(err.length, 1);
+  assert.ok(err[0].conds.includes('ifndef EXTRACT_UNINSTALLER'));
+  assert.ok(err[0].conds.includes('ifndef TRAY_IN'));
+  // control: a guard outside stage B is reported as outside
+  const stray = findLines('!ifndef TRAY_IN\n!error "x"\n!endif\n', /^\s*!error\b/);
+  assert.equal(stray[0].conds.includes('ifndef EXTRACT_UNINSTALLER'), false);
+  const files = findLines(NSI, /^\s*File\s+"\/oname=gm-scriptorium-tray\.exe-setup\.tmp"\s+"\$\{TRAY_IN\}"\s*$/);
+  assert.equal(files.length, 1);
+  assert.ok(files[0].conds.includes('ifndef EXTRACT_UNINSTALLER'));
+  const renames = findLines(NSI, /^\s*Rename\s+"\$INSTDIR\\gm-scriptorium-tray\.exe-setup\.tmp"\s+"\$INSTDIR\\gm-scriptorium-tray\.exe"\s*$/);
+  assert.equal(renames.length, 1);
+  // control: the exe rename is not the tray rename
+  assert.equal(/Rename\s+"\$INSTDIR\\gm-scriptorium-tray\.exe-setup\.tmp"/.test('Rename "$INSTDIR\\gm-scriptorium.exe-setup.tmp" "$INSTDIR\\gm-scriptorium.exe"'), false);
+});
+
+test('tray: the running-copy probe also opens the tray app for writing, in both PreInstallChecks and un.RunningCheck', () => {
+  const probe = /^FileOpen\s+\$\d\s+"\$INSTDIR\\gm-scriptorium-tray\.exe"\s+a$/;
+  for (const name of ['PreInstallChecks', 'un.RunningCheck']) {
+    const body = functionBody(NSI, name);
+    assert.ok(body, `${name} not found`);
+    const hits = body.split('\n').map((l) => l.trim()).filter((l) => probe.test(l));
+    assert.equal(hits.length, 1, `${name} probes the tray app`);
+  }
+  // controls
+  assert.equal(probe.test('FileOpen $0 "$INSTDIR\\gm-scriptorium-tray.exe" a'), true);
+  assert.equal(probe.test('FileOpen $0 "$INSTDIR\\gm-scriptorium.exe" a'), false);
 });
