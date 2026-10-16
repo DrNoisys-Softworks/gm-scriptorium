@@ -75,8 +75,8 @@ what `leak/l5-gm-heading-survives` reads headings with, `docs/decisions/0045-lea
 (`lib/config.js`), `slugify`, `mapFolder`, `dirIsExcluded` (`lib/scanner.js`), `pairHubs`
 (`lib/session-hub.js`), `isWrapUp`, `WRAP_UP_TYPES` (also `lib/session-hub.js`),
 `resolveGenrePreset` (`lib/theme.js`), `canonicalNfc`,
-`truncateGraphemes` (`lib/unicode.js`), and `metadataBadgesFor`, `TYPE_BADGE_FIELDS`
-(`lib/templates/base.js`). It also re-exports `lunr` and `lunr/package.json`'s version, required
+`truncateGraphemes` (`lib/unicode.js`), `metadataBadgesFor`, `TYPE_BADGE_FIELDS`, `DIR_LABELS`
+(`lib/templates/base.js`), and `normalizeEntry`, `sourceFolderFor`, `isSvg`, `BANNER_EXTS` (`lib/banners.js`; the last five are how `leak/l2-excluded-dir-in-output` works out which banner the build copies, `docs/decisions/0061-banner-and-cover-sources.md`). It also re-exports `lunr` and `lunr/package.json`'s version, required
 here rather than added as a Scriptorium dependency, so the leak scan's own lunr pipeline reproduction
 (below) runs against the exact same resolved copy the generator indexed with. At `publish-v1.11.40`
 lunr is a **bundled** dependency, no longer hoisted to a top-level `node_modules/lunr`, the facade
@@ -404,6 +404,16 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   They rely on the generator's page links being relative (`lib/templates/base.js:27-40`,
   `cssPath`/`rootPath`). The not-found page is the exception: it uses `siteUrl`'s path when that is
   set (`lib/templates/four-oh-four.js:9-10`).
+- **Where the cover picture and section banners land** (`src/vault/imagecopies.js`,
+  `docs/decisions/0061-banner-and-cover-sources.md`): `leak/l2-excluded-dir-in-output` works out the
+  generator's own copies into `images/` so it can judge each by the file it came from. The banner
+  entry reader, folder lookup, SVG test, extension order and section list come through the facade.
+  The rest is copied by hand, because the generator does not export it: the cover destination
+  (`lib/build.js:776-777`), the banner destination and slug rule (`lib/build.js:1130-1132`), the
+  vault containment test (`lib/build.js:771-775`, `:1112-1124`) and the merge of `banners` and
+  `folder_map` across the two config files (`lib/config.js:192-246`, `:405`, `:447`, `:506-514`).
+  A pin bump re-reads those lines; `test/banner-cover-sources.test.js` builds a real site and checks
+  the literal destinations, so a generator change that moves them fails it.
 
 ### Tests that pin upstream behaviour by name
 
@@ -505,7 +515,7 @@ easier to catch or avoid:
    separate vendoring step.
 6. **A renamed or removed export** from any of the modules the facade re-exports
    (`lib/processor.js`, `lib/publish-decision.js`, `lib/manifest.js`, `lib/config.js`,
-   `lib/scanner.js`, `lib/theme.js`, `lib/unicode.js`, `lib/templates/base.js`) is the highest-blast-radius
+   `lib/scanner.js`, `lib/theme.js`, `lib/unicode.js`, `lib/templates/base.js`, `lib/banners.js`) is the highest-blast-radius
    single change, because every current and future Scriptorium consumer of that function goes
    through the one facade file.
 

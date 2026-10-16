@@ -330,7 +330,8 @@ function runBuildForContext(ctxInfo, flags) {
   }
 
   if (result.refusedByScan) {
-    lines.push(`the output-leak scan found ${result.findings.length} error finding(s) in the staged build; refusing to swap. Nothing was written.`);
+    const scanErrorCount = result.findings.filter((f) => f.severity === 'error').length;
+    lines.push(`the output-leak scan found ${scanErrorCount} error finding(s) in the staged build; refusing to swap. Nothing was written.`);
     for (const f of result.findings) lines.push(`  ${f.severity.toUpperCase()} ${f.id} ${f.outputPath || f.path || ''} ${f.message}`);
     return {
       exitCode: EXIT_CODES.CHECK_FAILED,
@@ -352,7 +353,7 @@ function runBuildForContext(ctxInfo, flags) {
         elapsedMs: null,
         notice: null,
         staleOldDir: null,
-        error: `the output-leak scan found ${result.findings.length} error finding(s); refusing to build`,
+        error: `the output-leak scan found ${scanErrorCount} error finding(s); refusing to build`,
         renderErrors: [],
         stagingRoot: null,
       },

@@ -17,6 +17,9 @@
  *   - config/exclude-dirs-divergence: WARN for a vault-only entry, with or without content, INFO
  *     for a vault.config.json-only entry (ADR 0060); its defaultSeverity is the upper bound, not
  *     the lower one.
+ *   - leak/l2-excluded-dir-in-output: ERROR, except a cover picture or banner the GM named in
+ *     publish.theme.campaign_image or banners whose real source is in a hidden folder, which is a
+ *     WARN (ADR 0061).
  *
  * For those, `defaultSeverity` names the severity used when the check does not vary, and
  * `dynamicSeverity: true` flags that the implementation may report a different severity per
@@ -238,10 +241,11 @@ const CHECKS = Object.freeze([
     id: 'leak/l2-excluded-dir-in-output',
     category: 'leak',
     defaultSeverity: 'error',
+    dynamicSeverity: true,
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      "A built page or image is sourced from a directory in the union of vault.config.json:excludeDirs and _meta/vault-config.md:publish.exclude_dirs, or under one of the pin's always-excluded directories (_meta, _Templates, _templates, personal; lib/publish-decision.js:46). Reads the real built tree when a build exists (INFO when none). Inside build the pre-build check defers it (one INFO) and src/build/outputgate.js's scanStagingOutput runs it against the staging tree before the swap, where the command line cannot override it (ADR 0055).",
+      "A built page or image is sourced from a directory in the union of vault.config.json:excludeDirs and _meta/vault-config.md:publish.exclude_dirs, or under one of the pin's always-excluded directories (_meta, _Templates, _templates, personal; lib/publish-decision.js:46). A file under images/ that is byte-identical to a cover picture or section banner the generator copies there (lib/build.js) is judged by that real source instead of being read back to the attachments folder: WARN when the GM named it in publish.theme.campaign_image or banners, ERROR when the banner was an auto-found _banner.* (ADR 0061). Reads the real built tree when a build exists (INFO when none). Inside build the pre-build check defers it (one INFO) and src/build/outputgate.js's scanStagingOutput runs it against the staging tree before the swap, where the command line cannot override it (ADR 0055).",
   },
   {
     id: 'leak/l3-unpublished-link',

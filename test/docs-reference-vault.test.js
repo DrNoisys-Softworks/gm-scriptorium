@@ -106,11 +106,11 @@ test('the tagline is edited on the Title & tagline screen; the text gives that, 
 test('vault-json: the keys, sorted, and only excludeDirs and folderMap are required', () => {
   const j = byKey('vault-json');
   assert.deepEqual(Object.keys(j).sort(), [
-    'attachmentsDir', 'backend', 'excludeCallouts', 'excludeDirs', 'excludeFields', 'excludeSections', 'folderMap',
+    'attachmentsDir', 'backend', 'banners', 'excludeCallouts', 'excludeDirs', 'excludeFields', 'excludeSections', 'folderMap',
     'host', 'landingTagline', 'outputDir', 'searchEnabled', 'siteTitle', 'vaultPath',
   ]);
   assert.deepEqual(Object.keys(j).filter((k) => j[k].required === 'yes').sort(), ['excludeDirs', 'folderMap']);
-  assert.deepEqual(Object.keys(j).filter((k) => j[k].required === 'no').length, 11);
+  assert.deepEqual(Object.keys(j).filter((k) => j[k].required === 'no').length, 12);
 });
 
 test('vault-json: what a new campaign gets, as literals', () => {
@@ -206,7 +206,7 @@ test('control: the scan finds jsonConfig.fooBar and userJsonConfig.qux, and igno
 test('the keys the source reads from vault.config.json are JSON_READ_KEYS, both ways', () => {
   const scanned = [...scanReadKeys(srcFiles().map((f) => fs.readFileSync(f, 'utf8')))].sort();
   assert.deepEqual(scanned, [...gen.JSON_READ_KEYS].sort(), 'the source reads a vault.config.json key the generator does not list (or the reverse): update JSON_READ_KEYS in scripts/docs-reference.js and add text');
-  assert.equal(gen.JSON_READ_KEYS.length, 11);
+  assert.equal(gen.JSON_READ_KEYS.length, 12);
 });
 
 // ---- the page's upstream links ----
@@ -317,4 +317,20 @@ test('control: a trimmed exclude list or a short folderMap does add findings', (
   const baseline = findingCounts(() => {});
   assert.notDeepEqual(findingCounts(withYaml('publish:\n  exclude_fields: ["secrets"]\n  exclude_dirs: ["_meta", "_Templates"]\n')), baseline);
   assert.notDeepEqual(findingCounts(withJson('{"folderMap": {"Locations": "locations"}, "excludeDirs": ["_meta", "_Templates"]}')), baseline);
+});
+
+test('T-R3: the cover picture, banners and the vault.config.json banners text read exactly as written (#154)', () => {
+  assert.equal(
+    textFile['vault-publish']['theme.campaign_image'].what,
+    'The path, inside the vault, of the campaign picture shown at the top of the landing page. The build copies it even from a hidden folder, because you named it, and `check` then gives a WARN (`leak/l2-excluded-dir-in-output`) so you know it is on the site.',
+  );
+  assert.equal(
+    textFile['vault-publish'].banners.what,
+    "A picture at the top of a section's index page, keyed by the section's output folder, such as `locations`. A bare path, or a table with `image`, `link` and `alt`. A section with no entry uses a `_banner` picture, such as `_banner.png`, from its own vault folder. A picture or link you name here is copied even from a hidden folder, and `check` gives a WARN; a `_banner` picture in a hidden folder is an ERROR, and `build` refuses it (`leak/l2-excluded-dir-in-output`).",
+  );
+  assert.deepEqual(textFile['vault-json'].banners, {
+    type: 'table',
+    what: 'An older home of the section banners. The generator still uses an entry here for a section that `publish.banners` in `_meta/vault-config.md` does not mention. GM-Scriptorium reads it to tell a copied banner from an attachment.',
+    changedBy: 'By hand',
+  });
 });

@@ -80,8 +80,8 @@ table: `max_npcs:` under `landing:`.
 | `theme.palette` | table of colours | The built-in colours | Colours (shown) | The four site colours: `primary`, `accent`, `background` and `text`. The panel shows them but has no field to change them. |
 | `theme.fonts` | table | The system font | Fonts (shown) | The heading and body fonts, and where font files come from. |
 | `theme.genre` | text | None | Genre preset (shown) | A genre preset for the generator's look, such as `scifi`. |
-| `theme.campaign_image` | text | None | Cover art (shown) | The path, inside the vault, of the campaign picture shown at the top of the landing page. |
-| `banners` | table | None | Section banners (shown) | A picture at the top of a section's index page, keyed by the section's output folder, such as `locations`. A bare path, or a table with `image`, `link` and `alt`. |
+| `theme.campaign_image` | text | None | Cover art (shown) | The path, inside the vault, of the campaign picture shown at the top of the landing page. The build copies it even from a hidden folder, because you named it, and `check` then gives a WARN (`leak/l2-excluded-dir-in-output`) so you know it is on the site. |
+| `banners` | table | None | Section banners (shown) | A picture at the top of a section's index page, keyed by the section's output folder, such as `locations`. A bare path, or a table with `image`, `link` and `alt`. A section with no entry uses a `_banner` picture, such as `_banner.png`, from its own vault folder. A picture or link you name here is copied even from a hidden folder, and `check` gives a WARN; a `_banner` picture in a hidden folder is an ERROR, and `build` refuses it (`leak/l2-excluded-dir-in-output`). |
 | `landing` | table | The built-in landing page | - | The landing page. The keys the panel knows are listed below as `landing.` keys; the generator reads more, which its README describes. |
 | `landing.featured_npcs` | list of text | None | Featured characters (edit) | Characters to feature on the landing page, by name. |
 | `landing.quick_links` | list of text | None | Quick links (edit) | Pages to link to from the landing page, by name. |
@@ -134,6 +134,7 @@ get" is what `init` and the panel's first-run setup write.
 | `excludeSections` | list of text | no | GM Notes, DM Notes, Player Notes, Source References, Reconciliation Context, Handoff to Reconcile | Headings whose section is removed from every page. Joined with `publish.exclude_sections`. | `init`, or by hand |
 | `excludeCallouts` | true or false, or a list of text | no | true | Whether callout blocks are removed. Used only when `publish.exclude_callouts` is absent from the vault file. | `init`, or by hand |
 | `backend` | table | no | - | Switches for the generator's optional site features: `statusBar` and `inbox`. New campaigns get both off. | `init`, or by hand |
+| `banners` | table | no | - | An older home of the section banners. The generator still uses an entry here for a section that `publish.banners` in `_meta/vault-config.md` does not mention. GM-Scriptorium reads it to tell a copied banner from an attachment. | By hand |
 | `excludeFields` | list of text | no | - | Frontmatter fields that are never published. Joined with `publish.exclude_fields`. A new campaign has none here, and relies on the defaults. | By hand |
 | `outputDir` | text | no | - | Where the generator would write if you ran it alone. GM-Scriptorium takes the output folder from the settings file instead, and `build` stops if this names the same folder, unless you pass `--force-out`. New campaigns do not get one. | By hand |
 | `searchEnabled` | true or false | no | - | Set to `false` to build without the site search. Absent or anything else means search is on. | By hand |

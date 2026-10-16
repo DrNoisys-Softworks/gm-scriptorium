@@ -584,12 +584,12 @@ module.exports = deepFreeze({
     'theme.campaign_image': {
       type: 'text',
       default: 'None',
-      what: 'The path, inside the vault, of the campaign picture shown at the top of the landing page.',
+      what: 'The path, inside the vault, of the campaign picture shown at the top of the landing page. The build copies it even from a hidden folder, because you named it, and `check` then gives a WARN (`leak/l2-excluded-dir-in-output`) so you know it is on the site.',
     },
     banners: {
       type: 'table',
       default: 'None',
-      what: 'A picture at the top of a section\'s index page, keyed by the section\'s output folder, such as `locations`. A bare path, or a table with `image`, `link` and `alt`.',
+      what: 'A picture at the top of a section\'s index page, keyed by the section\'s output folder, such as `locations`. A bare path, or a table with `image`, `link` and `alt`. A section with no entry uses a `_banner` picture, such as `_banner.png`, from its own vault folder. A picture or link you name here is copied even from a hidden folder, and `check` gives a WARN; a `_banner` picture in a hidden folder is an ERROR, and `build` refuses it (`leak/l2-excluded-dir-in-output`).',
     },
     landing: {
       type: 'table',
@@ -668,6 +668,11 @@ module.exports = deepFreeze({
       type: 'table',
       what: 'Switches for the generator\'s optional site features: `statusBar` and `inbox`. New campaigns get both off.',
       changedBy: '`init`, or by hand',
+    },
+    banners: {
+      type: 'table',
+      what: 'An older home of the section banners. The generator still uses an entry here for a section that `publish.banners` in `_meta/vault-config.md` does not mention. GM-Scriptorium reads it to tell a copied banner from an attachment.',
+      changedBy: 'By hand',
     },
     excludeFields: {
       type: 'list of text',
@@ -1088,8 +1093,8 @@ module.exports = deepFreeze({
       action: 'Create `_meta/publish-manifest.md` with a `## Publishing` heading and one line for each page players may see. The sample campaign has a complete one.',
     },
     'leak/l2-excluded-dir-in-output': {
-      what: 'A page or image in the built site came from a folder you hide, or from one of the always-excluded folders. It is an INFO line instead when there is no build yet to look at. `build` runs this on the new site before it goes live, not on the old site it replaces, and nothing overrides it.',
-      action: 'Build again: a fresh build leaves hidden folders out and replaces the old site. If the line is still there, read the message for the file, and check `excludeDirs` and `publish.exclude_dirs`.',
+      what: 'A page or image in the built site came from a folder you hide, or from one of the always-excluded folders. It is an INFO line instead when there is no build yet to look at. `build` runs this on the new site before it goes live, not on the old site it replaces. A cover picture or section banner is judged by the file it was copied from: one you named in `publish.theme.campaign_image` or `banners` is a WARN and the build goes ahead, and a `_banner` picture the build found by itself is an ERROR. An ERROR stops `build`, and nothing overrides it.',
+      action: 'For a cover picture or banner you named, move the file out of the hidden folder or change the setting; building again does not change it. For a `_banner` picture, move it out of the hidden folder or set a banner for that section in `banners`. For anything else, build again: a fresh build leaves hidden folders out and replaces the old site. If the line is still there, read the message for the file, and check `excludeDirs` and `publish.exclude_dirs`.',
     },
     'leak/l3-unpublished-link': {
       what: 'A published page links to a note that is not published, so the link shows as plain text. It is an ERROR when that note is marked `withheld: true`, which means the link may give away a secret, and a WARN otherwise.',
