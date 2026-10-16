@@ -1,5 +1,6 @@
 'use strict';
 
+const os = require('os');
 const respond = require('../respond');
 const session = require('../session');
 const body = require('../body');
@@ -13,6 +14,8 @@ const settingsLib = require('../../remote/settings');
 const { ADMIN_COOKIE, PREVIEW_COOKIE, SESSION_TTL_MS } = require('../../remote/sessions');
 const { browserFamily } = require('../../remote/audit');
 const { findLooseModes } = require('../../remote/paths');
+const { loadConfig } = require('../../cli/args');
+const { confirmedHere } = require('../../config/desktopsettings');
 
 /*
  * V1.5a (docs/decisions/0029-remote-access.md sections 6 to 9; SD-doc sections 10 and 12): the
@@ -23,7 +26,8 @@ const { findLooseModes } = require('../../remote/paths');
  *   POST /auth/password          sign in with a username and password (remote requests only)
  *   GET  /open-preview           the preview hand-off, from the admin origin
  *   GET  /:enter (preview)       consume a ticket, start (or reuse) a preview session
- *   GET  /api/remote             the read-only Remote access screen's data (never a secret)
+ *   GET  /api/remote             the read-only Remote access screen's data (never a secret), including
+ *                                `atSignin` (ADR 0057 section 7): read-only, and there is no route that sets it
  *   POST /api/remote/signout     sign this device out
  *   POST /api/remote/signout-all sign every device out
  */
@@ -365,6 +369,17 @@ function lastSignin(entries, name) {
   return newest;
 }
 
+/** ADR 0057 section 7: remote access at sign-in on this PC, read fresh from the file; null outside the desktop app. Nothing here writes it. */
+function atSigninHere(ctx) {
+  if (!ctx.desktop) return null;
+  try {
+    const { config } = loadConfig({ config: ctx.ctxInfo.configPath });
+    return confirmedHere(config.desktop, os.hostname(), process.platform) ? 'on' : 'off';
+  } catch {
+    return 'off';
+  }
+}
+
 function apiRemote(req, res, ctx, { kind }) {
   const t = nowOf(ctx);
   const settings = ctx.remote.settings;
@@ -412,6 +427,7 @@ function apiRemote(req, res, ctx, { kind }) {
     log: full.entries,
     truncated: full.truncated,
     tls: null,
+    atSignin: atSigninHere(ctx),
   };
   sendJson(res, 200, JSON.stringify(payload));
 }

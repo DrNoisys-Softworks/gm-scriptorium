@@ -267,6 +267,13 @@
     return rows;
   }
 
+  /** ADR 0057 section 7: remote access at sign-in on this PC, read-only. '' outside the desktop app. */
+  function signinLine(view) {
+    var v = view && view.atSignin;
+    if (v !== 'on' && v !== 'off') return '';
+    return 'At sign-in on this PC: ' + v + '. Change it from the GM-Scriptorium icon in the system tray.';
+  }
+
   var RA = {
     MODE_LABEL: MODE_LABEL,
     modeLabel: modeLabel,
@@ -283,6 +290,7 @@
     summaryRows: summaryRows,
     accountRows: accountRows,
     accountsNote: accountsNote,
+    signinLine: signinLine,
   };
 
   if (typeof module === 'object' && module.exports) {
@@ -439,6 +447,8 @@
       });
       mode.appendChild(health);
       mode.appendChild(text('p', 'rm-note', RA.httpsLine(view)));
+      var signin = RA.signinLine(view);
+      if (signin) mode.appendChild(text('p', 'rm-note', signin));
       mode.appendChild(text('p', 'rm-note', RA.lockoutLine(view.lockout) + ' ' + view.sessions.active + (view.sessions.active === 1 ? ' remote device is signed in.' : ' remote devices are signed in.')));
       root.appendChild(mode);
 

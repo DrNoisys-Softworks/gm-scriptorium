@@ -269,3 +269,11 @@ test('remote.js: no innerHTML or storage, every button typed, and only the three
   assert.deepEqual([...new Set(src.match(/'\/api\/[a-z/-]*'/g))].sort(), ["'/api/remote'", "'/api/remote/signout'", "'/api/remote/signout-all'"]);
   assert.ok(src.includes("b.type = 'button'"));
 });
+
+test('signinLine: the read-only line for remote access at sign-in on this PC, and nothing when the panel is not in the desktop app', () => {
+  assert.equal(RA.signinLine({ atSignin: 'on' }), 'At sign-in on this PC: on. Change it from the GM-Scriptorium icon in the system tray.');
+  assert.equal(RA.signinLine({ atSignin: 'off' }), 'At sign-in on this PC: off. Change it from the GM-Scriptorium icon in the system tray.');
+  for (const bad of [null, undefined, {}, { atSignin: null }, { atSignin: 'yes' }, { atSignin: '__proto__' }, { atSignin: 'ON' }, { atSignin: true }]) {
+    assert.equal(RA.signinLine(bad), '', JSON.stringify(bad));
+  }
+});
