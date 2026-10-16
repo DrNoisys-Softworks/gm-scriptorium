@@ -120,7 +120,7 @@ publish:
 ## The settings in vault.config.json
 
 "Required" means the key must be there: `check`, `build` and `status` stop without it. "New campaigns
-get" is what `init` and the panel's first-run setup write.
+get" is what `init` writes. *Since 0.5.0.* The panel's first-run setup writes the same.
 
 <!-- BEGIN GENERATED vault-json: edit scripts/docs-reference-text.js, then run npm run docs-reference -->
 | Key | Type | Required | New campaigns get | What it does | Changed by |
@@ -136,7 +136,7 @@ get" is what `init` and the panel's first-run setup write.
 | `backend` | table | no | - | Switches for the generator's optional site features: `statusBar` and `inbox`. New campaigns get both off. | `init`, or by hand |
 | `banners` | table | no | - | An older home of the section banners. The generator still uses an entry here for a section that `publish.banners` in `_meta/vault-config.md` does not mention. GM-Scriptorium reads it to tell a copied banner from an attachment. | By hand |
 | `excludeFields` | list of text | no | - | Frontmatter fields that are never published. Joined with `publish.exclude_fields`. A new campaign has none here, and relies on the defaults. | By hand |
-| `outputDir` | text | no | - | Where the generator would write if you ran it alone. GM-Scriptorium takes the output folder from the settings file instead, and `build` stops if this names the same folder, unless you pass `--force-out`. New campaigns do not get one. | By hand |
+| `outputDir` | text | no | - | Where the generator would write if you ran it alone. GM-Scriptorium takes the output folder from the settings file instead, and `build` stops if this names the same folder. *Since 0.5.0.* `--force-out` builds into it anyway. Versions before 0.5.0 use `--force` for this. New campaigns do not get one. | By hand |
 | `searchEnabled` | true or false | no | - | Set to `false` to build without the site search. Absent or anything else means search is on. | By hand |
 | `vaultPath` | text | no | - | Where the generator would look for the vault if you ran it alone. GM-Scriptorium uses the vault from the settings file instead, and `check` says if this names a different folder. New campaigns do not get one. | By hand |
 <!-- END GENERATED vault-json -->

@@ -13,8 +13,8 @@ where your own picture can go. Your choices live in a small file called `pack.to
 Each screen below is in the panel's left-hand list. Every change is shown to you in a review step and
 saved only when you confirm.
 
-1. [Open the admin panel](../using.md#quick-start), and switch to the campaign you want if you have
-   more than one (see [add another campaign](add-another-campaign.md)).
+1. [Open the admin panel](../using.md#quick-start). *Since 0.5.0.* If you have more than one campaign,
+   switch to the one you want (see [add another campaign](add-another-campaign.md)).
 
 ### Theme
 

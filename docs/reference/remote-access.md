@@ -6,6 +6,8 @@ are kept. The steps for setting remote access up are in [Remote access](../remot
 
 ## Accounts
 
+*Since 0.5.0.*
+
 An account is a name and a password. Every account has the same rights: there are no roles. A name
 is 1 to 32 letters, digits, dots, hyphens or underscores, starting with a letter or digit, and it
 does not care about capital letters (`Rook` and `rook` are one account). You can have up to eight.
@@ -32,26 +34,28 @@ works: it sets the password of the account `gm`, adding it if it is missing.
 
 The account `gm` is a name anyone can guess, and someone who knows a name can keep it paused ([what is and is not protected](#what-is-and-is-not-protected)). `gm-scriptorium remote account rename gm <new name>` gives it one only you know.
 
+Versions before 0.5.0 have no accounts: they ask for one password, set with `gm-scriptorium remote password`.
+
 ## Other commands
 
 | Command | What it does |
 |---|---|
 | `remote signout-all` | signs every remote device out at once (a lost laptop) |
-| `remote signout-all --account <name>` | signs out only the devices signed in as that account |
+| `remote signout-all --account <name>` | *Since 0.5.0.* signs out only the devices signed in as that account |
 | `remote off` | returns the setting to `local`, signs every device out and clears every account |
 
 A running panel notices a sign-out or an account change straight away; the other settings need a
-restart. If you forget every password: `remote account reset <name>` from this computer, or
-`remote off`, then `remote account add <name>`, then set the mode again ([section 3](../remote-access.md#3-setting-it-up-from-the-command-line)).
+restart. *Since 0.5.0.* If you forget every password: `remote account reset <name>` from this computer, or
+`remote off`, then `remote account add <name>`, then set the mode again ([section 3](../remote-access.md#3-setting-it-up-from-the-command-line)). Versions before 0.5.0 have no accounts: run `remote off`, then `remote password`, then set the mode again.
 
 ## Signing in
 
-A browser that reaches the panel by its external name and has no session sees a sign-in page, with a
-username and a password field. The page says what the pause rule is. Behind it:
+A browser that reaches the panel by its external name and has no session sees a sign-in page.
+*Since 0.5.0.* It has a username and a password field. The page says what the pause rule is. Behind it:
 
 - **Sessions** last 24 hours from sign-in and are not extended while you use them. They survive a
   restart of the panel. Each browser holds its own, as a cookie that page scripts cannot read.
-- **Wrong tries.** Five wrong tries for one username in ten minutes pause that username for fifteen
+- **Wrong tries.** *Since 0.5.0.* Five wrong tries for one username in ten minutes pause that username for fifteen
   minutes, whether or not such an account exists, and fifty wrong tries across all usernames in ten
   minutes pause every password sign-in for fifteen minutes. Every failure, paused or not, shows the
   same message, so the page never says whether a name exists. While a name or everything is paused
@@ -88,7 +92,7 @@ Protected:
 - Forged `X-Forwarded-For` and `X-Forwarded-Proto` from anything but your proxy.
 - Cross-site and cross-origin changes, including a sign-in attempt made by a page on the preview
   name.
-- Guessing a password (the pause, per username), and a stolen sessions file (only digests are kept).
+- *Since 0.5.0.* Guessing a password (the pause, per username), and a stolen sessions file (only digests are kept).
 - Search engines indexing the sign-in page: every panel response says `X-Robots-Tag: noindex`.
 - The panel and its sign-in page being framed by another site.
 
@@ -100,13 +104,13 @@ Not protected, deliberately:
 - A stolen session cookie, which stays valid until it expires or you sign out.
 - A change to what your published site hides, made by whoever holds a signed-in session: the
   guarded `vault-config.md` editor works remotely too, and the audit log records it.
-- Anyone who can reach the sign-in page keeping everyone's sign-in paused by guessing wrong fifty
+- *Since 0.5.0.* Anyone who can reach the sign-in page keeping everyone's sign-in paused by guessing wrong fifty
   times in ten minutes (use the one-time link on the machine, or restart the panel). This is the
   price of counting per username instead of per address.
-- Hand-edited password records with other scrypt settings, and an older GM-Scriptorium run against
+- *Since 0.5.0.* Hand-edited password records with other scrypt settings, and an older GM-Scriptorium run against
   a config folder that has been moved to accounts (it finds the old password file cleared and
   refuses remote sign-in).
-- Anyone who knows an account name keeping that one account paused. Five wrong tries for the name
+- *Since 0.5.0.* Anyone who knows an account name keeping that one account paused. Five wrong tries for the name
   every 15 minutes is enough. Other accounts and the one-time link on the machine are unaffected,
   and a restart ends the pause. Counting per username protects an account from strangers who do not
   know its name, not from someone who does.
@@ -114,12 +118,12 @@ Not protected, deliberately:
 
 ## Files, permissions and backups
 
-Everything lives in the `panel` folder next to your config file: `accounts.json` (each account's
+*Since 0.5.0.* Everything lives in the `panel` folder next to your config file: `accounts.json` (each account's
 name and a salted scrypt hash, never a password; an older `password.json` is read as the account
 `gm` until the first account command moves it), `sessions.json` (digests of session credentials), `audit.log`. On Linux
 and macOS the folder is created readable only by you (`0700`) and each file `0600`, at creation; if
-you loosen them the panel prints a warning at start and the Remote access screen shows it. On
-Windows the program sets the folder's access list itself, on every start and before any `remote`
+you loosen them the panel prints a warning at start and the Remote access screen shows it.
+*Since 0.5.0.* On Windows the program sets the folder's access list itself, on every start and before any `remote`
 command writes there (your account, SYSTEM and Administrators, passed down to every file); if it
 cannot, the panel warns, the Remote access screen shows it, and the remote modes refuse to start
 ([ADR 0056](../decisions/0056-windows-panel-access-list.md)). The folder must be a real folder

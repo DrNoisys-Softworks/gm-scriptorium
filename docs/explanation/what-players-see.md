@@ -43,8 +43,8 @@ The name check looks for the page's file name, its `title`, and each alias that 
 ## The checks and the build
 
 - `check` reads your vault and exits with code 2 if it finds any error.
-- `build` runs the same checks first and refuses to go on if they find an error, unless you pass `--force-check`. That flag does not override every finding; a few, such as notes with executable frontmatter ([ADR 0034](../decisions/0034-executable-frontmatter-guard.md)), always stop the build.
-- It then builds the site in a staging folder and scans what the generator wrote. A leak there stops the build, and nothing overrides that scan ([ADR 0055](../decisions/0055-force-split.md)).
+- `build` runs the same checks first and refuses to go on if they find an error. *Since 0.5.0.* `--force-check` lets it go on anyway. That flag does not override every finding; a few, such as notes with executable frontmatter ([ADR 0034](../decisions/0034-executable-frontmatter-guard.md)), always stop the build.
+- It then builds the site in a staging folder and scans what the generator wrote. A leak there stops the build. *Since 0.5.0.* Nothing overrides that scan ([ADR 0055](../decisions/0055-force-split.md)). Versions before 0.5.0 have a single `--force` flag instead, which also builds despite a leak the output scan finds.
 - Comment text in the output, and the GM link marker, are refused separately.
 - The swap into place is atomic, so a refused build leaves your live site as it was.
 

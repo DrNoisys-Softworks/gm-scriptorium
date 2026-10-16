@@ -20,7 +20,7 @@ Find the words that match your message in the first column.
 | `config file not found` | The file you gave with `--config` does not exist. | Fix the path. To start a new settings file there, run `gm-scriptorium config add` with the same `--config`. |
 | `config is not valid TOML` | The settings file has a typing slip, often from a hand edit. The message shows the line. | Open it with `gm-scriptorium config edit` and fix that line. [The settings file](../reference/config-toml.md) shows what each part looks like. |
 | `configured vault path does not exist` | The vault folder is not where the settings file says. It may have moved, or its drive may not be connected. | Fix the path with `gm-scriptorium config add`, or connect the drive. On a new computer, see [Move to another computer](move-to-another-computer.md). |
-| `it is not a gm-apprentice vault` | The folder exists but has no `_meta/vault-config.md`, so it is not a vault GM-Scriptorium can read. | Check you chose the vault folder and not one inside it. To make a new vault, run `gm-scriptorium init --new-vault <folder> --system none --name lease`. |
+| `it is not a gm-apprentice vault` | The folder exists but has no `_meta/vault-config.md`, so it is not a vault GM-Scriptorium can read. | Check you chose the vault folder and not one inside it. *Since 0.5.0.* To make a new vault, run `gm-scriptorium init --new-vault <folder> --system none --name lease`. |
 | `has no vault configured` | The campaign is in the settings file without a vault folder. | Add the vault with `gm-scriptorium config add lease --vault <folder> --out <folder>`. |
 | `has no site config` | The vault is registered, but nothing says how its site should look. A plain `config add` leaves it this way. | Run `gm-scriptorium init` to create the settings, or set `site_config` or `pack` on the campaign. |
 | `has no output folder` | The campaign has nowhere to put the built site. | Pass `--out <folder>` for one run, or save one with `gm-scriptorium config add lease --vault <folder> --out <folder>`. |
@@ -79,9 +79,9 @@ way. [Other commands](../reference/remote-access.md#other-commands) has the step
 
 ### update cannot reach GitHub
 
-`update` talks only to GitHub, and it ignores proxy settings. When it cannot connect it says so in
+*Since 0.5.0.* `update` talks only to GitHub, and it ignores proxy settings. When it cannot connect it says so in
 one line, exits with code 4 and points at the Releases page. Download the new release from there
-and replace the program yourself, or run the new installer. [Updating](../install.md#updating)
+and replace the program yourself, or, coming in 0.5.0, run the new installer. Versions before 0.5.0 fetch releases through the GitHub CLI (`gh`) and need it signed in. [Updating](../install.md#updating)
 has the details.
 
 ### Windows warnings

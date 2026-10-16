@@ -15,7 +15,7 @@ a test fails if the program reads a name that is not on this page.
 | `VISUAL` | The same, used only when `EDITOR` is not set. | `config edit` |
 
 `EDITOR` and `VISUAL` must name a program and nothing else. A value such as `code --wait`, or a
-Windows `.cmd` shim, cannot be started, and `config edit` stops with exit code 1 and tells you where
+Windows `.cmd` shim, cannot be started. *Since 0.5.0.* Then `config edit` stops with exit code 1 and tells you where
 the settings file is, so you can open it yourself. If neither is set, `config edit` prints the path
 and does nothing else.
 
@@ -38,5 +38,5 @@ Programs that GM-Scriptorium starts get a short list of variables, not your whol
 the variables that hold AI service keys are always removed
 ([the decision on what child programs receive](../decisions/0046-one-process-spawner.md)).
 
-Passwords are never read from the environment. `remote account` and `remote password` ask for one
+Passwords are never read from the environment. *Since 0.5.0.* `remote account` and `remote password` ask for one
 with nothing echoed, or read it from standard input when there is no terminal.
