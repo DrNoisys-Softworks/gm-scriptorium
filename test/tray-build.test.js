@@ -629,10 +629,19 @@ int main(void)
         } else if (in[0] == 'K') {
             int a = 0, b = 0, c = 0, d = 0;
             if (sscanf(in + 2, "%d %d %d %d", &a, &b, &c, &d) != 4) { printf("BAD\n"); continue; }
-            printf("%d\n", t03_line(a, b, c, d));
+            printf("%d\n", signin_item(a, b, c, d));
+        } else if (in[0] == 'Q') {
+            int a = 0, b = 0;
+            if (sscanf(in + 2, "%d %d", &a, &b) != 2) { printf("BAD\n"); continue; }
+            printf("%d\n", signin_header_shown(a, b));
+        } else if (in[0] == 'J') {
+            int a = 0, b = 0;
+            if (sscanf(in + 2, "%d %d", &a, &b) != 2) { printf("BAD\n"); continue; }
+            printf("%d\n", signin_write_failed(a, b));
         } else if (in[0] == 'R') {
             /* A whole host line, read the way tray.c reads it: the protocol parser, signin-local as the
-             * fifth argument (pinned in tray-structure), signin_confirmed(), a remote reach, t03_line(). */
+             * fifth argument (pinned in tray-structure), signin_confirmed(), a remote reach, signin_item(),
+             * signin_header_shown(). */
             int n = unhex(in + 2, buf, sizeof buf);
             struct proto_line pl;
             if (n < 0 || !proto_parse_line(buf, (size_t)n, &pl) || !pl.is_host || pl.verb != HOST_STATE || pl.nargs < 4 || strcmp(pl.args[0], "running") != 0) { printf("NOT-RUNNING\n"); continue; }
@@ -641,7 +650,7 @@ int main(void)
             int conf = signin_confirmed((const char *const *)pl.args, na);
             const char *r = pl.args[2];
             int remote = strcmp(r, "ssh") == 0 || strcmp(r, "tailscale") == 0 || strcmp(r, "proxy") == 0 || strcmp(r, "direct") == 0;
-            printf("%d %d %d %d\n", sl, conf, remote, t03_line(1, sl, remote, conf));
+            printf("%d %d %d %d %d\n", sl, conf, remote, signin_item(1, remote, sl, 1), signin_header_shown(sl, conf));
         }
         fflush(stdout);
     }
@@ -697,6 +706,7 @@ const PARSE_CASES = [
   'quit?\n',
   'quit',
   'state\n',
+  'signin\ton\n',
   'state\t\t\t\n',
   'state\trunning\tcaf\u00e9 \u4e2d\u6587\tlocal\thttp://127.0.0.1:7400\n',
   'a\tb\tc\td\te\tf\tg\th\ti\tj\tk\n',
@@ -726,6 +736,7 @@ const PARSE_CASES = [
 const ENCODE_CASES = [
   ['quit'],
   ['open', 'preview'],
+  ['signin', 'on'],
   ['state', 'running', 'long-lease', 'local', 'http://127.0.0.1:7400'],
   ['state', 'x\ty', 'a\nb', 'c\rd'],
   ['state', '\u0000\u0001\u001f\u007f'],
@@ -922,19 +933,22 @@ test('pure C: signin= on a running line is found by exact text after the address
   }
 });
 
-test('pure C: t03_line picks the line under Start with Windows for each case', { skip: haveCc ? false : 'no host C compiler (cc) on PATH' }, () => {
+test('pure C: signin_item, signin_header_shown and signin_write_failed for each case', { skip: haveCc ? false : 'no host C compiler (cc) on PATH' }, () => {
   const dir = tmp();
   try {
     const exe = buildHarness(dir);
-    // (autostart, signin-local, remote reach, signin=confirmed) > 0 none, 1 "set up ... until you confirm", 2 "on, including at sign-in"
-    const cases = [
-      ['0 0 0 0', 0], ['0 1 0 0', 0], ['0 0 1 1', 0], ['0 0 1 0', 0],
-      ['1 1 0 0', 1], ['1 1 0 1', 1], ['1 1 1 1', 1],
-      ['1 0 1 1', 2],
-      ['1 0 1 0', 1],
-      ['1 0 0 1', 0], ['1 0 0 0', 0],
+    // signin_item(running, remote reach, signin-local, Start with Windows ticked) > 0 hidden, 1 greyed, 2 enabled
+    const item = [
+      ['0 1 0 1', 0], ['0 0 1 1', 0], ['1 0 0 1', 0], ['1 0 0 0', 0],
+      ['1 1 0 1', 2], ['1 1 0 0', 1], ['1 0 1 1', 2], ['1 0 1 0', 1], ['1 1 1 1', 2],
     ];
-    assert.deepEqual(harness(exe, cases.map(([a]) => `K ${a}`)), cases.map(([, v]) => String(v)));
+    assert.deepEqual(harness(exe, item.map(([a]) => `K ${a}`)), item.map(([, v]) => String(v)));
+    // signin_header_shown(signin-local, signin=confirmed)
+    const header = [['0 0', 0], ['0 1', 0], ['1 0', 1], ['1 1', 0]];
+    assert.deepEqual(harness(exe, header.map(([a]) => `Q ${a}`)), header.map(([, v]) => String(v)));
+    // signin_write_failed(asked: 0 none, 1 off, 2 on; signin=confirmed)
+    const failed = [['0 0', 0], ['0 1', 0], ['1 0', 0], ['1 1', 1], ['2 0', 1], ['2 1', 0]];
+    assert.deepEqual(harness(exe, failed.map(([a]) => `J ${a}`)), failed.map(([, v]) => String(v)));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -957,8 +971,11 @@ const CONTRACT_REMOTE_PORT = testPort(9478);
 const CONTRACT_REMOTE_PREVIEW = testPort(9479);
 const CONTRACT_REMOTE = `\n[remote]\nmode = "tailscale"\nport = ${CONTRACT_REMOTE_PORT}\npreview_port = ${CONTRACT_REMOTE_PREVIEW}\nadmin_url = "https://scriptorium.home.arpa"\npreview_url = "https://preview.scriptorium.home.arpa"\n`;
 
-/** The first state running line main's host writes for this config, with a stand-in panel (no port is bound). */
-async function hostRunningLine(t, { extraDesktop = '', background, panelMode }) {
+/**
+ * The first state running line main's host writes for this config, with a stand-in panel (no port is bound).
+ * With signinOn, the helper's `signin on` is sent after that line and the line the host sends next is returned.
+ */
+async function hostRunningLine(t, { extraDesktop = '', background, panelMode, signinOn = false }) {
   const root = scratchRoot(t);
   const configPath = path.join(root, 'cfg', 'config.toml');
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
@@ -977,17 +994,24 @@ async function hostRunningLine(t, { extraDesktop = '', background, panelMode }) 
   });
   const proc = new EventEmitter();
   proc.pid = 4243;
+  let sent = false;
   const run = runDesktopHost({ background }, {
     input, output, env: { PATH: '/nonexistent' }, version: '0.0.0-test', startPanel: async () => panel(),
     openFile: async () => ({ outcome: 'exited', exitCode: 0, signal: null }), killAll: async () => {},
     configPath, retryDelaysMs: [5], pollMs: 10, proc, pid: 4243, hostname: () => 'PC-A',
   });
   const started = Date.now();
-  let line;
-  while (!(line = text.split('\n').find((l) => l.startsWith('state\trunning\t')))) {
+  const runningLines = () => text.split('\n').filter((l) => l.startsWith('state\trunning\t'));
+  const want = signinOn ? 2 : 1;
+  while (runningLines().length < want) {
     if (Date.now() - started > 8000) throw new Error(`no running line (have ${JSON.stringify(text)})`);
+    if (signinOn && runningLines().length === 1 && !input.writableEnded && !sent) {
+      sent = true;
+      input.write('signin\ton\n');
+    }
     await new Promise((r) => setTimeout(r, 5));
   }
+  const line = runningLines()[want - 1];
   input.end();
   await run;
   return `${line}\n`;
@@ -997,16 +1021,20 @@ test('contract: the tray reads the running lines main\'s host writes, and shows 
   const confirmed = await hostRunningLine(t, { extraDesktop: 'remote_at_signin = true\nremote_at_signin_pc = "PC-A"\n', background: true, panelMode: 'tailscale' });
   const gmRemote = await hostRunningLine(t, { background: false, panelMode: 'tailscale' });
   const signinLocal = await hostRunningLine(t, { background: true, panelMode: 'local' });
+  const signinLocalTicked = await hostRunningLine(t, { background: true, panelMode: 'local', signinOn: true });
   // The host side, as S2 defines it (ADR 0057 "Protocol v1")
   assert.match(confirmed, /\tsignin=confirmed\n$/);
   assert.equal(confirmed.includes('signin-local'), false);
   assert.match(gmRemote, /\ttailscale\t[^\t]+\tsignin=unconfirmed\n$/);
   assert.match(signinLocal, /\tlocal\thttp:\/\/127\.0\.0\.1:\d+\tsignin-local\tsignin=unconfirmed\n$/);
+  // After the helper ticks the item the panel is still held back (signin-local stays) and the line says confirmed.
+  assert.match(signinLocalTicked, /\tlocal\thttp:\/\/127\.0\.0\.1:\d+\tsignin-local\tsignin=confirmed\n$/);
   const dir = tmp();
   try {
     const exe = buildHarness(dir);
-    // signin-local, signin=confirmed, remote reach, t03_line: 1 "set up ... until you confirm", 2 "on, including at sign-in"
-    assert.deepEqual(harness(exe, [confirmed, gmRemote, signinLocal].map((l) => `R ${hx(l)}`)), ['0 1 1 2', '0 0 1 1', '1 0 0 1']);
+    // signin-local, signin=confirmed, remote reach, signin_item (2 enabled), signin_header_shown
+    assert.deepEqual(harness(exe, [confirmed, gmRemote, signinLocal].map((l) => `R ${hx(l)}`)), ['0 1 1 2 0', '0 0 1 2 0', '1 0 0 2 1']);
+    assert.deepEqual(harness(exe, [`R ${hx(signinLocalTicked)}`]), ['1 1 0 2 0']);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

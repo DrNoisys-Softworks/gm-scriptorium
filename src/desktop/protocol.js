@@ -20,7 +20,7 @@ const MAX_LINE_BYTES = 1024;
 
 const HOST_VERBS = Object.freeze(['hello', 'state', 'confirm', 'update', 'bye']);
 const HELPER_VERBS = Object.freeze([
-  'open', 'stop?', 'stop', 'start', 'restart', 'retry', 'quit?', 'quit',
+  'open', 'stop?', 'stop', 'start', 'restart', 'retry', 'quit?', 'quit', 'signin',
 ]);
 
 const CONTROLS = /[\u0000-\u001f\u007f]/g;

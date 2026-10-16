@@ -18,7 +18,7 @@
  * ------------------------------------------------------------------------------------------- */
 
 static const char *const HOST_VERBS[] = { "hello", "state", "confirm", "update", "bye" };
-static const char *const HELPER_VERBS[] = { "open", "stop?", "stop", "start", "restart", "retry", "quit?", "quit" };
+static const char *const HELPER_VERBS[] = { "open", "stop?", "stop", "start", "restart", "retry", "quit?", "quit", "signin" };
 
 _Static_assert(sizeof HOST_VERBS / sizeof HOST_VERBS[0] == HOST_VERB_COUNT, "the host verb table and enum agree");
 _Static_assert(sizeof HELPER_VERBS / sizeof HELPER_VERBS[0] == HELPER_VERB_COUNT, "the helper verb table and enum agree");
@@ -391,16 +391,28 @@ int signin_confirmed(const char *const *args, size_t nargs)
 }
 
 /*
- * Which line goes under a ticked Start with Windows (owner rulings T03 and T03b). A local-only start
- * at sign-in, or a remote panel whose sign-in start is not confirmed for this PC, gets "set up ...
- * until you confirm"; a remote panel confirmed for sign-in gets "on, including at sign-in".
+ * The tray item "Remote access at sign-in" (ADR 0057 section 7): shown only while the panel runs with a
+ * remote mode saved, which includes a sign-in start held back to this PC (signin-local), and greyed while
+ * Start with Windows is unticked, because the setting is read only at a start at sign-in.
  */
-int t03_line(int autostart, int signin_local, int remote, int confirmed)
+int signin_item(int running, int remote, int signin_local, int autostart)
 {
-    if (!autostart) return T03_NONE;
-    if (signin_local) return T03_UNCONFIRMED;
-    if (!remote) return T03_NONE;
-    return confirmed ? T03_CONFIRMED : T03_UNCONFIRMED;
+    if (!running || (!remote && !signin_local)) return SIGNIN_ITEM_HIDDEN;
+    return autostart ? SIGNIN_ITEM_ENABLED : SIGNIN_ITEM_GREYED;
+}
+
+/* The header line "Remote access is off at sign-in on this PC.": a held-back sign-in start, until the item is ticked. */
+int signin_header_shown(int signin_local, int confirmed)
+{
+    return signin_local && !confirmed;
+}
+
+/* A change asked for from the tray failed when the host's next running line does not say it. */
+int signin_write_failed(int asked, int confirmed)
+{
+    if (asked == SIGNIN_ASKED_ON) return !confirmed;
+    if (asked == SIGNIN_ASKED_OFF) return confirmed;
+    return 0;
 }
 
 #ifndef TRAY_PURE_ONLY

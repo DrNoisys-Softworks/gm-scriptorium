@@ -1139,9 +1139,15 @@ test('RV1b: the computer name never reaches desktop.log or the output', async (t
   await h.waitFor('state\tstopped');
   h.send('start');
   await h.waitCount('state\trunning', 2);
+  // The tray's signin on and signin off write and clear the name, and neither shows it in the log or the output.
+  h.send('signin', 'on');
+  await h.waitCount('state\trunning', 3);
+  h.send('signin', 'off');
+  await h.waitCount('state\trunning', 4);
   await h.stop();
   const log = fs.readFileSync(cfg.logFile, 'utf8');
-  assert.ok(log.split('\n').filter(Boolean).length >= 4, 'the log has lines to check');
+  assert.ok(log.split('\n').filter(Boolean).length >= 6, 'the log has lines to check');
+  assert.equal(log.split('\n').filter((l) => /^\S+ signin-setting to="(on|off)" result="saved"$/.test(l)).length, 2, 'both changes are logged');
   for (const name of ['PC-A', 'PC-B']) {
     assert.equal(log.includes(name), false, `${name} is not in the log`);
     assert.equal(h.outLines.join('').includes(name), false, `${name} is not in the output`);
@@ -1195,4 +1201,141 @@ test('signin=: it is resent unchanged when the running state is resent, and foll
   const running = h.lines().filter((l) => l.startsWith('state\trunning'));
   assert.equal(running[0].split('\t').at(-1), 'signin=unconfirmed');
   assert.equal(running[1].split('\t').at(-1), 'signin=confirmed');
+});
+
+
+// --- the tray's `signin on|off` line (ADR 0057 section 7, "Turning it on and off from the tray") ------------------------------
+
+const smol = require('smol-toml');
+
+const CONFIRMED_B = 'remote_at_signin = true\nremote_at_signin_pc = "PC-B"\n';
+const RUNNING_HELD = `state\trunning\tlease\tlocal\thttp://127.0.0.1:${PANEL_PORT}\tsignin-local\tsignin=unconfirmed`;
+const RUNNING_HELD_TICKED = `state\trunning\tlease\tlocal\thttp://127.0.0.1:${PANEL_PORT}\tsignin-local\tsignin=confirmed`;
+const RUNNING_UNTICKED = `state\trunning\tlease\tlocal\thttp://127.0.0.1:${PANEL_PORT}\tsignin=unconfirmed`;
+
+const parsedConfig = (cfg) => JSON.parse(JSON.stringify(smol.parse(fs.readFileSync(cfg.configPath, 'utf8'))));
+const signinEvents = (cfg) => logLines(cfg).map((l) => l.split(' ').slice(1).join(' ')).filter((l) => l.startsWith('signin-setting'));
+
+test('H1: signin on saves both keys for this PC, resends the running line with signin=confirmed, and leaves the held-back panel running', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW) + REMOTE_TOML);
+  const h = startHost(t, cfg, { background: true });
+  assert.equal(await h.waitFor('state\trunning'), RUNNING_HELD);
+  h.send('signin', 'on');
+  await h.waitCount('state\trunning', 2);
+  assert.deepEqual(h.lines().filter((l) => l.startsWith('state\trunning')), [RUNNING_HELD, RUNNING_HELD_TICKED]);
+  assert.deepEqual(parsedConfig(cfg).desktop, { port: SIGNIN_PORT, preview_port: SIGNIN_PREVIEW, remote_at_signin: true, remote_at_signin_pc: 'PC-A' });
+  assert.equal(h.calls.length, 1, 'the running panel was not restarted');
+  assert.deepEqual(signinEvents(cfg), ['signin-setting to="on" result="saved"']);
+  await h.stop();
+  const next = startHost(t, cfg, { background: true });
+  await next.waitFor('state\trunning');
+  assert.equal(next.calls[0][2].localOnly, false, 'the next start at sign-in uses the saved remote mode');
+});
+
+test('H2: signin off clears both keys, keeps the ports, and a later start at sign-in is this-PC-only', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, CONFIRMED_A) + REMOTE_TOML);
+  const h = startHost(t, cfg, { background: true });
+  assert.equal(await h.waitFor('state\trunning'), `state\trunning\tlease\tlocal\thttp://127.0.0.1:${PANEL_PORT}\tsignin=confirmed`);
+  h.send('signin', 'off');
+  await h.waitCount('state\trunning', 2);
+  assert.equal(h.lines().filter((l) => l.startsWith('state\trunning'))[1], RUNNING_UNTICKED);
+  assert.deepEqual(parsedConfig(cfg).desktop, { port: SIGNIN_PORT, preview_port: SIGNIN_PREVIEW });
+  assert.deepEqual(signinEvents(cfg), ['signin-setting to="off" result="saved"']);
+  await h.stop();
+  const next = startHost(t, cfg, { background: true });
+  await next.waitFor('state\trunning');
+  assert.equal(next.calls[0][2].localOnly, true);
+});
+
+test('H3: a settings folder copied from another PC shows signin=unconfirmed, and signin on replaces the name with this PC', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, CONFIRMED_B) + REMOTE_TOML);
+  const h = startHost(t, cfg, { background: true });
+  assert.equal(await h.waitFor('state\trunning'), RUNNING_HELD);
+  h.send('signin', 'on');
+  await h.waitCount('state\trunning', 2);
+  assert.equal(h.lines().filter((l) => l.startsWith('state\trunning'))[1], RUNNING_HELD_TICKED);
+  assert.deepEqual(parsedConfig(cfg).desktop, { port: SIGNIN_PORT, preview_port: SIGNIN_PREVIEW, remote_at_signin: true, remote_at_signin_pc: 'PC-A' });
+});
+
+const EBUSY = () => Object.assign(new Error('EBUSY: resource busy'), { code: 'EBUSY', syscall: 'rename' });
+
+for (const [label, reason, prepare, deps] of [
+  ['the [desktop] table cannot be read', 'settings', (cfg) => fs.writeFileSync(cfg.configPath, fs.readFileSync(cfg.configPath, 'utf8').replace('[desktop]\n', '[desktop]\ncolour = 1\n')), {}],
+  ['the file is held open and the write fails', 'write', () => {}, { writeConfigFile: () => { throw EBUSY(); } }],
+  ['the whole file no longer parses', 'settings', (cfg) => fs.writeFileSync(cfg.configPath, 'config_version = [\n'), {}],
+]) {
+  test(`H4: a failed save (${label}) keeps the bytes, the tick, the panel and the host, resends the old line, and logs reason="${reason}"`, async (t) => {
+    const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW) + REMOTE_TOML);
+    const h = startHost(t, cfg, { background: true, deps });
+    assert.equal(await h.waitFor('state\trunning'), RUNNING_HELD);
+    prepare(cfg);
+    const before = fs.readFileSync(cfg.configPath);
+    h.send('signin', 'on');
+    await h.waitCount('state\trunning', 2);
+    assert.deepEqual(h.lines().filter((l) => l.startsWith('state\trunning')), [RUNNING_HELD, RUNNING_HELD]);
+    assert.deepEqual(fs.readFileSync(cfg.configPath), before, 'the file is byte for byte as it was');
+    assert.equal(h.calls.length, 1, 'the panel was not restarted');
+    assert.deepEqual(signinEvents(cfg), [`signin-setting to="on" result="failed" reason="${reason}"`]);
+    assert.equal(fs.readFileSync(cfg.logFile, 'utf8').includes('EBUSY'), false, 'the error text is not logged');
+    h.send('stop?');
+    assert.equal(await h.waitFor('confirm'), 'confirm\tnone');
+  });
+}
+
+test('H5: signin with no argument, a wrong argument, a wrong case or extra arguments changes nothing and says nothing', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW) + REMOTE_TOML);
+  const h = startHost(t, cfg, { background: true });
+  await h.waitFor('state\trunning');
+  const before = fs.readFileSync(cfg.configPath);
+  h.sendRaw('signin\n');
+  h.sendRaw('signin\tyes\n');
+  h.sendRaw('signin\tON\n');
+  h.sendRaw('signin\ton\textra\n');
+  h.send('stop?');
+  await h.waitFor('confirm');
+  await new Promise((r) => setTimeout(r, 30));
+  assert.deepEqual(fs.readFileSync(cfg.configPath), before);
+  assert.equal(h.lines().filter((l) => l.startsWith('state\trunning')).length, 1, 'no new running line');
+  assert.deepEqual(signinEvents(cfg), []);
+});
+
+/** The keys on ctx.desktop that are not requestRestart and ports. */
+const extraDesktopKeys = (desktop) => Object.keys(desktop).filter((k) => k !== 'requestRestart' && k !== 'ports');
+
+test('H6: ctx.desktop is still exactly requestRestart and ports, with no setter for the sign-in setting', async (t) => {
+  const cfg = makeConfig(t, desktopToml());
+  const panels = [];
+  const h = startHost(t, cfg, {
+    startPanel: async (...args) => {
+      const p = await startAdminPanel(...args);
+      panels.push(p);
+      return p;
+    },
+  });
+  await h.waitFor('state\trunning');
+  assert.deepEqual(Object.keys(panels[0].ctx.desktop).sort(), ['ports', 'requestRestart']);
+  assert.deepEqual(Object.keys(panels[0].ctx.desktop.ports).sort(), ['panel', 'preview']);
+  assert.deepEqual(extraDesktopKeys(panels[0].ctx.desktop), []);
+  // positive control: the same check names a setter that was planted
+  assert.deepEqual(extraDesktopKeys({ requestRestart() {}, ports: {}, setSignin() {} }), ['setSignin']);
+});
+
+test('H8: a tray change touches only the two keys: on leaves the other tables as they were, and on then off restores the file byte for byte', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW) + REMOTE_TOML + '\n[update]\ncheck = false\n');
+  writeConfigFile(cfg.configPath, smol.parse(fs.readFileSync(cfg.configPath, 'utf8')));
+  const bytes = fs.readFileSync(cfg.configPath);
+  const before = parsedConfig(cfg);
+  assert.deepEqual(before.update, { check: false });
+  const h = startHost(t, cfg, { background: true });
+  await h.waitFor('state\trunning');
+  h.send('signin', 'on');
+  await h.waitCount('state\trunning', 2);
+  const after = parsedConfig(cfg);
+  assert.deepEqual(after.campaigns, before.campaigns);
+  assert.deepEqual(after.remote, before.remote);
+  assert.deepEqual(after.update, before.update);
+  assert.deepEqual(after.desktop, { port: SIGNIN_PORT, preview_port: SIGNIN_PREVIEW, remote_at_signin: true, remote_at_signin_pc: 'PC-A' });
+  h.send('signin', 'off');
+  await h.waitCount('state\trunning', 3);
+  assert.deepEqual(fs.readFileSync(cfg.configPath), bytes);
 });

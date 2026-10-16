@@ -33,8 +33,8 @@ function lines(file) {
   return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').split('\n').filter(Boolean) : [];
 }
 
-test('the event list is exactly the eleven in ADR 0057 section 9, and frozen', () => {
-  assert.deepEqual([...LOG_EVENTS], ['host-start', 'panel-starting', 'panel-running', 'panel-stopped', 'panel-error', 'panel-warning', 'retry', 'op', 'quit', 'exit', 'uncaught']);
+test('the event list is exactly the twelve in ADR 0057 section 9, and frozen', () => {
+  assert.deepEqual([...LOG_EVENTS], ['host-start', 'panel-starting', 'panel-running', 'panel-stopped', 'panel-error', 'panel-warning', 'retry', 'op', 'quit', 'exit', 'uncaught', 'signin-setting']);
   assert.ok(Object.isFrozen(LOG_EVENTS));
 });
 

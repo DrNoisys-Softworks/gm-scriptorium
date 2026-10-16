@@ -28,7 +28,7 @@ test('constants match the ADR', () => {
   assert.equal(protocol.MAX_LINE_BYTES, 1024);
   assert.deepEqual(protocol.HOST_VERBS, ['hello', 'state', 'confirm', 'update', 'bye']);
   assert.deepEqual(protocol.HELPER_VERBS, [
-    'open', 'stop?', 'stop', 'start', 'restart', 'retry', 'quit?', 'quit',
+    'open', 'stop?', 'stop', 'start', 'restart', 'retry', 'quit?', 'quit', 'signin',
   ]);
   for (const list of [protocol.HOST_VERBS, protocol.HELPER_VERBS]) {
     assert.ok(Object.isFrozen(list), 'verb lists are frozen');

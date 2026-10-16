@@ -83,6 +83,7 @@ enum helper_verb {
     HELPER_RETRY,
     HELPER_QUIT_ASK,
     HELPER_QUIT,
+    HELPER_SIGNIN,
     HELPER_VERB_COUNT
 };
 
@@ -104,8 +105,10 @@ struct line_splitter {
 };
 typedef void (*line_sink)(void *ctx, const char *line, size_t len);
 
-/* The line under Start with Windows (owner rulings T03 and T03b), chosen by t03_line(). */
-enum t03_choice { T03_NONE, T03_UNCONFIRMED, T03_CONFIRMED };
+/* The tray item "Remote access at sign-in" (ADR 0057 section 7), chosen by signin_item(). */
+enum signin_item_kind { SIGNIN_ITEM_HIDDEN, SIGNIN_ITEM_GREYED, SIGNIN_ITEM_ENABLED };
+/* What the GM last asked the host for from that item, until the next running line answers. */
+enum signin_asked { SIGNIN_ASKED_NONE, SIGNIN_ASKED_OFF, SIGNIN_ASKED_ON };
 
 /* Badge kinds drawn on the icon (frames T01 to T09). */
 enum badge_kind { BADGE_NONE, BADGE_STARTING, BADGE_ERROR, BADGE_UPDATE, BADGE_STOPPED };
@@ -126,7 +129,9 @@ void wtrunc(wchar_t *dst, size_t cap, const wchar_t *src);
 void badge_paint(uint32_t *pixels, int w, int h, int kind);
 wchar_t *env_with_path_first(const wchar_t *block, const wchar_t *dir);
 int signin_confirmed(const char *const *args, size_t nargs);
-int t03_line(int autostart, int signin_local, int remote, int confirmed);
+int signin_item(int running, int remote, int signin_local, int autostart);
+int signin_header_shown(int signin_local, int confirmed);
+int signin_write_failed(int asked, int confirmed);
 
 #ifndef TRAY_PURE_ONLY
 

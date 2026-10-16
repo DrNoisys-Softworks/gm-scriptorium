@@ -44,6 +44,7 @@ enum {
     IDM_QUIT,
     IDM_RETRY,
     IDM_PORTS,
+    IDM_SIGNIN,
     IDM_INERT
 };
 
@@ -63,11 +64,13 @@ static const wchar_t CMD_ARGS_TAIL[] =
     L" command line & echo GM-Scriptorium keeps running in the background. Commands here work alongside it. & echo Try gm-scriptorium status, gm-scriptorium check or gm-scriptorium --help.\"";
 
 static const wchar_t MISMATCH_TEXT[] = L"Quit GM-Scriptorium and start it again from the Start menu to finish updating.";
-static const wchar_t SIGNIN_LOCAL_TEXT[] = L"Remote access is off at sign-in. Start it from the tray to turn it on.";
-/* Owner ruling T03: the line under Start with Windows when remote access is on, confirmed for sign-in
- * or not yet (the host's signin-local marker). */
-static const wchar_t T03_CONFIRMED_TEXT[] = L"Remote access is on, including at sign-in.";
-static const wchar_t T03_UNCONFIRMED_TEXT[] = L"Remote access is set up. At sign-in it starts on this PC only until you confirm.";
+static const wchar_t SIGNIN_LOCAL_TEXT[] = L"Remote access is off at sign-in on this PC.";
+/* ADR 0057 section 7: the tray item, its failure line and the confirm box for turning it on. */
+static const wchar_t SIGNIN_ITEM_TEXT[] = L"Remote access at sign-in";
+static const wchar_t SIGNIN_FAILED_TEXT[] = L"The sign-in setting couldn't be saved. Details are in the log folder.";
+static const wchar_t SIGNIN_CONFIRM_TITLE[] = L"Start remote access when you sign in to Windows?";
+static const wchar_t SIGNIN_CONFIRM_TEXT[] = L"Anyone your remote access setup lets through can reach the sign-in page whenever this PC is on.";
+static const wchar_t SIGNIN_CONFIRM_BUTTON[] = L"Turn on";
 
 static struct {
     HINSTANCE inst;
@@ -91,6 +94,8 @@ static struct {
     wchar_t panel_port[8];
     int signin_local;
     int signin_confirmed;
+    int signin_asked;
+    int signin_failed;
     enum err_kind err;
     wchar_t err_msg[320];
     wchar_t err_port[8];
@@ -585,6 +590,8 @@ static void do_retry(void)
     g.detail[0] = L'\0';
     g.signin_local = 0;
     g.signin_confirmed = 0;
+    g.signin_asked = SIGNIN_ASKED_NONE;
+    g.signin_failed = 0;
     icon_refresh();
     if (!host_spawn(&g.host, g.hwnd, 0)) enter_error(ERR_GONE, L"GM-Scriptorium could not start gm-scriptorium.exe from its install folder.");
 }
@@ -652,6 +659,41 @@ static void on_confirm(const char *why)
     if (strcmp(why, "none") == 0 || confirm(what, why)) act(what);
 }
 
+/* Turning remote access at sign-in on (ADR 0057 section 7). Cancel is the default button. */
+static int confirm_signin(void)
+{
+    TASKDIALOG_BUTTON button = { CONFIRM_BUTTON, SIGNIN_CONFIRM_BUTTON };
+    TASKDIALOGCONFIG c;
+    memset(&c, 0, sizeof c);
+    c.cbSize = sizeof c;
+    c.hInstance = g.inst;
+    c.dwFlags = TDF_ALLOW_DIALOG_CANCELLATION;
+    c.dwCommonButtons = TDCBF_CANCEL_BUTTON;
+    c.pszWindowTitle = L"GM-Scriptorium";
+    c.pszMainIcon = TD_WARNING_ICON;
+    c.pszMainInstruction = SIGNIN_CONFIRM_TITLE;
+    c.pszContent = SIGNIN_CONFIRM_TEXT;
+    c.cButtons = 1;
+    c.pButtons = &button;
+    c.nDefaultButton = IDCANCEL;
+    int pressed = IDCANCEL;
+    SetForegroundWindow(g.hwnd);
+    g.in_dialog++;
+    HRESULT hr = TaskDialogIndirect(&c, &pressed, NULL, NULL);
+    g.in_dialog--;
+    return SUCCEEDED(hr) && pressed == CONFIRM_BUTTON;
+}
+
+/* The tray item. Which way it goes comes from the host's last signin= field; the tick changes only when the
+ * host's next running line says so. */
+static void signin_toggle(void)
+{
+    const int turn_on = !g.signin_confirmed;
+    if (turn_on && !confirm_signin()) return;
+    g.signin_asked = turn_on ? SIGNIN_ASKED_ON : SIGNIN_ASKED_OFF;
+    if (!host_send(&g.host, HELPER_SIGNIN, turn_on ? "on" : "off")) g.signin_asked = SIGNIN_ASKED_NONE;
+}
+
 static void on_hello(const struct proto_line *pl)
 {
     if (g.hello_ok) return;
@@ -691,6 +733,8 @@ static void on_state(const struct proto_line *pl)
          * next running line says them again. */
         g.signin_local = 0;
         g.signin_confirmed = 0;
+        g.signin_asked = SIGNIN_ASKED_NONE;
+        g.signin_failed = 0;
         wset_utf8(g.campaign, CAP(g.campaign), strcmp(campaign, "-") == 0 ? "" : campaign);
         wset_utf8(g.detail, CAP(g.detail), arg(pl, 2));
     } else if (strcmp(what, "running") == 0) {
@@ -704,6 +748,9 @@ static void on_state(const struct proto_line *pl)
         g.signin_local = strcmp(arg(pl, 4), "signin-local") == 0;
         /* Whether a start at sign-in would use remote access on this PC: the trailing signin= field. */
         g.signin_confirmed = signin_confirmed((const char *const *)pl->args, pl->nargs < TRAY_MAX_FIELDS ? pl->nargs : TRAY_MAX_FIELDS);
+        /* ADR 0057 section 7: a change asked for from the tray failed when this line does not say it. */
+        g.signin_failed = signin_write_failed(g.signin_asked, g.signin_confirmed);
+        g.signin_asked = SIGNIN_ASKED_NONE;
         icon_refresh();
         toast_first_run();
         return;
@@ -918,7 +965,7 @@ static void header(HMENU m)
             }
             add_header(m, line);
         }
-        if (g.signin_local) add_header(m, SIGNIN_LOCAL_TEXT);
+        if (signin_header_shown(g.signin_local, g.signin_confirmed)) add_header(m, SIGNIN_LOCAL_TEXT);
         break;
     }
     case ST_STARTING:
@@ -1017,9 +1064,11 @@ static HMENU build_menu(void)
         add_sep(m);
         add_item(m, IDM_UPDATES, updates, on);
         AppendMenuW(m, MF_STRING | (autostart ? MF_CHECKED : 0), IDM_AUTOSTART, L"Start with Windows");
-        const int t03 = t03_line(autostart, g.signin_local, remote_on(), g.signin_confirmed);
-        if (t03 == T03_UNCONFIRMED) add_item(m, IDM_INERT, T03_UNCONFIRMED_TEXT, 0);
-        else if (t03 == T03_CONFIRMED) add_item(m, IDM_INERT, T03_CONFIRMED_TEXT, 0);
+        const int signin = signin_item(on, remote_on(), g.signin_local, autostart);
+        if (signin != SIGNIN_ITEM_HIDDEN) {
+            AppendMenuW(m, MF_STRING | (g.signin_confirmed ? MF_CHECKED : 0) | (signin == SIGNIN_ITEM_GREYED ? MF_GRAYED : 0), IDM_SIGNIN, SIGNIN_ITEM_TEXT);
+            if (g.signin_failed) add_item(m, IDM_INERT, SIGNIN_FAILED_TEXT, 0);
+        }
         add_sep(m);
         add_item(m, IDM_CMD, L"Open command line (Advanced)", cmd_ok);
         add_item(m, IDM_LOGS, L"Open log folder", 1);
@@ -1041,6 +1090,7 @@ static void on_command(UINT id)
     case IDM_RETRY: do_retry(); break;
     case IDM_PORTS: ports_dialog(); break;
     case IDM_AUTOSTART: autostart_set(!autostart_get()); break;
+    case IDM_SIGNIN: signin_toggle(); break;
     case IDM_CMD: cmd_open(); break;
     case IDM_LOGS: open_log_folder(); break;
     case IDM_QUIT: ask(PENDING_QUIT); break;

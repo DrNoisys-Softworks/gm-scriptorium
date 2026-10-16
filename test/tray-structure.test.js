@@ -451,8 +451,8 @@ const MENU_LABELS = [
   'Check for updates',
   'Update available: ',
   'Start with Windows',
-  'Remote access is on, including at sign-in.',
-  'Remote access is set up. At sign-in it starts on this PC only until you confirm.',
+  'Remote access at sign-in',
+  "The sign-in setting couldn't be saved. Details are in the log folder.",
   'Open command line (Advanced)',
   'Open log folder',
   'Quit GM-Scriptorium',
@@ -463,7 +463,7 @@ const MENU_LABELS = [
   "Can't reach your vault",
   ' is in use by another program',
   "The panel can't start on it.",
-  'Remote access is off at sign-in. Start it from the tray to turn it on.',
+  'Remote access is off at sign-in on this PC.',
   'Quit GM-Scriptorium and start it again from the Start menu to finish updating.',
   'GM-Scriptorium: running, ',
   'GM-Scriptorium: panel stopped, ',
@@ -484,6 +484,9 @@ const CONFIRM_TEXT = [
   'Quit GM-Scriptorium?',
   'Remote access is on. Quitting signs out anyone using the panel from another device, and turns off your preview.',
   "A preview build is running. Quitting stops it partway; your vault isn't changed.",
+  'Start remote access when you sign in to Windows?',
+  'Anyone your remote access setup lets through can reach the sign-in page whenever this PC is on.',
+  'Turn on',
 ];
 
 test('menu, tooltip, toast and confirm wording is exact', () => {
@@ -601,48 +604,156 @@ test('positive control: a renamed marker or the wrong field is seen', () => {
 });
 
 // ---------------------------------------------------------------------------------------------
-// Owner ruling T03 ("two-lines"): the line under Start with Windows when remote access is on
+// The tray item "Remote access at sign-in" (ADR 0057 section 7): its words, where it sits, what ticks it
 // ---------------------------------------------------------------------------------------------
 
-const T03_CONFIRMED = 'Remote access is on, including at sign-in.';
-const T03_UNCONFIRMED = 'Remote access is set up. At sign-in it starts on this PC only until you confirm.';
+/** The sign-in constants as they stand in tray.c: whole lines, typed here from the ADR. */
+const SIGNIN_CONSTANT_LINES = [
+  'static const wchar_t SIGNIN_LOCAL_TEXT[] = L"Remote access is off at sign-in on this PC.";',
+  'static const wchar_t SIGNIN_ITEM_TEXT[] = L"Remote access at sign-in";',
+  'static const wchar_t SIGNIN_FAILED_TEXT[] = L"The sign-in setting couldn\'t be saved. Details are in the log folder.";',
+  'static const wchar_t SIGNIN_CONFIRM_TITLE[] = L"Start remote access when you sign in to Windows?";',
+  'static const wchar_t SIGNIN_CONFIRM_TEXT[] = L"Anyone your remote access setup lets through can reach the sign-in page whenever this PC is on.";',
+  'static const wchar_t SIGNIN_CONFIRM_BUTTON[] = L"Turn on";',
+];
 
-/** The body of build_menu, or ''. */
-function buildMenuBody(code) {
-  const fn = functions(code).find((f) => f.name === 'build_menu');
+const REMOVED_WORDS = [
+  'Remote access is on, including at sign-in.',
+  'Remote access is set up. At sign-in it starts on this PC only until you confirm.',
+  'Start it from the tray to turn it on.',
+  't03_line',
+];
+
+const countLine = (code, line) => code.split('\n').filter((l) => l.trim() === line).length;
+
+test('S1: each sign-in constant is defined once, word for word, and the T03 lines and t03_line are gone from every file', () => {
+  for (const line of SIGNIN_CONSTANT_LINES) assert.equal(countLine(CODE['tray.c'], line), 1, line);
+  for (const word of REMOVED_WORDS) assert.equal(ALL.includes(word), false, word);
+  for (const raw of Object.values(RAW)) for (const word of REMOVED_WORDS) assert.equal(raw.includes(word), false, `${word} (comments too)`);
+});
+
+/** The body of a function by name, or ''. */
+function bodyOf(code, name) {
+  const fn = functions(code).find((f) => f.name === name);
   return fn ? code.slice(fn.start, fn.end) : '';
 }
 
-/**
- * The T03 line is chosen by t03_line() in host.c (unit-tested natively in tray-build) from Start with
- * Windows, the signin-local marker, a remote reach and the signin= field. build_menu must pass exactly
- * those four and map each answer to its own string, once each.
- */
-function t03Ok(code) {
-  const body = blankLiterals(buildMenuBody(code));
-  const count = (s) => body.split(s).length - 1;
+const squash = (text) => text.replace(/\s+/g, ' ').trim();
+
+/** The contract sequence in build_menu, from the running-branch "Start with Windows" item. */
+const SIGNIN_MENU_SEQUENCE = squash(`
+  L"Start with Windows");
+  const int signin = signin_item(on, remote_on(), g.signin_local, autostart);
+  if (signin != SIGNIN_ITEM_HIDDEN) {
+  AppendMenuW(m, MF_STRING | (g.signin_confirmed ? MF_CHECKED : 0) | (signin == SIGNIN_ITEM_GREYED ? MF_GRAYED : 0), IDM_SIGNIN, SIGNIN_ITEM_TEXT);
+  if (g.signin_failed) add_item(m, IDM_INERT, SIGNIN_FAILED_TEXT, 0);
+  }
+`);
+
+function signinMenuOk(code) {
+  return squash(bodyOf(code, 'build_menu')).split(SIGNIN_MENU_SEQUENCE).length - 1 === 1;
+}
+
+/** Where g.signin_confirmed is assigned: the running line, the starting line and a retry, and nowhere else. */
+function confirmedAssignmentSites(code) {
+  const fns = functions(code);
+  const sites = [];
+  const re = /g\.signin_confirmed\s*=(?!=)/g;
+  let m;
+  while ((m = re.exec(code)) !== null) sites.push(enclosing(fns, m.index));
+  return sites.sort();
+}
+
+function idmSigninSites(code) {
+  const fns = functions(code);
+  const sites = [];
+  const re = /\bIDM_SIGNIN\b/g;
+  let m;
+  while ((m = re.exec(code)) !== null) sites.push(enclosing(fns, m.index) || 'the enum');
+  return sites.sort();
+}
+
+function headerOk(code) {
+  const body = squash(bodyOf(code, 'header'));
+  return body.split('if (signin_header_shown(g.signin_local, g.signin_confirmed)) add_header(m, SIGNIN_LOCAL_TEXT);').length - 1 === 1 && body.split('if (g.signin_local)').length - 1 === 0;
+}
+
+test('S2: build_menu holds the item right under Start with Windows, in the contract order; only the running line and the two resets assign the tick', () => {
+  const tray = CODE['tray.c'];
+  assert.equal(signinMenuOk(tray), true);
+  assert.deepEqual(idmSigninSites(tray), ['build_menu', 'on_command', 'the enum']);
+  assert.deepEqual(confirmedAssignmentSites(tray), ['do_retry', 'on_state', 'on_state']);
+  assert.equal(headerOk(tray), true);
+  assert.match(CODE['tray.h'], /enum signin_item_kind \{ SIGNIN_ITEM_HIDDEN, SIGNIN_ITEM_GREYED, SIGNIN_ITEM_ENABLED \};/);
+  assert.match(CODE['tray.h'], /enum signin_asked \{ SIGNIN_ASKED_NONE, SIGNIN_ASKED_OFF, SIGNIN_ASKED_ON \};/);
+  // IDM_SIGNIN sits between IDM_PORTS and IDM_INERT in the menu ids.
+  assert.match(tray, /IDM_PORTS,\s*IDM_SIGNIN,\s*IDM_INERT/);
+});
+
+/** Calls of host_send with HELPER_SIGNIN, by the function that makes them. */
+function signinSendSites(code) {
+  const fns = functions(code);
+  return calls(code, 'host_send')
+    .filter((c) => c.args[1] === 'HELPER_SIGNIN')
+    .map((c) => enclosing(fns, c.offset));
+}
+
+function toggleOk(code) {
+  const body = bodyOf(code, 'signin_toggle');
+  const lits = literals(body).filter((l) => !l.wide).map((l) => l.text).sort();
   return (
-    count('const int t03 = t03_line(autostart, g.signin_local, remote_on(), g.signin_confirmed);') === 1 &&
-    count('if (t03 == T03_UNCONFIRMED) add_item(m, IDM_INERT, T03_UNCONFIRMED_TEXT, 0);') === 1 &&
-    count('else if (t03 == T03_CONFIRMED) add_item(m, IDM_INERT, T03_CONFIRMED_TEXT, 0);') === 1 &&
-    count('T03_UNCONFIRMED_TEXT') === 1 &&
-    count('T03_CONFIRMED_TEXT') === 1
+    JSON.stringify(signinSendSites(code)) === JSON.stringify(['signin_toggle']) &&
+    body.includes('confirm_signin()') &&
+    JSON.stringify(lits) === JSON.stringify(['off', 'on']) &&
+    !/g\.signin_confirmed\s*=(?!=)/.test(body)
   );
 }
 
-test('T03: the two ruled lines are defined once each, word for word, and the old line is gone', () => {
-  const tray = CODE['tray.c'];
-  const wide = literals(tray).filter((l) => l.wide).map((l) => l.text);
-  assert.equal(wide.filter((t) => t === T03_CONFIRMED).length, 1);
-  assert.equal(wide.filter((t) => t === T03_UNCONFIRMED).length, 1);
-  assert.match(tray, /static const wchar_t T03_CONFIRMED_TEXT\[\] = L"Remote access is on, including at sign-in\.";/);
-  assert.match(tray, /static const wchar_t T03_UNCONFIRMED_TEXT\[\] = L"Remote access is set up\. At sign-in it starts on this PC only until you confirm\.";/);
-  assert.equal(tray.includes('so it also listens for other devices from sign-in'), false);
-  assert.equal(tray.includes('Remote access is on. At sign-in'), false, 'the T03 wording before the T03b ruling is gone');
+test('S3: the signin line is sent only from signin_toggle, which confirms first, says only "on" or "off", and never sets the tick', () => {
+  assert.equal(toggleOk(CODE['tray.c']), true);
+  assert.match(bodyOf(CODE['tray.c'], 'signin_toggle'), /host_send\(&g\.host, HELPER_SIGNIN, turn_on \? "on" : "off"\)/);
 });
 
-test('T03: build_menu asks t03_line with Start with Windows, signin-local, the remote reach and signin=, and shows its answer', () => {
-  assert.equal(t03Ok(CODE['tray.c']), true);
+function dialogsOk(code) {
+  const fns = functions(code);
+  const sites = calls(code, 'TaskDialogIndirect').map((c) => enclosing(fns, c.offset)).sort();
+  if (JSON.stringify(sites) !== JSON.stringify(['confirm', 'confirm_signin'])) return false;
+  return sites.every((name) => {
+    const body = bodyOf(code, name);
+    return (body.match(/nDefaultButton\s*=/g) || []).length === 1 && /nDefaultButton\s*=\s*IDCANCEL;/.test(body);
+  });
+}
+
+test('S4: exactly two confirm boxes, confirm and confirm_signin, and each makes Cancel the default button', () => {
+  assert.equal(dialogsOk(CODE['tray.c']), true);
+});
+
+function copydataOk(code) {
+  const body = bodyOf(code, 'on_copydata');
+  const inBody = calls(body, 'payload_is').map((c) => c.args[1]);
+  const callers = calls(code, 'payload_is').map((c) => enclosing(functions(code), c.offset)).filter((n) => n !== null);
+  return JSON.stringify(inBody) === JSON.stringify(['L"open"', 'L"handoff"']) && !body.includes('HELPER_SIGNIN') && callers.every((n) => n === 'on_copydata');
+}
+
+test('S5: the single-instance message accepts only "open" and "handoff", and the signin verb is not reachable from it', () => {
+  assert.equal(copydataOk(CODE['tray.c']), true);
+  assert.equal(calls(CODE['tray.c'], 'payload_is').filter((c) => enclosing(functions(CODE['tray.c']), c.offset) !== null).length, 2);
+});
+
+/** A menu choice is taken only from TrackPopupMenuEx's return value, inside show_menu. */
+function menuChoiceOk(code) {
+  const fns = functions(code);
+  const callers = calls(code, 'on_command').map((c) => enclosing(fns, c.offset)).filter((n) => n !== null);
+  if (JSON.stringify(callers) !== JSON.stringify(['show_menu'])) return false;
+  if (/\bcase\s+WM_COMMAND\b/.test(bodyOf(code, 'wnd_proc'))) return false;
+  const sites = idmSigninSites(code);
+  return !sites.includes('wnd_proc') && !sites.includes('ports_proc');
+}
+
+test('A2: on_command is called once, inside show_menu; the window procedure has no WM_COMMAND case; IDM_SIGNIN is in no dialog procedure', () => {
+  assert.equal(menuChoiceOk(CODE['tray.c']), true);
+  assert.equal(bodyOf(CODE['tray.c'], 'wnd_proc').includes('case WM_COPYDATA'), true, 'this is the main window procedure');
+  assert.match(bodyOf(CODE['tray.c'], 'show_menu'), /TPM_RETURNCMD/);
 });
 
 test('signin= is read on every running line through signin_confirmed, and only host.c spells the field', () => {
@@ -667,36 +778,112 @@ function startingBranch(code) {
 }
 
 function resets(text) {
-  return /g\.signin_local\s*=\s*0\s*;/.test(text) && /g\.signin_confirmed\s*=\s*0\s*;/.test(text);
+  return (
+    /g\.signin_local\s*=\s*0\s*;/.test(text) &&
+    /g\.signin_confirmed\s*=\s*0\s*;/.test(text) &&
+    /g\.signin_asked\s*=\s*SIGNIN_ASKED_NONE\s*;/.test(text) &&
+    /g\.signin_failed\s*=\s*0\s*;/.test(text)
+  );
 }
 
-test('a starting state (Restart, Start panel, a retry) forgets the sign-in markers until the next running line', () => {
+test('a starting state (Restart, Start panel, a retry) forgets the sign-in markers, the asked change and the failure line until the next running line', () => {
   assert.equal(resets(startingBranch(CODE['tray.c'])), true, 'on_state "starting"');
   const fn = functions(CODE['tray.c']).find((f) => f.name === 'do_retry');
   assert.equal(resets(CODE['tray.c'].slice(fn.start, fn.end)), true, 'do_retry, which starts a new host');
 });
 
-test('positive control: a swapped mapping, a dropped input, a missing read or a missing reset is seen', () => {
-  const good = [
+test('the running line works out the failure from what was asked and what the host now says, then forgets what was asked', () => {
+  const branch = squash(runningBranch(CODE['tray.c']));
+  assert.equal(
+    branch.split('g.signin_failed = signin_write_failed(g.signin_asked, g.signin_confirmed); g.signin_asked = SIGNIN_ASKED_NONE;').length - 1,
+    1,
+  );
+});
+
+test('positive controls: a swapped tick source, a wrong signin_item call, a fourth tick assignment, an OK default button, a third payload and a WM_COMMAND case are each seen', () => {
+  const menu = [
     'static HMENU build_menu(void)',
     '{',
-    '        const int t03 = t03_line(autostart, g.signin_local, remote_on(), g.signin_confirmed);',
-    '        if (t03 == T03_UNCONFIRMED) add_item(m, IDM_INERT, T03_UNCONFIRMED_TEXT, 0);',
-    '        else if (t03 == T03_CONFIRMED) add_item(m, IDM_INERT, T03_CONFIRMED_TEXT, 0);',
+    '        AppendMenuW(m, MF_STRING | (autostart ? MF_CHECKED : 0), IDM_AUTOSTART, L"Start with Windows");',
+    '        const int signin = signin_item(on, remote_on(), g.signin_local, autostart);',
+    '        if (signin != SIGNIN_ITEM_HIDDEN) {',
+    '            AppendMenuW(m, MF_STRING | (g.signin_confirmed ? MF_CHECKED : 0) | (signin == SIGNIN_ITEM_GREYED ? MF_GRAYED : 0), IDM_SIGNIN, SIGNIN_ITEM_TEXT);',
+    '            if (g.signin_failed) add_item(m, IDM_INERT, SIGNIN_FAILED_TEXT, 0);',
+    '        }',
     '}',
     '',
   ].join('\n');
-  assert.equal(t03Ok(stripComments(good)), true);
-  const swapped = good.replace('(t03 == T03_UNCONFIRMED)', '(t03 == T03_X)').replace('(t03 == T03_CONFIRMED)', '(t03 == T03_UNCONFIRMED)').replace('T03_X', 'T03_CONFIRMED');
-  assert.equal(t03Ok(stripComments(swapped)), false);
-  assert.equal(t03Ok(stripComments(good.replace('remote_on(), g.signin_confirmed)', 'remote_on(), 1)'))), false);
-  assert.equal(t03Ok(stripComments(good.replace('t03_line(autostart,', 't03_line(1,'))), false);
+  assert.equal(signinMenuOk(stripComments(menu)), true);
+  assert.equal(signinMenuOk(stripComments(menu.replace('g.signin_confirmed ?', 'g.signin_asked ?'))), false, 'tick source swapped');
+  assert.equal(signinMenuOk(stripComments(menu.replace('signin_item(on,', 'signin_item(1,'))), false, 'signin_item(1, ...)');
+
+  const toggle = [
+    'static void signin_toggle(void)',
+    '{',
+    '    const int turn_on = !g.signin_confirmed;',
+    '    if (turn_on && !confirm_signin()) return;',
+    '    if (!host_send(&g.host, HELPER_SIGNIN, turn_on ? "on" : "off")) g.signin_asked = SIGNIN_ASKED_NONE;',
+    '}',
+    '',
+  ].join('\n');
+  assert.equal(toggleOk(stripComments(toggle)), true);
+  const fourth = toggle.replace('    if (turn_on && !confirm_signin()) return;\n', '    if (turn_on && !confirm_signin()) return;\n    g.signin_confirmed = 1;\n');
+  assert.equal(toggleOk(stripComments(fourth)), false, 'a fourth g.signin_confirmed = 1;');
+  const sites = confirmedAssignmentSites(stripComments(`${toggle.replace('const int turn_on', 'g.signin_confirmed = 1;\n    const int turn_on')}`));
+  assert.deepEqual(sites, ['signin_toggle']);
+
+  const dialogs = [
+    'static int confirm(void)',
+    '{',
+    '    c.nDefaultButton = IDCANCEL;',
+    '    TaskDialogIndirect(&c, &pressed, NULL, NULL);',
+    '}',
+    'static int confirm_signin(void)',
+    '{',
+    '    c.nDefaultButton = IDCANCEL;',
+    '    TaskDialogIndirect(&c, &pressed, NULL, NULL);',
+    '}',
+    '',
+  ].join('\n');
+  assert.equal(dialogsOk(stripComments(dialogs)), true);
+  assert.equal(dialogsOk(stripComments(dialogs.replace(/c\.nDefaultButton = IDCANCEL;(?![\s\S]*c\.nDefaultButton = IDCANCEL;)/, 'c.nDefaultButton = CONFIRM_BUTTON;'))), false, 'nDefaultButton = CONFIRM_BUTTON');
+
+  const copydata = [
+    'static LRESULT on_copydata(const COPYDATASTRUCT *cd)',
+    '{',
+    '    if (!payload_is(cd, L"open") && !payload_is(cd, L"handoff")) return TRAY_REPLY_REFUSED;',
+    '    return 0;',
+    '}',
+    '',
+  ].join('\n');
+  assert.equal(copydataOk(stripComments(copydata)), true);
+  assert.equal(copydataOk(stripComments(copydata.replace('return 0;', 'if (payload_is(cd, L"signin")) return 1;\n    return 0;'))), false, 'a third payload_is');
+
+  const wnd = [
+    'static void show_menu(int x, int y)',
+    '{',
+    '    if (cmd != 0) on_command(cmd);',
+    '}',
+    'static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)',
+    '{',
+    '    switch (msg) {',
+    '    case WM_COPYDATA: return on_copydata((const COPYDATASTRUCT *)lp);',
+    '    }',
+    '    return 0;',
+    '}',
+    '',
+  ].join('\n');
+  assert.equal(menuChoiceOk(stripComments(wnd)), true);
+  assert.equal(menuChoiceOk(stripComments(wnd.replace('    }\n    return 0;', '    case WM_COMMAND: on_command(LOWORD(wp)); break;\n    }\n    return 0;'))), false, 'case WM_COMMAND in the window procedure');
+
   const state = [
     'static void on_state(const struct proto_line *pl)',
     '{',
     '    if (strcmp(what, "starting") == 0) {',
     '        g.signin_local = 0;',
     '        g.signin_confirmed = 0;',
+    '        g.signin_asked = SIGNIN_ASKED_NONE;',
+    '        g.signin_failed = 0;',
     '    } else if (strcmp(what, "running") == 0) {',
     '        g.signin_confirmed = signin_confirmed((const char *const *)pl->args, pl->nargs < TRAY_MAX_FIELDS ? pl->nargs : TRAY_MAX_FIELDS);',
     '    } else if (x) {',
@@ -706,6 +893,8 @@ test('positive control: a swapped mapping, a dropped input, a missing read or a 
   ].join('\n');
   assert.equal(resets(startingBranch(stripComments(state))), true);
   assert.equal(resets(startingBranch(stripComments(state.replace('        g.signin_confirmed = 0;\n', '')))), false);
+  assert.equal(resets(startingBranch(stripComments(state.replace('        g.signin_asked = SIGNIN_ASKED_NONE;\n', '')))), false);
+  assert.equal(resets(startingBranch(stripComments(state.replace('        g.signin_failed = 0;\n', '')))), false);
   assert.match(runningBranch(stripComments(state)), /g\.signin_confirmed\s*=\s*signin_confirmed\(/);
   assert.doesNotMatch(runningBranch(stripComments(state.replace('signin_confirmed((const', 'keep((const'))), /g\.signin_confirmed\s*=\s*signin_confirmed\(/);
 });

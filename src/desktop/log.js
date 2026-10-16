@@ -17,7 +17,7 @@ const { appendPrivateLine } = require('../remote/privatefile');
 
 const LOG_EVENTS = Object.freeze([
   'host-start', 'panel-starting', 'panel-running', 'panel-stopped', 'panel-error', 'panel-warning',
-  'retry', 'op', 'quit', 'exit', 'uncaught',
+  'retry', 'op', 'quit', 'exit', 'uncaught', 'signin-setting',
 ]);
 
 const LOG_NAME = 'desktop.log';

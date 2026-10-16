@@ -8,6 +8,7 @@ const { resolveConfigPath } = require('../config/location');
 const os = require('os');
 const { parseDesktopTable, confirmedHere } = require('../config/desktopsettings');
 const settingsLib = require('../remote/settings');
+const configWrite = require('../config/write'); // through the module object, so a test can fail one write
 const { remotePaths } = require('../remote/paths');
 const { createLaunchCodeStore, codeKey } = require('../launch/codes');
 const { writeLauncher, removeLauncher, LANDINGS } = require('../launch/launcherfile');
@@ -31,7 +32,10 @@ const { createDesktopLog, scrub } = require('./log');
  *  - Nothing secret reaches the log or the output: the launch code only ever goes into the launcher
  *    file, and the opener is given the file, never the code or a URL.
  *  - A start at sign-in (--background) is quiet, retries only a vault that cannot be found, and runs
- *    this-PC-only unless the GM confirmed remote access at sign-in. Every start the GM makes opens a tab.
+ *    this-PC-only unless remote access at sign-in is on for this PC. Every start the GM makes opens a tab.
+ *  - The only writer of that setting here is the helper's `signin on|off` line (signinOp): it saves for this
+ *    computer, reads the settings again and resends the running line. It never touches the running panel,
+ *    and ctx.desktop has no setter for it.
  *  - No network module and no spawner here; the browser opener is procRun.openFile, injected in tests.
  */
 
@@ -61,7 +65,7 @@ function classify(err) {
  * @param {{ background?: boolean }} options
  * @param {{ input: object, output: object, env?: object, now?: () => number, version?: string,
  *   startPanel?: Function, openFile?: Function, killAll?: Function, createToken?: () => string,
- *   randomBytes?: Function, retryDelaysMs?: number[], pollMs?: number, configPath?: string,
+ *   randomBytes?: Function, retryDelaysMs?: number[], pollMs?: number, configPath?: string, writeConfigFile?: Function,
  *   log?: object, proc?: object, pid?: number }} deps
  * @returns {Promise<number>} the exit code: 0 after a quit or end of input, 1 after a crash
  */
@@ -85,6 +89,7 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
     platform = process.platform,
   } = deps;
   const configPath = deps.configPath || resolveConfigPath();
+  const writeConfig = deps.writeConfigFile || ((p, c) => configWrite.writeConfigFile(p, c));
   const log = deps.log || createDesktopLog({ dir: path.join(remotePaths(configPath).panelDir, 'logs'), now });
 
   let panel = null; // the running panel, or null
@@ -350,6 +355,27 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
     sendState(...fields);
   }
 
+  /** ADR 0057 section 7: the tray's `signin on|off`. Saves for THIS computer, re-reads, resends the running line. The running panel is not changed. */
+  async function signinOp(on) {
+    let result = 'saved';
+    let reason;
+    try {
+      const { config } = loadConfig({ config: configPath });
+      writeConfig(configPath, configWrite.setRemoteAtSignin(config, on, on ? hostname() : undefined));
+    } catch (err) {
+      result = 'failed';
+      reason = err instanceof ConfigError || err instanceof VaultUnreachableError ? 'settings' : 'write';
+    }
+    log.event('signin-setting', { to: on ? 'on' : 'off', result, ...(reason ? { reason } : {}) });
+    try {
+      const { config } = loadConfig({ config: configPath });
+      signinConfirmed = confirmedHere(config.desktop, hostname(), platform);
+    } catch {
+      // settings that cannot be read: keep the last answer, so the tick does not change
+    }
+    sendRunning();
+  }
+
   async function stopOp() {
     if (panel !== null) lastCampaign = panel.ctx.campaign || '-';
     await stopPanelPath();
@@ -447,6 +473,13 @@ function runDesktopHost({ background = false } = {}, deps = {}) {
             log.event('op', { name: verb });
             return startOp({ user: true, open: true });
           });
+        }
+        break;
+      case 'signin':
+        // ADR 0057 section 7: exactly one argument, on or off; anything else is ignored.
+        if (parsed.args.length === 1 && (parsed.args[0] === 'on' || parsed.args[0] === 'off')) {
+          const on = parsed.args[0] === 'on';
+          enqueue(() => signinOp(on));
         }
         break;
       default:
