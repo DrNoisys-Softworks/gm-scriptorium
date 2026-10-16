@@ -695,3 +695,209 @@ test('options page: the components page and its leftovers are gone', () => {
   // control: the check would see one
   assert.equal('Section x\n  SectionIn RO\nSectionEnd'.includes('SectionIn'), true);
 });
+
+// ---------------------------------------------------------------------------------------------
+// What the uninstaller removes, the running-copy close, page order and the copy (ADR 0058)
+// ---------------------------------------------------------------------------------------------
+
+const RUN_VALUE_LINES = [
+  'DeleteRegValue HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "GM-Scriptorium"',
+  'DeleteRegValue HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run" "GM-Scriptorium"',
+];
+const RUN_VALUE_RE = /^\s*DeleteRegValue\b[^\n]*(?:CurrentVersion\\Run"|StartupApproved)/;
+
+/** How many Run or StartupApproved value deletes `text` holds in all, and inside its uninstall section. */
+function runValueDeletes(text) {
+  const all = text.split('\n').filter((l) => RUN_VALUE_RE.test(l));
+  const body = uninstallSection(text);
+  const inBody = body === null ? [] : body.split('\n').filter((l) => RUN_VALUE_RE.test(l));
+  return { all, inBody };
+}
+
+test('uninstall: the Run and StartupApproved value deletes are exactly the two named ones, and both are in the uninstall section', () => {
+  const { all, inBody } = runValueDeletes(NSI);
+  assert.deepEqual(all.map((l) => l.trim()), RUN_VALUE_LINES);
+  assert.equal(all.length, inBody.length, 'no such delete outside the uninstall section');
+  // control: one in stage B is counted outside the section
+  const bad = runValueDeletes(`${RUN_VALUE_LINES[0]}\nSection Uninstall\n  ${RUN_VALUE_LINES[1]}\nSectionEnd\n`);
+  assert.equal(bad.all.length, 2);
+  assert.equal(bad.inBody.length, 1);
+});
+
+const REG_KEY_LINES = ['DeleteRegKey HKCU "${UNINST_KEY}"', 'DeleteRegKey HKCU "Software\\GM-Scriptorium"'];
+
+test('uninstall: the only keys deleted whole are the uninstall key and the tray app\'s notification record', () => {
+  const body = uninstallSection(NSI);
+  const inBody = body.split('\n').map((l) => l.trim()).filter((l) => /^DeleteRegKey\b/.test(l));
+  const all = BOTH.split('\n').map((l) => l.trim()).filter((l) => /^DeleteRegKey\b/.test(l));
+  assert.deepEqual(all.slice().sort(), REG_KEY_LINES.slice().sort());
+  assert.deepEqual(inBody.slice().sort(), REG_KEY_LINES.slice().sort());
+  // control
+  assert.equal(REG_KEY_LINES.some((l) => l === 'DeleteRegKey HKCU "Software"'), false);
+});
+
+test('uninstall: each shortcut is deleted once, straight behind its record read and the guard, before the uninstall key goes', () => {
+  const lines = uninstallSection(NSI).split('\n').map((l) => l.trim()).filter((l) => l !== '' && !/^;/.test(l));
+  const check = (ls) => {
+    const out = [];
+    for (const [del, rec] of [
+      ['Delete "$SMPROGRAMS\\GM-Scriptorium.lnk"', 'ReadRegDWORD $0 HKCU "${UNINST_KEY}" "StartMenuShortcut"'],
+      ['Delete "$DESKTOP\\GM-Scriptorium.lnk"', 'ReadRegDWORD $0 HKCU "${UNINST_KEY}" "DesktopShortcut"'],
+    ]) {
+      const at = ls.map((l, i) => (l === del ? i : -1)).filter((i) => i >= 0);
+      if (at.length !== 1) out.push(`${del} appears ${at.length} times`);
+      else if (ls[at[0] - 1] !== 'StrCmp $0 1 0 +2' || ls[at[0] - 2] !== rec) out.push(`${del} is not guarded by ${rec}`);
+    }
+    const reads = ls.findIndex((l) => l === 'ReadRegDWORD $0 HKCU "${UNINST_KEY}" "DesktopShortcut"');
+    const dropKey = ls.findIndex((l) => l === 'DeleteRegKey HKCU "${UNINST_KEY}"');
+    if (!(reads >= 0 && dropKey > reads)) out.push('the records are read after the uninstall key goes');
+    return out;
+  };
+  assert.deepEqual(check(lines), []);
+  // controls: an unguarded delete is reported, and so is a record read after the key is deleted
+  const unguarded = lines.filter((l) => l !== 'StrCmp $0 1 0 +2');
+  assert.ok(check(unguarded).length >= 1);
+  const late = ['DeleteRegKey HKCU "${UNINST_KEY}"', ...lines.filter((l) => l !== 'DeleteRegKey HKCU "${UNINST_KEY}"')];
+  assert.ok(check(late).length >= 1);
+});
+
+test('tray close: the window class equals the tray app\'s, and the close, the wait and the wiring are as built', () => {
+  const header = fs.readFileSync(path.join(ROOT, 'packaging', 'windows', 'tray', 'tray.h'), 'utf8');
+  const fromHeader = /^#define TRAY_WINDOW_CLASS L"([^"]+)"$/m.exec(header);
+  const fromNsi = /^\s*!define\s+TRAY_WINDOW_CLASS\s+"([^"]+)"\s*$/m.exec(NSI);
+  assert.ok(fromHeader && fromNsi);
+  assert.equal(fromNsi[1], fromHeader[1]);
+  // control: a mismatched class is reported
+  const mism = /^\s*!define\s+TRAY_WINDOW_CLASS\s+"([^"]+)"\s*$/m.exec('!define TRAY_WINDOW_CLASS "GMScriptoriumTrayX"');
+  assert.notEqual(mism[1], fromHeader[1]);
+
+  const lines = NSI.split('\n').map((l) => l.trim());
+  const finds = lines.filter((l) => /^FindWindow\b/.test(l));
+  assert.ok(finds.length >= 3, 'GmCloseTray, GmRunningShow and un.ConfirmShow each look for the window');
+  for (const f of finds) assert.match(f, /^FindWindow \$\d "\$\{TRAY_WINDOW_CLASS\}"$/);
+  assert.equal(lines.filter((l) => /^SendMessage \$\d \$\{WM_CLOSE\} 0 0 \/TIMEOUT=15000$/.test(l)).length, 1);
+  assert.equal(lines.filter((l) => l === '!insertmacro GmTrayCommon ""').length, 1);
+  assert.equal(lines.filter((l) => l === '!insertmacro GmTrayCommon "un."').length, 1);
+  const stageB = findLines(NSI, /^\s*!insertmacro\s+GmTrayCommon\s+""\s*$/);
+  assert.ok(stageB[0].conds.includes('ifndef EXTRACT_UNINSTALLER'));
+  const stageA = findLines(NSI, /^\s*!insertmacro\s+GmTrayCommon\s+"un\."\s*$/);
+  assert.ok(stageA[0].conds.includes('ifdef EXTRACT_UNINSTALLER'));
+
+  // the wait: the send, then the probe, the count, the pause and the loop, in that order
+  const body = functionBody(NSI, '${UN}GmCloseTray');
+  assert.ok(body, 'the shared close function is missing');
+  const inOrder = (text) => {
+    const ls = text.split('\n').map((l) => l.trim());
+    const want = [
+      (l) => /^SendMessage \$\d \$\{WM_CLOSE\} 0 0 \/TIMEOUT=15000$/.test(l),
+      (l) => l === 'FileOpen $1 "$INSTDIR\\gm-scriptorium-tray.exe" a',
+      (l) => l === 'IntCmp $2 20 close_done',
+      (l) => l === 'Sleep 250',
+      (l) => l === 'Goto close_wait',
+    ];
+    let at = -1;
+    for (const w of want) {
+      const next = ls.findIndex((l, i) => i > at && w(l));
+      if (next === -1) return false;
+      at = next;
+    }
+    return true;
+  };
+  assert.equal(inOrder(body), true);
+  assert.equal(inOrder(body.split('\n').filter((l) => l.trim() !== 'Sleep 250').join('\n')), false, 'control: a body without the pause is reported');
+  assert.equal(functionBody(NSI, 'GmRunningLeave').trim(), 'Call GmCloseTray');
+});
+
+const PAGE_RE = /^(?:!insertmacro\s+MUI_PAGE_\w+|Page\s+custom\b)/;
+
+/** The page list of stage B, in order, as trimmed lines. */
+function pageOrder(text) {
+  return findLines(text, /^\s*(?:!insertmacro\s+MUI_PAGE_\w+|Page\s+custom\b)/)
+    .filter((h) => h.conds.includes('ifndef EXTRACT_UNINSTALLER') && PAGE_RE.test(h.line.trim()))
+    .map((h) => h.line.trim());
+}
+
+const PAGE_ORDER = [
+  '!insertmacro MUI_PAGE_WELCOME',
+  '!insertmacro MUI_PAGE_DIRECTORY',
+  'Page custom GmOptionsShow GmOptionsLeave',
+  'Page custom GmRunningShow GmRunningLeave',
+  'Page custom GmSettingsShow',
+  '!insertmacro MUI_PAGE_INSTFILES',
+  '!insertmacro MUI_PAGE_FINISH',
+];
+
+/** The trimmed text of the Section "-Program files" body (to the next SectionEnd). */
+function secMainBody(text) {
+  const ls = text.split('\n');
+  const start = ls.findIndex((l) => l.trim() === 'Section "-Program files" SecMain');
+  if (start === -1) return null;
+  const end = ls.findIndex((l, i) => i > start && l.trim() === 'SectionEnd');
+  return ls.slice(start + 1, end).join('\n');
+}
+
+test('order: the pages run in the built order and the running-copy check runs just before the progress page, not on leaving the options', () => {
+  assert.deepEqual(pageOrder(NSI), PAGE_ORDER);
+  const swapped = PAGE_ORDER.slice();
+  [swapped[2], swapped[3]] = [swapped[3], swapped[2]];
+  assert.notDeepEqual(swapped, PAGE_ORDER);
+  assert.notDeepEqual(pageOrder(['!ifndef EXTRACT_UNINSTALLER', ...swapped, '!endif'].join('\n')), PAGE_ORDER);
+
+  const lines = NSI.split('\n').map((l) => l.trim());
+  const instfiles = lines.findIndex((l) => l === '!insertmacro MUI_PAGE_INSTFILES');
+  let before = instfiles - 1;
+  while (before >= 0 && lines[before] === '') before -= 1;
+  assert.equal(lines[before], '!define MUI_PAGE_CUSTOMFUNCTION_PRE GmInstallPre');
+
+  const calls = lines.filter((l) => l === 'Call PreInstallChecks');
+  assert.equal(calls.length, 2);
+  assert.ok(functionBody(NSI, 'GmInstallPre').split('\n').some((l) => l.trim() === 'Call PreInstallChecks'));
+  assert.ok(secMainBody(NSI).split('\n').some((l) => l.trim() === 'Call PreInstallChecks'));
+  // control: a third call inside the options leave function is seen
+  const extra = `${NSI}\nFunction GmOptionsLeave\n  Call PreInstallChecks\nFunctionEnd\n`;
+  assert.equal(extra.split('\n').filter((l) => l.trim() === 'Call PreInstallChecks').length, 3);
+});
+
+const COPY = [
+  'Setup will install ${APP_NAME} $gmWho. You don\'t need administrator permission.$\\r$\\n$\\r$\\n${APP_NAME} turns your gm-apprentice campaign vault into a website for your players. It runs quietly in the background on this PC, with an icon in the system tray, and nothing leaves it unless you publish.$\\r$\\n$\\r$\\nClick Next to continue.',
+  '!insertmacro MUI_HEADER_TEXT "Choose Options" "Pick what Setup adds for you."',
+  '"Start menu shortcut"',
+  '"Find ${APP_NAME} by typing its name in Start."',
+  '"Desktop shortcut"',
+  '"A shortcut on your desktop."',
+  '"Start ${APP_NAME} when I sign in to Windows"',
+  '"It starts quietly in the system tray, with no window. Turn it off any time from its icon."',
+  '"You\'ll need to start ${APP_NAME} from its folder: $INSTDIR"',
+  '"Advanced"',
+  '"Add ${APP_NAME} to PATH"',
+  '"Lets you type gm-scriptorium in any terminal window, not just the one its tray icon opens. It changes PATH for you only, and the uninstaller takes it out again. Leave it off unless you use the command line."',
+  '"Panel port"',
+  '"Preview port"',
+  '"Change these only if another program already uses them."',
+  '"Setup found your settings, so it keeps the ports saved there. Change them later on the panel\'s Overview."',
+  '"Type a number from 1 to 65535 for each port, and make the two different."',
+  '!insertmacro MUI_HEADER_TEXT "${APP_NAME} is running" "Setup will close it."',
+  '"Everything you saved is on disk. If you tick $\\"Start ${APP_NAME} now$\\" at the end, it starts again."',
+  '"STR:Close and continue"',
+  '!insertmacro MUI_HEADER_TEXT "Your Campaigns" "Setup found your settings and won\'t change them."',
+  '"Settings file: $gmConfigPath"',
+  '"To add another campaign, use Campaigns in the panel."',
+  '!define MUI_FINISHPAGE_TEXT "${APP_NAME} is installed.$\\r$\\n$\\r$\\nIt lives in the system tray, by the clock. Closing your browser doesn\'t stop it; use the icon\'s Quit when you want it off.$\\r$\\n$\\r$\\nClick Finish to close Setup."',
+  '!define MUI_FINISHPAGE_RUN_TEXT "Start ${APP_NAME} now"',
+  'DetailPrint "Start with Windows couldn\'t be changed. Use Start with Windows in the tray icon\'s menu."',
+  'DetailPrint "The ports couldn\'t be saved, so the panel uses 7400 and 7401. Change them later on the panel\'s Overview."',
+  '"Setup couldn\'t save ${APP_NAME}\'s tray app, so ${APP_NAME} may not start.$\\r$\\n$\\r$\\nQuit ${APP_NAME} if it is running, then run Setup again."',
+  '"Setup didn\'t add ${APP_NAME} to your PATH, because your PATH list is too long to change safely. Nothing was changed.$\\r$\\n$\\r$\\n${APP_NAME} is installed and works as normal. To type gm-scriptorium in a terminal, add $INSTDIR to PATH yourself, or choose Open command line (Advanced) from its icon in the system tray."',
+  '"${APP_NAME} is running. Uninstall will close it first."',
+  '"The program, its tray helper, and any leftovers from updates$\\r$\\nThe Start menu and desktop shortcuts, if Setup made them$\\r$\\nThe start-with-Windows entry$\\r$\\nThe PATH entry, if Setup added one$\\r$\\nThe Installed apps entry"',
+  '!define MUI_FINISHPAGE_TEXT "${APP_NAME} has been removed from your computer. It no longer starts when you sign in.$\\r$\\n$\\r$\\nKept, as always: your settings and campaign list in $gmKept, your campaign vaults and your built sites.$gmFolderNote"',
+];
+
+test('copy: every user-facing string in the copy table is in installer.nsi exactly as written', () => {
+  const missing = COPY.filter((c) => !NSI.includes(c));
+  assert.deepEqual(missing, []);
+  // control: one character off is not found
+  const finish = COPY.find((c) => /by the clock/.test(c));
+  assert.ok(finish);
+  assert.equal(NSI.includes(finish.replace('by the clock', 'by the clock.')), false);
+});

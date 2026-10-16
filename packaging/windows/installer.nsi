@@ -53,6 +53,7 @@ Unicode true
 !endif
 
 !define APP_NAME "GM-Scriptorium"
+!define TRAY_WINDOW_CLASS "GMScriptoriumTray"
 !define PUBLISHER "DrNoisys Softworks"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\GM-Scriptorium"
 !define FEEDBACK_URL "https://tally.so/r/eq19jQ"
@@ -196,6 +197,35 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "${PUBLISHER}. MIT licence."
 
 !endif
 
+!macro GmTrayCommon UN
+  ; Closes a running tray app the way its own Quit does, then waits up to 5 seconds for its
+  ; process to let go of gm-scriptorium-tray.exe, so the probe that follows does not see it exiting.
+  Function ${UN}GmCloseTray
+    Push $0
+    Push $1
+    Push $2
+    FindWindow $0 "${TRAY_WINDOW_CLASS}"
+    StrCmp $0 0 close_done
+    SendMessage $0 ${WM_CLOSE} 0 0 /TIMEOUT=15000
+    StrCpy $2 0
+    close_wait:
+      IfFileExists "$INSTDIR\gm-scriptorium-tray.exe" 0 close_done
+      ClearErrors
+      FileOpen $1 "$INSTDIR\gm-scriptorium-tray.exe" a
+      IfErrors 0 close_free
+      IntOp $2 $2 + 1
+      IntCmp $2 20 close_done
+      Sleep 250
+      Goto close_wait
+    close_free:
+      FileClose $1
+    close_done:
+    Pop $2
+    Pop $1
+    Pop $0
+  FunctionEnd
+!macroend
+
 Var gmChecksDone
 
 !ifndef EXTRACT_UNINSTALLER
@@ -254,6 +284,9 @@ Var gmHelpPorts
 ; that hidden sections read, so a silent install gets the same defaults as the pages.
 Page custom GmOptionsShow GmOptionsLeave
 
+; Running copy: shown only when the tray app is running; Close and continue closes it.
+Page custom GmRunningShow GmRunningLeave
+
 ; Existing settings: shown only when GmReadDefaults found a settings file. Setup never opens it.
 Page custom GmSettingsShow
 
@@ -269,6 +302,8 @@ Page custom GmSettingsShow
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_LANGUAGE "English"
+
+!insertmacro GmTrayCommon ""
 
 !ifdef WITH_PATH_OPTION
   !insertmacro GmPathCommon ""
@@ -670,10 +705,13 @@ Function GmOptionsShow
   !endif
   Call GmOptionsRefresh
 
-  ; With no settings, this is the last page before the progress page.
-  StrCmp $gmHaveSettings 0 0 +3
+  ; With no settings and no running copy, this is the last page before the progress page.
+  StrCmp $gmHaveSettings 0 0 options_next_done
+  FindWindow $0 "${TRAY_WINDOW_CLASS}"
+  StrCmp $0 0 0 options_next_done
   GetDlgItem $0 $HWNDPARENT 1
   SendMessage $0 ${WM_SETTEXT} 0 "STR:Install"
+  options_next_done:
   nsDialogs::Show
 FunctionEnd
 
@@ -704,6 +742,27 @@ Function GmOptionsLeave
     MessageBox MB_OK|MB_ICONEXCLAMATION "Type a number from 1 to 65535 for each port, and make the two different."
     Abort
   leave_done:
+FunctionEnd
+
+Function GmRunningShow
+  FindWindow $0 "${TRAY_WINDOW_CLASS}"
+  StrCmp $0 0 0 +2
+  Abort
+  !insertmacro MUI_HEADER_TEXT "${APP_NAME} is running" "Setup will close it."
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateLabel} 0 0 100% 24u "Everything you saved is on disk. If you tick $\"Start ${APP_NAME} now$\" at the end, it starts again."
+  Pop $0
+  GetDlgItem $0 $HWNDPARENT 1
+  SendMessage $0 ${WM_SETTEXT} 0 "STR:Close and continue"
+  nsDialogs::Show
+FunctionEnd
+
+Function GmRunningLeave
+  Call GmCloseTray
 FunctionEnd
 
 Function GmSettingsShow
@@ -894,6 +953,8 @@ Section "-Write the uninstaller"
   WriteUninstaller "$INSTDIR\Uninstall GM-Scriptorium.exe"
 SectionEnd
 
+!insertmacro GmTrayCommon "un."
+
 !ifdef WITH_PATH_OPTION
   !insertmacro GmPathCommon "un."
 
@@ -957,17 +1018,23 @@ Function un.ConfirmShow
   ${EndIf}
   CreateFont $gmBold "$(^Font)" "$(^FontSize)" 700
 
-  ${NSD_CreateLabel} 0 0 100% 20u "${APP_NAME} will be removed from$\r$\n$INSTDIR."
+  ; The first line is a reserved slot, used only when the tray app is running.
+  FindWindow $1 "${TRAY_WINDOW_CLASS}"
+  StrCmp $1 0 confirm_not_running
+  ${NSD_CreateLabel} 0 0 100% 10u "${APP_NAME} is running. Uninstall will close it first."
   Pop $0
-  ${NSD_CreateLabel} 0 26u 100% 9u "Removed"
+  confirm_not_running:
+  ${NSD_CreateLabel} 0 11u 100% 18u "${APP_NAME} will be removed from$\r$\n$INSTDIR."
+  Pop $0
+  ${NSD_CreateLabel} 0 31u 100% 9u "Removed"
   Pop $0
   SendMessage $0 ${WM_SETFONT} $gmBold 0
-  ${NSD_CreateLabel} 8u 36u 100% 40u "The program, and any leftovers from updates$\r$\nThe Start menu shortcut, and the desktop shortcut if you made one$\r$\nThe PATH entry, if Setup added one$\r$\nThe Installed apps entry"
+  ${NSD_CreateLabel} 8u 40u 100% 42u "The program, its tray helper, and any leftovers from updates$\r$\nThe Start menu and desktop shortcuts, if Setup made them$\r$\nThe start-with-Windows entry$\r$\nThe PATH entry, if Setup added one$\r$\nThe Installed apps entry"
   Pop $0
-  ${NSD_CreateLabel} 0 82u 100% 9u "Never touched"
+  ${NSD_CreateLabel} 0 85u 100% 9u "Never touched"
   Pop $0
   SendMessage $0 ${WM_SETFONT} $gmBold 0
-  ${NSD_CreateLabel} 8u 92u 100% 32u "Your settings and campaign list, in $APPDATA\Scriptorium$\r$\nYour campaign vaults, including their _meta\scriptorium\ folders$\r$\nYour built sites, and anything you have published"
+  ${NSD_CreateLabel} 8u 94u 100% 28u "Your settings and campaign list, in $APPDATA\Scriptorium$\r$\nYour campaign vaults, including their _meta\scriptorium\ folders$\r$\nYour built sites, and anything you have published"
   Pop $0
 
   GetDlgItem $1 $HWNDPARENT 1
@@ -976,6 +1043,7 @@ Function un.ConfirmShow
 FunctionEnd
 
 Function un.ConfirmLeave
+  Call un.GmCloseTray
   Call un.RunningCheck
 FunctionEnd
 
@@ -1002,7 +1070,7 @@ UninstPage custom un.ConfirmShow un.ConfirmLeave
 ; Finish. The uninstaller itself sends nothing; the browser opens the page.
 !define MUI_FINISHPAGE_TITLE "${APP_NAME} is removed"
 !define MUI_FINISHPAGE_TEXT_LARGE
-!define MUI_FINISHPAGE_TEXT "${APP_NAME} has been removed from your computer.$\r$\n$\r$\nKept, as always: your settings and campaign list in $gmKept, your campaign vaults and your built sites.$gmFolderNote"
+!define MUI_FINISHPAGE_TEXT "${APP_NAME} has been removed from your computer. It no longer starts when you sign in.$\r$\n$\r$\nKept, as always: your settings and campaign list in $gmKept, your campaign vaults and your built sites.$gmFolderNote"
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_FUNCTION un.LaunchFeedback
 !define MUI_FINISHPAGE_RUN_TEXT "Leave feedback for the developer. All feedback is read."
@@ -1014,6 +1082,7 @@ UninstPage custom un.ConfirmShow un.ConfirmLeave
 ; Named files only. The folder goes only if nothing else is in it. Settings are never touched.
 Section Uninstall
   SetShellVarContext current
+  Call un.GmCloseTray
   Call un.RunningCheck
   StrCpy $gmFolderNote ""
 
@@ -1054,7 +1123,12 @@ Section Uninstall
     Delete "$INSTDIR\THIRD-PARTY-NOTICES.txt"
   notices_done:
 
+  ; Each shortcut goes only when Setup recorded making it, so one the GM made by hand stays.
+  ReadRegDWORD $0 HKCU "${UNINST_KEY}" "StartMenuShortcut"
+  StrCmp $0 1 0 +2
   Delete "$SMPROGRAMS\GM-Scriptorium.lnk"
+  ReadRegDWORD $0 HKCU "${UNINST_KEY}" "DesktopShortcut"
+  StrCmp $0 1 0 +2
   Delete "$DESKTOP\GM-Scriptorium.lnk"
 
 !ifdef WITH_PATH_OPTION
@@ -1064,6 +1138,11 @@ Section Uninstall
   Call un.GmPathRemove
 !endif
 
+  ; What the tray app adds: its Start with Windows entry (and the switch Windows keeps for it) and
+  ; its record of which notifications it has shown.
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "GM-Scriptorium"
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "GM-Scriptorium"
+  DeleteRegKey HKCU "Software\GM-Scriptorium"
   DeleteRegKey HKCU "${UNINST_KEY}"
 
   Delete "$INSTDIR\Uninstall GM-Scriptorium.exe"
