@@ -7,6 +7,8 @@ themselves.
 
 ### Windows: the installer
 
+*Coming in 0.5.0.*
+
 1. Download `gm-scriptorium-setup-win-x64.exe` and `SHA256SUMS` from the latest release on the
    [Releases page](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases). You can also
    build from source (see below).
@@ -47,7 +49,8 @@ on your machine and the Start menu shortcut is the one you run.
 ### The single file (Windows or Linux)
 
 1. Grab the binary for your platform (`gm-scriptorium-win-x64.exe` or `gm-scriptorium-linux-x64`)
-   plus `SHA256SUMS` from the same release.
+   plus `SHA256SUMS` from the same release on the
+   [Releases page](https://github.com/DrNoisys-Softworks/gm-scriptorium/releases).
 2. Verify the download before running it.
 
    **Windows (PowerShell or cmd):**
@@ -87,6 +90,8 @@ The `SHA256SUMS` check above still applies and is worth doing.
 
 ## Uninstall
 
+*Coming in 0.5.0.*
+
 Open **Settings > Apps > Installed apps**, find GM-Scriptorium and choose Uninstall, or run
 `Uninstall GM-Scriptorium.exe` from the install folder.
 
@@ -112,22 +117,22 @@ If you used the single file, delete that file yourself; there is nothing to unin
 gm-scriptorium update
 ```
 This checks GitHub for the newest release, downloads it, checks it against the published
-checksums, and replaces the program. It needs an internet connection and nothing else: no GitHub
+checksums, and replaces the program. *Since 0.5.0.* It needs an internet connection and nothing else: no GitHub
 account, no token and no other tool. Add `--check` to only ask whether a newer release exists,
 `--pre` to include prereleases, or `--version TAG` to install one exact release.
 
 `update` talks only to GitHub (`api.github.com`, `github.com` and the host GitHub downloads release
-files from). It ignores proxy settings, so on a computer that can only reach the internet through
+files from). *Since 0.5.0.* It ignores proxy settings, so on a computer that can only reach the internet through
 a proxy it cannot work. If you can't use `update`, or it can't reach GitHub, it says so in one
 line and points at the Releases page. You can always download the new release from there and replace
-the program yourself, or run the new installer.
+the program yourself, or, coming in 0.5.0, run the new installer.
 
-On an installed copy, `update` also replaces the tray helper (`gm-scriptorium-tray.exe`) that sits
+*Since 0.5.0.* On an installed copy, `update` also replaces the tray helper (`gm-scriptorium-tray.exe`) that sits
 beside the program. It downloads and checks both files first, and if anything goes wrong it puts
 everything back and says nothing changed. When it finishes, quit GM-Scriptorium from its icon in the
 system tray and start it again, so the new version is the one running.
 
-The panel also tells you when a newer version is out. When GM-Scriptorium runs from its program
+*Since 0.5.0.* The panel also tells you when a newer version is out. When GM-Scriptorium runs from its program
 file, the Overview shows a notice with the new version, your version and a link to what changed,
 and a Not now button that hides it until a newer version comes out. The notice never installs
 anything: to update, run the new installer or `gm-scriptorium update`. The check runs once a day

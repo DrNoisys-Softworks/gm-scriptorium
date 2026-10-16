@@ -13,12 +13,11 @@ GM-Scriptorium and `198.51.100.20` for a reverse proxy. Use your own.
 ## 1. What remote access is
 
 Remote access is a saved setting, never a flag. There is no `--host` for `serve --admin`: the panel
-reaches other devices only because you ran `gm-scriptorium remote set ...` and
-`gm-scriptorium remote account add <name>`, and `serve --admin` then checks the whole setting before it opens
+reaches other devices only because you ran `gm-scriptorium remote set ...`, and `serve --admin` then checks the whole setting before it opens
 a single socket. If anything is missing it stops with one line saying what, and it never falls back
-to a wider address.
+to a wider address. *Since 0.5.0.* The `tailscale` and `proxy` modes also need an account, made with `gm-scriptorium remote account add <name>`. Versions before 0.5.0 have no accounts: they ask for one password, set with `gm-scriptorium remote password`.
 
-A reverse proxy or `tailscale serve` needs HTTPS and a sign-in (a username and a password). An SSH tunnel needs neither,
+A reverse proxy or `tailscale serve` needs HTTPS and a sign-in. *Since 0.5.0.* The sign-in takes a username and a password. An SSH tunnel needs neither,
 because SSH has already authenticated and encrypted the connection (see section 8). Every mode also
 gets the panel's own checks on who is asking: the Host and Origin of every request, and which
 machine the request came through. The panel can change your campaign files, so those checks are
@@ -30,8 +29,8 @@ not optional.
 |---|---|---|---|---|
 | `local` (the default) | `127.0.0.1`, any free port | this computer | not needed | the one-time link |
 | `ssh` | `127.0.0.1`, two fixed ports | this computer, including an SSH tunnel to it | the tunnel | the one-time link |
-| `tailscale` | `127.0.0.1`, two fixed ports | `tailscale serve` on this computer | `tailscale serve` | a username and password |
-| `proxy` | an address you choose, plus `127.0.0.1`, two fixed ports | your reverse proxy and this computer (over 127.0.0.1 only, not its network address); every other machine is dropped before any HTTP | your proxy | a username and password |
+| `tailscale` | `127.0.0.1`, two fixed ports | `tailscale serve` on this computer | `tailscale serve` | *Since 0.5.0.* a username and password |
+| `proxy` | an address you choose, plus `127.0.0.1`, two fixed ports | your reverse proxy and this computer (over 127.0.0.1 only, not its network address); every other machine is dropped before any HTTP | your proxy | *Since 0.5.0.* a username and password |
 
 ![The Remote access screen in local mode, showing that the panel is only reachable from this computer.](images/how-to/remote-access-screen.png)
 
@@ -55,6 +54,8 @@ gm-scriptorium remote set --mode proxy --admin-url https://scriptorium.home.arpa
 gm-scriptorium remote account add rook
 ```
 
+*Since 0.5.0.* `remote account add` makes the account you sign in with. Versions before 0.5.0 have no accounts: they ask for one password, set with `gm-scriptorium remote password`.
+
 ```
 gm-scriptorium remote show
 ```
@@ -64,7 +65,7 @@ access needs HTTPS", a port outside 1 to 65535 is refused, and so on) and writes
 them is wrong. `show` lists what applies to the current mode and whether it is ready to start, and
 never prints a secret. Changes take effect the next time `serve --admin` starts. Changing `--mode` drops the old admin and preview addresses (a proxy's names mean nothing to a tailnet) unless the same command gives new ones; the other settings are kept. Each subcommand has its own help: `gm-scriptorium remote set --help`.
 
-`account add` asks for the new password with nothing echoed, and again to confirm. It is read only
+*Since 0.5.0.* `account add` asks for the new password with nothing echoed, and again to confirm. It is read only
 from the terminal or, when there is no terminal, from standard input, one line each, for example
 `printf '%s\n' "your new passphrase" | gm-scriptorium remote account add rook`. It is never accepted
 as an argument or from an environment variable, because both are visible to other programs. The
@@ -146,7 +147,7 @@ below was checked against Tailscale's own documentation and `tailscale serve --h
 1.102.2) on 2026-10-03; run `tailscale serve --help` to see your version's.
 
 1. Turn on HTTPS certificates for your tailnet in the Tailscale admin console.
-2. Set the panel up for it, using your machine's own `.ts.net` name:
+2. Set the panel up for it, using your machine's own `.ts.net` name. *Since 0.5.0.* The second line makes your account; versions before 0.5.0 have no accounts and use `gm-scriptorium remote password` instead:
 
 ```
 gm-scriptorium remote set --mode tailscale --admin-url https://panel-host.example-tailnet.ts.net --preview-url https://panel-host.example-tailnet.ts.net:8443 --port 7400 --preview-port 7401
@@ -200,20 +201,22 @@ use a config of your own.
 gm-scriptorium remote signout-all
 ```
 
-To sign out only the devices signed in as one account, use this instead:
+*Since 0.5.0.* To sign out only the devices signed in as one account, use this instead:
 
 ```
 gm-scriptorium remote signout-all --account rook
 ```
 
-**You forgot every password.** Set a new one for an account. It needs no current password, and it
+**You forgot every password.** *Since 0.5.0.* Set a new one for an account. It needs no current password, and it
 only works on the computer that runs GM-Scriptorium:
 
 ```
 gm-scriptorium remote account reset rook
 ```
 
-**Rename the account `gm`.** If you had a password before accounts existed, it is an account called
+Versions before 0.5.0 have no accounts: run `gm-scriptorium remote off`, then `gm-scriptorium remote password`, then set the mode again.
+
+**Rename the account `gm`.** *Since 0.5.0.* If you had a password before accounts existed, it is an account called
 `gm`, a name anyone can guess. Give it one only you know:
 
 ```

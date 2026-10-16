@@ -73,7 +73,7 @@ gm-scriptorium config add archive --vault ~/campaigns/archive --out ~/sites/arch
 ```
 
 Adds a campaign. It needs both `--vault` and `--out`. A name you already use is replaced, so check
-`config list` first. To create a brand new vault as well, use
+`config list` first. *Since 0.5.0.* To create a brand new vault as well, use
 `gm-scriptorium init --new-vault <folder> --system none --name archive` instead.
 
 ```

@@ -8,7 +8,7 @@ folder needs before the tool will build it, and what each command does.
 A **vault** is the folder of markdown pages you keep for one campaign, laid out the way the
 [gm-apprentice](https://github.com/AntTheLimey/gm-apprentice) project lays them out. It opens in
 Obsidian like any other folder of notes. GM-Scriptorium reads a vault and builds a player-safe site
-from it. You can follow the gm-apprentice project to make one by hand, or let GM-Scriptorium create
+from it. You can follow the gm-apprentice project to make one by hand. *Since 0.5.0.* You can also let GM-Scriptorium create
 one for you: browser setup offers "Start a new campaign here", and `gm-scriptorium init --new-vault`
 does the same from a terminal (see below). A vault made that way follows the gm-apprentice layout and
 builds as soon as it exists.
@@ -35,7 +35,7 @@ To see the tool work before you point it at your own vault, build the sample cam
 ```
 gm-scriptorium
 ```
-Run with no command in a terminal (or double-click the program on Windows) and it opens the admin
+*Since 0.5.0.* Run with no command in a terminal (or double-click the program on Windows) and it opens the admin
 panel in your default browser, signed in. With no campaign registered yet, the panel starts with
 setup (see below); otherwise it opens your campaign. The window it opens in says it is running, and
 closing that window (or pressing Ctrl-C in it) stops the panel and tidies up after it. If the browser
@@ -45,12 +45,14 @@ for Enter, so a double-clicked window does not close before you can read it. Ope
 leaves a small launcher file in a private folder next to your config for under a minute; it is
 removed as soon as it has been used. On Linux, a browser installed as a snap cannot always read that
 hidden folder, and the command does not notice; use `gm-scriptorium serve --admin` and its link there.
+Versions before 0.5.0 do not open the panel: with no settings file yet, the command offers to run `gm-scriptorium init` for you and waits for you to press Enter before the window closes, and otherwise it shows the list of commands.
+
 Running a command without a terminal (from a script, say) still prints the help.
 
 ```
 gm-scriptorium init --new-vault ~/campaigns/lease --system none --name lease
 ```
-Start a new campaign from nothing: this makes a vault in an empty or new folder and registers it, and `--system` is never guessed (use `--system none` for no particular system). See [Start a new campaign](how-to/start-a-new-campaign.md).
+*Since 0.5.0.* Start a new campaign from nothing: this makes a vault in an empty or new folder and registers it, and `--system` is never guessed (use `--system none` for no particular system). See [Start a new campaign](how-to/start-a-new-campaign.md).
 
 ```
 gm-scriptorium init
@@ -90,24 +92,25 @@ stop it cleanly, but ending the process from Task Manager cannot be caught.
 ```
 gm-scriptorium serve my-campaign --admin
 ```
-Opens the local GM admin panel instead: a small web page, on this computer only unless you turn on remote access (next command), with a live preview of the player site inside it. From it you can change the theme, images, vocabulary, title and tagline, run the checks, edit `_meta/vault-config.md` and switch campaigns; see [Change how your site looks and the words it uses](how-to/change-the-look-and-vocabulary.md).
+Opens the local GM admin panel instead: a small web page, on this computer only unless you turn on remote access (next command), with a live preview of the player site inside it. From it you can change the theme, images, vocabulary, title and tagline, run the checks and edit `_meta/vault-config.md`; see [Change how your site looks and the words it uses](how-to/change-the-look-and-vocabulary.md). *Since 0.5.0.* It can also switch campaigns.
 
-If no campaign is registered yet, `gm-scriptorium serve --admin` starts browser setup instead of stopping with an error. It asks the same questions as `init`; the steps are in [Start a new campaign](how-to/start-a-new-campaign.md).
+*Since 0.5.0.* If no campaign is registered yet, `gm-scriptorium serve --admin` starts browser setup instead of stopping with an error. It asks the same questions as `init`; the steps are in [Start a new campaign](how-to/start-a-new-campaign.md).
 
-The vault and output questions have a Browse button, and the output question has New folder; see [Browse and New folder](how-to/start-a-new-campaign.md#browse-and-new-folder).
+*Since 0.5.0.* The vault and output questions have a Browse button, and the output question has New folder; see [Browse and New folder](how-to/start-a-new-campaign.md#browse-and-new-folder).
 
-With more than one campaign registered, the campaign name at the top of the panel opens a list, and choosing another campaign switches the whole panel to it. The Campaigns screen (under Setup) sets the default and removes a campaign from the list; see [Add another campaign, and switch between them](how-to/add-another-campaign.md).
+*Since 0.5.0.* With more than one campaign registered, the campaign name at the top of the panel opens a list, and choosing another campaign switches the whole panel to it. The Campaigns screen (under Setup) sets the default and removes a campaign from the list; see [Add another campaign, and switch between them](how-to/add-another-campaign.md).
 
-To add another campaign, press Add a campaign on the Campaigns screen, or in the list at the top of the panel. It asks the same questions as first-run setup; see [Add a campaign](how-to/add-another-campaign.md#add-a-campaign).
+*Since 0.5.0.* To add another campaign, press Add a campaign on the Campaigns screen, or in the list at the top of the panel. It asks the same questions as first-run setup; see [Add a campaign](how-to/add-another-campaign.md#add-a-campaign).
 
 ```
 gm-scriptorium remote show
 ```
 Opt-in access to the admin panel from another device, for a GM who runs GM-Scriptorium on a home
 server or a VM: behind a reverse proxy, through `tailscale serve`, or through an SSH tunnel. Set it
-up with `remote set`, `remote account`, `remote signout-all` and `remote off`. Behind a reverse
-proxy or `tailscale serve`, the panel needs HTTPS (from the proxy or Tailscale) and a sign-in: a username and a
-password, made with `remote account add <name>`.
+up with `remote set`, `remote signout-all` and `remote off`. Behind a reverse
+proxy or `tailscale serve`, the panel needs HTTPS (from the proxy or Tailscale) and a sign-in.
+*Since 0.5.0.* The sign-in takes a username and a password, made with `remote account add <name>`.
+Versions before 0.5.0 have no accounts: they ask for one password, set with `gm-scriptorium remote password`.
 Through an SSH tunnel it needs neither, because SSH has already authenticated and encrypted the
 connection. See [Remote access](remote-access.md).
 
@@ -125,10 +128,10 @@ Manage registered campaigns (`add`, `remove`, `set-default`, `path`, `edit`). `a
 ```
 gm-scriptorium update
 ```
-Self-updates from the latest release. It needs an internet connection and nothing else; see [Updating](install.md#updating).
+Self-updates from the latest release. *Since 0.5.0.* It needs an internet connection and nothing else; see [Updating](install.md#updating). Versions before 0.5.0 fetch releases through the GitHub CLI (`gh`) and need it signed in.
 
 That's the full command surface: `init`, `check`, `build`, `serve` (with a `--admin` mode),
-`status`, `config`, `remote`, `desktop`, `update`. Run `gm-scriptorium --help` for the full flag list on each.
+`status`, `config`, `remote`, `update`. *Since 0.5.0.* There is also `desktop`. Run `gm-scriptorium --help` for the full flag list on each.
 
 ## Keeping the admin panel running on Linux
 
@@ -168,9 +171,10 @@ GM-Scriptorium keeps those notes off the site.
   derived views: relationship-graph labels, aggregate index cards, recency excerpts, the search
   index.
 - `build` runs those checks again against the freshly-built site before it swaps anything into
-  place, and refuses to publish (exit code 2, nothing written) if it finds a leak. No flag overrides
+  place, and refuses to publish (exit code 2, nothing written) if it finds a leak. *Since 0.5.0.* No flag overrides
   that. `--force-check` builds despite errors the check found, and `--force-out` builds into the
   site config's own output folder; neither one lets a leak through.
+  Versions before 0.5.0 have a single `--force` flag instead, which also builds despite a leak the output scan finds.
 - Builds are atomic: a failed or interrupted build never damages the site you already had live.
 
 For how a build decides what players see, and what these checks cannot see, read

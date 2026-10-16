@@ -6,6 +6,8 @@ the guides written for AI assistants, apart from one pointer to them under Contr
 
 The pages for GMs are in four groups, by what you want to do.
 
+Anything these pages mark "Since 0.5.0" needs version 0.5.0 or later; `gm-scriptorium --version` shows yours.
+
 ## Tutorial
 
 Learn by doing, from the start.

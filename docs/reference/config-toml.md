@@ -19,8 +19,8 @@ are listed in [files and folders](files-and-folders.md).
 
 You can edit the file by hand, or run `gm-scriptorium config edit` to open it in your editor.
 GM-Scriptorium also rewrites it when you use `config add`, `config remove`, `config set-default`,
-`init`, `remote set`, `remote off` or `desktop set`, or when you change a campaign or the update
-setting in the admin panel. A rewrite puts the keys in a fixed order and puts a fresh header at the
+`init`, `remote set` or `remote off`. *Since 0.5.0.* It also rewrites it for `desktop set`, and when
+you change a campaign or the update setting in the admin panel. A rewrite puts the keys in a fixed order and puts a fresh header at the
 top, so **comments you add are lost**. A key this version does not know is kept, and a warning says
 it was "preserved, not applied". A file with a higher `config_version` than the program
 understands is refused.
@@ -53,8 +53,8 @@ Use single quotes for Windows paths, so the backslashes are taken as they are.
 | Key | Type | Default | Allowed values | What it does | Changed by |
 |---|---|---|---|---|---|
 | `config_version` | whole number | Required | `1` | The version of the settings format. A file with a higher number than this program understands is refused, never half read. | GM-Scriptorium writes it |
-| `default_campaign` | text | None | - | The campaign used when you name none on the command line. | `config set-default`, the admin panel, or by hand |
-| `campaigns` | table | None | - | One table per campaign, named by you: `[campaigns.lease]`. See the campaign table below. | `config add`, `config remove`, `init`, the admin panel, or by hand |
+| `default_campaign` | text | None | - | The campaign used when you name none on the command line. | `config set-default`, or by hand. *Since 0.5.0.* Also the admin panel |
+| `campaigns` | table | None | - | One table per campaign, named by you: `[campaigns.lease]`. See the campaign table below. | `config add`, `config remove`, `init`, or by hand. *Since 0.5.0.* Also the admin panel |
 | `remote` | table | Absent means local only | - | Remote access. See the `[remote]` section below. | `remote set`, `remote off`, or by hand |
 | `update` | table | Absent means checks on | - | *Since 0.5.0.* The panel's update notice. See the `[update]` section below. | The Updates card in the admin panel, or by hand |
 | `desktop` | table | Absent means the default ports | - | *Since 0.5.0.* The ports for the Windows desktop app. See the `[desktop]` section below. | `desktop set` |
@@ -67,9 +67,9 @@ Each campaign is a table named by you.
 <!-- BEGIN GENERATED config-campaign: edit scripts/docs-reference-text.js, then run npm run docs-reference -->
 | Key | Type | Default | Allowed values | What it does | Changed by |
 |---|---|---|---|---|---|
-| `vault` | text | None | - | The folder holding the campaign's notes. A campaign without one cannot be checked or built. | `config add`, `init`, the admin panel, or by hand |
+| `vault` | text | None | - | The folder holding the campaign's notes. A campaign without one cannot be checked or built. | `config add`, `init`, or by hand. *Since 0.5.0.* Also the admin panel |
 | `site_config` | text | None | - | The campaign's `vault.config.json`, which holds the site settings. When it is set it is used, and any campaign pack is ignored. | `config add --site-config`, or by hand |
-| `output` | text | None | - | The folder `build` writes the website to. It must be outside the vault. | `config add`, `init`, the admin panel, or by hand |
+| `output` | text | None | - | The folder `build` writes the website to. It must be outside the vault. | `config add`, `init`, or by hand. *Since 0.5.0.* Also the admin panel |
 | `pack` | text | None | - | The campaign pack folder (site settings, stylesheet and images). Without it, GM-Scriptorium looks for `_meta/scriptorium` inside the vault. | By hand |
 | `serve_port` | whole number | 8080 | 1 to 65535 | The port `serve` listens on when you do not give `--port`. | By hand |
 | `paths` | table of tables | None | - | Per-computer profiles: `[campaigns.lease.paths.<profile>]`. A profile needs a `match` and may set any of the campaign keys above except `paths`. See the profiles section below. | By hand |
@@ -129,6 +129,8 @@ slip in a security setting should never turn into a default.
 
 ## The update notice: `[update]`
 
+*Since 0.5.0.*
+
 The admin panel can tell you when a newer version is out. [Privacy](../privacy.md) says what that
 request sends. If the table is missing, checks are on. If any value in it cannot be read, such as
 `check = "yes"`, the whole table counts as off and no request is made. Other keys in the table are
@@ -142,6 +144,8 @@ ignored and kept.
 <!-- END GENERATED config-update -->
 
 ## The Windows desktop app: `[desktop]`
+
+*Since 0.5.0.*
 
 This table holds the two ports for the Windows desktop app. Both keys are optional. An unknown key,
 a port that is a string rather than a whole number, and two equal ports are all refused. Other
