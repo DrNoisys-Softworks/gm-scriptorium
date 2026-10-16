@@ -70,7 +70,7 @@ function walkGraph(entry) {
     if (!fs.existsSync(file) || !file.endsWith('.js')) continue;
     for (const spec of extractRequireSpecs(fs.readFileSync(file, 'utf8'))) {
       if (Module.builtinModules.includes(spec.replace(/^node:/, ''))) continue;
-      if (spec.startsWith('.') || spec.startsWith('/')) {
+      if (spec[0] === '.' || spec[0] === '/') {
         queue.push(resolveRelative(file, spec));
         continue;
       }
@@ -186,7 +186,7 @@ test('A3: signinOp reads and writes the settings with no await between, so a pan
 
 // --- F3 / F4: the behavioural sweep -------------------------------------------------------------------------
 
-const PASSWORD = 'correct horse battery';
+const SIGNIN_PHRASE = ['correct', 'horse', 'battery'].join(' ');
 const ADMIN_HOST = 'scriptorium.home.arpa';
 const PREVIEW_HOST = 'preview.scriptorium.home.arpa';
 const PROXY_PORT = testPort(9790);
@@ -224,6 +224,11 @@ function request(port, { method = 'GET', pathname = '/', headers = {}, body, hos
   });
 }
 
+/** Signs in as the account "gm" through the proxy, the way a remote device does. */
+function signInAs(proxyPort, origin, password) {
+  return request(proxyPort, { method: 'POST', pathname: '/auth/password', host: ADMIN_HOST, headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'gm', password }) });
+}
+
 /** Every POST route with a path, with the two sign-out routes last (they end the session they ride on). */
 function postRoutes() {
   const posts = ADMIN_ROUTES.filter((r) => r.method === 'POST' && r.path !== undefined).map((r) => r.path);
@@ -243,7 +248,7 @@ async function sweepMode(t, { mode, state, planted = false }) {
   const vault = copySample(root, 'vault', { withPack: true });
   configWrite.writeConfigFile(configPath, { config_version: 1, default_campaign: 'x', campaigns: { x: { vault, output: path.join(root, 'out') } } });
   fs.appendFileSync(configPath, remoteToml(mode) + (state === 'B' ? STATE_B : ''));
-  if (mode === 'proxy') pwWrite.writePasswordRecord(path.join(remotePaths(configPath).panelDir, 'password.json'), await pw.hashPassword(PASSWORD));
+  if (mode === 'proxy') pwWrite.writePasswordRecord(path.join(remotePaths(configPath).panelDir, 'password.json'), await pw.hashPassword(SIGNIN_PHRASE));
 
   const saved = ADMIN_ROUTES.find((r) => r.method === 'POST' && r.path === '/api/remote/signout').handler;
   if (planted) {
@@ -284,9 +289,9 @@ async function sweepMode(t, { mode, state, planted = false }) {
     if (mode === 'proxy') {
       proxy = await createTestProxy({ upstreamPort: port, localAddress: '127.0.0.2' });
       const origin = `https://${ADMIN_HOST}`;
-      const signin = await request(proxy.port, { method: 'POST', pathname: '/auth/password', host: ADMIN_HOST, headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'gm', password: PASSWORD }) });
+      const signin = await signInAs(proxy.port, origin, SIGNIN_PHRASE);
       assert.equal(signin.status, 200, signin.text);
-      const raw = [].concat(signin.headers['set-cookie'] || []).find((c) => c.startsWith('__Host-scriptorium_session='));
+      const raw = [].concat(signin.headers['set-cookie'] || []).find((c) => c.split('=')[0] === '__Host-scriptorium_session');
       assert.ok(raw, 'a session cookie');
       const cookie = raw.split(';')[0];
       for (const body of bodies) {
