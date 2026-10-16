@@ -2322,6 +2322,20 @@ ADR 0057 section 6.
    - the scratch config hash is unchanged.
 2. Ports 7400 and 7401 are free before the next start.
 
+### C195: Start with Windows
+
+[ADR 0057](../docs/decisions/0057-windows-desktop-app.md) section 7; [ADR 0058](../docs/decisions/0058-installer-options.md) section 4.
+
+**Mark this OPEN: Linux tests pin the installer source and build it with makensis; only a real Setup, a real sign-in and Task Manager show what Start with Windows does.** The rules in "C190 to C205: rules that hold for every desktop-app criterion" apply: a scratch `SCRIPTORIUM_CONFIG` set with `setx`, then sign out and in. Never the real config, never `N:`. Step 1 needs the scratch config not to exist yet; steps 5 and 7 need it to exist (finish browser setup once, or run `gm-scriptorium desktop set --port 7400` with the scratch variable set). Remove the scratch variable when done.
+
+1. With no scratch config yet, run Setup: Start with Windows is ticked. After Finish, the `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` value `GM-Scriptorium` is exactly `"<install>\gm-scriptorium-tray.exe" --background`.
+2. Task Manager > Startup apps lists GM-Scriptorium as enabled. Disable it there: the tray tick shows off. Tick it in the tray: Task Manager shows enabled.
+3. Sign out and in: no tab, no notification, and the icon is present (N02).
+4. With the vault on a mapped drive that is disconnected at sign-in: T04 shows retrying; after about 4 minutes, T05 and N03 appear; reconnect, then Try again: running.
+5. Install with the box unticked: no `Run` value. Reinstall: the box shows what the tray's Start with Windows tick shows. Switch GM-Scriptorium off in Task Manager > Startup apps, then reinstall: the box starts unticked. Uninstall, then install again over the kept settings: the box starts unticked.
+6. Uninstall: neither the `Run` nor the `StartupApproved\Run` value remains.
+7. With proxy mode saved in the scratch config and no `remote_at_signin` key, run Setup and leave Start with Windows ticked (tick it on the options page if it starts unticked). Sign out and in. `netstat -ano` shows the panel on `127.0.0.1` only and nothing on the remote ports, the tray's "Remote access at sign-in" item is unticked, and the scratch config hash is unchanged by Setup.
+
 ### C196: errors with no console, the log, and changing ports
 
 [ADR 0057](../docs/decisions/0057-windows-desktop-app.md) sections 8 and 9. **Mark this OPEN: Linux tests prove the log scrub, the card and its write with a stand-in host (`test/admin-desktop-http.test.js`, `test/desktop-card-ui.dom.test.js`); the toasts, the port dialog, a real restart and the folder's access list can only be checked on Windows.** Isolate config as in C191: a scratch `SCRIPTORIUM_CONFIG`, never the real config, never `N:`.
@@ -2352,6 +2366,57 @@ ADR 0057 section 6.
 8. `serve --admin` in a terminal runs a separate panel on an OS-picked port while the tray app runs.
 9. `check`, `build`, `config list`, `remote show` and `update --check` all work.
 10. If it can be provoked (suspend `gm-scriptorium-tray.exe` in Process Explorer the moment the command starts), a hand-off that gets no answer in 15 seconds prints "GM-Scriptorium is still starting. Look for its icon in the system tray." and returns 1, and no second panel opens in the terminal.
+
+### C198: the new installer pages, defaults and the all-off path
+
+[ADR 0058](../docs/decisions/0058-installer-options.md) sections 1, 3 and 4.
+
+**Mark this OPEN: Linux tests pin the installer source and compile it with makensis; the pages run only on Windows.** The desktop-app rules apply: a scratch `SCRIPTORIUM_CONFIG`, never the real config, never `N:`. Untick Start with Windows before Install unless a step tests it. Record `certutil -hashfile <scratch config> SHA256` where a step says the config is unchanged. Remove the scratch variable when done.
+
+1. Screenshot every page against frames W01 to W03, W07, W09 and W10 with owner notes 1 and 4 applied: PATH sits under Advanced with the fuller text, the finish page says "system tray" and has no `^` hint, and the options page has no "Always added.". Nothing is clipped at 100% or 150% scaling, with Advanced closed and open.
+2. With no scratch config yet, the defaults are: Start menu and Start with Windows ticked, Desktop and PATH unticked, Advanced closed, and the ports read 7400 and 7401. No page and no line in Show details mentions remote access.
+3. Untick Start menu, Desktop and Start with Windows. The page shows "You'll need to start GM-Scriptorium from its folder: <the folder chosen on the previous page>", and Next still works. Tick any one: the line goes. Untick all three again and install: there is no `GM-Scriptorium.lnk` in the Start menu folder or on the desktop, no `Run` value, the uninstall key `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\GM-Scriptorium` holds `StartMenuShortcut` and `DesktopShortcut` both 0, and `gm-scriptorium-tray.exe` started from the install folder runs the app.
+4. In the port fields, `74a0`, `07400`, `0`, `70000`, `74 0` pasted from the clipboard (a field that refuses the paste also passes), and the same number twice each show "Type a number from 1 to 65535 for each port, and make the two different." and stay on the page. `7410` and `7411` install; the scratch config then holds `port = 7410` and `preview_port = 7411` under `[desktop]`, and Finish opens the panel on `http://127.0.0.1:7410`.
+5. Run Setup again with the scratch config present. The "Your Campaigns" page shows the settings path and "Setup found your settings and won't change them.", the port fields are empty and locked with "Setup found your settings, so it keeps the ports saved there. Change them later on the panel's Overview.", each shortcut box starts as you left it, and the scratch config hash is unchanged after Install.
+6. Finish with "Start GM-Scriptorium now" ticked: the tray app starts with no console window, and with no campaign the browser opens on setup.
+7. On a clean snapshot with no scratch config, run `gm-scriptorium-setup-win-x64.exe /S` and wait for it to exit: the exit code is 0, the Start menu shortcut exists and starts the tray app, there is no desktop shortcut, the `Run` value exists, and no settings file was made.
+
+### C200: installer and uninstaller with the app running
+
+[ADR 0058](../docs/decisions/0058-installer-options.md) sections 5 and 6.
+
+**Mark this OPEN: Linux tests pin the installer and uninstaller source; closing a real tray app, the probes and the removal run only on Windows.** The desktop-app rules apply: a scratch `SCRIPTORIUM_CONFIG`, never the real config, never `N:`. Record `certutil -hashfile <scratch config> SHA256` before step 3 and after it; the two must match. Remove the scratch variable when done.
+
+1. Run Setup with the tray app running. The "GM-Scriptorium is running" page appears after the options page. Close and continue: no Retry box appears, and within 15 seconds Task Manager shows no `gm-scriptorium-tray.exe` or `gm-scriptorium.exe`, and the install completes. Run Setup again with the app running and press Cancel on that page: the files and processes are unchanged.
+2. With a console launch copy running (`gm-scriptorium --config <scratch>` from the installed copy), the old Retry box appears and the running-app page does not.
+3. Uninstall with the app running. The confirm page shows "GM-Scriptorium is running. Uninstall will close it first." and the Removed list reads "The program, its tray helper, and any leftovers from updates", "The Start menu and desktop shortcuts, if Setup made them", "The start-with-Windows entry", "The PATH entry, if Setup added one", "The Installed apps entry". Uninstall closes the app, and no Retry box appears. `gm-scriptorium-tray.exe` and its `.old-*`, `-update-*.tmp` and `-setup.tmp` files, the `Run` and `StartupApproved\Run` values and `HKCU\Software\GM-Scriptorium` are gone. The finish page says "It no longer starts when you sign in."
+4. Install with the Start menu shortcut unticked, then put your own `GM-Scriptorium.lnk` in `%APPDATA%\Microsoft\Windows\Start Menu\Programs`. Uninstall: no error, and your shortcut is still there. Install with both shortcuts ticked, delete the desktop one by hand, and uninstall: no error, and the Start menu shortcut is gone.
+5. Uninstall with the app not running: the confirm page has no "is running" line.
+6. With the app running, run `"<install>\Uninstall GM-Scriptorium.exe" /S` from cmd and wait 30 seconds: no `gm-scriptorium-tray.exe` or `gm-scriptorium.exe` process remains, and `gm-scriptorium-tray.exe` is gone from the install folder.
+
+### C201: upgrade to the desktop release
+
+[ADR 0057](../docs/decisions/0057-windows-desktop-app.md) section 11; [ADR 0058](../docs/decisions/0058-installer-options.md) sections 1 and 4.
+
+**Mark this OPEN: Linux tests cover `update` with injected downloads and pin the installer source; only real installs and real updates show the upgrade.** The desktop-app rules apply: a scratch `SCRIPTORIUM_CONFIG`, never the real config, never `N:`. Revert to the clean snapshot between steps that need a pre-desktop or lower-version install. Remove the scratch variable when done.
+
+1. Over a pre-desktop installer build: the shortcuts now start the tray, Finish starts the tray, and the config hash is unchanged. Also a pre-desktop install with a desktop shortcut: the Desktop box starts ticked, and both shortcuts now start the tray. With the scratch config present, Start with Windows starts unticked.
+2. From an installed lower-version desktop scratch build, run `update --version <tag>`. Both files are replaced, each keeping `.old-<v>`, and the message names the tray. With the app running during the update, Quit and start again: both new versions are running.
+3. A scratch release missing the tray asset: `update` fails and nothing changes.
+4. A 0.4.x portable copy, updated: exe only, still console mode.
+5. An old tray with a new exe shows the "start it again from the Start menu" error.
+6. Run the same desktop Setup again with Desktop unticked: the desktop shortcut is removed, and the next Setup starts with Desktop unticked.
+
+### C202: Defender, SmartScreen and Smart App Control on every new binary (unsigned 0.x)
+
+[ADR 0057](../docs/decisions/0057-windows-desktop-app.md) section 12.
+
+**Mark this OPEN: what antivirus and reputation services decide can only be seen on Windows.** Use the VM's clean snapshot and a scratch `SCRIPTORIUM_CONFIG`, never the real config, never `N:`. Remove the scratch variable when done.
+
+1. Download the installer through Edge. Record the SmartScreen prompt, which is expected, and its exact text.
+2. With real-time and cloud protection on, `Get-MpThreatDetection` is empty after each of: install, first start, the sign-in autostart, `update`, and uninstall.
+3. Record the Smart App Control state and what happens under it.
+4. Record the sha256 of the installer, `gm-scriptorium.exe`, `gm-scriptorium-tray.exe` and `Uninstall GM-Scriptorium.exe`.
 
 ### C203: the tray icon looks right
 ADR 0057 section 9.

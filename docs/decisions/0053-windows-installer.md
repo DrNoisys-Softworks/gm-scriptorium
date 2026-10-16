@@ -8,6 +8,8 @@ Status: accepted.
 
 ## 1. What the GM gets
 
+**Amended by [ADR 0058](0058-installer-options.md).** The options page is now Setup's own page: the Start menu shortcut is an ordinary option, ticked by default, Start with Windows is new, and PATH and the two ports sit under Advanced. The shortcuts and the finish box start the tray app, and the finish box reads "Start GM-Scriptorium now".
+
 - A wizard with a welcome page, a folder page, an options page, a progress page and a finish page. The folder defaults to `%LOCALAPPDATA%\Programs\GM-Scriptorium`. The welcome page says it is for the signed-in user only.
 - Options: a Start menu shortcut (always added), a desktop shortcut (off), the PATH entry (off), and "Open GM-Scriptorium now" on the finish page (on). The shortcut and the finish box start the executable with no arguments, so it opens as a double-click does.
 - An entry in Installed apps. It carries the name, the publisher `DrNoisys Softworks`, the install folder, the icon and an estimated size. It has no version value, on purpose: the executable reports its own version, and a second copy of the number in the registry would be one more thing to go stale.
@@ -18,6 +20,8 @@ Status: accepted.
 The installer asks for no elevation (`RequestExecutionLevel user`, which gives an `asInvoker` manifest) and uses the current user's folders and `HKCU` only. A structure test pins this: no `HKLM`, no `HKCR`, no Program Files folder, no `SetShellVarContext all`, no admin or highest level. The folder page checks that Setup can write to the chosen folder (it creates and deletes one file) and, if not, explains in plain words and stays on the page.
 
 ## 3. Two build stages and two signing passes
+
+**Amended by [ADR 0058](0058-installer-options.md).** Stage B also packs the tray app, `gm-scriptorium-tray.exe`, and the build proves its bytes the same way.
 
 The uninstaller has to be signed before it is packed into the installer, and NSIS builds an uninstaller only as a side effect of an installer. The build therefore runs in two stages, driven by `scripts/installer.js`:
 
@@ -37,6 +41,8 @@ Every file is stored uncompressed, and the script never selects a compressor. Th
 The cost is size: the installer is about as large as the executable plus the uninstaller. The download is bigger than it could be. The same build also checks that both outputs ask for `asInvoker` and fails closed if makensis is not on the machine.
 
 ## 5. Replacing the program safely
+
+**Amended by [ADR 0058](0058-installer-options.md).** Setup replaces the tray app the same way, and the check covers both programs and runs just before the progress page. When the tray app is running, Setup first offers to close it on a page of its own.
 
 Before anything is written, Setup checks whether the installed executable is running by trying to open it for writing, which Windows refuses for a running program. It shows a Retry or Cancel box until the check passes or the GM cancels. It then writes the new executable as `gm-scriptorium.exe-setup.tmp`, deletes the old one, and renames the temporary file into place, so the final name never holds a half-written file. If the old file cannot be deleted, Setup stops and removes its temporary file.
 
@@ -61,6 +67,8 @@ Setup then tells running programs the environment changed, with a five second ti
 The read asks the registry not to expand variables, so the type and size are those of the stored value. A value of the expandable type keeps that type.
 
 ## 8. The uninstaller: named files, settings never touched
+
+**Amended by [ADR 0058](0058-installer-options.md).** The list grows by the tray app's four names, the `Run` and `StartupApproved\Run` values named `GM-Scriptorium`, and `HKCU\Software\GM-Scriptorium`. Each shortcut is removed only when Setup recorded making it.
 
 The uninstaller deletes these and nothing else:
 

@@ -52,7 +52,7 @@ Replace `gm-scriptorium` with `node bin/scriptorium.js` in the commands below.
 ```
 gm-scriptorium
 ```
-Run it with no command in a terminal, or double-click the program on Windows. If GM-Scriptorium has no settings file yet, it offers to run `gm-scriptorium init` for you, and the window waits for you to press Enter before it closes; otherwise it shows the list of commands. Since 0.5.0 it opens the admin panel in your browser instead, starting with setup when there is no campaign yet, and closing the window stops it.
+Run it with no command in a terminal, or double-click the program on Windows. If GM-Scriptorium has no settings file yet, it offers to run `gm-scriptorium init` for you, and the window waits for you to press Enter before it closes; otherwise it shows the list of commands. Since 0.5.0 it opens the admin panel in your browser instead, starting with setup when there is no campaign yet. A copy you installed with Setup runs in the background with an icon in the system tray, so closing the browser or the terminal doesn't stop it; use the icon's Quit. A copy you run as a single file keeps its window, and closing that window stops it.
 
 ```
 gm-scriptorium init

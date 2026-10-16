@@ -19,21 +19,27 @@ themselves.
    Compare the output against the matching line in `SHA256SUMS`.
 3. Double-click the installer. Setup installs GM-Scriptorium for you only. It needs no
    administrator permission and no password prompt, and it writes only inside your own user folder.
-   It walks you through five pages:
+   It walks you through these pages:
    - **Welcome.**
    - **Where.** The folder defaults to `%LOCALAPPDATA%\Programs\GM-Scriptorium`. You can browse for
      another folder inside your own user folder.
-   - **Options.** A Start menu shortcut is always added. A desktop shortcut and "Add
-     GM-Scriptorium to PATH" are off until you tick them. Adding to PATH lets you type
-     `gm-scriptorium` in any terminal; if your PATH list is too long to change safely, Setup
-     leaves it alone and tells you.
+   - **Options.** A Start menu shortcut and "Start GM-Scriptorium when I sign in to Windows" are
+     ticked, and a desktop shortcut is off. Untick any of them; with all three off, Setup tells you
+     where to start GM-Scriptorium from. **Advanced** holds "Add GM-Scriptorium to PATH", which is off
+     and lets you type `gm-scriptorium` in any terminal (if your PATH list is too long to change
+     safely, Setup leaves it alone and tells you), and the panel's two ports, 7400 and 7401.
+   - **GM-Scriptorium is running**, only when it is. Close and continue closes it for you.
+   - **Your Campaigns**, only when Setup finds your settings. It shows where they are and never
+     changes them.
    - **Progress.**
-   - **Finish.** "Open GM-Scriptorium now" is ticked, and opens it the same way a double-click does.
-4. Start GM-Scriptorium from the Start menu, or type its name in Start.
+   - **Finish.** "Start GM-Scriptorium now" is ticked, and starts it in the system tray.
+4. Start GM-Scriptorium from the Start menu, or type its name in Start. It runs in the background
+   with an icon in the system tray. Closing your browser doesn't stop it; use the icon's Quit.
 
-If a copy of GM-Scriptorium is open, Setup asks you to close it, then click Retry. If a newer
-version is already installed in the folder, Setup warns you before replacing it; Cancel is the
-default.
+If GM-Scriptorium is open in a terminal window, Setup asks you to close it, then click Retry. If a
+newer version is already installed in the folder, Setup warns you before replacing it; Cancel is the
+default. When you run Setup again, each shortcut box starts the way you left it, and on a PC that
+already has settings, Start with Windows starts the way the tray icon's menu shows it.
 
 The installer lists GM-Scriptorium under **Installed apps**, with `DrNoisys Softworks` as the
 publisher. It is larger than the program itself, because the files inside it are stored as they
@@ -44,7 +50,7 @@ warn the first time Setup runs (**More info**, then **Run anyway**).
 list live in `%APPDATA%\Scriptorium`, so they carry over to the installed program unchanged. Every
 earlier version, back to 0.2.3, keeps them in the same place. When you are happy with the
 installed program, delete the old portable copy yourself, so there is only one `gm-scriptorium.exe`
-on your machine and the Start menu shortcut is the one you run.
+on your machine and the installed one is the one you run.
 
 ### The single file (Windows or Linux)
 
@@ -95,19 +101,21 @@ The `SHA256SUMS` check above still applies and is worth doing.
 Open **Settings > Apps > Installed apps**, find GM-Scriptorium and choose Uninstall, or run
 `Uninstall GM-Scriptorium.exe` from the install folder.
 
-The uninstaller removes only what Setup put there: the program, the leftovers an update can
-leave beside it, its own notices file, the Start menu and desktop shortcuts, the PATH entry if Setup
-added one, and the Installed apps entry. It never touches:
+The uninstaller removes only these: the program and its tray app, the leftovers an update can leave
+beside them, its own notices file, the Start menu and desktop shortcuts if Setup made them, the
+start-with-Windows entry, the tray app's record of which notifications it has shown, the PATH entry
+if Setup added one, and the Installed apps entry. It never touches:
 
 - your settings and campaign list in `%APPDATA%\Scriptorium` (or the folder named by
   `SCRIPTORIUM_CONFIG`, if you set that),
 - your campaign vaults, or
 - your built sites and anything you have published.
 
-The install folder is removed only if it is empty afterwards. If you saved something else in it,
-the folder stays and the last page says so. If GM-Scriptorium is open, the uninstaller asks you to
-close it and click Retry. The last page also has a box, off by default, that opens a short feedback
-form in your browser after Finish. The uninstaller itself sends nothing.
+The install folder is removed only if it is empty afterwards. If you saved something else in it, the
+folder stays and the last page says so. If GM-Scriptorium is running in the system tray, the
+uninstaller closes it first; if a copy is open in a terminal window, it asks you to close it and
+click Retry. The last page also has a box, off by default, that opens a short feedback form in your
+browser after Finish. The uninstaller itself sends nothing.
 
 If you used the single file, delete that file yourself; there is nothing to uninstall.
 
