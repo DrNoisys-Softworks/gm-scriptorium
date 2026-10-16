@@ -610,6 +610,26 @@ int main(void)
             w[299] = 0;
             wtrunc(d, 8, w);
             printf("[%ls]\n", d);
+        } else if (in[0] == 'G') {
+            const char *fields[16];
+            static char gstore[16][256];
+            size_t nf = 0;
+            char *p = in + 2;
+            for (;;) {
+                char *comma = strchr(p, ',');
+                if (comma) *comma = 0;
+                int n = unhex(p, gstore[nf], sizeof gstore[nf] - 1);
+                gstore[nf][n < 0 ? 0 : n] = 0;
+                fields[nf] = gstore[nf];
+                nf++;
+                if (!comma) break;
+                p = comma + 1;
+            }
+            printf("%d\n", signin_confirmed(fields, nf));
+        } else if (in[0] == 'K') {
+            int a = 0, b = 0, c = 0, d = 0;
+            if (sscanf(in + 2, "%d %d %d %d", &a, &b, &c, &d) != 4) { printf("BAD\n"); continue; }
+            printf("%d\n", t03_line(a, b, c, d));
         }
         fflush(stdout);
     }
@@ -858,4 +878,52 @@ test('CI packaged-smoke installs the three mingw-w64 packages, and records their
   assert.ok(update > 0 && install > update && policy > install && pkg > policy, 'update, install, policy, then package');
   const testJob = yml.slice(yml.indexOf('\n  test:'), yml.indexOf('\n  packaged-smoke:'));
   assert.equal(testJob.includes('mingw'), false, 'the pull-request test job stays as it was');
+});
+
+test('pure C: signin= on a running line is found by exact text after the address, and missing means unconfirmed', { skip: haveCc ? false : 'no host C compiler (cc) on PATH' }, () => {
+  const dir = tmp();
+  try {
+    const exe = buildHarness(dir);
+    // args after the verb, as the host sends them (ADR 0057 section 7 and Protocol v1)
+    const cases = [
+      [['running', 'long-lease', 'proxy', 'https://scriptorium.home.arpa', 'signin=confirmed'], 1],
+      [['running', 'long-lease', 'proxy', 'https://scriptorium.home.arpa', 'signin=unconfirmed'], 0],
+      [['running', 'long-lease', 'local', 'http://127.0.0.1:7400', 'signin-local', 'signin=unconfirmed'], 0],
+      [['running', 'long-lease', 'local', 'http://127.0.0.1:7400', 'signin-local', 'signin=confirmed'], 1],
+      [['running', 'long-lease', 'proxy', 'https://scriptorium.home.arpa'], 0],
+      [['running', 'long-lease', 'local', 'http://127.0.0.1:7400', 'signin-local'], 0],
+      [['running', 'long-lease', 'proxy', 'https://scriptorium.home.arpa', 'later=1', 'signin=confirmed'], 1],
+      [['running', 'long-lease', 'proxy', 'https://scriptorium.home.arpa', 'signin=confirmed', 'later=1'], 1],
+      [['running', 'long-lease', 'proxy', 'https://scriptorium.home.arpa', 'signin=unconfirmed', 'signin=confirmed'], 1],
+      [['running', 'long-lease', 'proxy', 'https://scriptorium.home.arpa', 'signin=confirmed', 'signin=unconfirmed'], 0],
+      [['running', 'long-lease', 'proxy', 'https://scriptorium.home.arpa', 'signin=CONFIRMED'], 0],
+      [['running', 'long-lease', 'proxy', 'https://scriptorium.home.arpa', 'signin=confirmed '], 0],
+      [['running', 'long-lease', 'proxy', 'https://scriptorium.home.arpa', 'signin=yes'], 0],
+      [['running', 'long-lease', 'proxy', 'https://scriptorium.home.arpa', 'signin='], 0],
+      [['running', 'signin=confirmed', 'proxy', 'https://scriptorium.home.arpa'], 0],
+      [['running', 'long-lease', 'proxy', 'signin=confirmed'], 0],
+      [['running'], 0],
+    ];
+    assert.deepEqual(harness(exe, cases.map(([f]) => `G ${f.map(hx).join(',')}`)), cases.map(([, v]) => String(v)));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('pure C: t03_line picks the line under Start with Windows for each case', { skip: haveCc ? false : 'no host C compiler (cc) on PATH' }, () => {
+  const dir = tmp();
+  try {
+    const exe = buildHarness(dir);
+    // (autostart, signin-local, remote reach, signin=confirmed) > 0 none, 1 "set up ... until you confirm", 2 "on, including at sign-in"
+    const cases = [
+      ['0 0 0 0', 0], ['0 1 0 0', 0], ['0 0 1 1', 0], ['0 0 1 0', 0],
+      ['1 1 0 0', 1], ['1 1 0 1', 1], ['1 1 1 1', 1],
+      ['1 0 1 1', 2],
+      ['1 0 1 0', 1],
+      ['1 0 0 1', 0], ['1 0 0 0', 0],
+    ];
+    assert.deepEqual(harness(exe, cases.map(([a]) => `K ${a}`)), cases.map(([, v]) => String(v)));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

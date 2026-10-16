@@ -606,25 +606,26 @@ test('positive control: a renamed marker or the wrong field is seen', () => {
 const T03_CONFIRMED = 'Remote access is on, including at sign-in.';
 const T03_UNCONFIRMED = 'Remote access is set up. At sign-in it starts on this PC only until you confirm.';
 
-/** The statement in build_menu that adds the line held in the named constant, or null. */
-function t03Statement(code, constant) {
+/** The body of build_menu, or ''. */
+function buildMenuBody(code) {
   const fn = functions(code).find((f) => f.name === 'build_menu');
-  if (!fn) return null;
-  const body = blankLiterals(code.slice(fn.start, fn.end));
-  const lines = body.split('\n').filter((l) => l.includes(`add_item(m, IDM_INERT, ${constant}, 0)`));
-  return lines.length === 1 ? lines[0].trim() : null;
+  return fn ? code.slice(fn.start, fn.end) : '';
 }
 
+/**
+ * The T03 line is chosen by t03_line() in host.c (unit-tested natively in tray-build) from Start with
+ * Windows, the signin-local marker, a remote reach and the signin= field. build_menu must pass exactly
+ * those four and map each answer to its own string, once each.
+ */
 function t03Ok(code) {
-  const unconfirmed = t03Statement(code, 'T03_UNCONFIRMED_TEXT');
-  const confirmed = t03Statement(code, 'T03_CONFIRMED_TEXT');
-  if (!unconfirmed || !confirmed) return false;
-  const fn = functions(code).find((f) => f.name === 'build_menu');
-  const body = code.slice(fn.start, fn.end);
+  const body = blankLiterals(buildMenuBody(code));
+  const count = (s) => body.split(s).length - 1;
   return (
-    /^if \(autostart && g\.signin_local\) add_item/.test(unconfirmed) &&
-    /^else if \(autostart && remote_on\(\)\) add_item/.test(confirmed) &&
-    body.indexOf(unconfirmed) < body.indexOf(confirmed)
+    count('const int t03 = t03_line(autostart, g.signin_local, remote_on(), g.signin_confirmed);') === 1 &&
+    count('if (t03 == T03_UNCONFIRMED) add_item(m, IDM_INERT, T03_UNCONFIRMED_TEXT, 0);') === 1 &&
+    count('else if (t03 == T03_CONFIRMED) add_item(m, IDM_INERT, T03_CONFIRMED_TEXT, 0);') === 1 &&
+    count('T03_UNCONFIRMED_TEXT') === 1 &&
+    count('T03_CONFIRMED_TEXT') === 1
   );
 }
 
@@ -639,22 +640,71 @@ test('T03: the two ruled lines are defined once each, word for word, and the old
   assert.equal(tray.includes('Remote access is on. At sign-in'), false, 'the T03 wording before the T03b ruling is gone');
 });
 
-test('T03: not confirmed (signin-local) shows its line first; remote and confirmed shows the other; both only with Start with Windows ticked', () => {
+test('T03: build_menu asks t03_line with Start with Windows, signin-local, the remote reach and signin=, and shows its answer', () => {
   assert.equal(t03Ok(CODE['tray.c']), true);
 });
 
-test('positive control: swapped lines, a missing tick check or a lost signin-local check is seen', () => {
+test('signin= is read on every running line through signin_confirmed, and only host.c spells the field', () => {
+  const branch = runningBranch(CODE['tray.c']);
+  assert.match(branch, /g\.signin_confirmed\s*=\s*signin_confirmed\(\s*\(const char \*const \*\)pl->args\s*,\s*pl->nargs < TRAY_MAX_FIELDS \? pl->nargs : TRAY_MAX_FIELDS\s*\)\s*;/);
+  const hostLits = literals(CODE['host.c']).filter((l) => !l.wide).map((l) => l.text);
+  assert.equal(hostLits.filter((t) => t === 'signin=confirmed').length, 1);
+  for (const file of ['tray.c', 'tray.h']) {
+    assert.equal(literals(CODE[file]).some((l) => l.text.startsWith('signin=')), false, file);
+  }
+});
+
+/** The body of the `"starting"` branch of on_state, or null. */
+function startingBranch(code) {
+  const fn = functions(code).find((f) => f.name === 'on_state');
+  if (!fn) return null;
+  const body = code.slice(fn.start, fn.end);
+  const start = body.indexOf('strcmp(what, "starting") == 0');
+  if (start < 0) return null;
+  const next = body.indexOf('} else if', start);
+  return body.slice(start, next < 0 ? body.length : next);
+}
+
+function resets(text) {
+  return /g\.signin_local\s*=\s*0\s*;/.test(text) && /g\.signin_confirmed\s*=\s*0\s*;/.test(text);
+}
+
+test('a starting state (Restart, Start panel, a retry) forgets the sign-in markers until the next running line', () => {
+  assert.equal(resets(startingBranch(CODE['tray.c'])), true, 'on_state "starting"');
+  const fn = functions(CODE['tray.c']).find((f) => f.name === 'do_retry');
+  assert.equal(resets(CODE['tray.c'].slice(fn.start, fn.end)), true, 'do_retry, which starts a new host');
+});
+
+test('positive control: a swapped mapping, a dropped input, a missing read or a missing reset is seen', () => {
   const good = [
     'static HMENU build_menu(void)',
     '{',
-    '        if (autostart && g.signin_local) add_item(m, IDM_INERT, T03_UNCONFIRMED_TEXT, 0);',
-    '        else if (autostart && remote_on()) add_item(m, IDM_INERT, T03_CONFIRMED_TEXT, 0);',
+    '        const int t03 = t03_line(autostart, g.signin_local, remote_on(), g.signin_confirmed);',
+    '        if (t03 == T03_UNCONFIRMED) add_item(m, IDM_INERT, T03_UNCONFIRMED_TEXT, 0);',
+    '        else if (t03 == T03_CONFIRMED) add_item(m, IDM_INERT, T03_CONFIRMED_TEXT, 0);',
     '}',
     '',
   ].join('\n');
   assert.equal(t03Ok(stripComments(good)), true);
-  const swapped = good.replace('T03_UNCONFIRMED_TEXT, 0);\n', 'T03_X, 0);\n').replace('T03_CONFIRMED_TEXT', 'T03_UNCONFIRMED_TEXT').replace('T03_X', 'T03_CONFIRMED_TEXT');
+  const swapped = good.replace('(t03 == T03_UNCONFIRMED)', '(t03 == T03_X)').replace('(t03 == T03_CONFIRMED)', '(t03 == T03_UNCONFIRMED)').replace('T03_X', 'T03_CONFIRMED');
   assert.equal(t03Ok(stripComments(swapped)), false);
-  assert.equal(t03Ok(stripComments(good.replace('if (autostart && g.signin_local)', 'if (g.signin_local)'))), false);
-  assert.equal(t03Ok(stripComments(good.replace('if (autostart && g.signin_local)', 'if (autostart && remote_on())'))), false);
+  assert.equal(t03Ok(stripComments(good.replace('remote_on(), g.signin_confirmed)', 'remote_on(), 1)'))), false);
+  assert.equal(t03Ok(stripComments(good.replace('t03_line(autostart,', 't03_line(1,'))), false);
+  const state = [
+    'static void on_state(const struct proto_line *pl)',
+    '{',
+    '    if (strcmp(what, "starting") == 0) {',
+    '        g.signin_local = 0;',
+    '        g.signin_confirmed = 0;',
+    '    } else if (strcmp(what, "running") == 0) {',
+    '        g.signin_confirmed = signin_confirmed((const char *const *)pl->args, pl->nargs < TRAY_MAX_FIELDS ? pl->nargs : TRAY_MAX_FIELDS);',
+    '    } else if (x) {',
+    '    }',
+    '}',
+    '',
+  ].join('\n');
+  assert.equal(resets(startingBranch(stripComments(state))), true);
+  assert.equal(resets(startingBranch(stripComments(state.replace('        g.signin_confirmed = 0;\n', '')))), false);
+  assert.match(runningBranch(stripComments(state)), /g\.signin_confirmed\s*=\s*signin_confirmed\(/);
+  assert.doesNotMatch(runningBranch(stripComments(state.replace('signin_confirmed((const', 'keep((const'))), /g\.signin_confirmed\s*=\s*signin_confirmed\(/);
 });

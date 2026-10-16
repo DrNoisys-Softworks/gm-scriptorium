@@ -90,6 +90,7 @@ static struct {
     wchar_t address[256];
     wchar_t panel_port[8];
     int signin_local;
+    int signin_confirmed;
     enum err_kind err;
     wchar_t err_msg[320];
     wchar_t err_port[8];
@@ -582,6 +583,8 @@ static void do_retry(void)
     g.st = ST_STARTING;
     g.campaign[0] = L'\0';
     g.detail[0] = L'\0';
+    g.signin_local = 0;
+    g.signin_confirmed = 0;
     icon_refresh();
     if (!host_spawn(&g.host, g.hwnd, 0)) enter_error(ERR_GONE, L"GM-Scriptorium could not start gm-scriptorium.exe from its install folder.");
 }
@@ -684,6 +687,10 @@ static void on_state(const struct proto_line *pl)
     const char *campaign = arg(pl, 1);
     if (strcmp(what, "starting") == 0) {
         g.st = ST_STARTING;
+        /* Restart, Start panel and a retry re-read the settings: forget the sign-in markers until the
+         * next running line says them again. */
+        g.signin_local = 0;
+        g.signin_confirmed = 0;
         wset_utf8(g.campaign, CAP(g.campaign), strcmp(campaign, "-") == 0 ? "" : campaign);
         wset_utf8(g.detail, CAP(g.detail), arg(pl, 2));
     } else if (strcmp(what, "running") == 0) {
@@ -695,6 +702,8 @@ static void on_state(const struct proto_line *pl)
         /* Owner ruling RV1: a sign-in start that runs local-only because remote access at sign-in
          * has not been confirmed. The host marks it with an optional last field. */
         g.signin_local = strcmp(arg(pl, 4), "signin-local") == 0;
+        /* Whether a start at sign-in would use remote access on this PC: the trailing signin= field. */
+        g.signin_confirmed = signin_confirmed((const char *const *)pl->args, pl->nargs < TRAY_MAX_FIELDS ? pl->nargs : TRAY_MAX_FIELDS);
         icon_refresh();
         toast_first_run();
         return;
@@ -1008,8 +1017,9 @@ static HMENU build_menu(void)
         add_sep(m);
         add_item(m, IDM_UPDATES, updates, on);
         AppendMenuW(m, MF_STRING | (autostart ? MF_CHECKED : 0), IDM_AUTOSTART, L"Start with Windows");
-        if (autostart && g.signin_local) add_item(m, IDM_INERT, T03_UNCONFIRMED_TEXT, 0);
-        else if (autostart && remote_on()) add_item(m, IDM_INERT, T03_CONFIRMED_TEXT, 0);
+        const int t03 = t03_line(autostart, g.signin_local, remote_on(), g.signin_confirmed);
+        if (t03 == T03_UNCONFIRMED) add_item(m, IDM_INERT, T03_UNCONFIRMED_TEXT, 0);
+        else if (t03 == T03_CONFIRMED) add_item(m, IDM_INERT, T03_CONFIRMED_TEXT, 0);
         add_sep(m);
         add_item(m, IDM_CMD, L"Open command line (Advanced)", cmd_ok);
         add_item(m, IDM_LOGS, L"Open log folder", 1);

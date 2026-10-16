@@ -372,6 +372,37 @@ wchar_t *env_with_path_first(const wchar_t *block, const wchar_t *dir)
     return out;
 }
 
+/*
+ * The signin= field of a state running line (ADR 0057 section 7, "Protocol v1"): 1 for
+ * signin=confirmed, 0 for signin=unconfirmed. `args` are the fields after the verb, so the trailing
+ * fields start after the address, at index 4. Each is found by its exact text and anything else is
+ * ignored; if the field comes twice the last one counts. An older host that sends no such field is
+ * read as unconfirmed.
+ */
+int signin_confirmed(const char *const *args, size_t nargs)
+{
+    int confirmed = 0;
+    for (size_t i = 4; args != NULL && i < nargs; i++) {
+        if (args[i] == NULL) continue;
+        if (strcmp(args[i], "signin=confirmed") == 0) confirmed = 1;
+        else if (strcmp(args[i], "signin=unconfirmed") == 0) confirmed = 0;
+    }
+    return confirmed;
+}
+
+/*
+ * Which line goes under a ticked Start with Windows (owner rulings T03 and T03b). A local-only start
+ * at sign-in, or a remote panel whose sign-in start is not confirmed for this PC, gets "set up ...
+ * until you confirm"; a remote panel confirmed for sign-in gets "on, including at sign-in".
+ */
+int t03_line(int autostart, int signin_local, int remote, int confirmed)
+{
+    if (!autostart) return T03_NONE;
+    if (signin_local) return T03_UNCONFIRMED;
+    if (!remote) return T03_NONE;
+    return confirmed ? T03_CONFIRMED : T03_UNCONFIRMED;
+}
+
 #ifndef TRAY_PURE_ONLY
 
 /* ---------------------------------------------------------------------------------------------

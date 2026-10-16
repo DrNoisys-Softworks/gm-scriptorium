@@ -104,6 +104,9 @@ struct line_splitter {
 };
 typedef void (*line_sink)(void *ctx, const char *line, size_t len);
 
+/* The line under Start with Windows (owner rulings T03 and T03b), chosen by t03_line(). */
+enum t03_choice { T03_NONE, T03_UNCONFIRMED, T03_CONFIRMED };
+
 /* Badge kinds drawn on the icon (frames T01 to T09). */
 enum badge_kind { BADGE_NONE, BADGE_STARTING, BADGE_ERROR, BADGE_UPDATE, BADGE_STOPPED };
 
@@ -122,6 +125,8 @@ int path_is_absolute(const wchar_t *path);
 void wtrunc(wchar_t *dst, size_t cap, const wchar_t *src);
 void badge_paint(uint32_t *pixels, int w, int h, int kind);
 wchar_t *env_with_path_first(const wchar_t *block, const wchar_t *dir);
+int signin_confirmed(const char *const *args, size_t nargs);
+int t03_line(int autostart, int signin_local, int remote, int confirmed);
 
 #ifndef TRAY_PURE_ONLY
 
