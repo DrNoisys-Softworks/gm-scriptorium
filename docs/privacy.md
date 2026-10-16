@@ -36,6 +36,10 @@ This page is for a GM who wants to know what GM-Scriptorium sends over the netwo
   in `config.toml`. With it off, no request is made. An `[update]` entry that can't be read keeps
   checks off too, and the panel says so. The Beta channel also shows releases that are still being
   checked before they become the latest.
+- **The Windows desktop app keeps a small log on this computer.** It is `desktop.log` in the `panel` folder
+  next to your config, and it records what the app did (started, stopped, retried, a plain one-line reason
+  when something failed). It is never sent anywhere, it never holds a launch code, token, password or cookie,
+  and it is kept to 256 KiB plus one older copy.
 - GM-Scriptorium itself has no telemetry and no analytics. `update` contacts only GitHub
   (`api.github.com`, `github.com` and its download host). GitHub sees your IP address, the time and
   the version in the User-Agent. No account and no token are used, and proxy settings are not

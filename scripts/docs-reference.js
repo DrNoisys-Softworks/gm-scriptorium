@@ -142,6 +142,7 @@ function codeFacts() {
   const { PREFS_FILE } = require('../src/admin/prefs');
   const welcome = require('../src/admin/welcome');
   const updateNotice = require('../src/admin/updatenotice');
+  const desktopLog = require('../src/desktop/log');
   const { launcherPath } = require('../src/launch/launcherfile');
   const args = require('../src/cli/args');
   const remoteCli = require('../src/cli/remote');
@@ -219,6 +220,7 @@ function codeFacts() {
   files.push(`panel/${welcome.FILE}`);
   files.push(`panel/${updateNotice.FILE}`);
   files.push(`panel/${path.basename(launcherPath('/x', '<number>'))}`);
+  files.push('panel/logs/', `panel/logs/${desktopLog.LOG_NAME}`, `panel/logs/${desktopLog.LOG_NAME}.1`);
   facts.files = files.map((key) => ({ key }));
 
   Object.assign(

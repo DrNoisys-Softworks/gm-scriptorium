@@ -53,7 +53,7 @@ What happens in the terminal depends on the copy you run.
 | `config` | Manages the list of campaigns GM-Scriptorium knows about. It never needs the vault to be reachable. | `0`, `1`, `3` |
 | `update` | Downloads the newest release from GitHub and replaces this program with it. On an installed copy on Windows it replaces the tray helper beside it too, and nothing is replaced if either download fails. If the tray app is running, quit it and start it again afterwards. | `0`, `1`, `4` |
 | `remote` | Changes how the admin panel can be reached from other devices, and manages the accounts that can sign in. See [Remote access](../remote-access.md). | `0`, `1`, `3` |
-| `desktop` | *Since 0.5.0.* Saves the two ports the Windows desktop app gives its panel and its preview. | `0`, `1`, `3` |
+| `desktop` | *Since 0.5.0.* Saves the two ports the Windows desktop app gives its panel and its preview. The Windows tray app also runs `desktop run`, which is not meant to be typed. | `0`, `1`, `3` |
 <!-- END GENERATED cli-commands -->
 
 ## Flags most commands accept
@@ -117,7 +117,7 @@ path for good, use `config add` or `config edit`. The settings are on
 | `remote --account` | yes | *Since 0.5.0.* For `remote signout-all`: signs out only the devices signed in as this account. |
 | `desktop --port` | yes | *Since 0.5.0.* For `desktop set`: the port the Windows desktop app gives its panel. See `[desktop]` in [the settings file](config-toml.md). |
 | `desktop --preview-port` | yes | *Since 0.5.0.* For `desktop set`: the port the Windows desktop app gives its preview. See `[desktop]` in [the settings file](config-toml.md). |
-| `desktop --background` | no | *Since 0.5.0.* Belongs to a later subcommand; `desktop set` refuses it. |
+| `desktop --background` | no | *Since 0.5.0.* For `desktop run`: the quiet start at sign-in, with no browser tab. `desktop set` refuses it. |
 <!-- END GENERATED cli-flags -->
 
 Under `build`: `--force` on its own was split in two and is refused with exit 1. Use
@@ -145,7 +145,7 @@ the other global flags too, and ignores them.
 | `config path` | `--config` | Prints where the settings file lives. |
 | `config edit` | `--config` | Opens the settings file in the editor named by `EDITOR` or `VISUAL`. With neither set, it prints the path instead. |
 | `remote show` | `--config` | Prints the remote-access settings for this computer: the mode, the addresses, where it listens, which accounts exist and whether it is ready to start. It never prints a secret. |
-| `remote set` | `--config`, `--mode`, `--admin-url`, `--preview-url`, `--bind`, `--trusted-proxy`, `--port`, `--preview-port` | Saves remote-access settings. Only https addresses are accepted, and every value is checked before anything is written. It takes effect the next time the admin panel starts. |
+| `remote set` | `--config`, `--mode`, `--admin-url`, `--preview-url`, `--bind`, `--trusted-proxy`, `--port`, `--preview-port` | Saves remote-access settings. Only https addresses are accepted, and every value is checked before anything is written. It takes effect the next time the admin panel starts. On a Windows copy with the tray app, switching to a remote mode also asks whether remote access may start when you sign in to Windows (the default is No). |
 | `remote account add` | `--config` | *Since 0.5.0.* Adds an account: `remote account add <name>`. Names are 1 to 32 letters, digits, dots, hyphens or underscores. The password is asked for with nothing shown on screen, and must be at least 12 characters. There can be at most 8 accounts. |
 | `remote account change` | `--config` | *Since 0.5.0.* Changes an account's password: `remote account change <name>`. It asks for the current password first, and signs that account out on every device. |
 | `remote account reset` | `--config` | *Since 0.5.0.* Sets a new password when the old one is forgotten: `remote account reset <name>`. It needs no current password, and signs that account out on every device. |
@@ -154,7 +154,8 @@ the other global flags too, and ignores them.
 | `remote account list` | `--config` | *Since 0.5.0.* Shows the account names and dates. It never shows a secret. |
 | `remote password` | `--config` | The earlier command, kept so existing notes still work. It sets or changes the password of the account named `gm`, adding the account if it is not there, and signs every remote device out. Use `remote account` for other accounts. |
 | `remote signout-all` | `--config`, `--account` | Signs every remote device out at once, or with `--account` only the devices signed in as that account. A running panel notices straight away. |
-| `remote off` | `--config` | Returns the mode to `local`, signs every device out and clears every account. |
+| `remote off` | `--config` | Returns the mode to `local`, signs every device out and clears every account. It also clears the sign-in answer for the Windows desktop app. |
+| `desktop run` | `--config`, `--background` | *Since 0.5.0.* The hidden background program the Windows tray app starts: `desktop run --background`. It runs the panel on the desktop ports and talks to the tray app over its standard input and output, so it is not meant to be typed and refuses to run in a terminal or off Windows. With `--background` (the start at sign-in) it is quiet, and it uses this computer only unless you agreed to remote access at sign-in. |
 | `desktop set` | `--config`, `--port`, `--preview-port` | *Since 0.5.0.* Saves the two ports for the Windows desktop app: `desktop set --port 7500 --preview-port 7501`. Give at least one, and a port you leave out keeps its current value. They must be different whole numbers from 1 to 65535, and nothing is written until both are checked. It changes only the `[desktop]` part of the settings file. |
 | `serve --admin` | `--admin`, `--campaign`, `--config`, `--vault`, `--port`, `--preview-port`, `--json` | Opens the admin panel on this computer only. Every other flag, such as `--host`, `--build`, `--out` or `--site-config`, is refused with exit 1. This is a mode of `serve` and not a subcommand; it is listed here because it narrows the flags the same way. |
 <!-- END GENERATED cli-subcommands -->

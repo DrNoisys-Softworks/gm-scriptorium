@@ -78,7 +78,7 @@ test('cli-flags: the 29 own flags in order, update --version being the one overr
   assert.equal(rows.find((r) => r.key === 'update --version').takesValue, 'yes');
 });
 
-test('cli-subcommands: the 19 keys in order, and the flags the allow-lists give', () => {
+test('cli-subcommands: the 20 keys in order, and the flags the allow-lists give', () => {
   const rows = gen.codeFacts()['cli-subcommands'];
   assert.deepEqual(rows.map((r) => r.key), [
     'config list', 'config add', 'config remove', 'config set-default', 'config path', 'config edit',
@@ -86,6 +86,7 @@ test('cli-subcommands: the 19 keys in order, and the flags the allow-lists give'
     'remote account add', 'remote account change', 'remote account reset', 'remote account remove', 'remote account rename', 'remote account list',
     'remote password', 'remote signout-all', 'remote off',
     'desktop set',
+    'desktop run',
     'serve --admin',
   ]);
   const flags = Object.fromEntries(rows.map((r) => [r.key, r.flags]));

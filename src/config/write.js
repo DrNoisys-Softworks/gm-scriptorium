@@ -163,15 +163,23 @@ function setDesktopPorts(config, { port, previewPort }) {
  *
  * @param {object} config
  * @param {boolean} confirmed
+ * @param {string} [computer] the name of the computer that said yes, kept as `remote_at_signin_pc` so the answer
+ *   counts only there; clearing removes both keys
  * @throws {ConfigError} on a non-boolean or an unreadable existing table
  */
-function setRemoteAtSignin(config, confirmed) {
+function setRemoteAtSignin(config, confirmed, computer) {
   if (typeof confirmed !== 'boolean') throw new ConfigError('desktop: remote_at_signin must be true or false');
   const next = cloneConfig(config);
   if (next.desktop !== undefined) parseDesktopTable(next.desktop);
   const table = { ...(next.desktop || {}) };
-  if (confirmed) table.remote_at_signin = true;
-  else delete table.remote_at_signin;
+  if (confirmed) {
+    table.remote_at_signin = true;
+    if (computer === undefined) delete table.remote_at_signin_pc;
+    else table.remote_at_signin_pc = computer;
+  } else {
+    delete table.remote_at_signin;
+    delete table.remote_at_signin_pc;
+  }
   if (Object.keys(table).length === 0) delete next.desktop;
   else next.desktop = table;
   parseDesktopTable(next.desktop);

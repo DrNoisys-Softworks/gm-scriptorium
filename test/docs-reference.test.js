@@ -129,7 +129,7 @@ test('the code facts carry the literal values the pages show', () => {
   assert.deepEqual(facts.files.map((f) => f.key), [
     'config.toml', 'panel/', 'panel/password.json', 'panel/accounts.json', 'panel/sessions.json', 'panel/audit.log',
     'tls/', 'tls/generated.pem', 'backups/', 'panel-prefs.json', 'panel/welcome.json', 'panel/update-check.json',
-    'panel/launch-<number>.html',
+    'panel/launch-<number>.html', 'panel/logs/', 'panel/logs/desktop.log', 'panel/logs/desktop.log.1',
   ]);
 });
 
