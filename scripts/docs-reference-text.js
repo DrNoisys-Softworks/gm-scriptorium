@@ -35,13 +35,13 @@ module.exports = deepFreeze({
       type: 'text',
       default: 'None',
       what: 'The campaign used when you name none on the command line.',
-      changedBy: '`config set-default`, the admin panel, or by hand',
+      changedBy: '`config set-default`, or by hand. *Since 0.5.0.* Also the admin panel',
     },
     campaigns: {
       type: 'table',
       default: 'None',
       what: 'One table per campaign, named by you: `[campaigns.lease]`. See the campaign table below.',
-      changedBy: '`config add`, `config remove`, `init`, the admin panel, or by hand',
+      changedBy: '`config add`, `config remove`, `init`, or by hand. *Since 0.5.0.* Also the admin panel',
     },
     remote: {
       type: 'table',
@@ -69,7 +69,7 @@ module.exports = deepFreeze({
     vault: {
       default: 'None',
       what: 'The folder holding the campaign\'s notes. A campaign without one cannot be checked or built.',
-      changedBy: '`config add`, `init`, the admin panel, or by hand',
+      changedBy: '`config add`, `init`, or by hand. *Since 0.5.0.* Also the admin panel',
     },
     site_config: {
       default: 'None',
@@ -79,7 +79,7 @@ module.exports = deepFreeze({
     output: {
       default: 'None',
       what: 'The folder `build` writes the website to. It must be outside the vault.',
-      changedBy: '`config add`, `init`, the admin panel, or by hand',
+      changedBy: '`config add`, `init`, or by hand. *Since 0.5.0.* Also the admin panel',
     },
     pack: {
       default: 'None',
@@ -681,7 +681,7 @@ module.exports = deepFreeze({
     },
     outputDir: {
       type: 'text',
-      what: 'Where the generator would write if you ran it alone. GM-Scriptorium takes the output folder from the settings file instead, and `build` stops if this names the same folder, unless you pass `--force-out`. New campaigns do not get one.',
+      what: 'Where the generator would write if you ran it alone. GM-Scriptorium takes the output folder from the settings file instead, and `build` stops if this names the same folder. *Since 0.5.0.* `--force-out` builds into it anyway. Versions before 0.5.0 use `--force` for this. New campaigns do not get one.',
       changedBy: 'By hand',
     },
     searchEnabled: {
@@ -701,7 +701,7 @@ module.exports = deepFreeze({
       whatToDo: 'Nothing. Warnings are shown but do not stop anything.',
     },
     1: {
-      whatToDo: 'Read the message. It names what could not be done, such as an unknown command or flag, a port already in use, or an editor that could not start. A stack trace instead of a message is a bug, so report it.',
+      whatToDo: 'Read the message. It names what could not be done, such as an unknown command or flag, or a port already in use. *Since 0.5.0.* It also names an editor that could not start. A stack trace instead of a message is a bug, so report it.',
     },
     2: {
       whatToDo: 'Run `gm-scriptorium check` and fix what it lists. A refused `build` writes nothing.',
@@ -716,7 +716,7 @@ module.exports = deepFreeze({
 
   files: {
     'config.toml': {
-      what: 'The settings file: your campaigns, profiles and the `[remote]`, `[update]` and `[desktop]` tables.',
+      what: 'The settings file: your campaigns, profiles and the `[remote]` table. *Since 0.5.0.* It can also hold the `[update]` and `[desktop]` tables.',
       handEdit: 'Yes, see [the settings file](config-toml.md)',
     },
     'panel/': {
@@ -724,7 +724,7 @@ module.exports = deepFreeze({
       handEdit: 'No',
     },
     'panel/password.json': {
-      what: 'The earlier single-password file. It is still read, as the account `gm`, until the first `remote account` command moves it.',
+      what: 'The earlier single-password file. *Since 0.5.0.* It is still read, as the account `gm`, until the first `remote account` command moves it. In versions before 0.5.0, which have no accounts, it holds the one remote-access password.',
       handEdit: 'No',
     },
     'panel/accounts.json': {
@@ -737,7 +737,7 @@ module.exports = deepFreeze({
       handEdit: 'No',
     },
     'panel/audit.log': {
-      what: 'One line for each remote-access change, with the account name and the result.',
+      what: 'One line for each remote-access change, with the result. *Since 0.5.0.* Each line also names the account.',
       handEdit: 'No (read it if you like)',
     },
     'tls/': {
@@ -794,7 +794,7 @@ module.exports = deepFreeze({
 
   'cli-commands': {
     init: {
-      what: 'Registers a vault and sets up its publish settings, or creates a new vault first. It only adds files under `_meta/scriptorium/` and never touches the rest of the vault.',
+      what: 'Registers a vault and sets up its publish settings. *Since 0.5.0.* It can also create a new vault first. It only adds files under `_meta/scriptorium/` and never touches the rest of the vault.',
     },
     check: {
       what: 'Reads the vault and reports anything that would leak GM-only material or break the site. It changes nothing.',
@@ -812,10 +812,10 @@ module.exports = deepFreeze({
       what: 'Manages the list of campaigns GM-Scriptorium knows about. It never needs the vault to be reachable.',
     },
     update: {
-      what: 'Downloads the newest release from GitHub and replaces this program with it. On an installed copy on Windows it replaces the tray helper beside it too, and nothing is replaced if either download fails. If the tray app is running, quit it and start it again afterwards.',
+      what: 'Downloads the newest release from GitHub and replaces this program with it. *Since 0.5.0.* On an installed copy on Windows it replaces the tray helper beside it too, and nothing is replaced if either download fails. If the tray app is running, quit it and start it again afterwards.',
     },
     remote: {
-      what: 'Changes how the admin panel can be reached from other devices, and manages the accounts that can sign in. See [Remote access](../remote-access.md).',
+      what: 'Changes how the admin panel can be reached from other devices. *Since 0.5.0.* It also manages the accounts that can sign in. See [Remote access](../remote-access.md).',
     },
     desktop: {
       what: 'Saves the two ports the Windows desktop app gives its panel and its preview. The Windows tray app also runs `desktop run`, which is not meant to be typed.',
@@ -953,10 +953,10 @@ module.exports = deepFreeze({
       what: 'Opens the settings file in the editor named by `EDITOR` or `VISUAL`. With neither set, it prints the path instead.',
     },
     'remote show': {
-      what: 'Prints the remote-access settings for this computer: the mode, the addresses, where it listens, which accounts exist and whether it is ready to start. It never prints a secret.',
+      what: 'Prints the remote-access settings for this computer: the mode, the addresses, where it listens and whether it is ready to start. *Since 0.5.0.* It also lists which accounts exist. It never prints a secret.',
     },
     'remote set': {
-      what: 'Saves remote-access settings. Only https addresses are accepted, and every value is checked before anything is written. It takes effect the next time the admin panel starts. On a Windows copy with the tray app, switching to a remote mode also asks whether remote access may start when you sign in to Windows (the default is No).',
+      what: 'Saves remote-access settings. Only https addresses are accepted, and every value is checked before anything is written. It takes effect the next time the admin panel starts. *Since 0.5.0.* On a Windows copy with the tray app, switching to a remote mode also asks whether remote access may start when you sign in to Windows (the default is No).',
     },
     'remote account add': {
       what: 'Adds an account: `remote account add <name>`. Names are 1 to 32 letters, digits, dots, hyphens or underscores. The password is asked for with nothing shown on screen, and must be at least 12 characters. There can be at most 8 accounts.',
@@ -983,13 +983,13 @@ module.exports = deepFreeze({
       since: '0.5.0',
     },
     'remote password': {
-      what: 'The earlier command, kept so existing notes still work. It sets or changes the password of the account named `gm`, adding the account if it is not there, and signs every remote device out. Use `remote account` for other accounts.',
+      what: 'The earlier command, kept so existing notes still work. *Since 0.5.0.* It sets or changes the password of the account named `gm`, adding the account if it is not there, and signs every remote device out. Use `remote account` for other accounts. In versions before 0.5.0, which have no accounts, it sets the one remote-access password.',
     },
     'remote signout-all': {
-      what: 'Signs every remote device out at once, or with `--account` only the devices signed in as that account. A running panel notices straight away.',
+      what: 'Signs every remote device out at once. *Since 0.5.0.* With `--account` it signs out only the devices signed in as that account. A running panel notices straight away.',
     },
     'remote off': {
-      what: 'Returns the mode to `local`, signs every device out and clears every account. It also clears the sign-in answer for the Windows desktop app.',
+      what: 'Returns the mode to `local`, signs every device out and clears every account. *Since 0.5.0.* It also clears the sign-in answer for the Windows desktop app.',
     },
     'desktop run': {
       what: 'The hidden background program the Windows tray app starts: `desktop run --background`. It runs the panel on the desktop ports and talks to the tray app over its standard input and output, so it is not meant to be typed and refuses to run in a terminal or off Windows. With `--background` (the start at sign-in) it is quiet, and it uses this computer only unless you agreed to remote access at sign-in.',
@@ -1006,7 +1006,7 @@ module.exports = deepFreeze({
   'check-messages': {
     'frontmatter/non-yaml-language': {
       what: 'A note opens its frontmatter with a fence that names a language other than YAML, or its first line after the opening `---` has no line break within 65536 bytes, so the language cannot be confirmed. GM-Scriptorium will not read or build that note, because frontmatter in another language can run code.',
-      action: 'Open the note and make the first lines plain YAML between two lines of `---`. Nothing overrides this refusal, not even `--force-check` or `--no-check`.',
+      action: 'Open the note and make the first lines plain YAML between two lines of `---`. Nothing overrides this refusal, not even `--no-check`. *Since 0.5.0.* That includes `--force-check`.',
     },
     'frontmatter/parse-error': {
       what: 'A note\'s frontmatter is not valid YAML, so the site generator would skip the note without a word. This check reports it instead of letting the page vanish.',
@@ -1109,11 +1109,11 @@ module.exports = deepFreeze({
       action: 'Rename one of them, or stop publishing the withheld note. The message names both files.',
     },
     'leak/l4-output-name': {
-      what: 'The name of a withheld note appears in the built site, in a place the source check cannot see: a relationship graph label, an index card, an excerpt, or an image file name. It is an INFO line instead when there is no build yet. `build` runs this on the new site before it goes live, and nothing overrides it.',
+      what: 'The name of a withheld note appears in the built site, in a place the source check cannot see: a relationship graph label, an index card, an excerpt, or an image file name. It is an INFO line instead when there is no build yet. `build` runs this on the new site before it goes live. *Since 0.5.0.* Nothing overrides it.',
       action: 'Find the source of the name from the message, change it, and build again.',
     },
     'leak/l4-index-term': {
-      what: 'The name of a withheld note can be found in the site\'s search index, as the name or its possessive or plural form. It is a WARN when the search index cannot be read or is a kind the check does not understand, and an INFO when there is no search index (searching is off). `build` runs this on the new site before it goes live, and nothing overrides it.',
+      what: 'The name of a withheld note can be found in the site\'s search index, as the name or its possessive or plural form. It is a WARN when the search index cannot be read or is a kind the check does not understand, and an INFO when there is no search index (searching is off). `build` runs this on the new site before it goes live. *Since 0.5.0.* Nothing overrides it.',
       action: 'Remove the name from the published text it came from, then build again. If search is off on purpose, ignore the INFO.',
     },
     'leak/l5-gm-heading-survives': {

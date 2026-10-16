@@ -1,4 +1,4 @@
-# Trying it beside a real campaign
+# Trying it safely
 
 This page is for a GM who already has a campaign registered and wants to try a command, a
 theme or the admin panel without disturbing it.

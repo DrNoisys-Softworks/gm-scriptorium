@@ -22,7 +22,7 @@ uses the first that applies:
 The file is optional. If it is absent, every default on this page applies and the site is built
 without any of your images or words.
 
-`init` and the admin panel's first-run setup create the file. After that, three panel screens edit
+`init` creates the file. *Since 0.5.0.* So does the admin panel's first-run setup. After that, three panel screens edit
 it: Theme writes `theme`, Images writes `[images]`, and Vocabulary writes `[labels]`, `[timeline]`
 and `[recaps]`. Nothing in the panel writes `[gm_link]`, so that table is by hand only.
 

@@ -12,7 +12,7 @@ second copy you can get back if the first one is lost or damaged.
 It never moves vault content anywhere. `check` only reads. `build` reads the vault and writes a
 site to a separate output folder. `serve` shows that site on your own computer by default. There is no
 telemetry and no sync. The only network call the tool makes is `update`, and it fetches the tool's
-own release files, never anything about your campaign.
+own release files, never anything about your campaign. *Since 0.5.0.* The admin panel also asks GitHub once a day whether a newer version is out, and you can turn that off; see [Privacy](privacy.md).
 
 The tool also does not back your vault up. It will write small files inside the vault, such as the
 campaign pack in `_meta/scriptorium/` and, if you edit the tagline in the admin panel,

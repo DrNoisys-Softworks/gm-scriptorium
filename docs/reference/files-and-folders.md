@@ -11,12 +11,12 @@ relative to that folder. None of it is ever written inside a vault.
 <!-- BEGIN GENERATED files: edit scripts/docs-reference-text.js, then run npm run docs-reference -->
 | Path | What it holds | Edit by hand? |
 |---|---|---|
-| `config.toml` | The settings file: your campaigns, profiles and the `[remote]`, `[update]` and `[desktop]` tables. | Yes, see [the settings file](config-toml.md) |
+| `config.toml` | The settings file: your campaigns, profiles and the `[remote]` table. *Since 0.5.0.* It can also hold the `[update]` and `[desktop]` tables. | Yes, see [the settings file](config-toml.md) |
 | `panel/` | The admin panel's per-computer files. It holds password hashes, so copy or share it with care. | No |
-| `panel/password.json` | The earlier single-password file. It is still read, as the account `gm`, until the first `remote account` command moves it. | No |
+| `panel/password.json` | The earlier single-password file. *Since 0.5.0.* It is still read, as the account `gm`, until the first `remote account` command moves it. In versions before 0.5.0, which have no accounts, it holds the one remote-access password. | No |
 | `panel/accounts.json` | *Since 0.5.0.* The remote-access accounts: each name and a salted hash of its password, never the password itself. | No |
 | `panel/sessions.json` | Digests of the sign-ins of the devices that are signed in. | No |
-| `panel/audit.log` | One line for each remote-access change, with the account name and the result. | No (read it if you like) |
+| `panel/audit.log` | One line for each remote-access change, with the result. *Since 0.5.0.* Each line also names the account. | No (read it if you like) |
 | `tls/` | Reserved. Nothing writes it in this version. | No |
 | `tls/generated.pem` | Reserved. Nothing writes it in this version. | No |
 | `backups/` | Copies of each campaign's `_meta/vault-config.md`, made before the admin panel saves it, in a `campaign-<name>/` folder each. The newest 20 per campaign are kept. | No (delete old ones if you like) |

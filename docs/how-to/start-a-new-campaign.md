@@ -82,8 +82,8 @@ the command stops part-way, it lists exactly what it made.
 gm-scriptorium init --vault ~/campaigns/lease --name lease --out ~/sites/lease --yes
 ```
 
-Plain `gm-scriptorium init` at a terminal asks whether you already have a vault, then asks the
-questions that follow. With piped input it asks nothing, so scripts give the flags and `--yes`.
+Plain `gm-scriptorium init` at a terminal asks you questions. *Since 0.5.0.* The first is whether
+you already have a vault. With piped input it asks nothing, so scripts give the flags and `--yes`.
 
 **To register a vault you have already set up**, without running `init`:
 
@@ -92,7 +92,7 @@ gm-scriptorium config add lease --vault ~/campaigns/lease --out ~/sites/lease
 ```
 
 `config add` needs both `--vault` and `--out`. If the name is already used, it replaces that
-campaign's entry. The panel refuses a name that is already used instead.
+campaign's entry. *Since 0.5.0.* The panel refuses a name that is already used instead.
 
 Then run `gm-scriptorium check lease` and `gm-scriptorium build lease`. Every flag is listed on
 [the command line reference](../reference/command-line.md).
@@ -100,7 +100,7 @@ Then run `gm-scriptorium check lease` and `gm-scriptorium build lease`. Every fl
 ## What it writes
 
 Setup writes only to `_meta/scriptorium/` inside the vault (a `pack.toml`, a `vault.config.json`
-and two folders, `css/` and `images/`), your settings file, and the new vault when you ask for one.
+and two folders, `css/` and `images/`) and your settings file. *Since 0.5.0.* It also writes the new vault when you ask for one.
 It never overwrites a file. If a file is already there, it is left alone and the command says so.
 The full list, with what is safe to delete, is on
 [files and folders](../reference/files-and-folders.md). The keys in the two files are on

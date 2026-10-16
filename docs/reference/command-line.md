@@ -22,6 +22,8 @@ can return. The codes themselves are on [the exit codes page](exit-codes.md).
 
 ## With no command
 
+*Since 0.5.0.*
+
 Run `gm-scriptorium` on its own, with no command and no flag other than `--config <path>`, in a
 terminal, and it opens the admin panel in your browser. If the output is piped or redirected, or
 any other flag is given (apart from `--version` and `--notices`, which are handled first), it
@@ -40,19 +42,21 @@ What happens in the terminal depends on the copy you run.
   sign-in link is printed only if the browser can't be opened. Stop it with Ctrl+C. If the background app could not be started at all, an installed copy falls back to
   this too.
 
+Versions before 0.5.0 do not open the panel: with no settings file yet, the command offers to run `gm-scriptorium init` for you and waits for you to press Enter before the window closes, and otherwise it shows the list of commands.
+
 ## Commands
 
 <!-- BEGIN GENERATED cli-commands: edit scripts/docs-reference-text.js, then run npm run docs-reference -->
 | Command | What it does | Exit codes |
 |---|---|---|
-| `init` | Registers a vault and sets up its publish settings, or creates a new vault first. It only adds files under `_meta/scriptorium/` and never touches the rest of the vault. | `0`, `1`, `3` |
+| `init` | Registers a vault and sets up its publish settings. *Since 0.5.0.* It can also create a new vault first. It only adds files under `_meta/scriptorium/` and never touches the rest of the vault. | `0`, `1`, `3` |
 | `check` | Reads the vault and reports anything that would leak GM-only material or break the site. It changes nothing. | `0`, `1`, `2`, `3` |
 | `build` | Checks the vault, then writes the player-facing website to the output folder. If the check finds errors it refuses and writes nothing. | `0`, `1`, `2`, `3` |
 | `serve` | Serves the built site on this computer so you can look at it, or with `--admin` opens the admin panel. | `0`, `1`, `3` |
 | `status` | Shows where a campaign stands: whether the vault is reachable, when the site was last built, the last and next session, file counts and the latest check result. It changes nothing. | `0`, `1`, `3` |
 | `config` | Manages the list of campaigns GM-Scriptorium knows about. It never needs the vault to be reachable. | `0`, `1`, `3` |
-| `update` | Downloads the newest release from GitHub and replaces this program with it. On an installed copy on Windows it replaces the tray helper beside it too, and nothing is replaced if either download fails. If the tray app is running, quit it and start it again afterwards. | `0`, `1`, `4` |
-| `remote` | Changes how the admin panel can be reached from other devices, and manages the accounts that can sign in. See [Remote access](../remote-access.md). | `0`, `1`, `3` |
+| `update` | Downloads the newest release from GitHub and replaces this program with it. *Since 0.5.0.* On an installed copy on Windows it replaces the tray helper beside it too, and nothing is replaced if either download fails. If the tray app is running, quit it and start it again afterwards. | `0`, `1`, `4` |
+| `remote` | Changes how the admin panel can be reached from other devices. *Since 0.5.0.* It also manages the accounts that can sign in. See [Remote access](../remote-access.md). | `0`, `1`, `3` |
 | `desktop` | *Since 0.5.0.* Saves the two ports the Windows desktop app gives its panel and its preview. The Windows tray app also runs `desktop run`, which is not meant to be typed. | `0`, `1`, `3` |
 <!-- END GENERATED cli-commands -->
 
@@ -120,7 +124,7 @@ path for good, use `config add` or `config edit`. The settings are on
 | `desktop --background` | no | *Since 0.5.0.* For `desktop run`: the quiet start at sign-in, with no browser tab. `desktop set` refuses it. |
 <!-- END GENERATED cli-flags -->
 
-Under `build`: `--force` on its own was split in two and is refused with exit 1. Use
+*Since 0.5.0.* Under `build`: `--force` on its own was split in two and is refused with exit 1. Use
 `--force-check` or `--force-out`. Neither one overrides the output-leak scan. The reasons are in
 [ADR 0055](../decisions/0055-force-split.md), section 1, "The decision".
 
@@ -144,17 +148,17 @@ the other global flags too, and ignores them.
 | `config set-default` | `--config` | Sets the campaign used when you name none: `config set-default <name>`. |
 | `config path` | `--config` | Prints where the settings file lives. |
 | `config edit` | `--config` | Opens the settings file in the editor named by `EDITOR` or `VISUAL`. With neither set, it prints the path instead. |
-| `remote show` | `--config` | Prints the remote-access settings for this computer: the mode, the addresses, where it listens, which accounts exist and whether it is ready to start. It never prints a secret. |
-| `remote set` | `--config`, `--mode`, `--admin-url`, `--preview-url`, `--bind`, `--trusted-proxy`, `--port`, `--preview-port` | Saves remote-access settings. Only https addresses are accepted, and every value is checked before anything is written. It takes effect the next time the admin panel starts. On a Windows copy with the tray app, switching to a remote mode also asks whether remote access may start when you sign in to Windows (the default is No). |
+| `remote show` | `--config` | Prints the remote-access settings for this computer: the mode, the addresses, where it listens and whether it is ready to start. *Since 0.5.0.* It also lists which accounts exist. It never prints a secret. |
+| `remote set` | `--config`, `--mode`, `--admin-url`, `--preview-url`, `--bind`, `--trusted-proxy`, `--port`, `--preview-port` | Saves remote-access settings. Only https addresses are accepted, and every value is checked before anything is written. It takes effect the next time the admin panel starts. *Since 0.5.0.* On a Windows copy with the tray app, switching to a remote mode also asks whether remote access may start when you sign in to Windows (the default is No). |
 | `remote account add` | `--config` | *Since 0.5.0.* Adds an account: `remote account add <name>`. Names are 1 to 32 letters, digits, dots, hyphens or underscores. The password is asked for with nothing shown on screen, and must be at least 12 characters. There can be at most 8 accounts. |
 | `remote account change` | `--config` | *Since 0.5.0.* Changes an account's password: `remote account change <name>`. It asks for the current password first, and signs that account out on every device. |
 | `remote account reset` | `--config` | *Since 0.5.0.* Sets a new password when the old one is forgotten: `remote account reset <name>`. It needs no current password, and signs that account out on every device. |
 | `remote account remove` | `--config` | *Since 0.5.0.* Deletes an account: `remote account remove <name>`. It signs that account out on every device. |
 | `remote account rename` | `--config` | *Since 0.5.0.* Gives an account a new name: `remote account rename <old> <new>`. It signs that account out on every device. |
 | `remote account list` | `--config` | *Since 0.5.0.* Shows the account names and dates. It never shows a secret. |
-| `remote password` | `--config` | The earlier command, kept so existing notes still work. It sets or changes the password of the account named `gm`, adding the account if it is not there, and signs every remote device out. Use `remote account` for other accounts. |
-| `remote signout-all` | `--config`, `--account` | Signs every remote device out at once, or with `--account` only the devices signed in as that account. A running panel notices straight away. |
-| `remote off` | `--config` | Returns the mode to `local`, signs every device out and clears every account. It also clears the sign-in answer for the Windows desktop app. |
+| `remote password` | `--config` | The earlier command, kept so existing notes still work. *Since 0.5.0.* It sets or changes the password of the account named `gm`, adding the account if it is not there, and signs every remote device out. Use `remote account` for other accounts. In versions before 0.5.0, which have no accounts, it sets the one remote-access password. |
+| `remote signout-all` | `--config`, `--account` | Signs every remote device out at once. *Since 0.5.0.* With `--account` it signs out only the devices signed in as that account. A running panel notices straight away. |
+| `remote off` | `--config` | Returns the mode to `local`, signs every device out and clears every account. *Since 0.5.0.* It also clears the sign-in answer for the Windows desktop app. |
 | `desktop run` | `--config`, `--background` | *Since 0.5.0.* The hidden background program the Windows tray app starts: `desktop run --background`. It runs the panel on the desktop ports and talks to the tray app over its standard input and output, so it is not meant to be typed and refuses to run in a terminal or off Windows. With `--background` (the start at sign-in) it is quiet, and it uses this computer only unless you agreed to remote access at sign-in. |
 | `desktop set` | `--config`, `--port`, `--preview-port` | *Since 0.5.0.* Saves the two ports for the Windows desktop app: `desktop set --port 7500 --preview-port 7501`. Give at least one, and a port you leave out keeps its current value. They must be different whole numbers from 1 to 65535, and nothing is written until both are checked. It changes only the `[desktop]` part of the settings file. |
 | `serve --admin` | `--admin`, `--campaign`, `--config`, `--vault`, `--port`, `--preview-port`, `--json` | Opens the admin panel on this computer only. Every other flag, such as `--host`, `--build`, `--out` or `--site-config`, is refused with exit 1. This is a mode of `serve` and not a subcommand; it is listed here because it narrows the flags the same way. |
@@ -173,5 +177,5 @@ Each of these is a complete command.
 - `gm-scriptorium config add lease --vault ~/campaigns/lease --out ~/sites/lease`
 - `gm-scriptorium status lease --json`
 - `gm-scriptorium update --check`
-- `gm-scriptorium remote signout-all --account gm`
-- `gm-scriptorium desktop set --port 7500 --preview-port 7501`
+- *Since 0.5.0.* `gm-scriptorium remote signout-all --account gm`
+- *Since 0.5.0.* `gm-scriptorium desktop set --port 7500 --preview-port 7501`
