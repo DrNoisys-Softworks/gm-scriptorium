@@ -27,7 +27,10 @@ Every page for GMs meets these.
   guard accepts pictures in. Take it from the sample campaign, on a scratch config, never from
   your own campaign. Add its row to the guard's list of named images (`NAMED_IMAGE_RESIDUAL` in
   `scripts/public-guard.js`) only after a person has looked at the picture for names, paths and
-  host names. Give each picture alt text.
+  host names. Give each picture alt text. A page can mark where a picture will go with a line
+  `<!-- screenshot: how-to/<name>.png -->` until the picture has been checked and added.
+  `npm run docs-screenshots -- --out <folder outside the repository> --root <scratch folder>` takes the
+  pictures from the sample campaign; a person checks each one before it is added.
 - **Keep paths stable.** Once a page is linked from the admin panel or from a release note, its
   path does not change. The panel's publish link already points at `docs/README.md`. If a page
   has to move, leave a stub at the old path with a link to the new one.
@@ -54,25 +57,41 @@ disagree.
 | [Trying it safely](trying-it-safely.md) | How-to guides | Linux (the Windows blocks have not been run) |
 | [Remote access](remote-access.md) | How-to guides | Not recorded |
 | [Backing up your vault](backing-up-your-vault.md) | How-to guides | Not recorded |
+| [Start a new campaign](how-to/start-a-new-campaign.md) | How-to guides | Linux (the Windows steps have not been run) |
+| [Add another campaign, and switch between them](how-to/add-another-campaign.md) | How-to guides | Linux (the Windows steps have not been run) |
+| [Change how your site looks and the words it uses](how-to/change-the-look-and-vocabulary.md) | How-to guides | Linux (the Windows steps have not been run) |
+| [Move to another computer](how-to/move-to-another-computer.md) | How-to guides | Linux (the Windows steps have not been run) |
+| [Use the command line and scripts](how-to/use-the-command-line-and-scripts.md) | How-to guides | Linux (the PowerShell example has not been run) |
+| [Troubleshooting](how-to/troubleshooting.md) | How-to guides | Linux (the Windows steps have not been run) |
+| [Keep GM-only notes off the player site](how-to/hide-gm-content.md) | How-to guides | Linux (the Windows steps have not been run) |
+| [Add a Game master link to the player site](how-to/add-a-game-master-link.md) | How-to guides | Linux (the Windows steps have not been run) |
 | [Image slots](image-slots.md) | Reference | No steps |
 | [The settings file (config.toml)](reference/config-toml.md) | Reference | No steps |
 | [Environment variables](reference/environment-variables.md) | Reference | No steps |
 | [Exit codes](reference/exit-codes.md) | Reference | No steps |
 | [Files and folders](reference/files-and-folders.md) | Reference | No steps |
 | [The command line](reference/command-line.md) | Reference | No steps |
+| [The campaign pack file (pack.toml)](reference/pack-toml.md) | Reference | No steps |
+| [The vault's publish settings (vault-config.md and vault.config.json)](reference/vault-config.md) | Reference | No steps |
+| [Check messages](reference/check-messages.md) | Reference | No steps |
+| [Remote access: accounts, sign-in and what is protected](reference/remote-access.md) | Reference | No steps |
 | [Privacy](privacy.md) | Explanation | No steps |
+| [How GM-Scriptorium decides what players see](explanation/what-players-see.md) | Explanation | No steps |
 | [Why, and how this relates to gm-apprentice](about.md) | Explanation | No steps |
 
 ## Generated tables
 
-Four pages in `docs/reference/` (the settings file, exit codes, files and folders, and the command line) hold tables that
+Seven pages in `docs/reference/` (the settings file, exit codes, files and folders, the command line, the campaign pack file, the vault's publish settings, and the check messages) hold tables that
 are generated from the code, so they cannot drift from it. A table sits between two comments that
 start `<!-- BEGIN GENERATED` and `<!-- END GENERATED`. Never edit inside them. To change a table,
 edit the hand-written columns in `scripts/docs-reference-text.js`, then run
 `npm run docs-reference`. A column the code holds (the key lists, defaults, allowed values, exit-code
 meanings, the commands that return each code, each command's exit codes, whether a flag takes a
-value, and the flags a subcommand accepts) comes from the code and cannot be overridden in
-that file. `test/docs-reference.test.js` and `test/docs-reference-cli.test.js` fail when the code
-gains a key, exit code, file, command, flag or subcommand the tables lack, or when a table lists
+value, the flags a subcommand accepts, whether a vault.config.json key is required, what a new
+campaign gets, what the panel does with a vault-config.md key, and each check's severity and where it runs) comes from the code and cannot be overridden in
+that file. `test/docs-reference.test.js`, `test/docs-reference-cli.test.js`,
+`test/docs-reference-pack.test.js`, `test/docs-reference-vault.test.js` and
+`test/docs-reference-checks.test.js` fail when the code
+gains a key, exit code, file, command, flag, subcommand or check id the tables lack, or when a table lists
 one the code lacks. The environment variables page is written
 by hand, and the same test checks it against the variables the source reads.

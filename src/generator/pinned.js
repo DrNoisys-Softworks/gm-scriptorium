@@ -183,8 +183,15 @@ const { resolveGenrePreset } = require('gm-apprentice-publish/lib/theme');
 // lib/unicode.js:89 (module.exports)
 const { canonicalNfc, truncateGraphemes } = require('gm-apprentice-publish/lib/unicode');
 
-// lib/templates/base.js:206-215 (module.exports)
-const { metadataBadgesFor, TYPE_BADGE_FIELDS } = require('gm-apprentice-publish/lib/templates/base');
+// lib/templates/base.js:206-220 (module.exports). DIR_LABELS (ADR 0061): the sections lib/build.js
+// resolves a banner for (lib/build.js:1175), read by src/vault/imagecopies.js.
+const { metadataBadgesFor, TYPE_BADGE_FIELDS, DIR_LABELS } = require('gm-apprentice-publish/lib/templates/base');
+
+// lib/banners.js:96-99 (module.exports). ADR 0061: the pin's own banner-entry reader, folder lookup,
+// SVG test and extension order, so src/vault/imagecopies.js picks the banner the build copies.
+// resolveBanner and findConventionBanner are not re-exported: they read the disk directly, so their
+// file I/O is ported there instead, through src/vault/read.js.
+const { normalizeEntry, sourceFolderFor, isSvg, BANNER_EXTS } = require('gm-apprentice-publish/lib/banners');
 
 // Not a gm-apprentice-publish internal; see the module doc block above. FR-17/SD-17 (v1.11.40
 // bundles its own gray-matter/lunr/markdown-it, so lunr is no longer hoisted to a top-level
@@ -295,6 +302,11 @@ module.exports = {
   truncateGraphemes,
   metadataBadgesFor,
   TYPE_BADGE_FIELDS,
+  DIR_LABELS,
+  normalizeEntry,
+  sourceFolderFor,
+  isSvg,
+  BANNER_EXTS,
   lunr,
   LUNR_VERSION,
   PIN_COMMIT,

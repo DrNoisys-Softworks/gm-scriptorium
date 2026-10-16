@@ -138,6 +138,7 @@ function startHost(t, cfg, opts = {}) {
     pollMs: 10,
     proc,
     pid: 4242,
+    hostname: () => 'PC-A', // a placeholder computer name
     ...(opts.deps || {}),
   };
   const origWrite = output.write.bind(output);
@@ -187,7 +188,7 @@ test('hello is the first line (protocol 1, the app version, the log folder), the
   assert.deepEqual(h.lines(), [
     `hello\t1\t0.0.0-test\t${path.join(cfg.panelDir, 'logs')}`,
     'state\tstarting\t-\t',
-    `state\trunning\tlease\tlocal\thttp://127.0.0.1:${PANEL_PORT}`,
+    `state\trunning\tlease\tlocal\thttp://127.0.0.1:${PANEL_PORT}\tsignin=unconfirmed`,
   ]);
   await until(() => h.opened.length >= 1, 'the browser opener');
   await new Promise((r) => setTimeout(r, 30));
@@ -210,15 +211,15 @@ test('setup mode (no campaign) reports "setup" as the campaign', async (t) => {
   const cfg = makeConfig(t, desktopToml(), { campaign: false });
   const h = startHost(t, cfg, { panel: { campaign: null } });
   const line = await h.waitFor('state\trunning');
-  assert.equal(line, `state\trunning\tsetup\tlocal\thttp://127.0.0.1:${PANEL_PORT}`);
+  assert.equal(line, `state\trunning\tsetup\tlocal\thttp://127.0.0.1:${PANEL_PORT}\tsignin=unconfirmed`);
 });
 
 test('a remote reach reports the configured address, ssh and local report the loopback address', async (t) => {
   const cfg = makeConfig(t, desktopToml());
   const h = startHost(t, cfg, { panel: { mode: 'tailscale', adminUrl: 'https://scriptorium.home.arpa' } });
-  assert.equal(await h.waitFor('state\trunning'), 'state\trunning\tlease\ttailscale\thttps://scriptorium.home.arpa');
+  assert.equal(await h.waitFor('state\trunning'), 'state\trunning\tlease\ttailscale\thttps://scriptorium.home.arpa\tsignin=unconfirmed');
   const s = startHost(t, cfg, { panel: { mode: 'ssh' } });
-  assert.equal(await s.waitFor('state\trunning'), `state\trunning\tlease\tssh\thttp://127.0.0.1:${PANEL_PORT}`);
+  assert.equal(await s.waitFor('state\trunning'), `state\trunning\tlease\tssh\thttp://127.0.0.1:${PANEL_PORT}\tsignin=unconfirmed`);
 });
 
 // --- retries and error classes ------------------------------------------------------------------------------
@@ -385,7 +386,7 @@ test('RV1: a start at sign-in with remote saved and no confirmation asks for a l
 });
 
 test('RV1: with the confirmation set, a start at sign-in uses the saved remote mode and no desktop ports', async (t) => {
-  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, 'remote_at_signin = true\n') + REMOTE_TOML);
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, 'remote_at_signin = true\nremote_at_signin_pc = "PC-A"\n') + REMOTE_TOML);
   const h = startHost(t, cfg, { background: true });
   await h.waitFor('state\trunning');
   assert.equal(h.calls[0][2].localOnly, false);
@@ -423,7 +424,7 @@ test('RV1, real panel: a sign-in start with remote saved and no confirmation lis
     },
   });
   const line = await h.waitFor('state\trunning');
-  assert.equal(line, `state\trunning\tlease\tlocal\thttp://127.0.0.1:${SIGNIN_PORT}\tsignin-local`);
+  assert.equal(line, `state\trunning\tlease\tlocal\thttp://127.0.0.1:${SIGNIN_PORT}\tsignin-local\tsignin=unconfirmed`);
   assert.equal(started.settings.mode, 'local');
   assert.equal(started.ctx.adminPort, SIGNIN_PORT);
   assert.equal(started.ctx.previewPort, SIGNIN_PREVIEW);
@@ -1050,8 +1051,8 @@ test('the real process is not touched: the redirect is undone and no handler is 
 test('signin-local: the running line of a held-back sign-in start has it as the literal fifth field, and every other running line has four', async (t) => {
   const held = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW) + REMOTE_TOML);
   const a = startHost(t, held, { background: true });
-  assert.equal(await a.waitFor('state\trunning'), `state\trunning\tlease\tlocal\thttp://127.0.0.1:${PANEL_PORT}\tsignin-local`);
-  assert.equal((await a.waitFor('state\trunning')).split('\t').length, 6);
+  assert.equal(await a.waitFor('state\trunning'), `state\trunning\tlease\tlocal\thttp://127.0.0.1:${PANEL_PORT}\tsignin-local\tsignin=unconfirmed`);
+  assert.equal((await a.waitFor('state\trunning')).split('\t').length, 7);
   // After Stop and a start the GM makes, the panel runs in the saved mode and the field is gone.
   a.send('stop');
   await a.waitFor('state\tstopped');
@@ -1067,12 +1068,15 @@ test('signin-local: absent when the confirmation is set, when the GM started the
     await h.stop();
     return line.split('\t');
   };
-  const confirmed = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, 'remote_at_signin = true\n') + REMOTE_TOML);
-  assert.equal((await runningOf(confirmed, { background: true })).length, 5);
+  const confirmed = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, 'remote_at_signin = true\nremote_at_signin_pc = "PC-A"\n') + REMOTE_TOML);
+  const c = await runningOf(confirmed, { background: true });
+  assert.deepEqual([c.length, c.at(-1)], [6, 'signin=confirmed']);
   const manual = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW) + REMOTE_TOML);
-  assert.equal((await runningOf(manual, {})).length, 5);
+  const m = await runningOf(manual, {});
+  assert.deepEqual([m.length, m.at(-1)], [6, 'signin=unconfirmed']);
   const plain = makeConfig(t, desktopToml());
-  assert.equal((await runningOf(plain, { background: true })).length, 5, 'a local config has nothing held back');
+  const pl = await runningOf(plain, { background: true });
+  assert.deepEqual([pl.length, pl.at(-1)], [6, 'signin=unconfirmed'], 'a local config has nothing held back');
 });
 
 test('desktop run with NO injected version says hello with the version in package.json (the helper compares it exactly)', async (t) => {
@@ -1096,4 +1100,99 @@ test('desktop run with NO injected version says hello with the version in packag
   assert.equal(fields[2], expected);
   stdin.end();
   await within(result, 'desktop run');
+});
+
+// --- RV1b: the answer counts only on the computer that gave it -------------------------------------------------------------
+
+const CONFIRMED_A = 'remote_at_signin = true\nremote_at_signin_pc = "PC-A"\n';
+
+test('RV1b: at sign-in the confirmation holds on the computer that gave it and not on another', async (t) => {
+  const here = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, CONFIRMED_A) + REMOTE_TOML);
+  const a = startHost(t, here, { background: true });
+  await a.waitFor('state\trunning');
+  assert.equal(a.calls[0][2].localOnly, false, 'PC-A: remote allowed');
+  const other = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, CONFIRMED_A) + REMOTE_TOML);
+  const b = startHost(t, other, { background: true, deps: { hostname: () => 'PC-B' } });
+  assert.ok((await b.waitFor('state\trunning')).includes('\tsignin-local\t'));
+  assert.equal(b.calls[0][2].localOnly, true, 'PC-B: this-PC-only');
+});
+
+test('RV1b: a legacy true with no computer name is local-only at sign-in', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, 'remote_at_signin = true\n') + REMOTE_TOML);
+  const h = startHost(t, cfg, { background: true });
+  await h.waitFor('state\trunning');
+  assert.equal(h.calls[0][2].localOnly, true);
+});
+
+test('RV1b: on Windows the computer name is compared without regard to case', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, CONFIRMED_A) + REMOTE_TOML);
+  const h = startHost(t, cfg, { background: true, deps: { hostname: () => 'pc-a', platform: 'win32' } });
+  await h.waitFor('state\trunning');
+  assert.equal(h.calls[0][2].localOnly, false);
+});
+
+test('RV1b: the computer name never reaches desktop.log or the output', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, CONFIRMED_A) + REMOTE_TOML);
+  const h = startHost(t, cfg, { background: true, deps: { hostname: () => 'PC-B' } });
+  await h.waitFor('state\trunning');
+  h.send('stop');
+  await h.waitFor('state\tstopped');
+  h.send('start');
+  await h.waitCount('state\trunning', 2);
+  await h.stop();
+  const log = fs.readFileSync(cfg.logFile, 'utf8');
+  assert.ok(log.split('\n').filter(Boolean).length >= 4, 'the log has lines to check');
+  for (const name of ['PC-A', 'PC-B']) {
+    assert.equal(log.includes(name), false, `${name} is not in the log`);
+    assert.equal(h.outLines.join('').includes(name), false, `${name} is not in the output`);
+  }
+});
+
+// --- the separate "confirmed for this PC" fact on every running line (ADR 0057 section 7) ------------------------------
+
+test('signin=: every running line ends with signin=confirmed or signin=unconfirmed, by the same-PC rule', async (t) => {
+  const cases = [
+    ['same PC said yes', CONFIRMED_A, 'PC-A', 'signin=confirmed'],
+    ['another PC', CONFIRMED_A, 'PC-B', 'signin=unconfirmed'],
+    ['legacy true with no name', 'remote_at_signin = true\n', 'PC-A', 'signin=unconfirmed'],
+    ['false with a name', 'remote_at_signin = false\nremote_at_signin_pc = "PC-A"\n', 'PC-A', 'signin=unconfirmed'],
+    ['nothing saved', '', 'PC-A', 'signin=unconfirmed'],
+  ];
+  for (const [what, extra, pc, expected] of cases) {
+    for (const background of [true, false]) {
+      const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW, extra) + REMOTE_TOML);
+      const h = startHost(t, cfg, { background, deps: { hostname: () => pc } });
+      const fields = (await h.waitFor('state\trunning')).split('\t');
+      assert.equal(fields.at(-1), expected, `${what}, background ${background}`);
+      await h.stop();
+    }
+  }
+});
+
+test('signin=: a remote start the GM makes, never confirmed, has signin=unconfirmed and NO signin-local', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW) + REMOTE_TOML);
+  const h = startHost(t, cfg, { panel: { mode: 'tailscale', adminUrl: 'https://scriptorium.home.arpa' } });
+  assert.equal(await h.waitFor('state\trunning'), 'state\trunning\tlease\ttailscale\thttps://scriptorium.home.arpa\tsignin=unconfirmed');
+});
+
+test('signin=: it comes after signin-local, so a reader that looks for signin-local as the fifth field still finds it', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW) + REMOTE_TOML);
+  const h = startHost(t, cfg, { background: true });
+  const fields = (await h.waitFor('state\trunning')).split('\t');
+  assert.equal(fields[5], 'signin-local');
+  assert.equal(fields[6], 'signin=unconfirmed');
+  assert.equal(fields.length, 7);
+});
+
+test('signin=: it is resent unchanged when the running state is resent, and follows a restart that re-reads the config', async (t) => {
+  const cfg = makeConfig(t, desktopToml(SIGNIN_PORT, SIGNIN_PREVIEW) + REMOTE_TOML);
+  const h = startHost(t, cfg);
+  await h.waitFor('state\trunning');
+  fs.appendFileSync(cfg.configPath, '');
+  fs.writeFileSync(cfg.configPath, fs.readFileSync(cfg.configPath, 'utf8').replace('[desktop]\n', '[desktop]\n' + CONFIRMED_A));
+  h.send('restart');
+  await h.waitCount('state\trunning', 2);
+  const running = h.lines().filter((l) => l.startsWith('state\trunning'));
+  assert.equal(running[0].split('\t').at(-1), 'signin=unconfirmed');
+  assert.equal(running[1].split('\t').at(-1), 'signin=confirmed');
 });

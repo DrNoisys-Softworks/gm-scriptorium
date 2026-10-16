@@ -127,13 +127,26 @@ const NAMED_FONT_RESIDUAL = Object.freeze([
 /*
  * A second pinned-residual class, `image-binary`, for the repository's own pictures. It reuses
  * `classifyFontBinary`'s exact machinery (one table, one classifier). Unlike NAMED_FONT_RESIDUAL
- * this table is exported. It holds the two README and social preview images under docs/images
- * (the Lantern branding art); the sample campaign's painted pictures will add their own rows
- * when they exist.
+ * this table is exported. It holds the README and social preview images under docs/images
+ * (the Lantern branding art) and the documentation screenshots under docs/images/how-to; the
+ * sample campaign's painted pictures will add their own rows when they exist.
  */
 const NAMED_IMAGE_RESIDUAL = Object.freeze([
   Object.freeze({ path: 'docs/images/banner.png', sha256: '35a1e1acf30bdc0565cce1722bbcb10c1868d2528bdeeaf5b06e09ae75045275' }),
   Object.freeze({ path: 'docs/images/social-preview.png', sha256: 'ba43761f8e5ca0d0f4478f4e80036c60839adef98e3b2a81f02d0140f224c515' }),
+  Object.freeze({ path: 'docs/images/how-to/setup-new-vault.png', sha256: 'ba1a881a6b05b33894eb1dca2309f464a47340f800aaa30d8ee66296bb5db3e3' }),
+  Object.freeze({ path: 'docs/images/how-to/setup-review.png', sha256: '2148c6f3efb3da576ea668f38cc86818b238e2efcf2b8ac281f020dc0d98dce2' }),
+  Object.freeze({ path: 'docs/images/how-to/campaigns-screen.png', sha256: '311420788be56266ba979dec19dbbdec8acbfbc000b8bbb8814360a798de130e' }),
+  Object.freeze({ path: 'docs/images/how-to/add-a-campaign.png', sha256: 'cefabbfaad3047bd7550199bac7929d202b9653469794f4ca2c8386e45c8f935' }),
+  Object.freeze({ path: 'docs/images/how-to/campaign-switcher.png', sha256: '53b39dae3ccac4722af24821b7f99a5128e2ad69a02d45f05654b2caf289204a' }),
+  Object.freeze({ path: 'docs/images/how-to/theme-screen.png', sha256: '6d54a152600ed8e609f61d54851e1faf1a2b03d42bf5fb63392c24c5598ccc3e' }),
+  Object.freeze({ path: 'docs/images/how-to/images-screen.png', sha256: '0cbbe7bcede4dba427a03200226b946bbbb4e31c68c26cf1d8ba6ac6d9eecf5f' }),
+  Object.freeze({ path: 'docs/images/how-to/title-and-tagline.png', sha256: '84ae1240e78ae465d66c644ca7827fc5df74c678a51db800eb437997359c0da9' }),
+  Object.freeze({ path: 'docs/images/how-to/vocabulary-screen.png', sha256: 'e7a43d56bd887d6e4b46dc88e3930d96534387cdc90be3ebab6d8494e692a383' }),
+  Object.freeze({ path: 'docs/images/how-to/vault-config-fields.png', sha256: 'ba5bbe756dc1a27e90ad92cb552eb9a360da8070819d57be66240f991686a155' }),
+  Object.freeze({ path: 'docs/images/how-to/check-leak-found.png', sha256: 'cd7553ef12151a507c253ee66f30a0542c00080a0846eefe285ae42f1315c3ce' }),
+  Object.freeze({ path: 'docs/images/how-to/site-footer-gm-link.png', sha256: 'a2ae36583c9a6e58258681be01b0839e3aef0f30f83dce8660cc0cc2f63a1e81' }),
+  Object.freeze({ path: 'docs/images/how-to/remote-access-screen.png', sha256: '7559b3a1f4568bb83b5a5ddac79ec6b838aafb1a93db63c68ba21620e7eece9d' }),
 ]);
 
 // Compared by path SEGMENT, never by string prefix (the sibling-directory bug this guards
