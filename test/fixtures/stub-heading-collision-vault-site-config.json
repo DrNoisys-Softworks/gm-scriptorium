@@ -6,6 +6,7 @@
   "attachmentsDir": "_attachments",
   "folderMap": {
     "Characters/NPCs": "characters/npcs",
+    "Characters/PCs": "characters/pcs",
     "Locations": "locations"
   },
   "excludeDirs": ["_meta", "_Templates", "_inbox", ".obsidian"],

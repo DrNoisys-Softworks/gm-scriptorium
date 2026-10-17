@@ -20,7 +20,7 @@
  *
  * `lunr` is the one export here that is not a generator internal — it is the
  * search-index library gm-apprentice-publish depends on directly
- * (lib/search-index.js:3, lib/build.js:559). Track D2's index-term leak
+ * (lib/search-index.js:3, lib/build.js:631). Track D2's index-term leak
  * check (src/checks/leak/outputscan.js) has to reproduce the generator's own
  * lunr pipeline (trimmer, stopWordFilter, stemmer) byte-for-byte to decide
  * whether a withheld name is reachable as a stemmed or possessive term in
@@ -73,7 +73,7 @@ installSegmenterShim();
 const { installNetworkGuard } = require('./netguard');
 installNetworkGuard();
 
-// lib/processor.js:1281 (module.exports)
+// lib/processor.js:1707 (module.exports)
 const {
   stripDataview,
   stripGmOnly,
@@ -82,75 +82,25 @@ const {
   stripLeadingH1,
   stripCallouts,
   filterSections,
-  keepOnlySections: upstreamKeepOnlySections,
+  keepOnlySections,
   publishedFrontmatter,
   publishMode,
   // L5 (ADR 0045) reads headings as the generator does: findHeadings is the parser reading
-  // (lib/processor.js:180-209), renderInline the build's own inline renderer (lib/processor.js:213-215),
-  // resolveWikiLinks the wikilink-to-display-text step (lib/processor.js:72-96). Re-exported, never re-implemented.
+  // (lib/processor.js:204-247), renderInline the build's own inline renderer (lib/processor.js:251-253),
+  // resolveWikiLinks the wikilink-to-display-text step (lib/processor.js:91-115). Re-exported, never re-implemented.
   findHeadings,
   renderInline,
   resolveWikiLinks,
 } = require('gm-apprentice-publish/lib/processor');
 
 /*
- * Issue #100: the pin's keepOnlySections (lib/processor.js, `publish: stub`) keeps any heading
- * whose TEXT matches an include entry, wherever it sits in the heading tree. A `### Appearance`
- * under the withheld `## GM Notes` was therefore kept on a stub page, and because the withheld
- * parent heading is dropped by the same pass, the later filterSections has nothing left to match:
- * the sub-heading published, and with it the search index and backlinks. UPSTREAM DEFECT, not
- * Scriptorium's section filter (src/ never filters sections). See the report / docs/COLLABORATING.md.
- *
- * Scriptorium-layer fix: this guard runs filterSections (the excluded sections, withheld parent
- * wins) BEFORE the pin's keepOnlySections. That is semantically identical to the pin's own order
- * for everything except the leak: filterSections runs on every published body afterwards anyway.
- *
- * Reach: lib/build.js destructures keepOnlySections from the processor's exports at ITS module load
- * (the only callers on the build path are lib/build.js:523 and :529; processor.js calls it from nowhere;
- * lib/lines-cli.js and lib/sheet-cli.js also use it, but a build never reaches them), so replacing
- * the export here works for the build if, and only if, it happens before lib/build.js first loads.
- * That is unlike ADR 0013's filterSections, which processor.js also calls internally. The
- * `live` flag records whether the replacement beat build.js; runGeneratorBuild refuses to build
- * (fail closed) when it did not. The effective excluded sections of the build in flight are set
- * per build via setStubExcludeSections (bootstrap.js); with none set, PUBLISH_DEFAULTS apply.
+ * Issue #100 (ADR 0042) is retired at publish-v1.17.0. Scriptorium used to replace the pin's
+ * keepOnlySections with a guard that withheld an excluded parent's sub-headings on a stub page.
+ * The pin now does this itself (#320 there): keepOnlySections and stubCut take the build's
+ * `withhold` object (lib/processor.js:474) and run a note's strips, then its exclude list, then the
+ * cut. Callers must pass that object, as lib/build.js:589 does; without excludeSections nothing is
+ * withheld. The real-build proof is test/stub-heading-collision.test.js.
  */
-const processorModule = require('gm-apprentice-publish/lib/processor');
-const STUB_GUARD_BUILD_PATH = require.resolve('gm-apprentice-publish/lib/build.js');
-
-function installStubSectionGuard() {
-  const existing = processorModule.keepOnlySections;
-  // Idempotent across a re-evaluated copy of this module: reuse the first install, so the state
-  // build.js's binding reads from is the one state every copy of this module writes to.
-  if (existing && existing.scriptoriumStubGuard) return existing;
-  function guardedKeepOnlySections(markdown, includeSections = [], excludeSections) {
-    const exclude = Array.isArray(excludeSections)
-      ? excludeSections
-      : guardedKeepOnlySections.currentExclude || PUBLISH_DEFAULTS.exclude_sections;
-    return upstreamKeepOnlySections(filterSections(markdown, exclude), includeSections);
-  }
-  guardedKeepOnlySections.scriptoriumStubGuard = true;
-  guardedKeepOnlySections.currentExclude = null;
-  guardedKeepOnlySections.live = !require.cache[STUB_GUARD_BUILD_PATH];
-  processorModule.keepOnlySections = guardedKeepOnlySections;
-  return guardedKeepOnlySections;
-}
-
-const keepOnlySections = installStubSectionGuard();
-
-/** @param {string[]|null} list the effective exclude_sections of the build about to run, or null to clear. */
-function setStubExcludeSections(list) {
-  keepOnlySections.currentExclude = Array.isArray(list) ? list.slice() : null;
-}
-
-/** @throws {ScriptoriumError} when the guard cannot reach lib/build.js's binding (fail closed). */
-function assertStubGuardLive() {
-  if (processorModule.keepOnlySections !== keepOnlySections || keepOnlySections.live !== true) {
-    throw new ScriptoriumError(
-      'the stub-page section guard (issue #100) is not live: gm-apprentice-publish/lib/build.js was loaded before src/generator/pinned.js ' +
-        'replaced keepOnlySections, so a stub page could publish a withheld sub-heading. Refusing to build.',
-    );
-  }
-}
 
 // lib/publish-decision.js:220-229 (module.exports)
 const {
@@ -162,10 +112,10 @@ const {
 // lib/manifest.js:99 (module.exports)
 const { parseManifest } = require('gm-apprentice-publish/lib/manifest');
 
-// lib/config.js:539 (module.exports)
+// lib/config.js:567 (module.exports)
 const { PUBLISH_DEFAULTS, vaultRelPath, scanConfigFor } = require('gm-apprentice-publish/lib/config');
 
-// lib/scanner.js:415 (module.exports). dirIsExcluded is FR-16/SD-19's new export: the pin's own
+// lib/scanner.js:444 (module.exports). dirIsExcluded is FR-16/SD-19's new export: the pin's own
 // case-insensitive excludeDirs matcher (matchExcludedDir), used by src/vault/publishset.js so its
 // hand-ported directory-skip test can never drift from the pin's own casing rule.
 const { slugify, mapFolder, dirIsExcluded } = require('gm-apprentice-publish/lib/scanner');
@@ -180,11 +130,21 @@ const { pairHubs, isWrapUp, WRAP_UP_TYPES } = require('gm-apprentice-publish/lib
 // lib/theme.js:217 (module.exports)
 const { resolveGenrePreset } = require('gm-apprentice-publish/lib/theme');
 
+// lib/wikilink.js:129 (module.exports). New at publish-v1.17.0: how the pin prints a wikilink
+// inside a title (by its label), which src/vault/publishset.js's display-title port calls.
+const { labelsForLinks } = require('gm-apprentice-publish/lib/wikilink');
+
+// lib/frontmatter.js:155 and lib/frontmatter-shape.js:110 (module.exports). New at
+// publish-v1.17.0: the scanner cuts comments out of frontmatter values, then puts wrongly typed values
+// into shape or leaves them unread (lib/scanner.js:126-128); src/vault/publishset.js does the same.
+const { cutValueComments } = require('gm-apprentice-publish/lib/frontmatter');
+const { shapeFrontmatter } = require('gm-apprentice-publish/lib/frontmatter-shape');
+
 // lib/unicode.js:89 (module.exports)
 const { canonicalNfc, truncateGraphemes } = require('gm-apprentice-publish/lib/unicode');
 
-// lib/templates/base.js:206-220 (module.exports). DIR_LABELS (ADR 0061): the sections lib/build.js
-// resolves a banner for (lib/build.js:1175), read by src/vault/imagecopies.js.
+// lib/templates/base.js:230-249 (module.exports). DIR_LABELS (ADR 0061): the sections lib/build.js
+// resolves a banner for (lib/build.js:1401), read by src/vault/imagecopies.js.
 const { metadataBadgesFor, TYPE_BADGE_FIELDS, DIR_LABELS } = require('gm-apprentice-publish/lib/templates/base');
 
 // lib/banners.js:96-99 (module.exports). ADR 0061: the pin's own banner-entry reader, folder lookup,
@@ -203,7 +163,7 @@ const lunr = require('gm-apprentice-publish/node_modules/lunr');
 // eslint-disable-next-line global-require
 const LUNR_VERSION = require('gm-apprentice-publish/node_modules/lunr/package.json').version;
 
-const PIN_COMMIT = 'ea94de7f47f398eb695600653017323ee20caa65';
+const PIN_COMMIT = 'db6fb2b083e8ee897a381b9de4642f12769e4cc2';
 
 /*
  * V1e-1 (ADR 0033, SD-5): the generator's OWN gray-matter, as the pin's lib/frontmatter.js:2 itself
@@ -280,8 +240,6 @@ module.exports = {
   renderInline,
   resolveWikiLinks,
   keepOnlySections,
-  setStubExcludeSections,
-  assertStubGuardLive,
   publishedFrontmatter,
   publishMode,
   decidePage,
@@ -298,6 +256,9 @@ module.exports = {
   isWrapUp,
   WRAP_UP_TYPES,
   resolveGenrePreset,
+  labelsForLinks,
+  cutValueComments,
+  shapeFrontmatter,
   canonicalNfc,
   truncateGraphemes,
   metadataBadgesFor,

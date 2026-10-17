@@ -5,7 +5,7 @@ const { createFinding } = require('../report/finding');
 /**
  * vault/unmapped-directory: a directory has no folderMap entry and is not
  * the vault root, so scanVault silently drops every typed file under it
- * (lib/scanner.js:119-129). Fires today on Adventures/.
+ * (lib/scanner.js:137-147). Fires today on Adventures/.
  */
 function runUnmappedDirectory(ctx) {
   return ctx.publishSet.unmappedDirectory.map((f) =>

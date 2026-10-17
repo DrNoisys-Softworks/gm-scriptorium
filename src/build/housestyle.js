@@ -13,9 +13,9 @@ const path = require('path');
  * SD-3, the whole point of this module: the injector anchors on the overrides.css `<link>`
  * tag and derives our href from THAT tag's own href by replacing its trailing filename. It
  * never computes depth and never knows about a site's basePath. One rule then produces the
- * correct relative href at every depth on base.js's pages (lib/templates/base.js:60-62,
+ * correct relative href at every depth on base.js's pages (lib/templates/base.js:75-77,
  * cascade style.css -> [genre] -> theme.css -> [overrides]) and the correct ABSOLUTE href on
- * 404.html (lib/templates/four-oh-four.js:37-39, a different cascade order, basePath-prefixed
+ * 404.html (lib/templates/four-oh-four.js:42-44, a different cascade order, basePath-prefixed
  * hrefs, and a page-local <style> block) -- because our href is derived from a href the
  * template already got right for that page.
  *
