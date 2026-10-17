@@ -280,7 +280,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   `test/fixtures/*/​_meta/vault-config.md`): the `publish.exclude_sections` list a campaign author
   writes there is unioned case-insensitively with the generator's own `PUBLISH_DEFAULTS.exclude_sections`
   (`lib/config.js:17`: `['GM Notes', 'DM Notes', 'Player Notes', 'Source References',
-  'Reconciliation Context', 'Handoff to Reconcile']`) at `lib/config.js:192-246` and `:414-416`. `GM Notes`
+  'Reconciliation Context', 'Handoff to Reconcile']`) at `lib/config.js:218-272` and `:414-416`. `GM Notes`
   specifically is in both the generator's own defaults and every real campaign's own config, which
   is exactly the combination `sectionfilter.js`'s patch exists to fix (a nested excluded heading
   inside `## GM Notes`).
@@ -288,11 +288,11 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   `publish-v1.11.41` (upstream #280), on a page whose own frontmatter says `type: document` (or
   `handout`) the pin's `filterSections` withholds four `## ` sections whatever
   `publish.exclude_sections` lists: Context, any heading starting "Clues", Prop Notes (or Physical
-  Prop Notes), and Delivery (or Delivery Notes) (`lib/processor.js:106-149`). It reads the type from
-  a third `frontmatter` argument, which the build passes for a page's body (`lib/build.js:583`,
-  `lib/processor.js:1014`): the file's original frontmatter, kept as `page.sourceFrontmatter`
+  Prop Notes), and Delivery (or Delivery Notes) (`lib/processor.js:125-158`). It reads the type from
+  a third `frontmatter` argument, which the build passes for a page's body (`lib/build.js:662`,
+  `lib/processor.js:1440`): the file's original frontmatter, kept as `page.sourceFrontmatter`
   (`lib/build.js:536`) so that hiding `type` with `exclude_fields` cannot switch the rule off. Story
-  text is rendered from a page object whose frontmatter is `{}` (`lib/build.js:857-861`, `:1245`),
+  text is rendered from a page object whose frontmatter is `{}` (`lib/build.js:950-954`, `:1245`),
   so the rule never applies to it. `src/checks/leak/textmodel.js`'s `renderChain` does the same:
   the page's raw frontmatter for the body, none for story text, so `check` reads what a build
   publishes; without it the model keeps
@@ -349,7 +349,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   doesn't recognise degrades to a single note that nothing was checked, rather than a per-relationship
   warning. See ADR 0037, section "What the check reads".
 - **The generator builds a campaign id from the site title**, `slugify(config.siteTitle ||
-  'campaign')` (`lib/build.js:827,865`), used to namespace anything a backend feature stores. The
+  'campaign')` (`lib/build.js:911,865`), used to namespace anything a backend feature stores. The
   admin panel's title review warns, through the pinned `slugify` facade and never a
   re-implementation of the function, when `vault.config.json`'s own `backend.statusBar` or
   `backend.inbox` is `true` and a rename would change that id. The save is never blocked.
@@ -363,9 +363,9 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
 - **The output-leak scan** (`src/checks/leak/outputscan.js`, `docs/decisions/0009-output-leak-scan.md`):
   reads the *built* site tree rather than source, because several leak surfaces are derived views
   the generator assembles at render time and a source-side scan structurally cannot see them:
-  relationship-graph SVG `<text>` labels (`lib/relationship-graph.js:193-194`, including the
+  relationship-graph SVG `<text>` labels (`lib/relationship-graph.js:206-207`, including the
   truncation at `truncateGraphemes(name, 15, 13)`, `lib/unicode.js:83-87`, and the de-underscoring
-  fallback `title.replace(/_/g, ' ')` at `lib/relationship-graph.js:47`), aggregate index cards built
+  fallback `title.replace(/_/g, ' ')` at `lib/relationship-graph.js:62`), aggregate index cards built
   from another page's frontmatter (e.g. `factions/index.html`'s `escapeHtml(leadership)`,
   `lib/templates/index-page.js:604,609-611`), and the landing page's recency-widget excerpt
   (`escapeHtml(fm.outcome)`, `lib/templates/landing.js:200,204`).
@@ -398,7 +398,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
 - **A paired hub's recap, and which Wrap-Up it was paired with** (`docs/decisions/0036-session-wrap-up-support.md`):
   read straight off the built page rather than recomputed, because the pairing a real build made is
   the one thing Scriptorium must never disagree with. `src/build/sessionmodel.js` finds the pin's
-  own `<div class="recap session-recap">` marker (`lib/templates/session.js:36`) and, inside it, the
+  own `<div class="recap session-recap">` marker (`lib/templates/session.js:48`) and, inside it, the
   `<a class="recap-link" href="…">` anchor (`:34`), and resolves that href to the Wrap-Up's own
   output path. Both literals are pinned by a change detector in `test/session-pairing.test.js`; a
   markup change that moves or renames either one degrades (the hub reports as `unreadable`, never a
@@ -413,8 +413,8 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   entry reader, folder lookup, SVG test, extension order and section list come through the facade.
   The rest is copied by hand, because the generator does not export it: the cover destination
   (`lib/build.js:776-777`), the banner destination and slug rule (`lib/build.js:1130-1132`), the
-  vault containment test (`lib/build.js:771-775`, `:1112-1124`) and the merge of `banners` and
-  `folder_map` across the two config files (`lib/config.js:192-246`, `:405`, `:447`, `:506-514`).
+  vault containment test (`lib/build.js:851-855`, `:1112-1124`) and the merge of `banners` and
+  `folder_map` across the two config files (`lib/config.js:218-272`, `:405`, `:447`, `:506-514`).
   A pin bump re-reads those lines; `test/banner-cover-sources.test.js` builds a real site and checks
   the literal destinations, so a generator change that moves them fails it.
 

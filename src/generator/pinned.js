@@ -20,7 +20,7 @@
  *
  * `lunr` is the one export here that is not a generator internal — it is the
  * search-index library gm-apprentice-publish depends on directly
- * (lib/search-index.js:3, lib/build.js:559). Track D2's index-term leak
+ * (lib/search-index.js:3, lib/build.js:631). Track D2's index-term leak
  * check (src/checks/leak/outputscan.js) has to reproduce the generator's own
  * lunr pipeline (trimmer, stopWordFilter, stemmer) byte-for-byte to decide
  * whether a withheld name is reachable as a stemmed or possessive term in
@@ -73,7 +73,7 @@ installSegmenterShim();
 const { installNetworkGuard } = require('./netguard');
 installNetworkGuard();
 
-// lib/processor.js:1281 (module.exports)
+// lib/processor.js:1707 (module.exports)
 const {
   stripDataview,
   stripGmOnly,
@@ -86,8 +86,8 @@ const {
   publishedFrontmatter,
   publishMode,
   // L5 (ADR 0045) reads headings as the generator does: findHeadings is the parser reading
-  // (lib/processor.js:180-209), renderInline the build's own inline renderer (lib/processor.js:213-215),
-  // resolveWikiLinks the wikilink-to-display-text step (lib/processor.js:72-96). Re-exported, never re-implemented.
+  // (lib/processor.js:204-247), renderInline the build's own inline renderer (lib/processor.js:251-253),
+  // resolveWikiLinks the wikilink-to-display-text step (lib/processor.js:91-115). Re-exported, never re-implemented.
   findHeadings,
   renderInline,
   resolveWikiLinks,
@@ -112,10 +112,10 @@ const {
 // lib/manifest.js:99 (module.exports)
 const { parseManifest } = require('gm-apprentice-publish/lib/manifest');
 
-// lib/config.js:539 (module.exports)
+// lib/config.js:567 (module.exports)
 const { PUBLISH_DEFAULTS, vaultRelPath, scanConfigFor } = require('gm-apprentice-publish/lib/config');
 
-// lib/scanner.js:415 (module.exports). dirIsExcluded is FR-16/SD-19's new export: the pin's own
+// lib/scanner.js:444 (module.exports). dirIsExcluded is FR-16/SD-19's new export: the pin's own
 // case-insensitive excludeDirs matcher (matchExcludedDir), used by src/vault/publishset.js so its
 // hand-ported directory-skip test can never drift from the pin's own casing rule.
 const { slugify, mapFolder, dirIsExcluded } = require('gm-apprentice-publish/lib/scanner');
@@ -143,8 +143,8 @@ const { shapeFrontmatter } = require('gm-apprentice-publish/lib/frontmatter-shap
 // lib/unicode.js:89 (module.exports)
 const { canonicalNfc, truncateGraphemes } = require('gm-apprentice-publish/lib/unicode');
 
-// lib/templates/base.js:206-220 (module.exports). DIR_LABELS (ADR 0061): the sections lib/build.js
-// resolves a banner for (lib/build.js:1175), read by src/vault/imagecopies.js.
+// lib/templates/base.js:230-249 (module.exports). DIR_LABELS (ADR 0061): the sections lib/build.js
+// resolves a banner for (lib/build.js:1401), read by src/vault/imagecopies.js.
 const { metadataBadgesFor, TYPE_BADGE_FIELDS, DIR_LABELS } = require('gm-apprentice-publish/lib/templates/base');
 
 // lib/banners.js:96-99 (module.exports). ADR 0061: the pin's own banner-entry reader, folder lookup,

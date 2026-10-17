@@ -10,7 +10,7 @@ const { toRelativePosix } = require('../util/paths');
  * site's images/ folder, and from which vault file, so leak/l2-excluded-dir-in-output can judge
  * each copy by its real source. The pin's pure helpers come through the facade; the file I/O, the
  * destinations, the slug rule and the two-file config merge are hand-ported (re-check on every pin
- * move: lib/build.js:765-785 and :1112-1175, lib/banners.js:40-60, lib/config.js:192-246, :405,
+ * move: lib/build.js:845-865 and :1112-1175, lib/banners.js:40-60, lib/config.js:218-272, :405,
  * :447, :506-514). test/banner-cover-sources.test.js builds a real site and checks the literal
  * destinations, so a pin that moves them fails it.
  */
@@ -24,7 +24,7 @@ function readPublish(vaultRoot) {
   return result.ok && result.data && result.data.publish ? result.data.publish : {};
 }
 
-// lib/config.js:192-246 (pick, for a MERGED_MAPS key) and :447 (asMap).
+// lib/config.js:218-272 (pick, for a MERGED_MAPS key) and :447 (asMap).
 function effectiveBanners(publish, jsonConfig) {
   const fromVault = publish.banners;
   const fromSite = jsonConfig.banners;
@@ -37,13 +37,13 @@ function effectiveBanners(publish, jsonConfig) {
   return isPlainMap(value) ? { ...value } : {};
 }
 
-// lib/config.js:204 and :405 (the vault file wins outright, then asMap), :509-511 (config.folderMap).
+// lib/config.js:230 and :405 (the vault file wins outright, then asMap), :509-511 (config.folderMap).
 function effectiveFolderMap(publish, jsonConfig) {
   const value = publish.folder_map !== undefined ? publish.folder_map : jsonConfig.folderMap;
   return isPlainMap(value) ? value : {};
 }
 
-// lib/build.js:771-775 and :1112-1124: inside the vault (never the root itself) and present.
+// lib/build.js:851-855 and :1112-1124: inside the vault (never the root itself) and present.
 function vaultFile(vaultRoot, value) {
   const full = path.resolve(vaultRoot, String(value));
   const rel = path.relative(vaultRoot, full);

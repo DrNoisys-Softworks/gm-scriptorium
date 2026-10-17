@@ -8,7 +8,7 @@ const { findMainOpen } = require('./htmltext');
 /*
  * UI-01 / issue 214 (https://github.com/AntTheLimey/gm-apprentice/issues/214) FIXED upstream as of
  * publish-v1.11.40 (R1 repin, 2026-09-30): `sessions` is now present in DIR_LABELS
- * (lib/templates/base.js:3-25, 'sessions': 'Sessions' at :21), so `lib/build.js:1180-1218`'s
+ * (lib/templates/base.js:4-26, 'sessions': 'Sessions' at :21), so `lib/build.js:1415-1443`'s
  * unconditional per-DIR_LABELS-entry index write (Object.entries(DIR_LABELS) loop) now writes
  * sessions/index.html itself, the same way it always wrote every other section's index. Every
  * page's nav has always linked "Sessions" at that path regardless (lib/templates/nav.js:9,54).
@@ -44,7 +44,7 @@ function escapeHtml(str) {
 }
 
 /**
- * `<title>` is rendered by baseShell as `${title} — ${siteTitle}` (lib/templates/base.js:76,
+ * `<title>` is rendered by baseShell as `${title} — ${siteTitle}` (lib/templates/base.js:92,
  * literal " — " separator). Strip that suffix to recover the page's own title for the listing.
  */
 function extractEntryTitle(html, siteTitle) {

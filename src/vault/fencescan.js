@@ -9,12 +9,12 @@ const { toRelativePosix } = require('../util/paths');
  * ADR 0034 / FR-FM-04. The guard's own walk, independent of and wider than the census walk
  * (src/vault/index.js), the check's own resolution walk, and every walk publishset.js mirrors:
  * every module.exports.read call below is a proven SUPERSET of the seven generator parse sites
- * this pin's build() can reach (see the ADR's walk-set table, sourced from lib/scanner.js:98-115,
- * lib/scanner.js:343-371, lib/scanner.js:379-413, lib/config.js:355-364, lib/manifest.js:92-96,
- * lib/manifest.js:33-34, and lib/build.js:1309-1310's own repeat of the first three via
+ * this pin's build() can reach (see the ADR's walk-set table, sourced from lib/scanner.js:105-122,
+ * lib/scanner.js:372-400, lib/scanner.js:408-442, lib/config.js:381-390, lib/manifest.js:92-96,
+ * lib/manifest.js:33-34, and lib/build.js:1536-1537's own repeat of the first three via
  * manifest-cli.js). All of it deliberately: node_modules, every excludeDirs entry,
  * _meta/_Templates/_inbox/_publish, and dotfiles are all included, because
- * scanAllNotes (run by every build via pairHubs, lib/build.js:483) ignores excludeDirs and reads any
+ * scanAllNotes (run by every build via pairHubs, lib/build.js:545) ignores excludeDirs and reads any
  * `.md` (any case) carrying an aliases:/gm_aliases: line or a session type: line, and
  * scanVaultReport itself descends into node_modules and reads dotfiles and file symlinks.
  *

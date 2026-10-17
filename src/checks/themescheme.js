@@ -9,7 +9,7 @@ const { createFinding } = require('../report/finding');
 /*
  * ADR 0023, Structural decision 6: config/theme-scheme-mismatch.
  *
- * Reproduces the pin's palette merge (lib/config.js:428-430) and its light/dark rule
+ * Reproduces the pin's palette merge (lib/config.js:455-457) and its light/dark rule
  * (lib/theme.js:185-190, applied after that merge) purely from _meta/vault-config.md's `publish`
  * block, through src/vault/read.js's own read-only, abort-on-EIO chokepoint (the same one
  * src/vault/publishset.js's loadPublishConfig uses, at :128-129) -- never the pin's own

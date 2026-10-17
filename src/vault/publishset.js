@@ -59,8 +59,8 @@ function computeLineOffset(raw, content) {
  * Union two exclude lists case-insensitively, preserving first-seen
  * casing/order, falling back to `defaults` only when NEITHER source
  * supplies a list. Ported from the pin's (unexported) unionExcludeList as it stood at
- * publish-v1.11.44 (lib/config.js:107-121 there). At publish-v1.12.0 the pin does the same merge in
- * pick() (lib/config.js:192-246) and applies the defaults in list() (:396, :414-416): the vault
+ * publish-v1.11.44 (lib/config.js:133-147 there). At publish-v1.12.0 the pin does the same merge in
+ * pick() (lib/config.js:218-272) and applies the defaults in list() (:396, :414-416): the vault
  * list first, then the site-file entries it lacks. One case differs, and this port is the stricter
  * reader of it: a vault-file key that is set but is not a list now yields the pin defaults plus the
  * site-file entries in the pin, and the site-file list alone here.
@@ -85,7 +85,7 @@ function unionExcludeList(primary, fallback, defaults) {
 /**
  * A single publish.overrides.fields[path] entry is malformed if it is not a
  * map, or has a non-array/non-string-array "include". Ported from the
- * pin's (unexported) overrideEntryProblem, lib/config.js:285-297,
+ * pin's (unexported) overrideEntryProblem, lib/config.js:311-323,
  * unmodified.
  */
 function overrideEntryProblem(value) {
@@ -99,7 +99,7 @@ function overrideEntryProblem(value) {
 /**
  * Canonicalizes publish.overrides.fields keys to NFC and drops malformed
  * entries. Ported from the pin's (unexported) canonicalizeOverrideFieldKeys,
- * lib/config.js:253-279 — minus the console.warn calls, which would write
+ * lib/config.js:279-305 — minus the console.warn calls, which would write
  * to stderr during `check` (rejected in Structural decision 1); a dropped
  * entry is still dropped, just silently from Scriptorium's side.
  */
@@ -115,7 +115,7 @@ function canonicalizeOverrideFieldKeys(fields) {
 }
 
 /**
- * The subset of loadPublishConfig() (lib/config.js:355-477) Scriptorium
+ * The subset of loadPublishConfig() (lib/config.js:381-505) Scriptorium
  * needs: mode, system, exclude_drafts, exclude_callouts, the three unioned
  * exclude lists, and overrides.fields. Also returns `configSources`: the
  * RAW (un-defaulted, un-unioned) list each surface supplied, or undefined —
@@ -220,7 +220,7 @@ function loadManifest(vaultPath) {
 // ---------------------------------------------------------------------------
 
 /**
- * Mirrors the walk's directory-skip test, lib/scanner.js:105
+ * Mirrors the walk's directory-skip test, lib/scanner.js:112
  * (`dirIsExcluded(relPath, excludeDirs) || entry.name.startsWith('.')`). The excludeDirs half is
  * required through the facade's `dirIsExcluded` (the pin's own case-insensitive matcher, lib/
  * scanner.js's matchExcludedDir) rather than hand-re-implemented, so this can never drift from
@@ -232,13 +232,13 @@ function isExcludedDir(relPath, name, excludeDirs) {
 }
 
 /**
- * The walk (lib/scanner.js:76-172, scanVaultReport), ported to route every read
+ * The walk (lib/scanner.js:80-191, scanVaultReport), ported to route every read
  * through src/vault/read.js. Every .md file with a frontmatter `type` in a
  * folderMap-mapped directory (or the vault root) becomes a page. A file
  * whose folder is unmapped is silently dropped by the generator
- * (lib/scanner.js:119-129); this function records those in `unmappedDirectory`
+ * (lib/scanner.js:137-147); this function records those in `unmappedDirectory`
  * instead of dropping them, so vault/unmapped-directory can report them. A
- * file with no `type:` (lib/scanner.js:117) or unparseable frontmatter is
+ * file with no `type:` (lib/scanner.js:135) or unparseable frontmatter is
  * likewise recorded nowhere here — frontmatter/parse-error and
  * frontmatter/missing-type report those separately from ctx.index, not
  * from this module.
@@ -340,13 +340,13 @@ function scanAllCandidatePages(vaultPath, jsonConfig) {
 }
 
 /**
- * pairStoryFiles() in lib/scanner.js:343-371, ported to route its reads through
+ * pairStoryFiles() in lib/scanner.js:372-400, ported to route its reads through
  * src/vault/read.js and to operate on this module's page shape. Splices a
  * PC's paired `<Name>_Story.md` out of `pages` (whether or not its own
  * frontmatter is parseable or typed `character-story`, matching the pin
  * exactly) and, when it IS a real character-story file, attaches its body
  * as `pc.storyMarkdown` / `pc.storySourcePath`. From publish-v1.12.3 the pin splices only when
- * the note at that path has a `type:` (isStoryCompanion, lib/scanner.js:339-341). `pages` holds
+ * the note at that path has a `type:` (isStoryCompanion, lib/scanner.js:368-370). `pages` holds
  * typed notes only, here and in the pin, so the result is the same and this port has no gate.
  *
  * Track D3 additions, only set when a real story is attached:
@@ -354,7 +354,7 @@ function scanAllCandidatePages(vaultPath, jsonConfig) {
  * directory — derived from `pc.relPath` rather than `vaultPath`, since
  * this function is never given one), `storyLineOffset` (the story file's
  * own frontmatter offset, `computeLineOffset`), and `storyOutputPath`
- * (`story/characters/<slug>.html`, mirroring `lib/build.js:1254`'s own
+ * (`story/characters/<slug>.html`, mirroring `lib/build.js:1488`'s own
  * `story/characters/${slugify(pc.title)}.html` exactly — required via
  * `pinned.slugify` so this can never drift from what the real build
  * writes).
@@ -391,7 +391,7 @@ function pairStoryFiles(pages) {
 
 // ---------------------------------------------------------------------------
 // build.js's verdict loop (gm-apprentice-publish lib/published-pages.js:10-17, called from
-// lib/build.js:420-422; up to publish-v1.12.2 the loop sat in lib/build.js itself)
+// lib/build.js:467-469; up to publish-v1.12.2 the loop sat in lib/build.js itself)
 // ---------------------------------------------------------------------------
 
 /**

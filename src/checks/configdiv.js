@@ -8,7 +8,7 @@ const { hubBodyWithheld } = require('./sessionmodel');
  * L6, the config-surface-divergence class (Engineering Brief section 7),
  * re-ported against the pin (Track DEP-b). Two config surfaces exist:
  * vault.config.json (outside the vault) and _meta/vault-config.md's
- * `publish:` block (inside it). lib/config.js:192-246's pick (unionExcludeList up to publish-v1.11.44)
+ * `publish:` block (inside it). lib/config.js:218-272's pick (unionExcludeList up to publish-v1.11.44)
  * genuinely unions exclude_sections/exclude_fields/exclude_dirs from BOTH
  * surfaces (case-insensitively de-duplicated) — it does NOT let one side
  * win outright — but falls back to PUBLISH_DEFAULTS (lib/config.js:17-18)
@@ -18,7 +18,7 @@ const { hubBodyWithheld } = require('./sessionmodel');
  * runExcludeFieldsDivergence below report.
  *
  * exclude_dirs is different again, and changed at publish-v1.11.40 (Δ, #209 follow-up):
- * lib/build.js:351 now calls lib/config.js's scanConfigFor(config, publishConfig) before
+ * lib/build.js:398 now calls lib/config.js's scanConfigFor(config, publishConfig) before
  * scanVault, so the walk sees the merged, unioned exclude_dirs, not the raw vault.config.json
  * object. A vault-only publish.exclude_dirs entry now genuinely gates a fresh build's walk too.
  * See runExcludeDirsDivergence's own doc comment for what this check still catches.
@@ -51,7 +51,7 @@ function headingSurvives(ctx, sectionName) {
  * exclude_sections: when EITHER config surface supplies its own list, a pin
  * default (PUBLISH_DEFAULTS.exclude_sections, lib/config.js:17) that list
  * doesn't re-name is silently dropped from the effective union
- * (lib/config.js:192-246's pick (unionExcludeList up to publish-v1.11.44), with the list() fallback at :396,
+ * (lib/config.js:218-272's pick (unionExcludeList up to publish-v1.11.44), with the list() fallback at :396,
  * :414-416, only falls back to the defaults
  * when NEITHER surface supplies a list). ERROR if the heading actually
  * renders in a published page; WARN otherwise. When neither surface
@@ -158,7 +158,7 @@ function toCamelCase(snake) {
  * secrets/current_plan/plan_progress/gm_notes/prep_notes/reliability) is only used
  * whole when neither surface supplies its own exclude_fields list; a list
  * from EITHER surface replaces the defaults instead of extending them
- * (lib/config.js:192-246's pick (unionExcludeList up to publish-v1.11.44)).
+ * (lib/config.js:218-272's pick (unionExcludeList up to publish-v1.11.44)).
  */
 function runExcludeFieldsDivergence(ctx) {
   const effective = new Set(ctx.publishSet.publishConfig.exclude_fields || []);
