@@ -68,3 +68,25 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: node scripts/public-guard.js ci
+
+  browser:
+    # Same guard as the test job: never run this on the private repo. Every pull request and
+    # every push to main (ADR 0069). The browser tests skip without Playwright, so the runner
+    # fails on any skip.
+    if: github.repository == 'DrNoisys-Softworks/gm-scriptorium'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: browser-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      # Playwright and axe-core are not project dependencies. Their versions live in scripts/browser-tests.js.
+      - run: npm install --prefix "$RUNNER_TEMP/browser-tools" $(node scripts/browser-tests.js packages)
+      - run: node "$RUNNER_TEMP/browser-tools/node_modules/playwright/cli.js" install --with-deps chromium firefox
+      - run: PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser-tools/node_modules/playwright" node scripts/browser-tests.js run
