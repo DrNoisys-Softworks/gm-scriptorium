@@ -350,3 +350,30 @@ test('scanForPublish + manifest: an NFD-typed filename slugifies and matches an 
     assert.equal(published.verdict.code, 'OK');
   });
 });
+
+// From publish-v1.17.0 the pin's scanner reads a title as a string (`title: 1984`) and prints a
+// wikilink in it by its label (lib/scanner.js:154). scanForPublish ports that line by hand, so it is
+// checked here against the pin's own scanner on the same notes, and against values written out.
+test('displayTitle: a numeric title, a wikilink title and no title match the pin\'s own scanner', () => {
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-display-title-'));
+  try {
+    const dir = path.join(vault, 'Characters', 'NPCs');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'Year.md'), '---\ntype: npc\ntitle: 1984\n---\n\nBody.\n');
+    fs.writeFileSync(path.join(dir, 'Mason.md'), '---\ntype: npc\ntitle: "[[Doran_Vale|the Mason]]"\n---\n\nBody.\n');
+    fs.writeFileSync(path.join(dir, 'Old_Ferryman.md'), '---\ntype: npc\n---\n\nBody.\n');
+    const config = { excludeDirs: [], folderMap: { 'Characters/NPCs': 'characters/npcs' } };
+
+    const ours = Object.fromEntries(scanForPublish(vault, config).pages.map((p) => [p.title, p.displayTitle]));
+    assert.deepEqual(ours, { Year: '1984', Mason: 'the Mason', Old_Ferryman: 'Old Ferryman' });
+
+    // eslint-disable-next-line global-require
+    const { scanVaultReport } = require('gm-apprentice-publish/lib/scanner');
+    const theirs = Object.fromEntries(
+      scanVaultReport({ vaultPath: vault, ...config }, { quiet: true }).pages.map((p) => [p.title, p.displayTitle]),
+    );
+    assert.deepEqual(ours, theirs);
+  } finally {
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});

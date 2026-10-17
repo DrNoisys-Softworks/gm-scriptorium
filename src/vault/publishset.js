@@ -270,11 +270,10 @@ function scanForPublish(vaultPath, jsonConfig) {
       }
 
       const baseName = path.basename(entry.name, '.md');
-      // displayTitle: frontmatter title wins, else the stem with
-      // underscores turned to spaces — lib/scanner.js:134, exactly. The old
-      // mirror took the stem unconditionally (Track DEP-b, "the mirror
-      // code today"), which is the drift this re-port fixes.
-      const displayTitle = result.data.title || baseName.replace(/_/g, ' ');
+      // displayTitle: frontmatter title wins, read as a string with any wikilink
+      // printed by its label, else the stem with underscores turned to spaces —
+      // lib/scanner.js:154, exactly (publish-v1.17.0 added the string and the label).
+      const displayTitle = (result.data.title ? pinned.labelsForLinks(String(result.data.title)) : '') || baseName.replace(/_/g, ' ');
       const slug = pinned.slugify(baseName);
       const outputPath = outputDir ? `${outputDir}/${slug}.html` : `${slug}.html`;
 

@@ -130,6 +130,10 @@ const { pairHubs, isWrapUp, WRAP_UP_TYPES } = require('gm-apprentice-publish/lib
 // lib/theme.js:217 (module.exports)
 const { resolveGenrePreset } = require('gm-apprentice-publish/lib/theme');
 
+// lib/wikilink.js:129 (module.exports). New at publish-v1.17.0: how the pin prints a wikilink
+// inside a title (by its label), which src/vault/publishset.js's display-title port calls.
+const { labelsForLinks } = require('gm-apprentice-publish/lib/wikilink');
+
 // lib/unicode.js:89 (module.exports)
 const { canonicalNfc, truncateGraphemes } = require('gm-apprentice-publish/lib/unicode');
 
@@ -246,6 +250,7 @@ module.exports = {
   isWrapUp,
   WRAP_UP_TYPES,
   resolveGenrePreset,
+  labelsForLinks,
   canonicalNfc,
   truncateGraphemes,
   metadataBadgesFor,
