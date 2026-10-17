@@ -182,6 +182,53 @@ raised while resolving a pack becomes exit 3 (`asPackProblem` in `src/cli/check.
   house style is the limits block at the top of `src/build/plan.js`, and the "Will catch / Will
   not catch, deliberately" section of [ADR 0009](decisions/0009-output-leak-scan.md).
 
+## Running the browser tests
+
+This section is for anyone changing the admin panel. The panel tests drive real Chromium and Firefox. Without the setup below they skip, and `npm test` still passes, so a skip is easy to miss.
+
+Playwright (the browser driver) and axe-core (the accessibility checker) are not project dependencies. Install them into a folder outside the repository. Run each command on its own.
+
+```
+npm install --prefix "$HOME/scriptorium-browser-tools" playwright@1.55.1 axe-core@4.13.0
+```
+
+```
+node "$HOME/scriptorium-browser-tools/node_modules/playwright/cli.js" install --with-deps chromium firefox
+```
+
+`--with-deps` installs system libraries on Debian or Ubuntu using `sudo apt`. Leave it out on other systems.
+
+In a POSIX shell (bash, zsh), run the suite like this:
+
+```
+PLAYWRIGHT_MODULE="$HOME/scriptorium-browser-tools/node_modules/playwright" npm test
+```
+
+In PowerShell on Windows, set the variable, then run the suite:
+
+```
+$env:PLAYWRIGHT_MODULE = "$HOME\scriptorium-browser-tools\node_modules\playwright"
+```
+
+```
+npm test
+```
+
+- `PLAYWRIGHT_MODULE` is the absolute path to the `playwright` package folder. A relative path fails, because the tests load it from inside `test/`.
+- `AXE_CORE_PATH` is the full path to the `axe.min.js` file, not a folder. You only need it when axe-core is not at `node_modules/axe-core/axe.min.js` beside the playwright folder. The install above puts it there, so most people never set it.
+
+To tell the browser tests ran, read the skip reasons in the output. None should mention Playwright or axe-core, for example "playwright not available" or "axe-core not available". Skips for missing build tools (mingw-w64, makensis, a C compiler, the packager's cached Windows base) or for another platform are expected.
+
+To search a saved log for them:
+
+```
+grep -c "not available (set" npm-test.log
+```
+
+Run the browser tests before opening a pull request that changes the admin panel (`assets/admin/`) or the code it talks to (`src/admin/`, `src/setup/`, `src/serve/`, `src/desktop/`). Also run them for changes to `src/build/` and when you bump the generator pin. If in doubt, run them.
+
+These steps were checked on Linux, on a machine that already had the system libraries the browsers need.
+
 ## Release procedure
 
 Maintainers make releases. These steps must run in this order, and two of them have already bitten
