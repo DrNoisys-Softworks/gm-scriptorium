@@ -102,8 +102,9 @@
   function focusCard() {
     var card = document.getElementById('updates');
     if (!card) return;
-    // A card taller than the window cannot be centred, so show its top, and never let focus() scroll it away again.
-    card.scrollIntoView({ block: card.getBoundingClientRect().height > window.innerHeight ? 'start' : 'center' });
+    // The card keeps room above it (scroll-margin-top in admin.css), so the top edge never sits on the window's edge or under
+    // the narrow top bar. A card that cannot be centred with that room is shown from its top, and focus() never scrolls it away again.
+    card.scrollIntoView({ block: card.getBoundingClientRect().height + (parseFloat(window.getComputedStyle(card).scrollMarginTop) || 0) > window.innerHeight ? 'start' : 'center' });
     var sw = card.querySelector('[data-ctl="switch"]');
     if (sw) sw.focus({ preventScroll: true });
   }
