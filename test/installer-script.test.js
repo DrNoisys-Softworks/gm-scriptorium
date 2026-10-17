@@ -153,9 +153,9 @@ test('makensisArgs: the installer stage passes the inputs, the version and the P
   assert.equal(defineOf(args, 'TRAY_IN'), '/tmp/a/t.exe');
   assert.equal(defineOf(args, 'OUTFILE'), '/tmp/a/s.exe');
   assert.equal(defineOf(args, 'STARTER_SYSTEMS'), 'dnd-5e-2024|fitd|pf2e');
-  const iTray = args.indexOf('-DTRAY_IN=/tmp/a/t.exe');
-  const iSystems = args.indexOf('-DSTARTER_SYSTEMS=dnd-5e-2024|fitd|pf2e');
-  const iOut = args.indexOf('-DOUTFILE=/tmp/a/s.exe');
+  const iTray = args.findIndex((a) => a === '-DTRAY_IN=/tmp/a/t.exe');
+  const iSystems = args.findIndex((a) => a === '-DSTARTER_SYSTEMS=dnd-5e-2024|fitd|pf2e');
+  const iOut = args.findIndex((a) => a === '-DOUTFILE=/tmp/a/s.exe');
   assert.ok(iTray >= 0 && iSystems > iTray && iOut > iSystems, 'the game systems come after the tray input and before the output');
   assert.equal(args.includes('-DEXTRACT_UNINSTALLER'), false);
   assert.equal(path.isAbsolute(args[args.length - 1]), true);
