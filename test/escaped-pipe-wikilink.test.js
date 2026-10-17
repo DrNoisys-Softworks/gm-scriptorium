@@ -77,7 +77,9 @@ test('CLI: with the pin\'s own reader alone (no build-side rewrite), check resol
     const m = /<td><a href="([^"]+)">Label Zqx<\/a><\/td>/.exec(html);
     assert.ok(m, `expected a link cell, got: ${html.slice(html.indexOf('<table'), html.indexOf('</table>') + 8)}`);
     assert.equal(m[1], 'emlyn-crewe.html');
-    assert.ok(!html.includes('[['), 'no raw wikilink syntax may leak');
+    // From publish-v1.18.0 a page carries its Connections as JSON, whose nested arrays open with `[["`.
+    // Wikilink syntax opens with a name, never a quote.
+    assert.ok(!/\[\[(?!")/.test(html), 'no raw wikilink syntax may leak');
     assert.ok(!html.includes('Emlyn Crewe\\'), 'no stray backslash target');
     const idx = fs.readFileSync(path.join(root, 'out', 'search-index.json'), 'utf8');
     assert.ok(idx.includes('"zqx"'), 'search index must contain the label term');

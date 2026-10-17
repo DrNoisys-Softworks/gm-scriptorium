@@ -16,11 +16,12 @@ const { toRelativePosix } = require('../util/paths');
  * on `adaptPage` / `scanAllNotesForPairing` independently of `computeSessionPairing`.
  */
 
-// lib/scanner.js:406,397: the note is frontmatter-gated when its raw text matches either the
-// aliases line or the session-type line. ALIASES_LINE mirrors :367's own aliases half verbatim.
-const ALIASES_LINE = /^(gm_)?aliases:/m;
+// lib/scanner.js:428: the note is frontmatter-gated when its raw text matches either the
+// aliases-or-withheld line or the session-type line. ALIASES_LINE mirrors that line's first half
+// verbatim (`withheld:` joined it at publish-v1.21.0).
+const ALIASES_LINE = /^(?:(?:gm_)?aliases|withheld):/m;
 
-// lib/scanner.js:406's SESSION_TYPE_LINE, in its exact shape, built from the pin's own
+// lib/scanner.js:408's SESSION_TYPE_LINE, in its exact shape, built from the pin's own
 // WRAP_UP_TYPES rather than a hand copy of the three type strings -- a pin bump that changes the
 // Wrap-Up type list changes this gate too, by construction, and test/session-pairing.test.js's
 // change detector proves the alternation still equals {'session'} union WRAP_UP_TYPES.
