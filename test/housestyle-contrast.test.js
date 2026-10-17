@@ -208,7 +208,7 @@ test('T6 (change detector): a real build of grapheme-vault keeps the 404 markup 
     const html = fs.readFileSync(path.join(finalOut, '404.html'), 'utf8');
     const REPIN_MSG = 're-run the browser gate after a repin -- this checks an assumption about the vendored generator, not our own fix';
 
-    const heroMatch = html.match(/<main class="content">\s*<div class="four-oh-four-hero">([\s\S]*?)<\/div>\s*<\/main>/);
+    const heroMatch = html.match(/<main class="content"[^>]*>\s*<div class="four-oh-four-hero">([\s\S]*?)<\/div>\s*<\/main>/);
     assert.ok(heroMatch, `expected main.content > div.four-oh-four-hero as a direct child; ${REPIN_MSG}`);
     const anchorIdx = heroMatch[1].indexOf('<a href');
     assert.ok(anchorIdx !== -1, `expected an <a ...> inside the hero div; ${REPIN_MSG}`);
