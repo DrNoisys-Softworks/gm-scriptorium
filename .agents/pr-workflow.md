@@ -9,7 +9,7 @@ How the public cut itself works is not covered here; see ADR 0031
 
 - `main` changes only through a pull request. Never push to `main`, with or without force.
 - Every pull request carries a written review in its body or a comment.
-- Two checks must be green before merge: `test` and `hygiene` (from `.github/workflows/ci.yml`).
+- Three checks must be green before merge: `test`, `hygiene` and `browser` (from `.github/workflows/ci.yml`).
 - Pull requests are squash merged. Merge commits are off.
 - Pushing a branch, opening a pull request and merging are owner actions unless the owner has
   said so in their own words for this slice. An assistant never changes GitHub settings,
@@ -30,7 +30,12 @@ How the public cut itself works is not covered here; see ADR 0031
    "<conventional title>" --body-file <reviewer-report.md>`. The Reviewer report is the body.
    The title becomes the squashed commit's subject, so write it as a conventional commit.
 6. **Wait for CI.** `gh pr checks <number> --watch` with a timeout. Do not assume success from
-   silence. Read any failure and fix it on the branch.
+   silence. Read any failure and fix it on the branch. One exception: if `browser` fails and the
+   only failures are the new-vault setup test in
+   https://github.com/DrNoisys-Softworks/gm-scriptorium/issues/137 and its parent test
+   `start a new campaign, browsing in <browser>` (one flake shows as two failures), re-run the
+   failed job once with `gh run rerun <run-id> --failed`. Any other failure, or a failure on the
+   re-run, is real. The allowance is removed in the change that fixes that issue.
 7. **Merge** (the orchestrator, after the owner's go): `gh pr merge <number> --squash`. Branches
    delete themselves on merge. No `--admin`, no `--merge`, no `--rebase`.
 8. **Catch up.** Run `git pull --ff-only` on the shared checkout straight after the merge, before
