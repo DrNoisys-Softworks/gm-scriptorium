@@ -147,12 +147,13 @@ function inspectTarget(targetAbs, { configPath, panelDir, campaign } = {}) {
     missingAncestors.reverse();
   }
 
-  // Inside an existing vault: any real ancestor holding _meta/vault-config.md. The nearest existing
-  // folder counts when the target is missing; for an existing target only its parents do (a target
-  // that is itself a vault is simply not empty).
+  // Inside an existing vault: any real ancestor holding _meta/vault-config.md or _meta/vault-config.yaml
+  // (the plugin's update can move a vault's settings to the .yaml; the two names are written out here
+  // because this file's requires are pinned). The nearest existing folder counts when the target is
+  // missing; for an existing target only its parents do (a target that is itself a vault is simply not empty).
   const realExisting = fs.realpathSync(existing);
   for (let dir = st === null ? realExisting : path.dirname(realExisting); ; ) {
-    if (fs.existsSync(path.join(dir, '_meta', 'vault-config.md'))) throw refusal(abs, `it is inside the vault at ${dir}`, campaign, { kind: 'inside-vault', ancestor: dir });
+    if (fs.existsSync(path.join(dir, '_meta', 'vault-config.md')) || fs.existsSync(path.join(dir, '_meta', 'vault-config.yaml'))) throw refusal(abs, `it is inside the vault at ${dir}`, campaign, { kind: 'inside-vault', ancestor: dir });
     const up = path.dirname(dir);
     if (up === dir) break;
     dir = up;

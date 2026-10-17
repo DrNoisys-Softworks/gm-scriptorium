@@ -79,7 +79,8 @@ function targetPathFor(vaultPath) {
  * @param {{ campaign?: string|null }} [opts]
  * @returns {{ target: string, realMeta: string }}
  * @throws {VaultConfigChangedError} the file does not exist (it is never created here)
- * @throws {ConfigError} a symlinked/escaped/misplaced target or _meta
+ * @throws {ConfigError} a symlinked/escaped/misplaced target or _meta, or a vault that has
+ *   _meta/vault-config.yaml (the plugin reads that instead of vault-config.md)
  * @throws {ScriptoriumError} a path could not be resolved at all
  */
 function checkTarget(vaultPath, { campaign = null } = {}) {
@@ -101,6 +102,32 @@ function checkTarget(vaultPath, { campaign = null } = {}) {
       path: metaPath,
       campaign,
     });
+  }
+
+  // 2b. A vault that has _meta/vault-config.yaml is refused here, before the .md lstat, any read, any
+  // backup and any temp file (issue #171). The plugin reads the .yaml instead of vault-config.md, so
+  // an edit to the .md would change a file it ignores. lstat, so a link or folder counts as present;
+  // ENOENT and ENOTDIR mean absent, and any other failure refuses closed.
+  const yamlPath = path.join(metaPath, 'vault-config.yaml');
+  let yamlPresent = true;
+  try {
+    fs.lstatSync(yamlPath);
+  } catch (err) {
+    if (err.code === 'ENOENT' || err.code === 'ENOTDIR') {
+      yamlPresent = false;
+    } else {
+      throw new ScriptoriumError(`could not read ${yamlPath}: ${err.code}. vault-config.md was left unchanged.`, {
+        path: yamlPath,
+        campaign,
+        cause: err,
+      });
+    }
+  }
+  if (yamlPresent) {
+    throw new ConfigError(
+      "refusing to edit vault-config.md: this vault has _meta/vault-config.yaml, which the gm-apprentice plugin reads instead of vault-config.md, so the panel won't change vault-config.md. Nothing was changed.",
+      { path: yamlPath, campaign },
+    );
   }
 
   // 3. lstat: ENOENT means the file is never created here; not a regular file (including a
