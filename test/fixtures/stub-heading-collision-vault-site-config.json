@@ -9,14 +9,6 @@
     "Characters/PCs": "characters/pcs",
     "Locations": "locations"
   },
-  "excludeDirs": [
-    "_meta",
-    "_Templates",
-    "_inbox",
-    ".obsidian"
-  ],
-  "excludeSections": [
-    "GM Notes",
-    "Hush"
-  ]
+  "excludeDirs": ["_meta", "_Templates", "_inbox", ".obsidian"],
+  "excludeSections": ["GM Notes", "Hush"]
 }

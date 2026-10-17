@@ -25,6 +25,28 @@ function computeLineOffset(raw, content) {
   return count;
 }
 
+/**
+ * uncycle() in lib/frontmatter.js:22-30, ported because the pin does not export it. A YAML alias
+ * can make a value hold itself (`tags: &a [x, *a]`); the pin replaces the repeat with null before
+ * anything walks the values. Works on a clone, since the parse result may be shared with other readers.
+ *
+ * @param {object} data parsed frontmatter
+ * @returns {object} a copy with no cycles
+ */
+function uncycled(data) {
+  const copy = structuredClone(data);
+  (function walk(value, above) {
+    if (!value || typeof value !== 'object' || value instanceof Date) return;
+    above.push(value);
+    for (const key of Object.keys(value)) {
+      if (above.includes(value[key])) value[key] = null;
+      else walk(value[key], above);
+    }
+    above.pop();
+  })(copy, []);
+  return copy;
+}
+
 /*
  * Derives "what would this vault publish" from source, the way the pinned
  * generator's scanVault() + config.js + manifest.js + build.js's verdict
@@ -60,7 +82,7 @@ function computeLineOffset(raw, content) {
  * casing/order, falling back to `defaults` only when NEITHER source
  * supplies a list. Ported from the pin's (unexported) unionExcludeList as it stood at
  * publish-v1.11.44 (lib/config.js:133-147 there). At publish-v1.12.0 the pin does the same merge in
- * pick() (lib/config.js:218-272) and applies the defaults in list() (:396, :414-416): the vault
+ * pick() (lib/config.js:218-272) and applies the defaults in list() (:423, :441-443): the vault
  * list first, then the site-file entries it lacks. One case differs, and this port is the stricter
  * reader of it: a vault-file key that is set but is not a list now yields the pin defaults plus the
  * site-file entries in the pin, and the site-file list alone here.
@@ -115,17 +137,6 @@ function canonicalizeOverrideFieldKeys(fields) {
 }
 
 /**
- * The subset of loadPublishConfig() (lib/config.js:381-505) Scriptorium
- * needs: mode, system, exclude_drafts, exclude_callouts, the three unioned
- * exclude lists, and overrides.fields. Also returns `configSources`: the
- * RAW (un-defaulted, un-unioned) list each surface supplied, or undefined —
- * config/exclude-dirs-divergence needs the vault's raw exclude_dirs, never
- * the merged union, because PUBLISH_DEFAULTS.exclude_dirs entries are not
- * vault entries (see checks/configdiv.js).
- *
- * @returns {{ publishConfig: object, configSources: object }}
- */
-/**
  * publishModeFrom() in lib/config.js:110-116, ported because the pin does not export it: case and
  * spaces forgiven, anything but "player" or "full" read as "player", only a missing setting left
  * at the default. The pin also warns about a bad value; check does not print, so this does not.
@@ -139,6 +150,17 @@ function publishModeFrom(raw) {
   return mode === 'player' || mode === 'full' ? mode : 'player';
 }
 
+/**
+ * The subset of loadPublishConfig() (lib/config.js:381-505) Scriptorium
+ * needs: mode, system, exclude_drafts, exclude_callouts, the three unioned
+ * exclude lists, and overrides.fields. Also returns `configSources`: the
+ * RAW (un-defaulted, un-unioned) list each surface supplied, or undefined —
+ * config/exclude-dirs-divergence needs the vault's raw exclude_dirs, never
+ * the merged union, because PUBLISH_DEFAULTS.exclude_dirs entries are not
+ * vault entries (see checks/configdiv.js).
+ *
+ * @returns {{ publishConfig: object, configSources: object }}
+ */
 function loadPublishConfig(vaultPath, jsonConfig = {}) {
   const configFile = path.join(vaultPath, '_meta', 'vault-config.md');
   let publish = {};
@@ -275,9 +297,9 @@ function scanForPublish(vaultPath, jsonConfig) {
 
       const result = read.readFrontmatter(absPath);
       if (!result.ok) continue; // frontmatter/parse-error reports this separately
-      // The pin's own reading of the values: comments cut, then wrong types shaped or left
+      // The pin's own reading of the values: cycles broken, comments cut, then wrong types shaped or left
       // unread (lib/scanner.js:126-128), so a `type:` it cannot read publishes nothing here either.
-      const frontmatter = pinned.shapeFrontmatter(pinned.cutValueComments(result.data)).frontmatter;
+      const frontmatter = pinned.shapeFrontmatter(pinned.cutValueComments(uncycled(result.data))).frontmatter;
       if (!frontmatter.type) continue; // frontmatter/missing-type reports this separately
 
       const outputDir = pinned.mapFolder(relDir, folderMap);

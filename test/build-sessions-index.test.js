@@ -129,14 +129,14 @@ test('a donor whose <main class="content"> carries further attributes is spliced
     fs.mkdirSync(sessionsDir, { recursive: true });
     fs.writeFileSync(
       path.join(sessionsDir, 'session-01.html'),
-      donorHtml({ title: 'Session One', mainAttrs: ' data-previews="hover"' }),
+      donorHtml({ title: 'Session One', mainAttrs: ' data-previews="on"' }),
     );
 
     const result = writeSessionsIndex(dir, { siteTitle: 'Mini Vault' });
 
     assert.deepEqual(result, { written: true, reason: null, entries: 1 });
     const html = fs.readFileSync(path.join(sessionsDir, 'index.html'), 'utf8');
-    assert.match(html, /<main class="content" data-previews="hover">\n?<[^/]/);
+    assert.match(html, /<main class="content" data-previews="on">\n?<[^/]/);
     assert.match(html, /href="session-01\.html"><h4>Session One/);
     assert.doesNotMatch(html, /The party arrived/);
   });

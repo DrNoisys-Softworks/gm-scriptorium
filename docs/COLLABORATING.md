@@ -280,7 +280,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   `test/fixtures/*/​_meta/vault-config.md`): the `publish.exclude_sections` list a campaign author
   writes there is unioned case-insensitively with the generator's own `PUBLISH_DEFAULTS.exclude_sections`
   (`lib/config.js:17`: `['GM Notes', 'DM Notes', 'Player Notes', 'Source References',
-  'Reconciliation Context', 'Handoff to Reconcile']`) at `lib/config.js:218-272` and `:414-416`. `GM Notes`
+  'Reconciliation Context', 'Handoff to Reconcile']`) at `lib/config.js:218-272` and `:441-443`. `GM Notes`
   specifically is in both the generator's own defaults and every real campaign's own config, which
   is exactly the combination `sectionfilter.js`'s patch exists to fix (a nested excluded heading
   inside `## GM Notes`).
@@ -291,8 +291,8 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   Prop Notes), and Delivery (or Delivery Notes) (`lib/processor.js:125-158`). It reads the type from
   a third `frontmatter` argument, which the build passes for a page's body (`lib/build.js:662`,
   `lib/processor.js:1440`): the file's original frontmatter, kept as `page.sourceFrontmatter`
-  (`lib/build.js:536`) so that hiding `type` with `exclude_fields` cannot switch the rule off. Story
-  text is rendered from a page object whose frontmatter is `{}` (`lib/build.js:950-954`, `:1245`),
+  (`lib/build.js:608`) so that hiding `type` with `exclude_fields` cannot switch the rule off. Story
+  text is rendered from a page object whose frontmatter is `{}` (`lib/build.js:950-954`, `:1489`),
   so the rule never applies to it. `src/checks/leak/textmodel.js`'s `renderChain` does the same:
   the page's raw frontmatter for the body, none for story text, so `check` reads what a build
   publishes; without it the model keeps
@@ -385,8 +385,8 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   entry per published page with its title, kind and an excerpt, fetched same-origin by `js/previews.js`.
   The output scan reads it as text like every other non-binary file (`test/leak-output-scan.test.js`,
   AC-D2-04). An excerpt comes from a published page, so a name in it is on that page too.
-- **Backlinks**: reached the same way as the search index, `lib/build.js:403`'s
-  `page.publishedMarkdown` feeds `publishedSource` (`lib/processor.js:824-827`), which in turn feeds
+- **Backlinks**: reached the same way as the search index, `lib/build.js:662`'s
+  `page.publishedMarkdown` feeds `publishedSource` (`lib/processor.js:1260-1263`), which in turn feeds
   `lib/search-index.js`, `lib/backlinks.js`, `lib/recency.js`, `lib/story-spine.js` and
   `lib/templates/npc.js`. This is exactly why `sectionfilter.js`'s patch has to work at the
   `require.cache` level rather than by reassigning an export: two of `filterSections`'s three call
@@ -403,7 +403,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   read straight off the built page rather than recomputed, because the pairing a real build made is
   the one thing Scriptorium must never disagree with. `src/build/sessionmodel.js` finds the pin's
   own `<div class="recap session-recap">` marker (`lib/templates/session.js:48`) and, inside it, the
-  `<a class="recap-link" href="…">` anchor (`:34`), and resolves that href to the Wrap-Up's own
+  `<a class="recap-link" href="…">` anchor (`:46`), and resolves that href to the Wrap-Up's own
   output path. Both literals are pinned by a change detector in `test/session-pairing.test.js`; a
   markup change that moves or renames either one degrades (the hub reports as `unreadable`, never a
   wrong pairing) rather than erroring.

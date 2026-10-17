@@ -145,7 +145,7 @@ test('.vt-fx is inserted exactly once, immediately before the first </main>, on 
 });
 
 test('.vt-fx is inserted on a leaf page whose <main class="content"> carries further attributes (publish-v1.17.0)', () => {
-  const out = transformPageTurn(basePage({ mainAttrs: ' data-previews="hover"' }));
+  const out = transformPageTurn(basePage({ mainAttrs: ' data-previews="on"' }));
   assert.equal(out.split('<div class="vt-fx" aria-hidden="true"></div>').length - 1, 1);
   assert.match(out, /<div class="vt-fx" aria-hidden="true"><\/div>\n<\/main>/);
 });

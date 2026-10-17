@@ -4,10 +4,10 @@
 
 A stub page publishes only the sections the GM names. It could also publish a heading that sat
 inside a withheld section, if that heading's text matched a named section, along with its search
-entry and backlinks. Scriptorium now removes the withheld sections first, so the withheld parent
-always wins. The cause is in the upstream generator, so the fix is a guard in Scriptorium's own
-layer, and the build refuses to run if the guard is not in place. Whether this holds inside the
-packaged Windows executable is not yet confirmed.
+entry and backlinks. Until publish-v1.14.0 Scriptorium removed the withheld sections first, with a
+guard in its own layer, so the withheld parent always won. From publish-v1.17.0 the upstream
+generator does this itself, and the guard is retired (see the final addendum); a GM sees no
+change. Whether this holds inside the packaged Windows executable is not yet confirmed (C209).
 
 Status: accepted (2026-10-03); superseded by upstream at publish-v1.17.0, retired 2026-10-17 (see the final addendum). Issue 100.
 

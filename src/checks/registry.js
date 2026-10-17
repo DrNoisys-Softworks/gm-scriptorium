@@ -180,7 +180,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A pin default excluded section (lib/config.js:17) is silently dropped because vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them (lib/config.js:218-272, :414-416). ERROR if the heading actually renders in a published page.',
+      'A pin default excluded section (lib/config.js:17) is silently dropped because vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them (lib/config.js:218-272, :441-443). ERROR if the heading actually renders in a published page.',
   },
   {
     id: 'config/exclude-dirs-divergence',

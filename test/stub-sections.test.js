@@ -120,3 +120,12 @@ test('check model: a gm-only block opened inside an excluded section stays withh
   assert.ok(rendered.bodyText.includes('public appearance text'));
   assert.ok(rendered.storyText.includes('public appearance text'));
 });
+
+// The build strips the campaign's excluded callouts before the cut (lib/build.js:589). A callout
+// holding a "## GM Notes" line must not make the model withhold the text after it.
+test('check model: an excluded callout is stripped before the cut, as the build strips it', () => {
+  const md = ['## Appearance', 'intro', '> [!secret]', '> ## GM Notes', '> hidden', '', 'PUBLIC-AFTER-CALLOUT'].join('\n');
+  const rendered = deriveRenderedText(stubPage(md), { ...PUBLISH_CONFIG, exclude_callouts: ['secret'] });
+  assert.ok(rendered.bodyText.includes('PUBLIC-AFTER-CALLOUT'), rendered.bodyText);
+  assert.ok(!rendered.bodyText.includes('hidden'), rendered.bodyText);
+});

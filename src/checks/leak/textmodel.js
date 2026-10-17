@@ -46,7 +46,7 @@ function applyStrip(fn, text) {
  *   reads its `type`: on a document page the pin withholds the handout's Keeper sections whatever
  *   exclude_sections says (lib/processor.js:125-158), and a real build passes the page's frontmatter
  *   for the body (lib/build.js:662, lib/processor.js:1440). Story text is different: the build
- *   renders it from a page object whose frontmatter is `{}` (lib/build.js:950-954, :1246), so the
+ *   renders it from a page object whose frontmatter is `{}` (lib/build.js:950-954, :1489), so the
  *   rule never applies to it, and the story chain is called without this argument to match.
  */
 function renderChain(markdown, publishConfig, source, warningsOut, frontmatter) {

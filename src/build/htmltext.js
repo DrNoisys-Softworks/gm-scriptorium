@@ -216,7 +216,7 @@ function removeBalancedBlocks(html, tag, cls) {
 }
 
 // The pin's baseShell opens the page body with `<main class="content"`, followed from
-// publish-v1.17.0 by attributes of its own, such as ` data-previews="hover"`
+// publish-v1.17.0 by attributes of its own, such as ` data-previews="on"`
 // (lib/templates/base.js:100). Match the class exactly and allow anything after it.
 const MAIN_OPEN_RE = /<main class="content"(?:\s[^>]*)?>/;
 

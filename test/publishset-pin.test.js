@@ -433,3 +433,23 @@ test('publish.mode: case, spaces and unknown values read as the pin reads them',
     }
   }
 });
+
+// A YAML alias can make a value hold itself (`tags: &a [x, *a]`). The pin breaks the cycle with
+// null before it cuts value comments (uncycle, lib/frontmatter.js:22); cutting a cyclic value
+// recurses without end. check and build read such a vault before publish-v1.17.0 and must still.
+test('frontmatter: a self-referencing YAML alias reads as the pin reads it, and does not crash', () => {
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-fm-cycle-'));
+  try {
+    const dir = path.join(vault, 'NPCs');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'Loop.md'), '---\ntype: npc\ntags: &a [x, *a]\n---\n\nBody.\n');
+    const config = { excludeDirs: [], folderMap: { NPCs: 'npcs' } };
+    const ours = scanForPublish(vault, config).pages.map((p) => p.frontmatter);
+    assert.deepEqual(ours, [{ type: 'npc', tags: ['x', null] }]);
+    // eslint-disable-next-line global-require
+    const { scanVaultReport } = require('gm-apprentice-publish/lib/scanner');
+    assert.deepEqual(ours, scanVaultReport({ vaultPath: vault, ...config }, { quiet: true }).pages.map((p) => p.frontmatter));
+  } finally {
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});

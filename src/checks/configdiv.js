@@ -52,7 +52,7 @@ function headingSurvives(ctx, sectionName) {
  * default (PUBLISH_DEFAULTS.exclude_sections, lib/config.js:17) that list
  * doesn't re-name is silently dropped from the effective union
  * (lib/config.js:218-272's pick (unionExcludeList up to publish-v1.11.44), with the list() fallback at :396,
- * :414-416, only falls back to the defaults
+ * :441-443, only falls back to the defaults
  * when NEITHER surface supplies a list). ERROR if the heading actually
  * renders in a published page; WARN otherwise. When neither surface
  * supplies a list, the defaults apply in full and nothing is missing, so
