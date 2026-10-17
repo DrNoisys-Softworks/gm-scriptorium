@@ -89,10 +89,11 @@ function l5(findings, source) {
   return findings.filter((f) => f.id === ID && f.data && f.data.source === source);
 }
 
-// F1..F10: forms the generator publishes, because its exclusion test is exact equality on the raw title.
+// F1..F10: forms the generator publishes, because its exclusion test is exact equality on the
+// title. F2, a heading that is only "**GM Notes**", moved to WITHHELD_FORMS at publish-v1.17.0,
+// when the pin began reading a heading wrapped whole in emphasis or code as its bare text.
 const SURVIVING_FORMS = [
   ['F1 trailing words', '## GM Notes (spoilers)'],
-  ['F2 bold', '## **GM Notes**'],
   ['F3 bold with trailing words', '## **GM Notes** (spoilers)'],
   ['F4 emphasis with suffix', '## _GM Notes_ - session 3'],
   ['F5 link text', '## [GM Notes](x) extra'],
@@ -148,6 +149,9 @@ const WITHHELD_FORMS = [
   ['setext', 'GM Notes\n---'],
   ['blockquote', '> ## GM Notes'],
   ['closed ATX', '## GM Notes ##'],
+  ['F2 bold (withheld from publish-v1.17.0)', '## **GM Notes**'],
+  ['emphasis (withheld from publish-v1.17.0)', '## _GM Notes_'],
+  ['code span (withheld from publish-v1.17.0)', '## `GM Notes`'],
 ];
 
 for (const [name, form] of WITHHELD_FORMS) {
@@ -285,13 +289,13 @@ test('displayTextOf: alias, emphasis, entities, typographer, and no prototype lo
 const BIN = path.join(__dirname, '..', 'bin', 'scriptorium.js');
 const LEASE = path.join(__dirname, '..', 'examples', 'the-long-lease');
 
-test('AC-12 CLI: an NPC "## **GM Notes**" makes check exit 2 and list the L5 finding', () => {
+test('AC-12 CLI: an NPC "## **GM Notes** (spoilers)" makes check exit 2 and list the L5 finding', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-l5-cli-'));
   try {
     const vault = path.join(root, 'v');
     fs.cpSync(LEASE, vault, { recursive: true });
     const npc = path.join(vault, 'Characters', 'NPCs', 'Oswy Hebden.md');
-    fs.appendFileSync(npc, `\n## **GM Notes**\n\n${SENTINEL}\n`);
+    fs.appendFileSync(npc, `\n## **GM Notes** (spoilers)\n\n${SENTINEL}\n`);
     const cfg = path.join(root, 'cfg.toml');
     const env = { ...process.env, XDG_CONFIG_HOME: path.join(root, 'xdg'), APPDATA: path.join(root, 'ad'), SCRIPTORIUM_CONFIG: cfg };
     delete env.SCRIPTORIUM_PROFILE;
