@@ -111,7 +111,7 @@ for (const browserName of ['chromium', 'firefox']) {
     const base = `http://127.0.0.1:${result.ctx.adminPort}`;
     const browser = await pw[browserName].launch();
     try {
-      const open = async (size = WIDTHS[0], { waitCard = true, hash = '' } = {}) => {
+      const open = async (size = WIDTHS[0], { waitCard = true, hash = '', prepare } = {}) => {
         const bctx = await browser.newContext({ viewport: size });
         const page = await bctx.newPage();
         const problems = [];
@@ -120,6 +120,7 @@ for (const browserName of ['chromium', 'firefox']) {
         });
         page.on('pageerror', (e) => problems.push(String(e)));
         page.problems = problems;
+        if (prepare) page.prepared = await prepare(page);
         await page.goto(`${base}/auth?token=${result.token}`, { waitUntil: 'load' });
         if (hash) await page.evaluate((h) => { window.location.hash = h; }, hash);
         await page.waitForFunction(() => document.querySelector('[data-screen="overview"]') !== null || window.location.hash !== '#/overview');
@@ -205,7 +206,7 @@ for (const browserName of ['chromium', 'firefox']) {
       for (const size of WIDTHS) {
         const page = await open(size, { hash: '#/images', waitCard: false });
         await page.waitForFunction(() => window.location.hash === '#/images');
-        ctx.launchLanding = { to: 'updates', expiresAt: Date.now() + 15000 };
+        await armLanding(ctx, page, { to: 'updates', expiresAt: Date.now() + 15000 });
         await page.reload({ waitUntil: 'load' });
         await page.waitForSelector('#updates');
         await page.waitForFunction(() => document.activeElement && document.activeElement.getAttribute('data-ctl') === 'switch');
@@ -267,6 +268,30 @@ for (const browserName of ['chromium', 'firefox']) {
   });
   const switchFocused = (page) => page.waitForFunction(() => document.activeElement && document.activeElement.getAttribute('data-ctl') === 'switch');
   const fontsLoaded = (page) => page.waitForFunction(() => document.fonts.status === 'loaded');
+
+  /**
+   * Hands the tray's one-shot landing to the panel for the NEXT load. The server gives it to whichever page
+   * asks for its session first, so the opened page must have had its own session answer before this arms it.
+   */
+  async function armLanding(ctx, page, landing) {
+    ctx.launchLanding = landing;
+  }
+
+  test(`the landing is armed only after the opened page has its own session answer in ${browserName}`, { skip: SKIP, timeout: 240000 }, async (t) => {
+    await withPanel(t, { desktop: true }, async ({ open, ctx }) => {
+      const landing = { to: 'updates', expiresAt: Date.now() + 15000 };
+      const page = await open(WIDTHS[0], { hash: '#/images', waitCard: false, prepare: (p) => holdRequests(p, '**/api/session') });
+      await page.prepared.seen;
+      const armed = armLanding(ctx, page, landing);
+      assert.equal(ctx.launchLanding ?? null, null, 'nothing is armed while the opened page waits for its session answer');
+      await page.prepared.release();
+      await armed;
+      assert.deepEqual(ctx.launchLanding, landing, 'the opened page booted without taking it');
+      await page.reload({ waitUntil: 'load' });
+      await switchFocused(page);
+      assert.equal(ctx.launchLanding, null, 'the reload took it');
+    });
+  });
 
   /** The tray's landing on a fresh load, with the web fonts held back. Resolves once the Overview is drawn in full. */
   async function landWithFontsHeld(ctx, page) {
@@ -455,7 +480,7 @@ for (const browserName of ['chromium', 'firefox']) {
   test(`an expired landing is not followed in ${browserName}`, { skip: SKIP, timeout: 120000 }, async (t) => {
     await withPanel(t, { desktop: true }, async ({ open, ctx }) => {
       const page = await open(WIDTHS[0], { hash: '#/images', waitCard: false });
-      ctx.launchLanding = { to: 'updates', expiresAt: Date.now() - 1 };
+      await armLanding(ctx, page, { to: 'updates', expiresAt: Date.now() - 1 });
       await bootedWithoutLanding(page, () => page.reload({ waitUntil: 'load' }));
       assert.equal(await page.evaluate(() => window.location.hash), '#/images', 'the address is still the Images screen after boot');
       assert.equal(await page.evaluate(() => (document.activeElement && document.activeElement.getAttribute('data-ctl')) || ''), '', 'an expired landing focuses nothing');
