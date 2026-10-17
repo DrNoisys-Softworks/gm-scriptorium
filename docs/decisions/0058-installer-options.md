@@ -2,13 +2,13 @@
 
 ## Summary
 
-Setup now installs the tray app beside the program, and its shortcuts and finish box start the tray app, so an installed copy runs in the background from the first click. The options page is Setup's own page: a Start menu shortcut and Start with Windows are ticked, a desktop shortcut is off, and a closed Advanced section holds the PATH entry and the panel's two ports. Setup closes a running copy itself, and the uninstaller removes the tray app, the Start with Windows entry and only the shortcuts Setup recorded making. Setup never opens the settings file: the ports go through the program's own `desktop set` and Start with Windows through the tray app's own `--autostart`, and the main rejected alternative, Setup writing the settings itself, is below. The limits a GM will meet are that Setup cannot show the ports or campaigns already saved, and that on a PC with settings Start with Windows starts unticked unless it is already on.
+Setup now installs the tray app beside the program, and its shortcuts and finish box start the tray app, so an installed copy runs in the background from the first click. The options page is Setup's own page: a Start menu shortcut and Start with Windows are ticked, a desktop shortcut is off, and a closed Advanced section holds the PATH entry and the panel's two ports. On a PC with no settings, Setup also asks how to set up the first campaign: in the browser, chosen to start with, or by answering the questions in Setup, which it hands to the program's own `init --yes` once its files are copied. Setup closes a running copy itself, and the uninstaller removes the tray app, the Start with Windows entry and only the shortcuts Setup recorded making. Setup never opens or writes the settings file: the ports go through `desktop set`, the first campaign through `init --yes` and Start with Windows through the tray app's `--autostart`, and the main rejected alternative, Setup writing the settings itself, is below. The limits a GM will meet are that Setup cannot show the ports or campaigns already saved, that on a PC with settings Start with Windows starts unticked unless it is already on, and that a refused campaign answer shows only after the files are copied.
 
-Status: accepted. Amends [ADR 0053](0053-windows-installer.md) sections 1, 5 and 8, and builds on [ADR 0057](0057-windows-desktop-app.md).
+Status: accepted. Amends [ADR 0053](0053-windows-installer.md) sections 1, 3, 5, 8 and 9, and builds on [ADR 0057](0057-windows-desktop-app.md).
 
 ## 1. What the GM gets
 
-The pages run in this order: welcome, folder, options, the running-app page when the tray app is running, the existing-settings page when a settings file is found, progress, and finish.
+The pages run in this order: welcome, folder, options, the running-app page when the tray app is running, then either the existing-settings page when a settings file is found or the first-campaign page when none is, the campaign details page when the GM chooses to answer there, progress, the refused-answers page when the program refused those answers, and finish.
 
 The options page offers these, each with its starting value:
 
@@ -29,7 +29,26 @@ Rejected: the built-in components page. It cannot hold the port fields, and a pa
 
 ## 2. The first campaign
 
-Setup does not ask about the first campaign. When there is no campaign yet, GM-Scriptorium opens browser setup the first time it starts ([ADR 0028](0028-installer-and-first-run.md)), and Finish's "Start GM-Scriptorium now" starts it straight away.
+On a PC with no settings, Setup asks how to set up the first campaign. The first-campaign page has two choices. Browser setup is selected and opens when GM-Scriptorium starts with no campaign ([ADR 0028](0028-installer-and-first-run.md)): straight after Finish if "Start GM-Scriptorium now" is ticked, otherwise at its first start. The page links the documentation index (section 7) and says nothing about using the panel from another device.
+
+The other choice, "Answer the questions here now", leads to a details page with the campaign name, a vault the GM already has or a new vault with its game system, and the output folder, each folder with a Browse button. The game systems come from the starter through the build, which refuses to build if any is not a plain lowercase id. Setup checks only that each field is filled in and holds no double quote.
+
+Setup never writes the settings or the vault itself. Once its files are copied, it runs the program's own `init --yes` with those answers, the same command a GM can run in a terminal, so the setup-structure fence and the one writer of the settings stay as they are. It runs after the ports are saved, so the campaign is added to the settings file that `desktop set` may just have made.
+
+Setup passes no `--config`, so the program finds the settings the way section 3 describes. Values are quoted, with any trailing backslash doubled so a folder such as `E:\` reaches the program whole. A relative folder is read from the GM's user folder. A silent install never runs it.
+
+The refused-answers page:
+
+- If the program refuses the answers, a page after the progress page shows the headline "Setup couldn't set up" followed by the campaign name, and the program's last line. When the program's output is empty, or fills Setup's string limit, the page shows a general line instead.
+- Try again runs the program again; "Set it up in my browser instead" goes on to Finish with no campaign. These are the only two ways on, by owner decision, because a third that also ends in browser setup would do the same thing. Back and Cancel are greyed there.
+- The refusal comes after the copy, also by owner decision.
+
+Rejected:
+
+- Setup writing the settings or the pack.
+- Running the checks before the copy from a temporary copy of the program. It doubles the disk writes and the time, and still needs the same reading of the output.
+- An answers file for browser review, by owner decision.
+- Stripping a trailing backslash. It turns `E:\` into `E:`, which Windows reads as the current folder on that drive.
 
 ## 3. Existing settings
 
@@ -77,7 +96,7 @@ The structure tests pin all of it: the delete list, the two value deletes, the t
 
 ## 7. Links
 
-Setup opens no web address. The uninstaller's feedback address is unchanged ([ADR 0053](0053-windows-installer.md), section 9).
+Setup opens one web address: "Read the user guide" on the first-campaign page opens the documentation index, `https://github.com/DrNoisys-Softworks/gm-scriptorium/blob/main/docs/README.md`, in the browser. The uninstaller's feedback address is unchanged ([ADR 0053](0053-windows-installer.md), section 9). A structure test allows exactly these two addresses.
 
 ## 8. Limits
 
@@ -87,6 +106,12 @@ Setup opens no web address. The uninstaller's feedback address is unchanged ([AD
 - A hand-made desktop shortcut named GM-Scriptorium counts as Setup's on the first upgrade.
 - A `Run` value of a non-text type reads as absent. Only the tray app writes it, always as text.
 - Setup's window does not respond while it waits for the tray app to close.
+- A refused answer shows only after the copy.
+- Only the program's last line is shown, a reason past the string limit is replaced by a general line, and an unexpected error shows the last line of its report.
+- The game systems are shown by id, such as `dnd-5e-2024`.
+- Setup's window does not respond while the program checks the answers.
+- The finish page does not name the new campaign.
+- Whether the reason reads correctly for non-ASCII folder names is checked only on Windows.
 - Nothing here runs on Linux.
 
 ## Rejected alternatives
@@ -96,12 +121,15 @@ Setup opens no web address. The uninstaller's feedback address is unchanged ([AD
 - **Reading or listing the campaigns in Setup.** See section 3.
 - **A remote access page or option.** Remote access is the GM's choice in the tray menu, on the PC it applies to.
 - **Setup writing the `Run` value.** See section 4.
+- **Running the program's checks before the copy.** See section 2.
+- **A second way off the refused-answers page.** See section 2.
 
 ## Will catch / Will not catch, deliberately
 
 Will catch:
 
 - A tray app missing from the installer, or different from the one the build was given (the build searches the installer for its exact bytes).
+- A command line other than the two `init --yes` lines and the four earlier ones; any `--config`; an `init` reachable in a silent install or before the copy; a third way off the refused-answers page; a web address other than the two; a build whose game-system list holds anything but plain ids.
 - A command line or plug-in call outside the short allowed list, any write under `Run` or `StartupApproved\Run`, any open of the settings path, any word naming remote access in the script, and any shortcut delete without its record guard.
 - A different window class from the tray app's, a changed page order, and the running-copy check moving back to the options page.
 - Any change to a user-facing string in the copy.
@@ -111,8 +139,9 @@ Will not catch, deliberately:
 - How the pages look and whether anything clips at 100% or 150% scaling.
 - Whether the `RegGetValueW` text, which the System plug-in reads only when it runs, does what it should.
 - The port checks. They run only on Windows.
+- Whether the program's reason reads correctly, and whether the new pages fit.
 - What Defender, SmartScreen or Smart App Control decide about the tray app.
 
 ## Windows verification
 
-C195, C198, C200, C201 and C202 in `.agents/windows-verification.md`, all OPEN until confirmed on a real Windows machine.
+C195, C198, C199, C200, C201, C202 and C204 in `.agents/windows-verification.md`, all OPEN until confirmed on a real Windows machine.
