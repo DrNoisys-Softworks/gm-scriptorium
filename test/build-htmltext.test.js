@@ -81,6 +81,16 @@ test('findMainOpen: the bare tag, an attributed tag, and a lookalike class', () 
   assert.equal(htmltext.findMainOpen('<div>no main</div>'), null);
 });
 
+// From publish-v1.18.0 the pin's Connections section sits in the page body and links every
+// connected page. It is not the page's prose, so a mention snippet must never be taken from it.
+test('proseRegion: strips the pin\'s Connections section', () => {
+  const html =
+    '<main class="content"><p>Real prose.</p>' +
+    '<section class="cx" data-cx-mode="tree"><h2>Connections</h2><ul><li><a href="x.html">X</a></li></ul>' +
+    '<script type="application/json" class="cx-data">{}</script></section></main>';
+  assert.equal(htmltext.proseRegion(html), '<p>Real prose.</p>');
+});
+
 test('proseRegion: empty when no <main class="content">', () => {
   assert.equal(htmltext.proseRegion('<div>no main</div>'), '');
 });

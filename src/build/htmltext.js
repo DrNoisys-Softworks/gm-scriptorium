@@ -183,6 +183,8 @@ const PROSE_STRIP = [
   ['div', 'story-nav'],
   ['div', 'metadata-badges'],
   ['div', 'whos-here'],
+  // From publish-v1.18.0: the pin's Connections section, which replaced the graph and sidebar above.
+  ['section', 'cx'],
 ];
 
 /**

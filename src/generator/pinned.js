@@ -115,10 +115,11 @@ const { parseManifest } = require('gm-apprentice-publish/lib/manifest');
 // lib/config.js:567 (module.exports)
 const { PUBLISH_DEFAULTS, vaultRelPath, scanConfigFor } = require('gm-apprentice-publish/lib/config');
 
-// lib/scanner.js:444 (module.exports). dirIsExcluded is FR-16/SD-19's new export: the pin's own
+// lib/scanner.js:450 (module.exports). buildLinkMap (publish-v1.21.0 use) is the pin's own name-to-page
+// table, which src/build/connections.js resolves relationship targets against. dirIsExcluded is FR-16/SD-19's new export: the pin's own
 // case-insensitive excludeDirs matcher (matchExcludedDir), used by src/vault/publishset.js so its
 // hand-ported directory-skip test can never drift from the pin's own casing rule.
-const { slugify, mapFolder, dirIsExcluded } = require('gm-apprentice-publish/lib/scanner');
+const { slugify, mapFolder, dirIsExcluded, buildLinkMap } = require('gm-apprentice-publish/lib/scanner');
 
 // lib/session-hub.js's module doc block (module.exports): FR-21/SD-21's session-model guard.
 // "This file is the ONE pairing rule, and pairHubs the one place it runs... Change the rule here
@@ -130,9 +131,11 @@ const { pairHubs, isWrapUp, WRAP_UP_TYPES } = require('gm-apprentice-publish/lib
 // lib/theme.js:217 (module.exports)
 const { resolveGenrePreset } = require('gm-apprentice-publish/lib/theme');
 
-// lib/wikilink.js:129 (module.exports). New at publish-v1.17.0: how the pin prints a wikilink
-// inside a title (by its label), which src/vault/publishset.js's display-title port calls.
-const { labelsForLinks } = require('gm-apprentice-publish/lib/wikilink');
+// lib/wikilink.js:197 (module.exports). labelsForLinks is new at publish-v1.17.0: how the pin prints a
+// wikilink inside a title (by its label), which src/vault/publishset.js's display-title port calls.
+// linkText, wikilinkRe and parseWikilink are how the pin's Connections model reads a relationship's
+// target (lib/connections.js:159-169); src/build/connections.js resolves targets the same way.
+const { labelsForLinks, linkText, wikilinkRe, parseWikilink } = require('gm-apprentice-publish/lib/wikilink');
 
 // lib/frontmatter.js:155 and lib/frontmatter-shape.js:110 (module.exports). New at
 // publish-v1.17.0: the scanner cuts comments out of frontmatter values, then puts wrongly typed values
@@ -257,6 +260,10 @@ module.exports = {
   WRAP_UP_TYPES,
   resolveGenrePreset,
   labelsForLinks,
+  linkText,
+  wikilinkRe,
+  parseWikilink,
+  buildLinkMap,
   cutValueComments,
   shapeFrontmatter,
   canonicalNfc,
