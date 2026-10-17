@@ -129,6 +129,7 @@ prerequisite) for a user mistake. The table-driven test is `test/exit-codes-user
 | `--config` file does not exist | 1 | 3 | `config file not found: <path> (create it with ...)` |
 | malformed config file (bad TOML, missing config_version, bad entry) | 1 | 3 | the loader message, e.g. `config is not valid TOML: ...` |
 | config entry points at a missing vault | 3 | 3 | `campaign "x": configured vault path does not exist: <path>` (unchanged) |
+| a vault whose settings are in `_meta/vault-config.yaml`, with or without a leftover `vault-config.md` | 3 (no `.md`: "not a gm-apprentice vault"); with both files it was read through the leftover | 3 | `campaign "x": <path> keeps its settings in _meta/vault-config.yaml, ...` (names the leftover when there is one) |
 | campaign has no output folder (build, serve) | 1 | 3 | `campaign "x" has no output folder, so "build" has nowhere to put the site. ...` |
 | `--out` inside the vault, containing the vault, or a filesystem root | 1 | 3 | `refusing to build inside the vault: <path>` (and the two siblings) |
 | `serve` before any build (output missing) | 1 | 3 | `no build exists at <path>; run "gm-scriptorium build" first or pass --build` |

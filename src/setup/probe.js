@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { settingsPaths } = require('../vault/vaultstate');
 
 /*
  * FR-16 (docs/decisions/0028-installer-and-first-run.md, section 3): path checks never stall the
@@ -92,7 +93,9 @@ function isUncPath(s) {
 
 /**
  * One level down only: the first folder (in sorted order, from at most the first MAX_CHILDREN
- * entries) that holds _meta/vault-config.md. Every call is probed and bounded.
+ * entries) that holds _meta/vault-config.md or _meta/vault-config.yaml (a vault whose settings the
+ * plugin's update moved is still a vault; issue #171). The .md is probed first, and the .yaml only
+ * when the .md probe was not ok. Every call is probed and bounded.
  *
  * @param {string} dir
  * @param {{ timeoutMs?: number, fsp?: { stat: Function, readdir: Function } }} [opts]
@@ -108,7 +111,9 @@ async function findVaultChild(dir, { timeoutMs = DEFAULT_TIMEOUT_MS, fsp = fs.pr
     .slice(0, MAX_CHILDREN);
   for (const name of names) {
     const child = path.join(dir, name);
-    if ((await probePath(path.join(child, '_meta', 'vault-config.md'), { timeoutMs, fsp })) === 'ok') return child;
+    const settings = settingsPaths(child);
+    if ((await probePath(settings.md, { timeoutMs, fsp })) === 'ok') return child;
+    if ((await probePath(settings.yaml, { timeoutMs, fsp })) === 'ok') return child;
   }
   return null;
 }

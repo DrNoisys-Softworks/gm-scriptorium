@@ -56,7 +56,10 @@ class ConfigError extends ScriptoriumError {}
  * Thrown by src/vault/locate.js: the exit-3 taxonomy. `reason` is one of
  * "not-found" (the configured path does not exist: unmounted share,
  * unmapped drive, typo) or "not-a-vault" (the path exists and is readable
- * but has no _meta/vault-config.md). The two get different messages
+ * but has no _meta/vault-config.md) or "settings-moved" (the path holds
+ * _meta/vault-config.yaml, with or without a leftover vault-config.md:
+ * the plugin's update moved the vault's settings, and this version
+ * reads only the .md; issue #171). The first two get different messages
  * deliberately (section 2.1: "distinguishing path not found from found
  * but not a vault").
  */

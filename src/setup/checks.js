@@ -102,6 +102,9 @@ async function checkVault(value, { name = '', commit = false, deferUntilCommit =
       const candidate = await probeLib.findVaultChild(typed.abs, opts);
       return result('vault', 'bad', typed.abs, err.message, vaultFacts({ found: true, unc: typed.unc, candidate }));
     }
+    // A moved or mixed vault (settings in vault-config.yaml): show the refusal as it is, and never
+    // search for a child folder (issue #171). settingsMoved is set only here, so every other result keeps its key set.
+    if (err.reason === 'settings-moved') return result('vault', 'bad', typed.abs, err.message, vaultFacts({ found: true, unc: typed.unc, settingsMoved: true }));
     return result('vault', 'bad', typed.abs, err.message, vaultFacts({ unc: typed.unc }));
   }
 

@@ -7,6 +7,7 @@ const { ConfigError } = require('../util/errors');
 // patch it, and so there is exactly one containment rule in the repo (it folds case per
 // platformFoldsCase() and compares with a path separator, never a bare startsWith).
 const packwrite = require('../vault/packwrite');
+const { vaultState } = require('../vault/vaultstate');
 
 /*
  * V1.5a (docs/decisions/0029-remote-access.md, section 4; SD-doc section 2). Where remote-access
@@ -71,13 +72,14 @@ function vaultsOf(campaign) {
 }
 
 /**
- * The nearest folder at or above `dir` that holds _meta/vault-config.md (a vault, registered or not),
- * or null. Judged by the real path, so a link into a vault is caught, and a folder that does not
+ * The nearest folder at or above `dir` that holds _meta/vault-config.md or _meta/vault-config.yaml
+ * (a vault, registered or not; the plugin's update can move a vault's settings to the .yaml), or
+ * null. Judged by the real path, so a link into a vault is caught, and a folder that does not
  * exist yet is judged by where it will land.
  */
 function enclosingVault(dir) {
   for (let cur = realpathLoose(dir); ; ) {
-    if (fs.existsSync(path.join(cur, '_meta', 'vault-config.md'))) return cur;
+    if (vaultState(cur, fs.existsSync) !== 'none') return cur;
     const up = path.dirname(cur);
     if (up === cur) return null;
     cur = up;
@@ -87,7 +89,7 @@ function enclosingVault(dir) {
 /**
  * Refuses a folder inside ANY registered campaign's vault (every campaign, and every profile's
  * vault for it), and inside any vault it can detect on disk (a folder holding
- * _meta/vault-config.md at or above it), because a config that sits inside a vault cannot list that
+ * _meta/vault-config.md or _meta/vault-config.yaml at or above it), because a config that sits inside a vault cannot list that
  * vault's campaign, so the registered check alone has nothing to compare against. src/config/write.js only checks at write time, and the panel may not reach
  * write.js (FR35), so this is the panel's own check.
  *
