@@ -10,9 +10,9 @@ const pinned = require('../../generator/pinned');
 /*
  * Track D2: the leak check that reads what the generator actually EMITTED,
  * not the source markdown L1-L5 read. A withheld name that only reaches the
- * published site through a derived view — a relationship-graph SVG `<text>`
- * label (escapeHtml(truncateGraphemes(node.displayTitle, 15, 13)) inside
- * `<text>`, lib/relationship-graph.js:206-207), an aggregate index card
+ * published site through a derived view — a page's Connections section, list
+ * and data block alike (lib/templates/connections.js, from publish-v1.18.0; the
+ * relationship-graph SVG labels before it), an aggregate index card
  * built from a frontmatter field (escapeHtml(leadership) inside
  * `<div class="intel-leadership">`, lib/templates/index-page.js:604,609-611),
  * a recency/landing excerpt (escapeHtml(fm.outcome) inside
