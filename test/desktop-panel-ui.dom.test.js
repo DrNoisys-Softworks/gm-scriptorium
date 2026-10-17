@@ -274,6 +274,8 @@ for (const browserName of ['chromium', 'firefox']) {
    * asks for its session first, so the opened page must have had its own session answer before this arms it.
    */
   async function armLanding(ctx, page, landing) {
+    // The Overview is built only after the page's own session answer, so its presence is that answer. Keep this the first line: the assignment below must wait for it.
+    await page.waitForSelector('[data-screen="overview"]', { state: 'attached' });
     ctx.launchLanding = landing;
   }
 
