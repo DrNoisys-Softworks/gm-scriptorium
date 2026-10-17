@@ -171,8 +171,10 @@ async function launchAuthed(t, configPath) {
   const s = launch(t, configPath);
   while (s.handles.length < 2) await new Promise((resolve) => setImmediate(resolve));
   const adminPort = s.handles[0].port;
-  const token = s.emitted[0].match(/token=([A-Za-z0-9_-]{43})$/)[1];
-  const authResult = await request(adminPort, { path: `/auth?token=${token}` });
+  // The launch line ends with the one-time sign-in value after an equals sign.
+  const key = s.emitted[0].split('=').pop();
+  assert.match(key, /^[A-Za-z0-9_-]{43}$/);
+  const authResult = await request(adminPort, { path: `/auth?token=${key}` });
   const cookie = authResult.headers['set-cookie'][0].split(';')[0];
   return {
     get: (p) => request(adminPort, { path: p, headers: { Cookie: cookie } }),
