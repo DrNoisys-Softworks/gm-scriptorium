@@ -649,8 +649,10 @@ Function GmOptionsShow
   Pop $gmHelpAuto
   ${NSD_CreateLabel} 0 62u 100% 16u "You'll need to start ${APP_NAME} from its folder: $INSTDIR"
   Pop $gmLblOff1
+  ${NSD_AddStyle} $gmLblOff1 ${SS_NOPREFIX}
   ${NSD_CreateLabel} 0 44u 100% 16u "You'll need to start ${APP_NAME} from its folder: $INSTDIR"
   Pop $gmLblOff2
+  ${NSD_AddStyle} $gmLblOff2 ${SS_NOPREFIX}
 
   !ifdef WITH_PATH_OPTION
     ${NSD_CreateCheckBox} 0 63u 100% 10u "Add ${APP_NAME} to PATH"
@@ -776,6 +778,7 @@ Function GmSettingsShow
   ${EndIf}
   ${NSD_CreateLabel} 0 0 100% 18u "Settings file: $gmConfigPath"
   Pop $0
+  ${NSD_AddStyle} $0 ${SS_NOPREFIX}
   ${NSD_CreateLabel} 0 26u 100% 10u "To add another campaign, use Campaigns in the panel."
   Pop $0
   GetDlgItem $0 $HWNDPARENT 1
@@ -1026,6 +1029,7 @@ Function un.ConfirmShow
   confirm_not_running:
   ${NSD_CreateLabel} 0 11u 100% 18u "${APP_NAME} will be removed from$\r$\n$INSTDIR."
   Pop $0
+  ${NSD_AddStyle} $0 ${SS_NOPREFIX}
   ${NSD_CreateLabel} 0 31u 100% 9u "Removed"
   Pop $0
   SendMessage $0 ${WM_SETFONT} $gmBold 0
@@ -1036,6 +1040,7 @@ Function un.ConfirmShow
   SendMessage $0 ${WM_SETFONT} $gmBold 0
   ${NSD_CreateLabel} 8u 94u 100% 28u "Your settings and campaign list, in $APPDATA\Scriptorium$\r$\nYour campaign vaults, including their _meta\scriptorium\ folders$\r$\nYour built sites, and anything you have published"
   Pop $0
+  ${NSD_AddStyle} $0 ${SS_NOPREFIX}
 
   GetDlgItem $1 $HWNDPARENT 1
   SendMessage $1 ${WM_SETTEXT} 0 "STR:Uninstall"

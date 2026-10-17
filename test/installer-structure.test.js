@@ -901,3 +901,50 @@ test('copy: every user-facing string in the copy table is in installer.nsi exact
   assert.ok(finish);
   assert.equal(NSI.includes(finish.replace('by the clock', 'by the clock.')), false);
 });
+
+// ---------------------------------------------------------------------------------------------
+// Path labels keep an ampersand as typed (SS_NOPREFIX), and the uninstaller finish page layout.
+// These are shape tests over the source. They prove nothing about how Windows wraps or draws the
+// text; that is the Windows check C213 on the real installer and uninstaller.
+// ---------------------------------------------------------------------------------------------
+
+const PATH_LABEL_RE = /^\s*\$\{NSD_CreateLabel\}\s.*\$(?:INSTDIR|APPDATA|gmConfigPath)/;
+
+/**
+ * The trimmed label lines whose text shows a user-controlled path and that are not followed by
+ * `Pop $X` and then `${NSD_AddStyle} $X ${SS_NOPREFIX}` on the next two lines.
+ */
+function unstyledPathLabels(text) {
+  const lines = text.split('\n').map((l) => l.trim());
+  const bad = [];
+  lines.forEach((l, i) => {
+    if (!PATH_LABEL_RE.test(l)) return;
+    const pop = /^Pop (\$\w+)$/.exec(lines[i + 1] || '');
+    const ok = pop && lines[i + 2] === `\${NSD_AddStyle} ${pop[1]} \${SS_NOPREFIX}`;
+    if (!ok) bad.push(l);
+  });
+  return bad;
+}
+
+test('labels: every label that shows the install folder, the settings folder or the settings file carries SS_NOPREFIX', () => {
+  const labels = NSI.split('\n').filter((l) => PATH_LABEL_RE.test(l));
+  assert.equal(labels.length, 5, 'the five path labels are all found');
+  assert.deepEqual(unstyledPathLabels(NSI), []);
+  // controls
+  const good = ['${NSD_CreateLabel} 0 0 100% 9u "in $INSTDIR"', 'Pop $0', '${NSD_AddStyle} $0 ${SS_NOPREFIX}'];
+  assert.deepEqual(unstyledPathLabels(good.join('\n')), []);
+  assert.equal(unstyledPathLabels(good.slice(0, 2).join('\n')).length, 1, 'no AddStyle line');
+  assert.equal(unstyledPathLabels([good[0], good[1], '${NSD_AddStyle} $1 ${SS_NOPREFIX}'].join('\n')).length, 1, 'wrong variable');
+  assert.equal(unstyledPathLabels(good[0].replace('$INSTDIR', '$APPDATA\\x')).length, 1, 'APPDATA label, nothing after');
+  assert.equal(unstyledPathLabels('${NSD_CreateLabel} 0 0 100% 9u "Settings file: $gmConfigPath"').length, 1);
+  assert.equal(unstyledPathLabels('${NSD_CreateLabel} 0 0 100% 9u "Removed"').length, 0, 'a label with no path is not in scope');
+});
+
+test('labels: the two options-page folder labels are styled right behind their Pop', () => {
+  const lines = NSI.split('\n').map((l) => l.trim());
+  for (const v of ['$gmLblOff1', '$gmLblOff2']) {
+    const i = lines.indexOf(`Pop ${v}`);
+    assert.ok(i > 0, `${v} is popped`);
+    assert.equal(lines[i + 1], `\${NSD_AddStyle} ${v} \${SS_NOPREFIX}`);
+  }
+});
