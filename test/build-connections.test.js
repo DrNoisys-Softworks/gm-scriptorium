@@ -161,6 +161,20 @@ test('collectConnections: a named item reads in the other page\'s own wording, n
   assert.deepEqual([doranOnGrix.kind, doranOnGrix.rel], ['named', 'serves Grix']);
 });
 
+test('collectConnections: an item the other page does not list back is this page\'s own, as a session\'s "Appearing" NPCs are (T-C2)', () => {
+  // The pin adds a session's NPCs to its Connections (lib/build.js connectionExtrasFor); they are no
+  // relationship, so the NPC's own section lists the session only as a mention.
+  const session = page({ cx: cxSection({ subject: 'Session 01', tabs: [people([{ n: 'Appearing', d: [item('Doran', '../characters/npcs/doran.html')] }])] }) });
+  const doran = page({ cx: cxSection({ subject: 'Doran', mentions: [{ n: 'Sessions', d: [['Session 01', '../../sessions/session-01.html']] }] }) });
+  const published = new Map([
+    ['sessions/session-01.html', { displayTitle: 'Session 01', type: 'session' }],
+    ['characters/npcs/doran.html', { displayTitle: 'Doran', type: 'npc' }],
+  ]);
+  const { pageModels } = collectConnections({ 'sessions/session-01.html': session, 'characters/npcs/doran.html': doran }, published);
+  const doranOnSession = pageModels.find((p) => p.outputPath === 'sessions/session-01.html').items[0];
+  assert.deepEqual([doranOnSession.kind, doranOnSession.rel], ['tie', 'appearing']);
+});
+
 // -- T-C3: full names; a target with no page is this page's own, unlinked -------------------------
 
 test('collectConnections: names are never truncated; an item with no page is a tie and renders sc-cx-nolink (T-C3)', () => {
@@ -222,7 +236,8 @@ test('collectConnections: rank -- 11 shared recaps (55) outranks a named item (5
   });
   const htmlByPath = {
     'locations/x.html': html,
-    'characters/npcs/named.html': page({}),
+    // Named's note declares X, so its own section lists X, as a real build's does.
+    'characters/npcs/named.html': page({ cx: cxSection({ subject: 'Named', tabs: [{ n: 'Places', g: [{ n: 'Knows', d: [item('X', '../../locations/x.html', { k: 'Location' })] }] }] }) }),
     'characters/npcs/mention.html': page({}),
     'characters/npcs/zed.html': page({}),
     'characters/npcs/ambar.html': page({}),

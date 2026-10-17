@@ -281,8 +281,15 @@ function collectConnections(htmlByPath, published, vocab = DEFAULT_VOCAB, wrapUp
       let line = null;
       let src = null;
 
-      if (!it.mention && (!it.resolvedPath || mine.has(it.resolvedPath))) {
-        // This page's own relationship. The pin's group label is its type, worded for this page.
+      // The other page's own section lists this page back only when one of the two declared a
+      // relationship. With no such item, the connection is this page's own whatever its kind: a
+      // relationship, a parent place, or what the pin adds itself, such as a session's NPCs.
+      const theirs = it.resolvedPath ? cxByPath.get(it.resolvedPath) : null;
+      const back = theirs
+        ? theirs.data.items.find((x) => x.rawHref && htmltext.resolveHref(it.resolvedPath, x.rawHref) === outputPath)
+        : null;
+      if (!it.mention && (!back || mine.has(it.resolvedPath))) {
+        // This page's own. The pin's group label is its type, worded for this page.
         kind = 'tie';
         rel = it.label ? it.label.toLowerCase() : null;
         line = it.own > 0 ? it.lines[0] : null;
@@ -291,11 +298,7 @@ function collectConnections(htmlByPath, published, vocab = DEFAULT_VOCAB, wrapUp
         // The other page's relationship to this one, in that page's own wording: its section lists
         // this page under the label it wrote.
         kind = 'named';
-        const theirs = cxByPath.get(it.resolvedPath);
-        const back = theirs
-          ? theirs.data.items.find((x) => x.rawHref && htmltext.resolveHref(it.resolvedPath, x.rawHref) === outputPath)
-          : null;
-        const label = back ? back.label : it.label;
+        const label = back.label;
         rel = label ? `${label.toLowerCase()} ${pageInfo.displayTitle}` : null;
         line = it.lines.length > it.own ? it.lines[it.own] : null;
         src = it.resolvedPath;

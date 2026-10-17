@@ -273,13 +273,11 @@ test('T7 (change detector): a real build of story-vault keeps static .sc-cx-kind
     }
     assert.ok(tieWithRel > 0, `expected at least one static .sc-cx-kind-tie item with a .sc-cx-rel; ${REPIN_MSG}`);
 
-    // Named count recorded at PARENT (f45fa17): 0. story-vault's declared relationships are all
-    // one-directional frontmatter entries with no reciprocal body-text wikilink, so no hub page's
-    // own hop1 graph currently surfaces a "named" item from this fixture. The browser gate's own
-    // scratch copies of this vault add one declared back-relationship (a body-text mention plus
-    // the other page's own declared relationship) to get a real "named" example to measure --
-    // that edit lives only in scratch, never in this committed fixture.
-    assert.equal(namedCount, 0, `story-vault's named count changed from the PARENT recording of 0; ${REPIN_MSG}`);
+    // Named count: 1 from publish-v1.21.0 (0 at PARENT f45fa17). Doran.md declares `knows [[Grix]]`
+    // and Grix.md declares nothing back, so Grix's lane lists Doran as named by. The relationship
+    // graph the lane read until publish-v1.17.0 never put Doran on Grix's page; the pin's Connections
+    // section reads relationships in both directions.
+    assert.equal(namedCount, 1, `story-vault's named count changed from the publish-v1.21.0 recording of 1; ${REPIN_MSG}`);
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }
