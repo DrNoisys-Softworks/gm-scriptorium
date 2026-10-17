@@ -248,21 +248,12 @@ function runGeneratorBuild(configPath) {
     // per build costs nothing (a few parseManifest() probe calls) and catches a hole opened
     // between facade load and this exact build by any in-process code, not just at start-up.
     fmguard.verifyFrontmatterEngineGuard(pinned.parseManifest, pinned.generatorGrayMatter);
-    // Issue #100: refuse to build unless the stub-page section guard is live, and tell it the
-    // effective exclude_sections of THIS build (the same union the generator computes). A failure
-    // to derive them throws into the catch below: fail closed.
-    pinned.assertStubGuardLive();
-    const stagedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    // eslint-disable-next-line global-require
-    const { loadPublishConfig } = require('../vault/publishset');
-    pinned.setStubExcludeSections(loadPublishConfig(stagedConfig.vaultPath, stagedConfig).publishConfig.exclude_sections);
     // eslint-disable-next-line global-require
     const { build } = require('gm-apprentice-publish');
     build({ configPath });
   } catch (err) {
     error = err;
   } finally {
-    pinned.setStubExcludeSections(null);
     consoleCapture.restore();
     restoreReadShim();
     restoreShim();

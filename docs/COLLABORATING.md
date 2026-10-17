@@ -66,8 +66,8 @@ changed upstream.
 
 This is the **only** Scriptorium module allowed to deep-`require` a `gm-apprentice-publish`
 internal path (`gm-apprentice-publish/lib/<file>`). Everything it re-exports is called directly and
-unmodified, with one exception: `keepOnlySections` is Scriptorium's guard around the pin's (a withheld
-section is excluded first, issue 100, `docs/decisions/0042-stub-section-guard.md`): `stripDataview`, `stripGmOnly`, `stripSpoiler`, `stripHtmlComments`, `stripLeadingH1`,
+unmodified (the stub-page guard on `keepOnlySections` is retired at publish-v1.17.0, see
+`docs/decisions/0042-stub-section-guard.md`): `stripDataview`, `stripGmOnly`, `stripSpoiler`, `stripHtmlComments`, `stripLeadingH1`,
 `stripCallouts`, `filterSections`, `keepOnlySections`, `publishedFrontmatter`, `publishMode`,
 `findHeadings`, `renderInline`, `resolveWikiLinks` (all from `lib/processor.js`; the last three are
 what `leak/l5-gm-heading-survives` reads headings with, `docs/decisions/0045-leak-checks-read-rendered-headings-and-data-islands.md`), `decidePage`, `publishesPage`, `ALWAYS_EXCLUDE_DIRS` (`lib/publish-decision.js`),

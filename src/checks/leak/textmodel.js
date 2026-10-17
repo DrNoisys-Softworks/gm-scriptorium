@@ -237,7 +237,7 @@ function frontmatterTextFrom(publishedFm) {
 /**
  * One published page's rendered-text view.
  *
- * Order: publish:stub's keepOnlySections reduction (lib/build.js:515-529)
+ * Order: publish:stub's keepOnlySections reduction (lib/build.js:578-603)
  * first, against the RAW page.markdown/storyMarkdown (page objects stay
  * raw — Structural decision 3), then the strip chain (renderChain) on each
  * of body and story, exactly mirroring build.js's own order of operations.
@@ -278,8 +278,14 @@ function deriveRenderedText(page, publishConfig, { bodyWithheld = false } = {}) 
     const include = Array.isArray(page.frontmatter.publish_include_sections)
       ? page.frontmatter.publish_include_sections
       : [];
-    bodySource = pinned.keepOnlySections(bodySource, include, publishConfig.exclude_sections);
-    if (storySource) storySource = pinned.keepOnlySections(storySource, include, publishConfig.exclude_sections);
+    // The withhold object lib/build.js:589 passes for both, less its warn (check prints nothing).
+    const withhold = {
+      excludeSections: publishConfig.exclude_sections,
+      excludeCallouts: publishConfig.exclude_callouts,
+      frontmatter: page.frontmatter,
+    };
+    bodySource = pinned.keepOnlySections(bodySource, include, withhold);
+    if (storySource) storySource = pinned.keepOnlySections(storySource, include, withhold);
   }
 
   const bodyText = renderChain(bodySource, publishConfig, 'body', warnings, page.frontmatter);

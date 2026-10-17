@@ -82,7 +82,7 @@ const {
   stripLeadingH1,
   stripCallouts,
   filterSections,
-  keepOnlySections: upstreamKeepOnlySections,
+  keepOnlySections,
   publishedFrontmatter,
   publishMode,
   // L5 (ADR 0045) reads headings as the generator does: findHeadings is the parser reading
@@ -94,81 +94,13 @@ const {
 } = require('gm-apprentice-publish/lib/processor');
 
 /*
- * Issue #100: the pin's keepOnlySections (lib/processor.js, `publish: stub`) keeps any heading
- * whose TEXT matches an include entry, wherever it sits in the heading tree. A `### Appearance`
- * under the withheld `## GM Notes` was therefore kept on a stub page, and because the withheld
- * parent heading is dropped by the same pass, the later filterSections has nothing left to match:
- * the sub-heading published, and with it the search index and backlinks. UPSTREAM DEFECT, not
- * Scriptorium's section filter (src/ never filters sections). See the report / docs/COLLABORATING.md.
- *
- * Scriptorium-layer fix, until publish-v1.14.0: this guard ran filterSections (the excluded
- * sections, withheld parent wins) BEFORE the pin's keepOnlySections.
- *
- * From publish-v1.17.0 the pin fixes this itself (#320 there): keepOnlySections takes the build's
- * `withhold` object (lib/processor.js:474) and runs the note's strips, then the exclude list, then
- * the cut. Filtering first would now undo that order: it drops a gm-only opener that sits inside an
- * excluded section and leaves the closer, so the text between them publishes (proved on a real
- * build in test/stub-heading-collision.test.js). The guard therefore only makes sure the exclude
- * list is always there, from the caller, the build in flight or PUBLISH_DEFAULTS, and hands
- * everything else to the pin unchanged.
- *
- * Reach: lib/build.js destructures keepOnlySections from the processor's exports at ITS module load
- * (from publish-v1.17.0 the build's one caller is lib/build.js:601, a stub PC's story; the page body
- * goes through stubCut at :593, which applies the same withhold itself; processor.js calls it from nowhere;
- * lib/lines-cli.js and lib/sheet-cli.js also use it, but a build never reaches them), so replacing
- * the export here works for the build if, and only if, it happens before lib/build.js first loads.
- * That is unlike ADR 0013's filterSections, which processor.js also calls internally. The
- * `live` flag records whether the replacement beat build.js; runGeneratorBuild refuses to build
- * (fail closed) when it did not. The effective excluded sections of the build in flight are set
- * per build via setStubExcludeSections (bootstrap.js); with none set, PUBLISH_DEFAULTS apply.
+ * Issue #100 (ADR 0042) is retired at publish-v1.17.0. Scriptorium used to replace the pin's
+ * keepOnlySections with a guard that withheld an excluded parent's sub-headings on a stub page.
+ * The pin now does this itself (#320 there): keepOnlySections and stubCut take the build's
+ * `withhold` object (lib/processor.js:474) and run a note's strips, then its exclude list, then the
+ * cut. Callers must pass that object, as lib/build.js:589 does; without excludeSections nothing is
+ * withheld. The real-build proof is test/stub-heading-collision.test.js.
  */
-const processorModule = require('gm-apprentice-publish/lib/processor');
-const STUB_GUARD_BUILD_PATH = require.resolve('gm-apprentice-publish/lib/build.js');
-
-function installStubSectionGuard() {
-  const existing = processorModule.keepOnlySections;
-  // Idempotent across a re-evaluated copy of this module: reuse the first install, so the state
-  // build.js's binding reads from is the one state every copy of this module writes to.
-  if (existing && existing.scriptoriumStubGuard) return existing;
-  // The third argument is an exclude list (Scriptorium's own callers) or, from publish-v1.17.0,
-  // the build's `withhold` object (lib/processor.js:474). The object goes on to the pin whole: its
-  // callout setting, frontmatter and warn are the pin's own protections and must not be dropped.
-  function guardedKeepOnlySections(markdown, includeSections = [], excludeOrWithhold) {
-    const withhold = Array.isArray(excludeOrWithhold) ? {} : Object.assign({}, excludeOrWithhold);
-    const exclude = Array.isArray(excludeOrWithhold)
-      ? excludeOrWithhold
-      : Array.isArray(withhold.excludeSections)
-        ? withhold.excludeSections
-        : guardedKeepOnlySections.currentExclude || PUBLISH_DEFAULTS.exclude_sections;
-    // From publish-v1.17.0 the pin applies the exclude list itself, after its strips and before the
-    // cut (#320 there), which withholds the parent as issue #100 needs. Filtering here first would
-    // undo that order, so the guard only makes sure the list is always there.
-    withhold.excludeSections = exclude;
-    return upstreamKeepOnlySections(markdown, includeSections, withhold);
-  }
-  guardedKeepOnlySections.scriptoriumStubGuard = true;
-  guardedKeepOnlySections.currentExclude = null;
-  guardedKeepOnlySections.live = !require.cache[STUB_GUARD_BUILD_PATH];
-  processorModule.keepOnlySections = guardedKeepOnlySections;
-  return guardedKeepOnlySections;
-}
-
-const keepOnlySections = installStubSectionGuard();
-
-/** @param {string[]|null} list the effective exclude_sections of the build about to run, or null to clear. */
-function setStubExcludeSections(list) {
-  keepOnlySections.currentExclude = Array.isArray(list) ? list.slice() : null;
-}
-
-/** @throws {ScriptoriumError} when the guard cannot reach lib/build.js's binding (fail closed). */
-function assertStubGuardLive() {
-  if (processorModule.keepOnlySections !== keepOnlySections || keepOnlySections.live !== true) {
-    throw new ScriptoriumError(
-      'the stub-page section guard (issue #100) is not live: gm-apprentice-publish/lib/build.js was loaded before src/generator/pinned.js ' +
-        'replaced keepOnlySections, so a stub page could publish a withheld sub-heading. Refusing to build.',
-    );
-  }
-}
 
 // lib/publish-decision.js:220-229 (module.exports)
 const {
@@ -298,8 +230,6 @@ module.exports = {
   renderInline,
   resolveWikiLinks,
   keepOnlySections,
-  setStubExcludeSections,
-  assertStubGuardLive,
   publishedFrontmatter,
   publishMode,
   decidePage,
