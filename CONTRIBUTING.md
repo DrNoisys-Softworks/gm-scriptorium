@@ -20,8 +20,8 @@ touching anything under `src/generator/`, `src/build/`, `src/vault/publishset.js
 - Releases, tags, version bumps and deploys are the owner's.
 - Contributions are accepted under this repository's MIT licence (see
   [`LICENSE`](LICENSE)).
-- Two CI checks run on every push to `main` and every pull request. They look for private file
-  paths, private IP addresses, personal email addresses and files that must
+- The `hygiene` CI check runs on every push to `main` and every pull request. It looks for
+  private file paths, private IP addresses, personal email addresses and files that must
   never be committed, and checks that the history starts at this
   repository's first commit.
 - Maintainers also scan every push and release against private word lists
@@ -42,7 +42,7 @@ touching anything under `src/generator/`, `src/build/`, `src/vault/publishset.js
    why, and how you checked it.
 5. Add a written review to the pull request, in the description or a
    comment (see "The review expectation" below).
-6. Wait for both CI checks to go green, then answer any review comments. A
+6. Wait for all three CI checks to go green, then answer any review comments. A
    maintainer merges it.
 
 Nobody pushes directly to `main`, including the owner. Pull requests are
@@ -60,9 +60,16 @@ push again. Don't merge `main` into your branch.
 |---|---|
 | `test` | Installs dependencies, runs `npm test` and runs `npm run verify-generator`. |
 | `hygiene` | Runs the public privacy check over the whole history. It looks for private paths, private IP addresses, personal email addresses and files that must never be committed. |
+| `browser` | Installs Playwright and axe-core, then runs every real-browser test file in Chromium and Firefox with `node scripts/browser-tests.js run`. It fails on any failed test and on any skipped test, so a run that quietly found no browser cannot pass. See [ADR 0069](docs/decisions/0069-browser-tests-in-ci.md). |
 
-Both must pass before a pull request can merge. The checks use no secrets, so
+All three must pass before a pull request can merge. The checks use no secrets, so
 they skip in a fork's own Actions tab, so a fork shows no checks there. The checks run when you open the pull request against this repository, and the result appears on the pull request.
+
+One known flake has a re-run allowance. If `browser` fails, and the only failures are the new-vault
+setup test described in [issue 137](https://github.com/DrNoisys-Softworks/gm-scriptorium/issues/137) and its parent test, `start a new campaign, browsing in <browser>`, a maintainer may re-run the
+failed job once, with "Re-run failed jobs" on the Actions page. One flake shows as two failures,
+because a failing subtest also fails its parent. Any other failure, or a failure on the re-run, is a
+real failure. The allowance is removed in the change that fixes that issue.
 
 ## The review expectation
 

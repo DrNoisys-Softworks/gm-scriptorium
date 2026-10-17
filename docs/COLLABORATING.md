@@ -644,8 +644,9 @@ These are the owner's rules for this repository:
   includes the owner. Branch from the latest `main`, open a pull request against it, and keep
   the change to one concern. Pull requests are squash merged, so add a `Co-authored-by:` line
   at the end of the description for anyone who shares the credit.
-- **CI must pass.** Two checks gate every pull request: `test` (runs `npm test` and
-  `npm run verify-generator`) and `hygiene` (the public privacy check). Run both commands
+- **CI must pass.** Three checks gate every pull request: `test` (runs `npm test` and
+  `npm run verify-generator`), `hygiene` (the public privacy check) and `browser` (the real-browser
+  tests in Chromium and Firefox, see ADR 0069). Run `npm test` and `npm run verify-generator`
   yourself before you open the pull request.
 - **A written review is required.** Every pull request carries a review in its description or a
   comment: what was looked at, what was run, what was found. GitHub does not ask for an approval
@@ -664,7 +665,7 @@ These are the owner's rules for this repository:
 - **Never commit campaign content, vault files, secrets or credentials.**
 - **No real campaign names, player or character names from a real game, or personal names in repo
   text, test fixtures or commit messages.** Use neutral, made-up example names instead. This
-  repository is public. Two CI checks on every push to `main` and every pull request look for private paths, private
+  repository is public. The `hygiene` CI check on every push to `main` and every pull request looks for private paths, private
   IP addresses, personal email addresses and files that must never be committed, and checks that
   the history starts at this repository's first commit. Maintainers also scan pushes and releases
   against private word lists kept outside the repository. These checks catch a lot but not
