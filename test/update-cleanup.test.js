@@ -7,6 +7,8 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+const pkg = require('../package.json');
+
 const { runUpdateCommand } = require('../src/cli/update');
 const {
   UPDATE_TMP_PREFIX,
@@ -378,6 +380,12 @@ test('AC-26-04: a successful update removes the beside-exe notices file and name
     assert.equal(fs.existsSync(noticesPath), false, 'the stale notices file must be gone after a successful update');
     assert.doesNotMatch(result.human, /--version/, 'the success message must not tell people --version writes a copy');
     assert.match(result.human, /--notices/, 'the success message must name --notices as a way to get it back');
+    assert.ok(
+      result.human.includes(
+        'Any third-party notices file beside the executable described the OLD version and has been cleared; run --notices to print the new one.',
+      ),
+      'when a file was removed the message says so, verbatim',
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -397,6 +405,30 @@ test('AC-26-04 (scoping): a same-named file without the recognisable header is l
     assert.equal(result.exitCode, EXIT_CODES.OK, result.human);
     assert.equal(fs.existsSync(noticesPath), true, 'a foreign same-named file must not be deleted');
     assert.equal(fs.readFileSync(noticesPath, 'utf8'), foreignContent, 'and must be byte-unchanged');
+    assert.doesNotMatch(result.human, /has been cleared/, '#119: nothing was removed, so the message must not say it was');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('#119: a successful update with no notices file beside the exe does not claim one was cleared', async () => {
+  const root = makeScratch('scriptorium-cleanup-t119-');
+  try {
+    const { execPath, tmpRoot } = makeExeAndTmp(root);
+
+    const deps = baseDeps({ execPath, tmpRoot });
+    const { exitCode, human } = await runUpdateCommand({}, deps);
+
+    assert.equal(exitCode, EXIT_CODES.OK, human);
+    assert.match(human, /^updated /);
+    assert.doesNotMatch(human, /has been cleared/);
+    assert.doesNotMatch(human, /notices/i);
+    assert.ok(
+      human.includes(
+        `Previous binary kept at ${execPath}.old-${pkg.version}. Release notes: https://github.com/DrNoisys-Softworks/gm-scriptorium/releases/tag/v9.9.9`,
+      ),
+      human,
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -495,6 +527,7 @@ test('AC-26-06: a failed notices deletion (EBUSY) does not change the exit code 
     assert.equal(result.exitCode, EXIT_CODES.OK);
     assert.match(result.human, /^updated /);
     assert.equal(fs.existsSync(noticesPath), true, 'the locked notices file is left in place, not silently lost track of');
+    assert.doesNotMatch(result.human, /has been cleared/, '#119: the file is still there, so the message must not say it was cleared');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
