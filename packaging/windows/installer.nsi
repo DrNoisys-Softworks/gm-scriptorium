@@ -41,6 +41,10 @@ Unicode true
   !endif
 !endif
 
+!ifndef NSIS_MAX_STRLEN
+  !error "NSIS_MAX_STRLEN is not defined by this makensis"
+!endif
+
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !include "nsDialogs.nsh"

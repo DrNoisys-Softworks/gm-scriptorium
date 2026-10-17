@@ -301,6 +301,16 @@ test('required: the PATH guard compares against NSIS_MAX_STRLEN and checks the v
   assert.match(NSI, /StrLen\s+\$\w+\s+\$gmPathVal/);
 });
 
+test('required: the build stops when makensis does not define NSIS_MAX_STRLEN', () => {
+  // A shape test: it pins the guard text and proves nothing about Windows.
+  const GUARD_RE = /!ifndef\s+NSIS_MAX_STRLEN\s*\n\s*!error\s+"NSIS_MAX_STRLEN is not defined by this makensis"\s*\n\s*!endif/;
+  assert.match(NSI, GUARD_RE);
+  assert.equal(GUARD_RE.test('!ifdef NSIS_MAX_STRLEN\n  !error "NSIS_MAX_STRLEN is not defined by this makensis"\n!endif'), false);
+  assert.equal(GUARD_RE.test('!ifndef NSIS_MAX_STRLEN\n  !error "something else"\n!endif'), false);
+  // The guard sits at the top level, before the first include.
+  assert.ok(NSI.search(GUARD_RE) < NSI.indexOf('!include "MUI2.nsh"'));
+});
+
 test('required: the PATH broadcast uses STR:Environment with a 5 second timeout', () => {
   assert.match(NSI, /SendMessage\s+\$\{HWND_BROADCAST\}\s+\$\{WM_SETTINGCHANGE\}\s+0\s+"STR:Environment"\s+\/TIMEOUT=5000/);
 });
