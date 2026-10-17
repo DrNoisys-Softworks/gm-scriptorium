@@ -129,6 +129,7 @@ the way.
 - [0059. The sample campaign is published to GitHub Pages, built only from the sample](decisions/0059-hosted-sample-site.md): A separate workflow builds and checks the sample from one fixed path and publishes it with a generated leak demo page, nothing is uploaded if any gate fails, and the 404 notices link breaks at nested missing addresses.
 - [0060. A folder hidden only in vault-config.md is a warning, and the build judges hidden folders on the new site](decisions/0060-hidden-folders-warn.md): Hiding a folder in the panel no longer blocks a build, and the build checks the new site, not the old one, for pages from hidden folders.
 - [0061. Banners and the cover picture are judged by the file they were copied from](decisions/0061-banner-and-cover-sources.md): The hidden-folder leak check no longer mistakes the cover picture and section banners for attachments; one you named from a hidden folder is a warning, and a `_banner` picture found in a hidden folder still refuses the build.
+- [0069. The real-browser tests run on every pull request, and the check must pass](decisions/0069-browser-tests-in-ci.md): A browser check now runs the 17 real-browser test files in Chromium and Firefox on every pull request, a runner fails on any skip, the check becomes required, and one known flake may be re-run once.
 
 ## Licensing
 
