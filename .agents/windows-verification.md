@@ -2475,6 +2475,19 @@ Issue #171. **Mark this OPEN: Linux tests prove the logic only; a mapped drive a
 4. Create `M:\moved\cfg\config.toml` holding only the line `config_version = 1`, so that no registered campaign names `M:\moved` (otherwise the registered-vault check refuses first and this step would pass without testing the settings-file detection). Pipe a passphrase into `remote password --config M:\moved\cfg\config.toml` with `SCRIPTORIUM_CONFIG` set to the same path: exit 3, `remote access keeps its files beside the config, never inside a vault, but`, then `is inside the vault at` and the moved copy, and no `M:\moved\cfg\panel` exists.
 5. `M:\pick` holds only a moved copy `camp`. Start `serve --admin` with a fresh empty scratch config (setup mode), type `M:\pick` as the vault: setup offers `camp` one folder down. Choose it: the screen shows the step 1 message, and `dir /s /b M:\pick` lists the same files as before (no `_meta\scriptorium`).
 
+### C213: the uninstaller's finish page fits its text, and folder and settings labels show an ampersand as typed, in the real installer and uninstaller
+
+Issue #118. **Mark this OPEN: structure tests pin the source and makensis compiles both stages, but nothing on Linux draws a page or wraps a line. Every step below comes only from VM 201.** Use a scratch build, a standard (non-administrator) user, and a scratch `SCRIPTORIUM_CONFIG` set in the launching PowerShell before `Start-Process`. Never the real config. Run steps 1 to 5 at 100% and again at 150% display scaling (restore it afterwards), and screenshot every page.
+
+1. Uninstall with `keep-me.txt` left in the install folder and `SCRIPTORIUM_CONFIG` set. On the finish page every sentence is readable, including the whole folder path and "...not GM-Scriptorium's.", and the feedback box sits below the text with a visible gap and no overlap. The box is unticked. Tick it and press Finish: the browser opens `https://tally.so/r/eq19jQ`.
+2. The same with an install folder of 60 or more characters. If one path word is still wider than a line and is clipped, report it. Do not change the wording.
+3. A clean uninstall (nothing left in the folder): the finish page is complete and the box sits below the text.
+4. With `SCRIPTORIUM_CONFIG=C:\work\R&D\config.toml` and that file existing, the "Your Campaigns" page shows `R&D` with no underline. Uninstall with the same variable set: the finish page shows `R&D` with no underline.
+5. Install into a folder whose name contains `&`. The options page line "You'll need to start GM-Scriptorium from its folder" shows the ampersand as typed, with Advanced closed and with it open (Start menu, Desktop and Start with Windows all unticked). The uninstaller confirm page and the finish folder note show it too.
+6. C198 step 1: every installer page at both scales, with Advanced open and closed, nothing clipped.
+
+Also re-run C145 step 3. C151 step 2 stays with the owner.
+
 ### C170: a bare `--force` is refused with one line, in the real win-x64 exe
 
 Issue #15, [ADR 0055](../docs/decisions/0055-force-split.md). **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match. Use a scratch copy of the-long-lease example vault, registered as campaign `c170` with an output folder `S\out` that does not exist.
