@@ -51,7 +51,7 @@
     }
   },
   "dependencies": {
-    "gm-apprentice-publish": "file:vendor/gm-apprentice-publish/gm-apprentice-publish-1.17.0.tgz",
+    "gm-apprentice-publish": "file:vendor/gm-apprentice-publish/gm-apprentice-publish-1.21.0.tgz",
     "gray-matter": "4.0.3",
     "smol-toml": "1.9.0"
   },
