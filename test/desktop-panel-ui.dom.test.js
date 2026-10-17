@@ -270,6 +270,8 @@ for (const browserName of ['chromium', 'firefox']) {
 
   /** The tray's landing on a fresh load, with the web fonts held back. Resolves once the Overview is drawn in full. */
   async function landWithFontsHeld(ctx, page) {
+    // The page from open() has taken its session answer once the frame is built; until then it could take the landing meant for the reload.
+    await page.waitForSelector('[data-screen="overview"]', { state: 'attached' });
     await page.addInitScript(LANDING_COUNTERS);
     const fonts = await holdRequests(page, '**/assets/fonts/**');
     ctx.launchLanding = { to: 'updates', expiresAt: Date.now() + 15000 };
@@ -366,6 +368,7 @@ for (const browserName of ['chromium', 'firefox']) {
    * the web fonts are in (the landing's own condition, checked again here).
    */
   async function landBelowPortsCard(ctx, page) {
+    await page.waitForSelector('[data-screen="overview"]', { state: 'attached' });
     await page.addInitScript(LANDING_COUNTERS);
     const update = await holdRequests(page, '**/api/update');
     ctx.launchLanding = { to: 'updates', expiresAt: Date.now() + 15000 };
