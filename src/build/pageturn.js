@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { findMainOpen } = require('./htmltext');
 
 /*
  * Engineering Brief: "Book leaves + motion" (docs/agent-runs/bookleaves-engineering-brief-2026-09-24.md),
@@ -15,8 +16,8 @@ const path = require('path');
  *  2. AMENDMENT E-3: on leaf pages only (has <header class="top-nav">, has no
  *     class="landing-hero" -- the same pages the leaf CSS scope targets), a single
  *     <div class="vt-fx" aria-hidden="true"></div>, immediately before the first </main> after the
- *     first <main class="content"> (the same anchoring sessions-index.js's MAIN_OPEN/MAIN_CLOSE
- *     uses, and it shares that module's residual: a literal "</main>" string inside authored raw
+ *     first <main class="content" ...> (htmltext.js's findMainOpen, the same anchoring
+ *     sessions-index.js uses, and it shares that module's residual: a literal "</main>" string inside authored raw
  *     HTML in the leaf would misplace the div).
  *
  * Both insertions are guarded by the ONE marker on the script (idempotency), because they are one
@@ -111,7 +112,6 @@ const HEAD_OPEN_RE = /<head(\s[^>]*)?>/;
 
 const TOP_NAV_MARKER = '<header class="top-nav">';
 const LANDING_HERO_MARKER = 'class="landing-hero"';
-const MAIN_OPEN = '<main class="content">';
 const MAIN_CLOSE = '</main>';
 const VT_FX_DIV = '<div class="vt-fx" aria-hidden="true"></div>';
 
@@ -136,9 +136,9 @@ function transformPageTurn(html) {
 
   // AMENDMENT E-3: the .vt-fx div, only on leaf pages (top-nav present, landing-hero absent).
   if (out.includes(TOP_NAV_MARKER) && !out.includes(LANDING_HERO_MARKER)) {
-    const mainOpenAt = out.indexOf(MAIN_OPEN);
-    if (mainOpenAt !== -1) {
-      const mainCloseAt = out.indexOf(MAIN_CLOSE, mainOpenAt + MAIN_OPEN.length);
+    const mainOpen = findMainOpen(out);
+    if (mainOpen) {
+      const mainCloseAt = out.indexOf(MAIN_CLOSE, mainOpen.end);
       if (mainCloseAt !== -1) {
         out = out.slice(0, mainCloseAt) + VT_FX_DIV + '\n' + out.slice(mainCloseAt);
       }

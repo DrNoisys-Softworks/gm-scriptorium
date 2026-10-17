@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { ScriptoriumError } = require('../util/errors');
+const { findMainOpen } = require('./htmltext');
 
 /*
  * UI-01 / issue 214 (https://github.com/AntTheLimey/gm-apprentice/issues/214) FIXED upstream as of
@@ -20,16 +21,16 @@ const { ScriptoriumError } = require('../util/errors');
  * test. Do not remove that check to "simplify" this module -- it is what makes the self-retirement
  * automatic, and it costs nothing if a future pin ever regresses issue 214.
  *
- * SD-4: rather than reimplementing baseShell (lib/templates/base.js:52-118), this transforms a
+ * SD-4: rather than reimplementing baseShell (lib/templates/base.js:67-116), this transforms a
  * donor page: read the first sessions/*.html, splice new content between the first
- * `<main class="content">` (lib/templates/base.js:84) and the first `</main>` (:87), rewrite
+ * `<main class="content" ...>` (lib/templates/base.js:100, found by htmltext.js's findMainOpen)
+ * and the first `</main>` (:103), rewrite
  * `<title>`. Nav, CSS links, relative depth and the notice footer link all come from the donor's
  * own shell and cannot drift from it. (This module is now a no-op at every real build -- see
  * SD-3 above -- but the donor-transform logic stays, both as the escape hatch's own fallback path
  * and as the regression guard if issue 214 is ever reverted upstream.)
  */
 
-const MAIN_OPEN = '<main class="content">';
 const MAIN_CLOSE = '</main>';
 const TITLE_TAG_RE = /<title>[\s\S]*?<\/title>/;
 
@@ -105,14 +106,14 @@ function writeSessionsIndex(siteRoot, { siteTitle }) {
   const donorPath = path.join(sessionsDir, donorName);
   const donorHtml = fs.readFileSync(donorPath, 'utf8');
 
-  const mainOpenAt = donorHtml.indexOf(MAIN_OPEN);
-  if (mainOpenAt === -1) {
+  const mainOpen = findMainOpen(donorHtml);
+  if (!mainOpen) {
     throw new ScriptoriumError(
       `sessions donor page has no <main class="content">, cannot build sessions/index.html (SD-4, docs/decisions/0006-post-build-page-writer.md)`,
       { path: donorPath },
     );
   }
-  const spanStart = mainOpenAt + MAIN_OPEN.length;
+  const spanStart = mainOpen.end;
   const mainCloseAt = donorHtml.indexOf(MAIN_CLOSE, spanStart);
   if (mainCloseAt === -1) {
     throw new ScriptoriumError(

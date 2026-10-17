@@ -215,6 +215,22 @@ function removeBalancedBlocks(html, tag, cls) {
   return result;
 }
 
+// The pin's baseShell opens the page body with `<main class="content"`, followed from
+// publish-v1.17.0 by attributes of its own, such as ` data-previews="hover"`
+// (lib/templates/base.js:100). Match the class exactly and allow anything after it.
+const MAIN_OPEN_RE = /<main class="content"(?:\s[^>]*)?>/;
+
+/**
+ * Finds the first `<main class="content" ...>` opening tag.
+ *
+ * @param {string} html
+ * @returns {{ index: number, end: number } | null} where the tag starts, and the index just past its `>`
+ */
+function findMainOpen(html) {
+  const m = MAIN_OPEN_RE.exec(html);
+  return m ? { index: m.index, end: m.index + m[0].length } : null;
+}
+
 /**
  * Takes the text from `<main class="content">` to its first `</main>`, then strips the
  * non-prose blocks (graph, sidebar, relationship-list, breadcrumbs, story-nav, metadata-badges,
@@ -225,10 +241,9 @@ function removeBalancedBlocks(html, tag, cls) {
  * @returns {string}
  */
 function proseRegion(html) {
-  const openTag = '<main class="content">';
-  const mainOpenIdx = html.indexOf(openTag);
-  if (mainOpenIdx === -1) return '';
-  const contentStart = mainOpenIdx + openTag.length;
+  const mainOpen = findMainOpen(html);
+  if (!mainOpen) return '';
+  const contentStart = mainOpen.end;
   const mainCloseIdx = html.indexOf('</main>', contentStart);
   if (mainCloseIdx === -1) return '';
   let region = html.slice(contentStart, mainCloseIdx);
@@ -277,6 +292,7 @@ module.exports = {
   foldKey,
   resolveHref,
   sliceBalanced,
+  findMainOpen,
   proseRegion,
   removeBalancedBlocks,
   toRoman,

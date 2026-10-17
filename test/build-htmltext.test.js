@@ -64,6 +64,23 @@ test('proseRegion: strips graph/sidebar/relationship-list/breadcrumbs/story-nav/
   assert.equal(region, '<p>Real prose with an <a href="../npc.html">NPC</a>.</p>');
 });
 
+// From publish-v1.17.0 the pin's baseShell writes attributes after the class, for example
+// data-previews="hover" whenever link previews are on (lib/templates/base.js:100).
+test('proseRegion: reads a <main class="content"> that carries further attributes', () => {
+  const html = '<main class="content" data-previews="hover"><p>Prose.</p></main>';
+  assert.equal(htmltext.proseRegion(html), '<p>Prose.</p>');
+});
+
+test('findMainOpen: the bare tag, an attributed tag, and a lookalike class', () => {
+  assert.deepEqual(htmltext.findMainOpen('xx<main class="content">'), { index: 2, end: 24 });
+  assert.deepEqual(
+    htmltext.findMainOpen('<main class="content" data-previews="hover">'),
+    { index: 0, end: 44 },
+  );
+  assert.equal(htmltext.findMainOpen('<main class="content-wide">'), null);
+  assert.equal(htmltext.findMainOpen('<div>no main</div>'), null);
+});
+
 test('proseRegion: empty when no <main class="content">', () => {
   assert.equal(htmltext.proseRegion('<div>no main</div>'), '');
 });
