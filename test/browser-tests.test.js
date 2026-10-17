@@ -326,6 +326,20 @@ test('(d) the versions appear only in scripts/browser-tests.js and, equal to it,
   assert.deepEqual(tokenProblems(findTokens(ROOT), EXPECTED), []);
 });
 
+/** How many hits name `name` in the docs home. */
+const countIn = (hits, name) => hits.filter((h) => h.file === DOCS_HOME && h.name === name).length;
+
+test('(d) docs/DEVELOPING.md carries at least one token of each tool', () => {
+  const hits = findTokens(ROOT);
+  assert.ok(countIn(hits, 'playwright') >= 1, 'no playwright token in DEVELOPING');
+  assert.ok(countIn(hits, 'axe-core') >= 1, 'no axe-core token in DEVELOPING');
+  // control: the counter sees a present token and an absent one
+  const sample = [{ file: DOCS_HOME, name: 'playwright', version: '0' }];
+  assert.equal(countIn(sample, 'playwright'), 1);
+  assert.equal(countIn(sample, 'axe-core'), 0);
+  assert.equal(countIn([{ file: 'README.md', name: 'axe-core', version: '0' }], 'axe-core'), 0);
+});
+
 test('(d) controls: a wrong version, a stray token and a matching token', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'browser-tokens-'));
   try {
