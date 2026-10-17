@@ -76,7 +76,8 @@ test('#100: a GM Notes sub-heading that matches a stub include entry reaches no 
 
     // Backlinks: the Cellar is linked ONLY from the withheld sub-heading.
     const cellar = fs.readFileSync(path.join(outDir, 'locations', 'cellar.html'), 'utf8');
-    assert.ok(!cellar.includes('Mentioned In'), 'Cellar gained a backlink from withheld stub text');
+    // Until publish-v1.17.0 a backlink was a "Mentioned In" sidebar; from publish-v1.18.0 it is a
+    // mention in the page's Connections, so the link back to the Sentry is the whole check.
     assert.ok(!cellar.includes('sentry.html'), 'Cellar links back to the Sentry from withheld text');
 
     // Positive controls: the stub body that IS included is still published, in HTML and search.
