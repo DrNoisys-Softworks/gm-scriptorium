@@ -217,7 +217,7 @@ for (const browserName of ['chromium', 'firefox']) {
         const page = await open(1280);
         await toVault(page);
         await typeInto(page, '.su-row .a1-in', moved);
-        await page.waitForFunction(() => document.getElementById('su-vault-st').textContent.includes('can’t read'));
+        await page.waitForFunction(() => /Folder found|Folder not found|isn’t a vault|can’t read/.test(document.getElementById('su-vault-st').textContent));
         const text = await page.textContent('#su-vault-st');
         assert.ok(text.includes('Settings this version can’t read'), text);
         assert.ok(text.includes('This version of GM-Scriptorium can’t read this vault’s settings.'), text);
