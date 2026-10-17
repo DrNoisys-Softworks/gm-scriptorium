@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { ScriptoriumError } = require('../util/errors');
 
 /*
@@ -56,7 +58,7 @@ const REDACTIONS = [
     id: 'gurps-reference',
     pinPath: 'lib/templates/gurps/blocks/reference.js',
     specifier: 'gm-apprentice-publish/lib/templates/gurps/blocks/reference.js',
-    expectedSha256: 'fd2a3e5a7e79769acecf4b13139d7cd20258a8d84b63fe5a0587dea48cfc0694',
+    expectedSha256: '58a53ff0e135a852c044a2e2531da82646cc5e49e93a8faa66ff090feeacce33',
     reason:
       'reproduces two literal GURPS combat-reference data tables with page citations ' +
       '(lib/templates/gurps/blocks/reference.js:6-20,23-40), rendered unconditionally into ' +
@@ -70,7 +72,10 @@ const REDACTIONS = [
     // ${renderReference()} at gurps/layout.js:62; buildCombat still emits its wrapper for any
     // other part present (layout.js:45-62), so an empty string here degrades the appendix
     // without breaking the rest of the combat tab.
-    stub: () => ({ renderReference: () => '' }),
+    // From publish-v1.21.0 the module also exports the two tables' rows, which
+    // gurps/tohit-data.js:8 reads for the to-hit calculator. Empty rows give the calculator no
+    // hit-location penalties and no range bands, the same degradation as the appendix.
+    stub: () => ({ renderReference: () => '', HIT_LOCATION_ROWS: [], SIZE_SPEED_RANGE_ROWS: [] }),
   },
   {
     id: 'coc-skills-data',
@@ -91,6 +96,41 @@ const REDACTIONS = [
     // coc/skills.js:36; an empty array leaves mergeSkills building its row set purely from the
     // sheet's own pcSkills, taking `base` from the sheet's own column (coc/skills.js:46).
     stub: () => ({ REGENCY_SKILLS: [], BASE_SKILLS: [] }),
+  },
+];
+
+/*
+ * Asset redactions: files the pin copies into a built site rather than requires. The packaging
+ * layer is the same pkg.patches erase-and-replace (its replacement is exactly stubSource, bound
+ * by test/redactions.test.js); the runtime layer is applyAssetRedactions() over the staging tree,
+ * before the output scan, since the generator copies the file itself.
+ */
+
+// Replaces the upstream to-hit calculator. It removes the calculator's empty box from the page,
+// so a GURPS Combat tab reads as it did before publish-v1.21.0.
+const TOHIT_STUB = [
+  '// Redacted by Scriptorium: the upstream to-hit calculator carries rules tables.',
+  '// See docs/decisions/0007-rules-content-redaction.md.',
+  '(function () {',
+  "  function drop() { var el = document.getElementById('tohit-calc'); if (el) el.remove(); }",
+  "  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', drop); else drop();",
+  '})();',
+  '',
+].join('\n');
+
+const ASSET_REDACTIONS = [
+  {
+    id: 'gurps-tohit-script',
+    pinPath: 'js/gurps-tohit.js',
+    expectedSha256: 'bfa4707e8cd1151ef859a4f0130c62e27d0d414af7abebcafb4d4198f0f210c9',
+    reason:
+      'the GURPS to-hit calculator script (new at publish-v1.21.0) hardcodes rules tables in its ' +
+      'own source, under its own header naming them, and lib/build.js copies every js/ file into ' +
+      'every site. See docs/decisions/0007-rules-content-redaction.md.',
+    noticeClaim: 'Scriptorium replaces the to-hit calculator script the same way',
+    // Pages that would run the calculator carry this element (gurps/tohit-data.js tohitMarkup).
+    pageMark: 'id="tohit-calc"',
+    stubSource: TOHIT_STUB,
   },
 ];
 
@@ -226,4 +266,29 @@ function redactionReport() {
   return REDACTIONS.map((entry) => ({ id: entry.id, calls: callCounts.get(entry.id) || 0 }));
 }
 
-module.exports = { REDACTIONS, applyRedactions, redactionReport };
+/**
+ * Overwrites each ASSET_REDACTIONS file the generator copied into `siteRoot` with its stub, and
+ * counts the built pages that would have run it (its pageMark), in ASSET_REDACTIONS order. A
+ * site the file was not copied into is left alone.
+ *
+ * @param {string} siteRoot
+ * @returns {{ id: string, calls: number }[]}
+ */
+function applyAssetRedactions(siteRoot) {
+  const pages = [];
+  (function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.html')) pages.push(full);
+    }
+  })(siteRoot);
+  return ASSET_REDACTIONS.map((entry) => {
+    const target = path.join(siteRoot, ...entry.pinPath.split('/'));
+    if (fs.existsSync(target)) fs.writeFileSync(target, entry.stubSource);
+    const calls = pages.filter((p) => fs.readFileSync(p, 'utf8').includes(entry.pageMark)).length;
+    return { id: entry.id, calls };
+  });
+}
+
+module.exports = { REDACTIONS, ASSET_REDACTIONS, applyRedactions, applyAssetRedactions, redactionReport };

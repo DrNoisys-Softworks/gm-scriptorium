@@ -42,11 +42,15 @@
     "patches": {
       "node_modules/gm-apprentice-publish/lib/templates/gurps/blocks/reference.js": [
         { "do": "erase" },
-        "// Redacted at packaging time by Scriptorium. See docs/decisions/0007-rules-content-redaction.md.\nmodule.exports = { renderReference: () => '' };\n"
+        "// Redacted at packaging time by Scriptorium. See docs/decisions/0007-rules-content-redaction.md.\nmodule.exports = { renderReference: () => '', HIT_LOCATION_ROWS: [], SIZE_SPEED_RANGE_ROWS: [] };\n"
       ],
       "node_modules/gm-apprentice-publish/lib/templates/coc/skills-data.js": [
         { "do": "erase" },
         "// Redacted at packaging time by Scriptorium. See docs/decisions/0007-rules-content-redaction.md.\nmodule.exports = { REGENCY_SKILLS: [], BASE_SKILLS: [] };\n"
+      ],
+      "node_modules/gm-apprentice-publish/js/gurps-tohit.js": [
+        { "do": "erase" },
+        "// Redacted by Scriptorium: the upstream to-hit calculator carries rules tables.\n// See docs/decisions/0007-rules-content-redaction.md.\n(function () {\n  function drop() { var el = document.getElementById('tohit-calc'); if (el) el.remove(); }\n  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', drop); else drop();\n})();\n"
       ]
     }
   },
