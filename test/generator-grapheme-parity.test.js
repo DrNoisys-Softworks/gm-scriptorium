@@ -80,7 +80,11 @@ test('grapheme-vault builds identically under plain node and inside installSegme
   });
 });
 
-test('grapheme-vault build embeds the horror theme CSS and truncated (ellipsis) graph labels', () => {
+// Until publish-v1.17.0 this also counted the relationship graph's truncated (ellipsis) labels, the
+// shim's main consumer. publish-v1.18.0 removed the graph; the pin now splits graphemes only for the
+// landing page's initials (lib/templates/landing-data.js:136). The test above still proves a build
+// with the shim is byte-identical to one without.
+test('grapheme-vault build embeds the horror theme CSS and no page carries the retired relationship graph', () => {
   withTmpDir((dir) => {
     const outDir = path.join(dir, 'out');
     buildGraphemeVault(outDir);
@@ -90,12 +94,8 @@ test('grapheme-vault build embeds the horror theme CSS and truncated (ellipsis) 
     const npcDir = path.join(outDir, 'characters', 'npcs');
     const npcFiles = fs.readdirSync(npcDir).filter((f) => f.endsWith('.html') && f !== 'index.html');
     assert.equal(npcFiles.length, 4);
-
-    let ellipsisCount = 0;
     for (const file of npcFiles) {
-      const html = fs.readFileSync(path.join(npcDir, file), 'utf8');
-      if (html.includes('…')) ellipsisCount++;
+      assert.ok(!fs.readFileSync(path.join(npcDir, file), 'utf8').includes('relationship-graph'), file);
     }
-    assert.equal(ellipsisCount, 4, 'every NPC page in the relationship ring should render at least one truncated graph label');
   });
 });

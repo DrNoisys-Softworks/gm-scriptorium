@@ -103,15 +103,17 @@ function normaliseEmitted(text) {
  * each computed with the pin's own functions so it can never drift from
  * what the pin actually renders (Structural decision 7):
  *
- *   - truncated-label: mirrors the relationship-graph SVG label
+ *   - truncated-label: mirrored the relationship-graph SVG label
  *     (`escapeHtml(truncateGraphemes(node.displayTitle, 15, 13))`,
- *     lib/relationship-graph.js:206-207, lib/unicode.js:83-87 for
- *     truncateGraphemes itself). Present only when the name is actually
- *     long enough to be truncated.
- *   - underscored: mirrors the unpublished-target graph-node fallback
- *     (`title.replace(/_/g, ' ')`, lib/relationship-graph.js:62, the same
- *     transform as humanizeName, lib/processor.js:36-38). Present only when
- *     the name contains `_`.
+ *     lib/unicode.js:83-87 for truncateGraphemes itself). publish-v1.18.0
+ *     removed the graph, so no page prints this form any more; it stays as
+ *     one more needle, which can only find more. Present only when the name
+ *     is actually long enough to be truncated.
+ *   - underscored: mirrors the Connections section's no-page item, a name
+ *     with underscores read as spaces (`noPage.name.replace(/_/g, ' ')`,
+ *     lib/connections.js:232; the relationship graph's fallback did the same
+ *     until publish-v1.17.0), the same transform as humanizeName,
+ *     lib/processor.js:36-38. Present only when the name contains `_`.
  */
 function needleFormsFor(name) {
   const forms = [{ form: 'literal', needle: name }];
