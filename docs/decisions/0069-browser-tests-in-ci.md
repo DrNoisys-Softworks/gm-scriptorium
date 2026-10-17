@@ -34,10 +34,12 @@ Chosen: **every pull request and every push to `main`.**
 
 Rejected:
 
-- **(b) Push to `main` only.** A broken screen would be found after the merge, with the change already in `main`.
-- **(c) Only when a path that looks browser-related changes.** A path filter is a guess about what can break a screen, and a shared helper or style change would slip past it.
-- **(d) A skip warning in the `test` job.** A warning is read by nobody, and the job already skips legitimate tests, so the warning would be noise.
-- **(e) Local runs only, by convention.** This is what happened before, and 17 files were not run on pull requests.
+- **(b) Every pull request except docs-only ones, plus `main`.** A path rule for "docs-only" is one more thing to get wrong, and the saving is small.
+- **(c) Only pull requests that touch `assets/admin/` or the browser test files.** Too narrow: a server-side change can break these tests too, and a filtered job would be skipped on exactly that change.
+- **(d) External contributors only.** Maintainers' own changes would go unchecked, and they change the admin panel most.
+- **(e) `main` or a schedule only.** The failure is found after the merge, and a change that breaks a screen can still go green on its pull request.
+
+The `test` job gets no skip warning for the same reason: the `browser` job runs on every pull request, so a skipped browser test there is already covered.
 
 ## 5. Decision 2: whether the check is required
 
@@ -45,8 +47,8 @@ Chosen: **`browser` becomes a required check from its first green run on `main`.
 
 Rejected:
 
-- **(b) Advisory only.** A check that can be ignored will be, and the failure it exists to catch would again reach `main`.
-- **(c) Required only once issue 137 is fixed.** The known flake is narrow and named, and a one-re-run allowance covers it, so waiting would leave the screens unchecked for no gain.
+- **(b) Advisory until issue 137 is root-caused, then required.** A check that can be ignored will be, and the failure it exists to catch could again reach `main` in the meantime.
+- **(c) Required with no re-run allowance.** The known flake is narrow and named, and without a single re-run it would block unrelated pull requests until it is fixed.
 
 ## 6. The re-run rule, and when it ends
 
