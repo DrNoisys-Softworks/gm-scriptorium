@@ -30,17 +30,17 @@ changed upstream.
 ### The pin and its verification
 
 - `vendor/gm-apprentice-publish/PIN.json` is the integrity anchor: repository, `tools/publish`
-  path, the 40-character commit SHA (`ea94de7f47f398eb695600653017323ee20caa65`, tag
-  `publish-v1.14.0`, package version `1.14.0`), the vendored release tarball's filename and
+  path, the 40-character commit SHA (`db6fb2b083e8ee897a381b9de4642f12769e4cc2`, tag
+  `publish-v1.17.0`, package version `1.17.0`), the vendored release tarball's filename and
   sha256, the vendored `SHA256SUMS` filename, a `crossCheck` record (method, npm version,
   `treeSha256` of a reproducible-build cross-check tree), every shipped file's sha256 keyed by
-  package-relative POSIX path (560 files, bundled dependencies included), and one `treeSha256` over
+  package-relative POSIX path (578 files, bundled dependencies included), and one `treeSha256` over
   all of them. There is no `omitted` list: the manifest is derived from the extracted release
   tarball directly, with no omit rules of any kind (see "Pin bump procedure" below).
-- `vendor/gm-apprentice-publish/gm-apprentice-publish-1.14.0.tgz` is the vendored **release**
+- `vendor/gm-apprentice-publish/gm-apprentice-publish-1.17.0.tgz` is the vendored **release**
   tarball itself (not a locally-`npm pack`ed one), installed via `package.json`'s
   `dependencies["gm-apprentice-publish"]` as
-  `file:vendor/gm-apprentice-publish/gm-apprentice-publish-1.14.0.tgz`.
+  `file:vendor/gm-apprentice-publish/gm-apprentice-publish-1.17.0.tgz`.
   `vendor/gm-apprentice-publish/SHA256SUMS` is upstream's own release checksum file, vendored
   alongside it.
 - `scripts/generator-pin.js` implements the mechanism: `manifestOf()` hashes a tree,
@@ -381,6 +381,10 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   `pinned.LUNR_VERSION` first, then its serialised `pipeline` field against a recognised-pipelines
   table (`[]` = no stemmer at this pin), refusing to interpret terms on either mismatch rather than
   guess.
+- **`previews.json`** (new at `publish-v1.17.0`, `lib/previews.js`): the link-preview cards' data, one
+  entry per published page with its title, kind and an excerpt, fetched same-origin by `js/previews.js`.
+  The output scan reads it as text like every other non-binary file (`test/leak-output-scan.test.js`,
+  AC-D2-04). An excerpt comes from a published page, so a name in it is on that page too.
 - **Backlinks**: reached the same way as the search index, `lib/build.js:403`'s
   `page.publishedMarkdown` feeds `publishedSource` (`lib/processor.js:824-827`), which in turn feeds
   `lib/search-index.js`, `lib/backlinks.js`, `lib/recency.js`, `lib/story-spine.js` and
