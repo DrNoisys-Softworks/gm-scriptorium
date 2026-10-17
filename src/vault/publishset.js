@@ -261,7 +261,10 @@ function scanForPublish(vaultPath, jsonConfig) {
 
       const result = read.readFrontmatter(absPath);
       if (!result.ok) continue; // frontmatter/parse-error reports this separately
-      if (!result.data.type) continue; // frontmatter/missing-type reports this separately
+      // The pin's own reading of the values: comments cut, then wrong types shaped or left
+      // unread (lib/scanner.js:126-128), so a `type:` it cannot read publishes nothing here either.
+      const frontmatter = pinned.shapeFrontmatter(pinned.cutValueComments(result.data)).frontmatter;
+      if (!frontmatter.type) continue; // frontmatter/missing-type reports this separately
 
       const outputDir = pinned.mapFolder(relDir, folderMap);
       if (!outputDir && relDir !== '') {
@@ -273,7 +276,7 @@ function scanForPublish(vaultPath, jsonConfig) {
       // displayTitle: frontmatter title wins, read as a string with any wikilink
       // printed by its label, else the stem with underscores turned to spaces —
       // lib/scanner.js:154, exactly (publish-v1.17.0 added the string and the label).
-      const displayTitle = (result.data.title ? pinned.labelsForLinks(String(result.data.title)) : '') || baseName.replace(/_/g, ' ');
+      const displayTitle = (frontmatter.title ? pinned.labelsForLinks(String(frontmatter.title)) : '') || baseName.replace(/_/g, ' ');
       const slug = pinned.slugify(baseName);
       const outputPath = outputDir ? `${outputDir}/${slug}.html` : `${slug}.html`;
 
@@ -286,7 +289,7 @@ function scanForPublish(vaultPath, jsonConfig) {
         slug,
         outputPath,
         outputDir: outputDir || '',
-        frontmatter: result.data,
+        frontmatter,
         markdown: result.content,
         bodyLineOffset: computeLineOffset(result.raw, result.content),
         storyMarkdown: undefined,

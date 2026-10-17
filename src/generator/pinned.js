@@ -134,6 +134,12 @@ const { resolveGenrePreset } = require('gm-apprentice-publish/lib/theme');
 // inside a title (by its label), which src/vault/publishset.js's display-title port calls.
 const { labelsForLinks } = require('gm-apprentice-publish/lib/wikilink');
 
+// lib/frontmatter.js:155 and lib/frontmatter-shape.js:110 (module.exports). New at
+// publish-v1.17.0: the scanner cuts comments out of frontmatter values, then puts wrongly typed values
+// into shape or leaves them unread (lib/scanner.js:126-128); src/vault/publishset.js does the same.
+const { cutValueComments } = require('gm-apprentice-publish/lib/frontmatter');
+const { shapeFrontmatter } = require('gm-apprentice-publish/lib/frontmatter-shape');
+
 // lib/unicode.js:89 (module.exports)
 const { canonicalNfc, truncateGraphemes } = require('gm-apprentice-publish/lib/unicode');
 
@@ -251,6 +257,8 @@ module.exports = {
   WRAP_UP_TYPES,
   resolveGenrePreset,
   labelsForLinks,
+  cutValueComments,
+  shapeFrontmatter,
   canonicalNfc,
   truncateGraphemes,
   metadataBadgesFor,

@@ -377,3 +377,36 @@ test('displayTitle: a numeric title, a wikilink title and no title match the pin
     fs.rmSync(vault, { recursive: true, force: true });
   }
 });
+
+// From publish-v1.17.0 the pin's scanner cuts comments out of frontmatter values and puts values of
+// the wrong type into shape, or leaves them unread, before anything reads them (lib/scanner.js:126,
+// :128). A note whose `type:` cannot be read publishes nothing. scanForPublish must agree, page for page.
+test('frontmatter: value comments and wrongly typed values read as the pin\'s own scanner reads them', () => {
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-fm-shape-'));
+  try {
+    const dir = path.join(vault, 'NPCs');
+    fs.mkdirSync(dir, { recursive: true });
+    const notes = {
+      'ListType.md': '---\ntype: [npc]\n---\n\nBody.\n',
+      'MapType.md': '---\ntype: {a: 1}\n---\n\nBody.\n',
+      'CommentTitle.md': '---\ntype: npc\ntitle: Public %%Hidden Name%% Name\naliases: ["Alias <!-- hidden -->"]\n---\n\nBody.\n',
+      'NumAliases.md': '---\ntype: npc\naliases: 42\n---\n\nBody.\n',
+    };
+    for (const [name, text] of Object.entries(notes)) fs.writeFileSync(path.join(dir, name), text);
+    const config = { excludeDirs: [], folderMap: { NPCs: 'npcs' } };
+
+    const view = (pages) => Object.fromEntries(pages.map((p) => [p.title, { displayTitle: p.displayTitle, frontmatter: p.frontmatter }]));
+    const ours = view(scanForPublish(vault, config).pages);
+    assert.deepEqual(ours, {
+      ListType: { displayTitle: 'ListType', frontmatter: { type: 'npc' } },
+      CommentTitle: { displayTitle: 'Public Name', frontmatter: { type: 'npc', title: 'Public Name', aliases: ['Alias'] } },
+      NumAliases: { displayTitle: 'NumAliases', frontmatter: { type: 'npc' } },
+    });
+
+    // eslint-disable-next-line global-require
+    const { scanVaultReport } = require('gm-apprentice-publish/lib/scanner');
+    assert.deepEqual(ours, view(scanVaultReport({ vaultPath: vault, ...config }, { quiet: true }).pages));
+  } finally {
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
