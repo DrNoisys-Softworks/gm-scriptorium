@@ -6,6 +6,7 @@ const { planBuild } = require('./plan');
 const { writeStagedConfig, mirrorSiteInputs } = require('./stage');
 const { swapIntoPlace, sweepStaleSiblings } = require('./swap');
 const { runGeneratorBuild } = require('../generator/bootstrap');
+const { applyAssetRedactions } = require('../generator/redactions');
 const { writeSiteNotice } = require('./notice');
 const { writeHouseStyle } = require('./housestyle');
 const { writeThemeAssets } = require('./themeassets');
@@ -105,7 +106,7 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
   mirrorSiteInputs(siteDir, stagingRoot);
 
   const start = process.hrtime.bigint();
-  const { error, renderErrors, detail, redactions } = runGeneratorBuild(configPath);
+  const { error, renderErrors, detail, redactions: moduleRedactions } = runGeneratorBuild(configPath);
   const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
 
   // Treat any captured render error as a build failure even if build()
@@ -121,6 +122,10 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
       stagingRoot,
     };
   }
+
+  // ADR 0007: the pin copies some redacted files straight into the site (publish-v1.21.0's
+  // js/gurps-tohit.js). Replace them before any transform or scan reads the staging tree.
+  const redactions = [...moduleRedactions, ...applyAssetRedactions(stagingOut)];
 
   // ADR 0036, SD-1: which output pages the pin itself withheld-and-replaced for a paired session
   // Wrap-Up (src/build/sessionmodel.js). Read straight off the generator's own raw output, before

@@ -221,3 +221,30 @@ the Wrap-Up. A Wrap-Up page is never itself a Connections lane item, the same wa
 already wasn't. See that ADR's "Decision" for where the pairing itself comes from, and its
 "Residuals" for what this does not change (the sessions index, and the builder's own landing
 recap, badges, prev/next and Saga, none of which this repository re-renders).
+
+## Addendum: the lane reads the generator's Connections section (publish-v1.21.0, 2026-10-17)
+
+From `publish-v1.18.0` the generator no longer draws the relationship graph, the sidebar or the
+relationship list. It draws one Connections section per page, holding the same content as data, with
+relationships read in both directions. The lane now replaces that section in place, and a GM sees the
+same lane as before, with three differences:
+
+- **Named-by items appear wherever they should.** The lane always had a "Named by" group, but the graph
+  only put a page on it when that page also linked back in its text, so it was nearly always empty. The
+  generator's section lists every relationship another page declares, so the group now fills.
+- **Session pages get a lane**, because the generator now gives them a Connections section: the NPCs and
+  events the session links, in the generator's wording ("appearing").
+- **Kinship reads "family".** The generator groups every kinship type under one label, so a relationship
+  such as "ancestor of" shows as "family".
+
+How it works: the items, their relationship words, their lines and the mentions all come from the
+section's data block, which the generator has already reduced for the reader. Only one thing comes from
+elsewhere: whether a relationship is this page's own (a tie) or the other page's (named by). The data
+does not say. A relationship is this page's own when its published frontmatter names the other page,
+resolved with the generator's own link table and link reader, or when the other page's section does not
+list this page back (which is how the generator's own additions, such as a session's NPCs, read). No
+text the lane prints comes from the frontmatter.
+
+Rejected: using the generator's section as it is. It looks different from the lane, and this is a
+repin, so sites keep their look. Rejected too: telling tie from named by the group label. "Employed by"
+reads the same whether this page wrote `employed_by` or the other wrote `employs`.

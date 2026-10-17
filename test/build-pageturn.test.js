@@ -25,7 +25,7 @@ function withTmpDir(fn) {
 
 // -- Page shape builders --------------------------------------------------------------------
 
-function basePage({ landing } = {}) {
+function basePage({ landing, mainAttrs = '' } = {}) {
   const heroDiv = landing ? '<div class="landing-hero"><h1>Welcome</h1></div>' : '<p>Body.</p>';
   return `<!DOCTYPE html>
 <html lang="en">
@@ -37,7 +37,7 @@ function basePage({ landing } = {}) {
 <header class="top-nav">
   <a href="index.html" class="nav-brand">Site</a>
 </header>
-<main class="content">
+<main class="content"${mainAttrs}>
 ${heroDiv}
 </main>
 </body>
@@ -142,6 +142,12 @@ test('.vt-fx is inserted exactly once, immediately before the first </main>, on 
   const fxAt = out.indexOf('<div class="vt-fx" aria-hidden="true"></div>');
   const mainCloseAt = out.indexOf('</main>');
   assert.ok(fxAt !== -1 && fxAt < mainCloseAt);
+});
+
+test('.vt-fx is inserted on a leaf page whose <main class="content"> carries further attributes (publish-v1.17.0)', () => {
+  const out = transformPageTurn(basePage({ mainAttrs: ' data-previews="on"' }));
+  assert.equal(out.split('<div class="vt-fx" aria-hidden="true"></div>').length - 1, 1);
+  assert.match(out, /<div class="vt-fx" aria-hidden="true"><\/div>\n<\/main>/);
 });
 
 test('.vt-fx is NOT inserted on a landing-shaped page (has .top-nav AND .landing-hero); it still gets the script', () => {

@@ -64,6 +64,33 @@ test('proseRegion: strips graph/sidebar/relationship-list/breadcrumbs/story-nav/
   assert.equal(region, '<p>Real prose with an <a href="../npc.html">NPC</a>.</p>');
 });
 
+// From publish-v1.17.0 the pin's baseShell writes attributes after the class, for example
+// data-previews="on" whenever link previews are on (lib/templates/base.js:100).
+test('proseRegion: reads a <main class="content"> that carries further attributes', () => {
+  const html = '<main class="content" data-previews="on"><p>Prose.</p></main>';
+  assert.equal(htmltext.proseRegion(html), '<p>Prose.</p>');
+});
+
+test('findMainOpen: the bare tag, an attributed tag, and a lookalike class', () => {
+  assert.deepEqual(htmltext.findMainOpen('xx<main class="content">'), { index: 2, end: 24 });
+  assert.deepEqual(
+    htmltext.findMainOpen('<main class="content" data-previews="on">'),
+    { index: 0, end: 41 },
+  );
+  assert.equal(htmltext.findMainOpen('<main class="content-wide">'), null);
+  assert.equal(htmltext.findMainOpen('<div>no main</div>'), null);
+});
+
+// From publish-v1.18.0 the pin's Connections section sits in the page body and links every
+// connected page. It is not the page's prose, so a mention snippet must never be taken from it.
+test('proseRegion: strips the pin\'s Connections section', () => {
+  const html =
+    '<main class="content"><p>Real prose.</p>' +
+    '<section class="cx" data-cx-mode="tree"><h2>Connections</h2><ul><li><a href="x.html">X</a></li></ul>' +
+    '<script type="application/json" class="cx-data">{}</script></section></main>';
+  assert.equal(htmltext.proseRegion(html), '<p>Real prose.</p>');
+});
+
 test('proseRegion: empty when no <main class="content">', () => {
   assert.equal(htmltext.proseRegion('<div>no main</div>'), '');
 });
