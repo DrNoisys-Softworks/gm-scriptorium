@@ -9,7 +9,7 @@ vault's own file, `_meta/vault-config.md`, keeps them under a `publish:` heading
 `vault.config.json` keeps older, flat versions of some of them, and a few of its own. The site
 generator reads more keys than these tables list. The ones it reads and GM-Scriptorium does not touch
 are described in
-[the generator's documentation](https://github.com/AntTheLimey/gm-apprentice/tree/publish-v1.17.0).
+[the generator's documentation](https://github.com/AntTheLimey/gm-apprentice/tree/publish-v1.21.0).
 The settings that belong to your computer are in [the settings file](config-toml.md), and the look and
 words of the site are in [the pack file](pack-toml.md).
 
@@ -92,7 +92,7 @@ table: `max_npcs:` under `landing:`.
 <!-- END GENERATED vault-publish -->
 
 For the other keys of the file, see
-[the generator's documentation](https://github.com/AntTheLimey/gm-apprentice/tree/publish-v1.17.0).
+[the generator's documentation](https://github.com/AntTheLimey/gm-apprentice/tree/publish-v1.21.0).
 
 This is the `publish:` block of the sample campaign, with the long explore text left out. The hidden
 lists are in full, so copying the block loses none of the built-in ones.
@@ -142,7 +142,7 @@ get" is what `init` writes. *Since 0.5.0.* The panel's first-run setup writes th
 <!-- END GENERATED vault-json -->
 
 The generator's own reference for this file is
-[its README](https://github.com/AntTheLimey/gm-apprentice/blob/publish-v1.17.0/tools/publish/README.md).
+[its README](https://github.com/AntTheLimey/gm-apprentice/blob/publish-v1.21.0/tools/publish/README.md).
 
 This is the sample campaign's file, with the optional keys the sample does not need left out.
 A real `folderMap` needs an entry for every folder you want published.

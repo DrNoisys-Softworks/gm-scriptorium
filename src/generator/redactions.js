@@ -62,7 +62,7 @@ const REDACTIONS = [
     reason:
       'reproduces two literal GURPS combat-reference data tables with page citations ' +
       '(lib/templates/gurps/blocks/reference.js:6-20,23-40), rendered unconditionally into ' +
-      'every GURPS page (lib/templates/gurps/layout.js:62), under a licence permission that is ' +
+      'every GURPS page (lib/templates/gurps/layout.js:74), under a licence permission that is ' +
       'not for resale. See docs/decisions/0007-rules-content-redaction.md.',
     // Bound to scripts/generate-notices.js's Section 4 GURPS paragraph by
     // test/redactions.test.js, so deleting this entry without deleting its notices claim fails

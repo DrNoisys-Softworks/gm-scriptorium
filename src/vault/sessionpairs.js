@@ -10,7 +10,7 @@ const { toRelativePosix } = require('../util/paths');
  * reads what a real build actually did). This module never touches the vault except through
  * `src/vault/read.js`, and never asks the pin's own `scanAllNotes(vaultPath)` (which bypasses that
  * chokepoint and swallows read errors) -- `scanAllNotesForPairing` below is a faithful, structurally
- * change-detected port of it instead (lib/scanner.js:408-442).
+ * change-detected port of it instead (lib/scanner.js:410-448).
  *
  * All internal calls the rest of the codebase makes go through `module.exports`, so a test can spy
  * on `adaptPage` / `scanAllNotesForPairing` independently of `computeSessionPairing`.
@@ -56,7 +56,7 @@ function adaptPage(page) {
 }
 
 /**
- * A faithful port of lib/scanner.js:408-442's scanAllNotes, routed through src/vault/read.js
+ * A faithful port of lib/scanner.js:410-448's scanAllNotes, routed through src/vault/read.js
  * (Structural decision 2). Every note in the vault, ignoring excludeDirs/folderMap/type, the way
  * Obsidian resolves a link to any note in the vault and a GM-only folder the site never scans is
  * the likeliest home for a secret pairing link.

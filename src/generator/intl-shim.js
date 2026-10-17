@@ -24,7 +24,7 @@
  *
  * installSegmenterShim(): patches Intl.Segmenter.prototype.segment, not
  * the constructor. The pin constructs its one Intl.Segmenter at module
- * load (node_modules/gm-apprentice-publish/lib/unicode.js:75), and method
+ * load (node_modules/gm-apprentice-publish/lib/unicode.js:79), and method
  * lookup happens at call time, so an instance constructed before install
  * still picks up the shimmed method the first time it is called. pkg's own
  * prelude relies on the same property (bootstrap-shared.js:419-423).

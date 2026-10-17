@@ -216,7 +216,7 @@ test('the two upstream links on the page are built from PIN.json', () => {
   const page = read(PAGE);
   assert.ok(page.includes(`(${pin.repository}/blob/${pin.labels.tag}/${pin.path}/README.md)`), 'the vault.config.json README link');
   assert.ok(page.includes(`(${pin.repository}/tree/${pin.labels.tag})`), 'the generator documentation link');
-  assert.equal(`${pin.repository}/blob/${pin.labels.tag}/${pin.path}/README.md`, 'https://github.com/AntTheLimey/gm-apprentice/blob/publish-v1.17.0/tools/publish/README.md');
+  assert.equal(`${pin.repository}/blob/${pin.labels.tag}/${pin.path}/README.md`, 'https://github.com/AntTheLimey/gm-apprentice/blob/publish-v1.21.0/tools/publish/README.md');
 });
 
 // ---- the page's examples are valid ----

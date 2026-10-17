@@ -8,7 +8,7 @@ const { findMainOpen } = require('./htmltext');
 /*
  * UI-01 / issue 214 (https://github.com/AntTheLimey/gm-apprentice/issues/214) FIXED upstream as of
  * publish-v1.11.40 (R1 repin, 2026-09-30): `sessions` is now present in DIR_LABELS
- * (lib/templates/base.js:4-26, 'sessions': 'Sessions' at :21), so `lib/build.js:1415-1443`'s
+ * (lib/templates/base.js:4-26, 'sessions': 'Sessions' at :21), so `lib/build.js:1427-1455`'s
  * unconditional per-DIR_LABELS-entry index write (Object.entries(DIR_LABELS) loop) now writes
  * sessions/index.html itself, the same way it always wrote every other section's index. Every
  * page's nav has always linked "Sessions" at that path regardless (lib/templates/nav.js:9,54).
@@ -21,9 +21,9 @@ const { findMainOpen } = require('./htmltext');
  * test. Do not remove that check to "simplify" this module -- it is what makes the self-retirement
  * automatic, and it costs nothing if a future pin ever regresses issue 214.
  *
- * SD-4: rather than reimplementing baseShell (lib/templates/base.js:67-116), this transforms a
+ * SD-4: rather than reimplementing baseShell (lib/templates/base.js:81-130), this transforms a
  * donor page: read the first sessions/*.html, splice new content between the first
- * `<main class="content" ...>` (lib/templates/base.js:100, found by htmltext.js's findMainOpen)
+ * `<main class="content" ...>` (lib/templates/base.js:114, found by htmltext.js's findMainOpen)
  * and the first `</main>` (:103), rewrite
  * `<title>`. Nav, CSS links, relative depth and the notice footer link all come from the donor's
  * own shell and cannot drift from it. (This module is now a no-op at every real build -- see
@@ -44,7 +44,7 @@ function escapeHtml(str) {
 }
 
 /**
- * `<title>` is rendered by baseShell as `${title} — ${siteTitle}` (lib/templates/base.js:92,
+ * `<title>` is rendered by baseShell as `${title} — ${siteTitle}` (lib/templates/base.js:106,
  * literal " — " separator). Strip that suffix to recover the page's own title for the listing.
  */
 function extractEntryTitle(html, siteTitle) {

@@ -177,13 +177,13 @@ function runNameCollision(ctx) {
  *   6): `line: null` instead of a guess.
  * - **Story.** A PC's paired `_Story.md` renders in TWO places (the
  *   Architect's other finding before this brief): `story/characters/<slug>.html`
- *   AND inlined into the PC's own page (`lib/build.js:949-958,1487-1489`).
+ *   AND inlined into the PC's own page (`lib/build.js:991-1000,1487-1489`).
  *   Before D3 this path was a total fail-open — `page.storyMarkdown` was
  *   never searched at all. `path` is `page.storyRelPath`, `line` uses
  *   `page.storyLineOffset`, and `data.renderedAt` names both output paths
  *   because both really do carry the text.
  * - **Frontmatter.** Unchanged from D1: `rendered.frontmatterText` reads
- *   through the pin's own publishedFrontmatter (lib/processor.js:1525-1558,
+ *   through the pin's own publishedFrontmatter (lib/processor.js:1548-1585,
  *   required via src/generator/pinned.js): a withheld name reachable ONLY
  *   through a gm_only relationship edge or a publish_exclude_fields field
  *   is already absent from frontmatterText, so it gives no finding here.

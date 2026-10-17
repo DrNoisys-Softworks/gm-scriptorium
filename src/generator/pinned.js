@@ -20,7 +20,7 @@
  *
  * `lunr` is the one export here that is not a generator internal — it is the
  * search-index library gm-apprentice-publish depends on directly
- * (lib/search-index.js:3, lib/build.js:631). Track D2's index-term leak
+ * (lib/search-index.js:3, lib/build.js:633). Track D2's index-term leak
  * check (src/checks/leak/outputscan.js) has to reproduce the generator's own
  * lunr pipeline (trimmer, stopWordFilter, stemmer) byte-for-byte to decide
  * whether a withheld name is reachable as a stemmed or possessive term in
@@ -73,7 +73,7 @@ installSegmenterShim();
 const { installNetworkGuard } = require('./netguard');
 installNetworkGuard();
 
-// lib/processor.js:1707 (module.exports)
+// lib/processor.js:1776 (module.exports)
 const {
   stripDataview,
   stripGmOnly,
@@ -98,7 +98,7 @@ const {
  * keepOnlySections with a guard that withheld an excluded parent's sub-headings on a stub page.
  * The pin now does this itself (#320 there): keepOnlySections and stubCut take the build's
  * `withhold` object (lib/processor.js:474) and run a note's strips, then its exclude list, then the
- * cut. Callers must pass that object, as lib/build.js:589 does; without excludeSections nothing is
+ * cut. Callers must pass that object, as lib/build.js:591 does; without excludeSections nothing is
  * withheld. The real-build proof is test/stub-heading-collision.test.js.
  */
 
@@ -112,7 +112,7 @@ const {
 // lib/manifest.js:99 (module.exports)
 const { parseManifest } = require('gm-apprentice-publish/lib/manifest');
 
-// lib/config.js:567 (module.exports)
+// lib/config.js:597 (module.exports)
 const { PUBLISH_DEFAULTS, vaultRelPath, scanConfigFor } = require('gm-apprentice-publish/lib/config');
 
 // lib/scanner.js:450 (module.exports). buildLinkMap (publish-v1.21.0 use) is the pin's own name-to-page
@@ -143,14 +143,14 @@ const { labelsForLinks, linkText, wikilinkRe, parseWikilink } = require('gm-appr
 const { cutValueComments } = require('gm-apprentice-publish/lib/frontmatter');
 const { shapeFrontmatter } = require('gm-apprentice-publish/lib/frontmatter-shape');
 
-// lib/unicode.js:89 (module.exports)
+// lib/unicode.js:93 (module.exports)
 const { canonicalNfc, truncateGraphemes } = require('gm-apprentice-publish/lib/unicode');
 
-// lib/templates/base.js:230-249 (module.exports). DIR_LABELS (ADR 0061): the sections lib/build.js
-// resolves a banner for (lib/build.js:1401), read by src/vault/imagecopies.js.
+// lib/templates/base.js:244-265 (module.exports). DIR_LABELS (ADR 0061): the sections lib/build.js
+// resolves a banner for (lib/build.js:1413), read by src/vault/imagecopies.js.
 const { metadataBadgesFor, TYPE_BADGE_FIELDS, DIR_LABELS } = require('gm-apprentice-publish/lib/templates/base');
 
-// lib/banners.js:96-99 (module.exports). ADR 0061: the pin's own banner-entry reader, folder lookup,
+// lib/banners.js:109-114 (module.exports). ADR 0061: the pin's own banner-entry reader, folder lookup,
 // SVG test and extension order, so src/vault/imagecopies.js picks the banner the build copies.
 // resolveBanner and findConventionBanner are not re-exported: they read the disk directly, so their
 // file I/O is ported there instead, through src/vault/read.js.
@@ -166,7 +166,7 @@ const lunr = require('gm-apprentice-publish/node_modules/lunr');
 // eslint-disable-next-line global-require
 const LUNR_VERSION = require('gm-apprentice-publish/node_modules/lunr/package.json').version;
 
-const PIN_COMMIT = 'db6fb2b083e8ee897a381b9de4642f12769e4cc2';
+const PIN_COMMIT = '9def97ea6586009019b35d77ba480738a936c457';
 
 /*
  * V1e-1 (ADR 0033, SD-5): the generator's OWN gray-matter, as the pin's lib/frontmatter.js:2 itself
@@ -204,7 +204,7 @@ fmguard.verifyFrontmatterEngineGuard(parseManifest, generatorGrayMatter);
 
 /**
  * The pin's scaffold vault.config.json template, raw (ADR 0021). Located
- * the same way the pin's own `init()` locates it (lib/init.js:8), but
+ * the same way the pin's own `init()` locates it (lib/init.js:9), but
  * anchored on `require.resolve('gm-apprentice-publish/lib/processor.js')`
  * rather than `__dirname`: this facade is the one Scriptorium module
  * allowed to deep-require the pin's internals, and processor.js is already

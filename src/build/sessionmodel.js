@@ -5,7 +5,7 @@
  * session pairing. Reads the pairing the generator ACTUALLY made in this build, straight off the
  * raw staged output, before any Scriptorium transform touches a page -- so FR-02 (build-side
  * pairing equals what the generator did) holds by construction, and vault text can never forge it
- * (bodies render with `html: false`, lib/markdown.js:74).
+ * (bodies render with `html: false`, lib/markdown.js:172).
  *
  * `compareSessionPairs` is the runtime half of the equality proof (SD-1's proof (e)): every real
  * build recomputes the check-side pairing too (src/vault/sessionpairs.js) and compares it against

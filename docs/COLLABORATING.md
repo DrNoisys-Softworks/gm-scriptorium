@@ -137,8 +137,8 @@ frontmatter engine guard). None of them touch a byte on disk in `node_modules/gm
   entry, its `pkg.patches` key, and its notices paragraph.
 
 - **`src/generator/intl-shim.js`**. `@yao-pkg/pkg`'s small-icu Node build has no break-iterator
-  data, so the generator's own `Intl.Segmenter` construction (`lib/unicode.js:75`, grapheme
-  granularity only, feeding `graphemes()`/`truncateGraphemes()` at `lib/unicode.js:77-86`) would
+  data, so the generator's own `Intl.Segmenter` construction (`lib/unicode.js:79`, grapheme
+  granularity only, feeding `graphemes()`/`truncateGraphemes()` at `lib/unicode.js:81-90`) would
   crash inside the packaged executable. This module patches
   `Intl.Segmenter.prototype.segment` with a pure-JS grapheme splitter, scoped to exactly the
   granularity the generator uses. Its only two upstream consumers are
@@ -202,14 +202,14 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   bucket as a 404 page. This is documented so nobody mistakes the missing `.vt-fx` on that one page
   for a bug.
 - **`src/build/accordions.js`**: `ACCORDION_RE` matches the PC template's exact accordion markup
-  (`lib/templates/pc.js:369-375` at the pinned commit) byte-for-byte, including the literal
+  (`lib/templates/pc.js:371-377` at the pinned commit) byte-for-byte, including the literal
   `onclick="const o=this.parentElement.classList.toggle('open');this.setAttribute('aria-expanded',o)"`
   attribute value, to flip the Background/Notes accordions open-on-arrival while leaving the
   existing toggle behaviour intact. This is the most literal, most brittle upstream-markup
   dependency in the transform set: any whitespace or attribute-order change to that template block
   breaks the match silently (it returns `null` and just doesn't patch, rather than erroring).
 - **`src/build/sessionbadges.js`**: re-derives the exact metadata-badge block
-  `lib/templates/base.js:135` emits (`<span class="metadata-badge">value</span>`, positional, no
+  `lib/templates/base.js:211` emits (`<span class="metadata-badge">value</span>`, positional, no
   field name in the markup, fixed order `session_number, play_date, status, stage`, skipping empty
   fields) via the pinned facade's own `metadataBadgesFor`, and only rewrites it with a `data-field`
   attribute per span when it finds that exact re-derived string in the built page.
@@ -217,7 +217,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   the generator's own `overrides.css` (or, failing that, `theme.css`, or `style.css`) `<link>` tag
   via `findLinkTag()` and deriving Scriptorium's href from that tag's own href, rather than
   computing site depth itself. This depends on the generator continuing to emit those `<link>` tags
-  in that cascade order (`lib/templates/base.js:62-63`: `style.css` -> `[genre]` -> `theme.css` ->
+  in that cascade order (`lib/templates/base.js:76-77`: `style.css` -> `[genre]` -> `theme.css` ->
   `[overrides]`), and on `four-oh-four.js`'s different, basePath-prefixed cascade continuing to hold
   the "after the generated theme, before the page-local `<style>`" ordering it documents.
 - **`src/build/themestyle.js`**: anchors immediately after `housestyle.js`'s own `<link>` tag
@@ -244,7 +244,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
 - **Themes and image slots** (`docs/decisions/0019-themes-image-slots-and-asset-step.md`): the
   optional `pack.toml` theme registry and six validated image "slots," addressing the fact that the
   generator's player-mode build only copies attachments a *published page* actually references
-  (`lib/build.js:871-877`, `usedImages` at `lib/build.js:642`), so a campaign stylesheet cannot
+  (`lib/build.js:913-919`, `usedImages` at `lib/build.js:644`), so a campaign stylesheet cannot
   safely reference an arbitrary vault image by path.
 - **The built-in `gloam` theme** (`docs/decisions/0032-base-theme.md`): reads the generator's own
   palette and font custom properties directly (`--bg`, `--text`, `--accent`, `--bg-header`,
@@ -280,7 +280,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   `test/fixtures/*/​_meta/vault-config.md`): the `publish.exclude_sections` list a campaign author
   writes there is unioned case-insensitively with the generator's own `PUBLISH_DEFAULTS.exclude_sections`
   (`lib/config.js:17`: `['GM Notes', 'DM Notes', 'Player Notes', 'Source References',
-  'Reconciliation Context', 'Handoff to Reconcile']`) at `lib/config.js:218-272` and `:441-443`. `GM Notes`
+  'Reconciliation Context', 'Handoff to Reconcile']`) at `lib/config.js:246-300` and `:441-443`. `GM Notes`
   specifically is in both the generator's own defaults and every real campaign's own config, which
   is exactly the combination `sectionfilter.js`'s patch exists to fix (a nested excluded heading
   inside `## GM Notes`).
@@ -289,10 +289,10 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   `handout`) the pin's `filterSections` withholds four `## ` sections whatever
   `publish.exclude_sections` lists: Context, any heading starting "Clues", Prop Notes (or Physical
   Prop Notes), and Delivery (or Delivery Notes) (`lib/processor.js:125-158`). It reads the type from
-  a third `frontmatter` argument, which the build passes for a page's body (`lib/build.js:662`,
-  `lib/processor.js:1440`): the file's original frontmatter, kept as `page.sourceFrontmatter`
-  (`lib/build.js:608`) so that hiding `type` with `exclude_fields` cannot switch the rule off. Story
-  text is rendered from a page object whose frontmatter is `{}` (`lib/build.js:950-954`, `:1489`),
+  a third `frontmatter` argument, which the build passes for a page's body (`lib/build.js:664`,
+  `lib/processor.js:1421`): the file's original frontmatter, kept as `page.sourceFrontmatter`
+  (`lib/build.js:610`) so that hiding `type` with `exclude_fields` cannot switch the rule off. Story
+  text is rendered from a page object whose frontmatter is `{}` (`lib/build.js:992-996`, `:1489`),
   so the rule never applies to it. `src/checks/leak/textmodel.js`'s `renderChain` does the same:
   the page's raw frontmatter for the body, none for story text, so `check` reads what a build
   publishes; without it the model keeps
@@ -321,7 +321,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   directly; only the pure `parseManifest` is, via the facade).
 - **`vault.config.json`'s `landingTagline` isn't read by the pinned generator's `lib/` at all.** The
   landing hero's tagline comes only from `publish.theme.tagline` in `_meta/vault-config.md`
-  (`lib/templates/landing.js:70`, merged at `lib/config.js:425-436`; there is no `landingTagline`
+  (`lib/templates/landing.js:70`, merged at `lib/config.js:454-523`; there is no `landingTagline`
   fallback anywhere in that merge). Upstream's own README (`:147`) and scaffold template
   (`templates-scaffold/vault.config.json.tmpl:3`) still name the key, so it looks live from the
   upstream side even though nothing downstream of `init` ever reads it. The admin panel edits
@@ -333,7 +333,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   (`78696167`, the `publish-v1.11.40` pin); re-verify them again if you rebase across a further pin move.
 - **A frontmatter field suppressed via `publish.exclude_fields` in `_meta/vault-config.md`
   (for example `in_game_date`) is stripped from `page.frontmatter` at build time, before any
-  template or derived widget runs** (`lib/build.js:115,534-535`, `lib/processor.js:1054-1077`). A
+  template or derived widget runs** (`lib/build.js:115,534-535`, `lib/processor.js:1473-1481`). A
   derived widget with no other source for that data loses it entirely, the generated timeline's
   own `in_game_date || date` fallback is one example, while a separate field the vault still
   authors directly is unaffected. This is a generator build-order fact, not a Scriptorium one:
@@ -349,12 +349,12 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   doesn't recognise degrades to a single note that nothing was checked, rather than a per-relationship
   warning. See ADR 0037, section "What the check reads".
 - **The generator builds a campaign id from the site title**, `slugify(config.siteTitle ||
-  'campaign')` (`lib/build.js:911,865`), used to namespace anything a backend feature stores. The
+  'campaign')` (`lib/build.js:953,865`), used to namespace anything a backend feature stores. The
   admin panel's title review warns, through the pinned `slugify` facade and never a
   re-implementation of the function, when `vault.config.json`'s own `backend.statusBar` or
   `backend.inbox` is `true` and a rename would change that id. The save is never blocked.
 - The admin panel's Images screen lists pictures from the folder `attachmentsDir` names, defaulting
-  to `_attachments` exactly as the generator's `scanAttachments` does (`lib/scanner.js:263-265`).
+  to `_attachments` exactly as the generator's `scanAttachments` does (`lib/scanner.js:265-267`).
   It is a hand-typed mirror of that default, not a call into the generator, so re-check it on a pin
   move.
 
@@ -364,7 +364,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   reads the *built* site tree rather than source, because several leak surfaces are derived views
   the generator assembles at render time and a source-side scan structurally cannot see them:
   relationship-graph SVG `<text>` labels (`lib/relationship-graph.js:206-207`, including the
-  truncation at `truncateGraphemes(name, 15, 13)`, `lib/unicode.js:83-87`, and the de-underscoring
+  truncation at `truncateGraphemes(name, 15, 13)`, `lib/unicode.js:87-91`, and the de-underscoring
   fallback `title.replace(/_/g, ' ')` at `lib/relationship-graph.js:62`), aggregate index cards built
   from another page's frontmatter (e.g. `factions/index.html`'s `escapeHtml(leadership)`,
   `lib/templates/index-page.js:604,609-611`), and the landing page's recency-widget excerpt
@@ -373,7 +373,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   against the same resolved bundled `lunr` copy the facade re-exports, to decide whether a
   withheld name is reachable in the index's `invertedIndex` (a sorted array of `[term, postings]`
   pairs, `lunr.js:2253-2257`, never an object). At `publish-v1.11.40` the pipeline is **trimmer and
-  stopWordFilter only** (`lib/search-index.js:54-55` removes the stemmer from both `pipeline` and
+  stopWordFilter only** (`lib/search-index.js:74-75` removes the stemmer from both `pipeline` and
   `searchPipeline`, upstream #267, "this is a wiki of proper names"), the whole page body is
   indexed, and refs are opaque base-36 ids (`i.toString(36)`) with the output path moved to
   `documents[ref].href`; findings map refs through that href, keeping an unmapped ref raw and
@@ -385,8 +385,8 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   entry per published page with its title, kind and an excerpt, fetched same-origin by `js/previews.js`.
   The output scan reads it as text like every other non-binary file (`test/leak-output-scan.test.js`,
   AC-D2-04). An excerpt comes from a published page, so a name in it is on that page too.
-- **Backlinks**: reached the same way as the search index, `lib/build.js:662`'s
-  `page.publishedMarkdown` feeds `publishedSource` (`lib/processor.js:1260-1263`), which in turn feeds
+- **Backlinks**: reached the same way as the search index, `lib/build.js:664`'s
+  `page.publishedMarkdown` feeds `publishedSource` (`lib/processor.js:1241-1244`), which in turn feeds
   `lib/search-index.js`, `lib/backlinks.js`, `lib/recency.js`, `lib/story-spine.js` and
   `lib/templates/npc.js`. This is exactly why `sectionfilter.js`'s patch has to work at the
   `require.cache` level rather than by reassigning an export: two of `filterSections`'s three call
@@ -395,8 +395,8 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   index and backlinks even if the page HTML itself were fixed some other way.
 - **The admin panel's own live preview** (`src/admin/pageroles.js`) resolves which built pages to
   offer by reading `search-index.json`'s `documents` entries (`title`, `type`, `subtitle`, `href`;
-  `lib/search-index.js:37-46`) and by walking the built tree for `404.html` and `search-index.json`
-  themselves (`lib/build.js:319,784-785`). It shares the `session_number` frontmatter marker with
+  `lib/search-index.js:46-55`) and by walking the built tree for `404.html` and `search-index.json`
+  themselves (`lib/build.js:367,915-917`). It shares the `session_number` frontmatter marker with
   `src/build/recaps.js`'s own reading of it, rather than introducing a second, independent parse of
   the same field.
 - **A paired hub's recap, and which Wrap-Up it was paired with** (`docs/decisions/0036-session-wrap-up-support.md`):
@@ -416,9 +416,9 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   generator's own copies into `images/` so it can judge each by the file it came from. The banner
   entry reader, folder lookup, SVG test, extension order and section list come through the facade.
   The rest is copied by hand, because the generator does not export it: the cover destination
-  (`lib/build.js:776-777`), the banner destination and slug rule (`lib/build.js:1130-1132`), the
-  vault containment test (`lib/build.js:851-855`, `:1112-1124`) and the merge of `banners` and
-  `folder_map` across the two config files (`lib/config.js:218-272`, `:405`, `:447`, `:506-514`).
+  (`lib/build.js:816-817`), the banner destination and slug rule (`lib/build.js:1131-1133`), the
+  vault containment test (`lib/build.js:893-897`, `:1112-1124`) and the merge of `banners` and
+  `folder_map` across the two config files (`lib/config.js:246-300`, `:405`, `:447`, `:506-514`).
   A pin bump re-reads those lines; `test/banner-cover-sources.test.js` builds a real site and checks
   the literal destinations, so a generator change that moves them fails it.
 

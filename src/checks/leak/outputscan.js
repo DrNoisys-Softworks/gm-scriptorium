@@ -75,7 +75,7 @@ function decodeEntitiesOnce(text) {
 }
 
 // Folds markdown-it's typographer output (`typographer: true`,
-// lib/markdown.js:74) back toward the plain source characters a withheld
+// lib/markdown.js:172) back toward the plain source characters a withheld
 // name was actually authored with, so a source-side needle still matches
 // the rendered HTML byte-for-byte without Scriptorium generating variant
 // needles per name (Structural decision 6: normalise the haystack, not the
@@ -105,7 +105,7 @@ function normaliseEmitted(text) {
  *
  *   - truncated-label: mirrored the relationship-graph SVG label
  *     (`escapeHtml(truncateGraphemes(node.displayTitle, 15, 13))`,
- *     lib/unicode.js:83-87 for truncateGraphemes itself). publish-v1.18.0
+ *     lib/unicode.js:87-91 for truncateGraphemes itself). publish-v1.18.0
  *     removed the graph, so no page prints this form any more; it stays as
  *     one more needle, which can only find more. Present only when the name
  *     is actually long enough to be truncated.
@@ -119,7 +119,7 @@ function needleFormsFor(name) {
   const forms = [{ form: 'literal', needle: name }];
   const truncated = pinned.truncateGraphemes(name, 15, 13);
   if (truncated !== name) {
-    // truncateGraphemes always appends a literal "…" (lib/unicode.js:86's
+    // truncateGraphemes always appends a literal "…" (lib/unicode.js:90's
     // default ellipsis param), never authored prose markdown-it's
     // typographer would have rendered — the SVG label is built by plain
     // string concatenation, not markdown rendering. normaliseEmitted still

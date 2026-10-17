@@ -180,7 +180,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A pin default excluded section (lib/config.js:17) is silently dropped because vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them (lib/config.js:218-272, :441-443). ERROR if the heading actually renders in a published page.',
+      'A pin default excluded section (lib/config.js:17) is silently dropped because vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them (lib/config.js:246-300, :441-443). ERROR if the heading actually renders in a published page.',
   },
   {
     id: 'config/exclude-dirs-divergence',
@@ -226,7 +226,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'The pack.toml theme is built for one colour scheme (theme.json "scheme") but the vault palette resolves to the other, by the generator\'s own light/dark rule (lib/theme.js:188) applied after its palette merge (lib/config.js:455-457). Text and surfaces may clash. Never fires for the plain theme, without a pack.toml, or when a genre preset owns the palette.',
+      'The pack.toml theme is built for one colour scheme (theme.json "scheme") but the vault palette resolves to the other, by the generator\'s own light/dark rule (lib/theme.js:188) applied after its palette merge (lib/config.js:485-487). Text and surfaces may clash. Never fires for the plain theme, without a pack.toml, or when a genre preset owns the palette.',
   },
   {
     id: 'leak/l1-no-manifest',

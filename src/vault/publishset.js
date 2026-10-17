@@ -81,8 +81,8 @@ function uncycled(data) {
  * Union two exclude lists case-insensitively, preserving first-seen
  * casing/order, falling back to `defaults` only when NEITHER source
  * supplies a list. Ported from the pin's (unexported) unionExcludeList as it stood at
- * publish-v1.11.44 (lib/config.js:133-147 there). At publish-v1.12.0 the pin does the same merge in
- * pick() (lib/config.js:218-272) and applies the defaults in list() (:423, :441-443): the vault
+ * publish-v1.11.44 (lib/config.js:161-175 there). At publish-v1.12.0 the pin does the same merge in
+ * pick() (lib/config.js:246-300) and applies the defaults in list() (:423, :441-443): the vault
  * list first, then the site-file entries it lacks. One case differs, and this port is the stricter
  * reader of it: a vault-file key that is set but is not a list now yields the pin defaults plus the
  * site-file entries in the pin, and the site-file list alone here.
@@ -107,7 +107,7 @@ function unionExcludeList(primary, fallback, defaults) {
 /**
  * A single publish.overrides.fields[path] entry is malformed if it is not a
  * map, or has a non-array/non-string-array "include". Ported from the
- * pin's (unexported) overrideEntryProblem, lib/config.js:311-323,
+ * pin's (unexported) overrideEntryProblem, lib/config.js:339-351,
  * unmodified.
  */
 function overrideEntryProblem(value) {
@@ -121,7 +121,7 @@ function overrideEntryProblem(value) {
 /**
  * Canonicalizes publish.overrides.fields keys to NFC and drops malformed
  * entries. Ported from the pin's (unexported) canonicalizeOverrideFieldKeys,
- * lib/config.js:279-305 — minus the console.warn calls, which would write
+ * lib/config.js:307-333 — minus the console.warn calls, which would write
  * to stderr during `check` (rejected in Structural decision 1); a dropped
  * entry is still dropped, just silently from Scriptorium's side.
  */
@@ -151,7 +151,7 @@ function publishModeFrom(raw) {
 }
 
 /**
- * The subset of loadPublishConfig() (lib/config.js:381-505) Scriptorium
+ * The subset of loadPublishConfig() (lib/config.js:409-535) Scriptorium
  * needs: mode, system, exclude_drafts, exclude_callouts, the three unioned
  * exclude lists, and overrides.fields. Also returns `configSources`: the
  * RAW (un-defaulted, un-unioned) list each surface supplied, or undefined —
@@ -362,13 +362,13 @@ function scanAllCandidatePages(vaultPath, jsonConfig) {
 }
 
 /**
- * pairStoryFiles() in lib/scanner.js:372-400, ported to route its reads through
+ * pairStoryFiles() in lib/scanner.js:374-402, ported to route its reads through
  * src/vault/read.js and to operate on this module's page shape. Splices a
  * PC's paired `<Name>_Story.md` out of `pages` (whether or not its own
  * frontmatter is parseable or typed `character-story`, matching the pin
  * exactly) and, when it IS a real character-story file, attaches its body
  * as `pc.storyMarkdown` / `pc.storySourcePath`. From publish-v1.12.3 the pin splices only when
- * the note at that path has a `type:` (isStoryCompanion, lib/scanner.js:368-370). `pages` holds
+ * the note at that path has a `type:` (isStoryCompanion, lib/scanner.js:370-372). `pages` holds
  * typed notes only, here and in the pin, so the result is the same and this port has no gate.
  *
  * Track D3 additions, only set when a real story is attached:
@@ -376,7 +376,7 @@ function scanAllCandidatePages(vaultPath, jsonConfig) {
  * directory — derived from `pc.relPath` rather than `vaultPath`, since
  * this function is never given one), `storyLineOffset` (the story file's
  * own frontmatter offset, `computeLineOffset`), and `storyOutputPath`
- * (`story/characters/<slug>.html`, mirroring `lib/build.js:1488`'s own
+ * (`story/characters/<slug>.html`, mirroring `lib/build.js:1500`'s own
  * `story/characters/${slugify(pc.title)}.html` exactly — required via
  * `pinned.slugify` so this can never drift from what the real build
  * writes).
@@ -413,7 +413,7 @@ function pairStoryFiles(pages) {
 
 // ---------------------------------------------------------------------------
 // build.js's verdict loop (gm-apprentice-publish lib/published-pages.js:10-17, called from
-// lib/build.js:467-469; up to publish-v1.12.2 the loop sat in lib/build.js itself)
+// lib/build.js:469-471; up to publish-v1.12.2 the loop sat in lib/build.js itself)
 // ---------------------------------------------------------------------------
 
 /**
