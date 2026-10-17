@@ -639,6 +639,13 @@ const SYSTEM_LINES = [
   `System::Call '*$2(&i1 .r3)'`,
   'System::Alloc 64',
   'System::Free $2',
+  // The uninstaller finish page callback (un.GmFinishShow), stage A only.
+  `System::Call '*(i \${GM_UNFIN_LEFT}, i \${GM_UNFIN_BOX_TOP}, i \${GM_UNFIN_TEXT_W}, i \${GM_UNFIN_TEXT_H}) p .r1'`,
+  `System::Call 'user32::MapDialogRect(p $mui.FinishPage, p r1) i .r0'`,
+  `System::Call '*$1(i .r2, i .r3, i .r4, i .r5)'`,
+  'System::Free $1',
+  `System::Call 'user32::SetWindowPos(p $mui.FinishPage.Text, p 0, i 0, i 0, i r4, i r5, i 0x16)'`,
+  `System::Call 'user32::SetWindowPos(p $mui.FinishPage.Run, p 0, i r2, i r3, i 0, i 0, i 0x15)'`,
 ];
 
 /** Plug-in calls (a word, two colons, a word at the start of a trimmed line) that are not allowed. */
@@ -947,4 +954,86 @@ test('labels: the two options-page folder labels are styled right behind their P
     assert.ok(i > 0, `${v} is popped`);
     assert.equal(lines[i + 1], `\${NSD_AddStyle} ${v} \${SS_NOPREFIX}`);
   }
+});
+
+// Expected values come from Modern UI 2, Pages/Finish.nsh (page 193u high, text at 120u and
+// 17u + 28u, 195u wide, run box 10u high), not from installer.nsi.
+const MUI_FINISH = { left: 120, textW: 195, textTop: 45, gap: 5, pageH: 193 };
+
+function unfinDefines(text) {
+  const out = {};
+  for (const m of text.matchAll(/^\s*!define\s+GM_UNFIN_(\w+)\s+(\d+)\s*$/gm)) out[m[1]] = Number(m[2]);
+  return out;
+}
+
+/** The arithmetic rules for the finish page defines; returns the list of broken rules. */
+function unfinBroken(d) {
+  const broken = [];
+  if (d.LEFT !== MUI_FINISH.left) broken.push('LEFT');
+  if (d.TEXT_W !== MUI_FINISH.textW) broken.push('TEXT_W');
+  if (d.TEXT_TOP !== MUI_FINISH.textTop) broken.push('TEXT_TOP');
+  if (!(d.TEXT_H >= 128)) broken.push('TEXT_H');
+  if (!(d.TEXT_TOP + d.TEXT_H + MUI_FINISH.gap <= d.BOX_TOP)) broken.push('gap');
+  if (!(d.BOX_TOP + d.BOX_H <= MUI_FINISH.pageH)) broken.push('page');
+  if (d.PAGE_H !== MUI_FINISH.pageH) broken.push('PAGE_H');
+  return broken;
+}
+
+const GOOD_UNFIN = { LEFT: 120, TEXT_TOP: 45, TEXT_W: 195, TEXT_H: 128, BOX_TOP: 178, BOX_H: 10, PAGE_H: 193 };
+
+test('finish page: the GM_UNFIN defines are 120 / 45 / 195 / 128 / 178 / 10 inside 193 dialog units', () => {
+  const d = unfinDefines(NSI);
+  assert.deepEqual(d, GOOD_UNFIN);
+  assert.deepEqual(unfinBroken(d), []);
+  // controls: each mutation breaks a named rule
+  assert.deepEqual(unfinBroken({ ...GOOD_UNFIN, TEXT_H: 60 }), ['TEXT_H']);
+  assert.deepEqual(unfinBroken({ ...GOOD_UNFIN, BOX_TOP: 110 }), ['gap']);
+  assert.deepEqual(unfinBroken({ ...GOOD_UNFIN, BOX_TOP: 185 }), ['page']);
+  assert.deepEqual(unfinBroken({ ...GOOD_UNFIN, LEFT: 119 }), ['LEFT']);
+  assert.deepEqual(unfinBroken({ ...GOOD_UNFIN, TEXT_W: 190 }), ['TEXT_W']);
+  assert.deepEqual(unfinBroken({ ...GOOD_UNFIN, TEXT_TOP: 46 }), ['TEXT_TOP', 'gap']);
+});
+
+test('finish page: the SHOW hook sits between the feedback box defines and the page macro, in stage A', () => {
+  const hits = findLines(NSI, /^\s*!define\s+MUI_PAGE_CUSTOMFUNCTION_SHOW\s+un\.GmFinishShow\s*$/);
+  assert.equal(hits.length, 1);
+  assert.deepEqual(hits[0].conds, ['ifdef EXTRACT_UNINSTALLER']);
+  const lines = NSI.split('\n').map((l) => l.trim());
+  const notchecked = lines.indexOf('!define MUI_FINISHPAGE_RUN_NOTCHECKED');
+  const show = lines.indexOf('!define MUI_PAGE_CUSTOMFUNCTION_SHOW un.GmFinishShow');
+  const insert = lines.indexOf('!insertmacro MUI_UNPAGE_FINISH');
+  assert.ok(notchecked > 0 && notchecked < show && show < insert);
+  // the feedback box stays MUI's
+  for (const l of ['!define MUI_FINISHPAGE_RUN', '!define MUI_FINISHPAGE_RUN_FUNCTION un.LaunchFeedback', '!define MUI_FINISHPAGE_TEXT_LARGE']) {
+    assert.ok(lines.includes(l), l);
+  }
+  // the function is defined after the page macro, because MUI declares its variables there
+  assert.ok(lines.indexOf('Function un.GmFinishShow') > insert, 'un.GmFinishShow comes after the page macro');
+});
+
+test('finish page: un.GmFinishShow styles the text, then resizes it and moves the box, with exactly the allowed calls', () => {
+  const body = functionBody(NSI, 'un.GmFinishShow');
+  assert.ok(body, 'un.GmFinishShow exists');
+  const lines = body.split('\n').map((l) => l.trim()).filter(Boolean);
+  const [alloc, rect, read, free, sizeText, moveBox] = SYSTEM_LINES.slice(4);
+  const want = ['${NSD_AddStyle} $mui.FinishPage.Text ${SS_NOPREFIX}', alloc, rect, read, sizeText, moveBox, free];
+  const at = want.map((l) => lines.indexOf(l));
+  assert.ok(at.every((i) => i >= 0), `all lines present: ${at}`);
+  assert.deepEqual(at, at.slice().sort((a, b) => a - b), 'in order');
+  assert.equal(new Set(at).size, at.length);
+  // the callback keeps $0 to $5 for its caller
+  assert.deepEqual(lines.filter((l) => /^Push \$\d$/.test(l)), ['Push $0', 'Push $1', 'Push $2', 'Push $3', 'Push $4', 'Push $5']);
+  assert.deepEqual(lines.filter((l) => /^Pop \$\d$/.test(l)), ['Pop $5', 'Pop $4', 'Pop $3', 'Pop $2', 'Pop $1', 'Pop $0']);
+  // only MapDialogRect and SetWindowPos are called by name, once and twice, and the struct is freed once
+  const calls = lines.filter((l) => /^System::Call 'user32::/.test(l)).map((l) => /user32::(\w+)/.exec(l)[1]);
+  assert.deepEqual(calls, ['MapDialogRect', 'SetWindowPos', 'SetWindowPos']);
+  assert.equal(lines.filter((l) => l === 'System::Free $1').length, 1);
+  // a failed allocation or MapDialogRect leaves MUI's own layout alone
+  const rectAt = lines.indexOf(rect);
+  const setPos = lines.indexOf(sizeText);
+  assert.ok(lines.some((l, i) => /^IntCmp \$1 0 /.test(l) && i < rectAt), 'a null struct pointer is checked before MapDialogRect');
+  assert.ok(lines.some((l, i) => /^IntCmp \$0 0 /.test(l) && i > rectAt && i < setPos), 'a zero MapDialogRect result is checked before SetWindowPos');
+  // controls
+  assert.equal(strayPluginLines(`System::Call 'user32::SetWindowPos(p 0)'`).length, 1);
+  assert.equal(strayPluginLines(SYSTEM_LINES[8]).length, 0);
 });

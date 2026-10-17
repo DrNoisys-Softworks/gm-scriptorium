@@ -1080,7 +1080,48 @@ UninstPage custom un.ConfirmShow un.ConfirmLeave
 !define MUI_FINISHPAGE_RUN_FUNCTION un.LaunchFeedback
 !define MUI_FINISHPAGE_RUN_TEXT "Leave feedback for the developer. All feedback is read."
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW un.GmFinishShow
+; Layout of the finish page, in dialog units. The page is 193 high. The text starts at 45 and the
+; box is 10 high; those three match Modern UI's own values and are not applied. The callback
+; applies LEFT, TEXT_W, TEXT_H and BOX_TOP: 128 high text ends at 173, a 5 gap, then the box.
+!define GM_UNFIN_LEFT 120
+!define GM_UNFIN_TEXT_TOP 45
+!define GM_UNFIN_TEXT_W 195
+!define GM_UNFIN_TEXT_H 128
+!define GM_UNFIN_BOX_TOP 178
+!define GM_UNFIN_BOX_H 10
+!define GM_UNFIN_PAGE_H 193
 !insertmacro MUI_UNPAGE_FINISH
+
+; Runs as the finish page is shown. The text gets the taller area it needs for the folder lines, and
+; the feedback box moves below it. The box itself, its unticked state and its action stay Modern
+; UI's. Defined after the page macro, which declares the variables used here. If the rectangle
+; cannot be converted, Modern UI's own layout stays.
+Function un.GmFinishShow
+  Push $0
+  Push $1
+  Push $2
+  Push $3
+  Push $4
+  Push $5
+  ${NSD_AddStyle} $mui.FinishPage.Text ${SS_NOPREFIX}
+  System::Call '*(i ${GM_UNFIN_LEFT}, i ${GM_UNFIN_BOX_TOP}, i ${GM_UNFIN_TEXT_W}, i ${GM_UNFIN_TEXT_H}) p .r1'
+  IntCmp $1 0 finish_done
+  System::Call 'user32::MapDialogRect(p $mui.FinishPage, p r1) i .r0'
+  IntCmp $0 0 finish_free
+  System::Call '*$1(i .r2, i .r3, i .r4, i .r5)'
+  System::Call 'user32::SetWindowPos(p $mui.FinishPage.Text, p 0, i 0, i 0, i r4, i r5, i 0x16)'
+  System::Call 'user32::SetWindowPos(p $mui.FinishPage.Run, p 0, i r2, i r3, i 0, i 0, i 0x15)'
+  finish_free:
+  System::Free $1
+  finish_done:
+  Pop $5
+  Pop $4
+  Pop $3
+  Pop $2
+  Pop $1
+  Pop $0
+FunctionEnd
 
 !insertmacro MUI_LANGUAGE "English"
 
