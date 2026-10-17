@@ -2453,6 +2453,18 @@ ADR 0057 section 7. **Mark this OPEN: Linux tests drive the host with a stand-in
 10. In a terminal, run `gm-scriptorium remote set --mode tailscale ...`, then `gm-scriptorium remote set --mode proxy ...`. Neither asks anything, each prints the line naming "Remote access at sign-in", and after the second the `[desktop]` table has neither key.
 11. In a terminal, run `gm-scriptorium desktop set --remote-at-signin on`. It asks "Start remote access when you sign in to Windows?", and Enter leaves it off. Run it again and answer `y`: both keys are written, and after Restart from the tray the item is ticked. Run `gm-scriptorium desktop set --remote-at-signin off`, then `gm-scriptorium desktop set --remote-at-signin on < NUL`: the second exits 1, asks for a terminal or `--yes`, and the hash is unchanged.
 
+### C207: the tray's Check for updates lands on the card, once, and never over the GM
+
+[ADR 0057](../docs/decisions/0057-windows-desktop-app.md) section 11; [ADR 0028](../docs/decisions/0028-installer-and-first-run.md) section 7, addendum "the landing".
+
+**Mark this OPEN: Linux tests drive the panel in real Chromium and Firefox with the web fonts held back and a stand-in host; only a real tray, a real Windows browser and the real fonts and window sizes can be checked here.** The rules in "C190 to C205: rules that hold for every desktop-app criterion" apply: a scratch `SCRIPTORIUM_CONFIG` set with `setx`, then sign out and in. Never the real config, never `N:`. C191 step 6 stays as it is; this criterion adds what it does not cover.
+
+1. Start from a fresh install through browser setup, so the welcome line is still showing, and do not dismiss it. Choose Check for updates from the tray. The panel opens on the Overview with the whole top edge of the Updates card on screen and its switch focused, in a normal window and in a narrow one (about 400 pixels wide).
+2. Make the window short, about 600 pixels high, and choose Check for updates again from a fresh tab. The top of the Updates card is on screen. It does not have to be centred.
+3. Choose Check for updates, and as soon as the tab opens, scroll with the mouse wheel or press Tab. The page does not jump to the card afterwards, and the switch is not focused. If the card was already focused before you could act, repeat the step.
+4. After step 1, scroll away and then reload the tab. It does not scroll to the card or focus anything.
+5. Click "Turn off update checks" in the update banner. The page scrolls to the card and focuses the switch, as before.
+
 ### C170: a bare `--force` is refused with one line, in the real win-x64 exe
 
 Issue #15, [ADR 0055](../docs/decisions/0055-force-split.md). **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match. Use a scratch copy of the-long-lease example vault, registered as campaign `c170` with an output folder `S\out` that does not exist.
