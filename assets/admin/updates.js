@@ -26,7 +26,20 @@
   var problem = '';
   var polls = 0;
   var pollTimer = null;
-  var landing = false; // the tray's "Check for updates" asked to land on the card (S5): focus it once, when it is mounted
+  var landing = false; // the tray's "Check for updates" asked to land on the card (S5): land on it once, when it is drawn and the web fonts are in
+  var moved = false; // the GM scrolled, pointed, touched or typed since land(), so the landing does nothing
+  var MOVES = ['pointerdown', 'wheel', 'touchstart', 'keydown'];
+
+  function noteMove() {
+    moved = true;
+  }
+
+  function watchMoves(on) {
+    MOVES.forEach(function (type) {
+      if (on) window.addEventListener(type, noteMove, { capture: true, passive: true });
+      else window.removeEventListener(type, noteMove, { capture: true });
+    });
+  }
 
   /** True under the desktop app (the session says so), where the command line is not on PATH by default. */
   function isDesktop() {
@@ -89,9 +102,25 @@
   function focusCard() {
     var card = document.getElementById('updates');
     if (!card) return;
-    card.scrollIntoView({ block: 'center' });
+    // A card taller than the window cannot be centred, so show its top, and never let focus() scroll it away again.
+    card.scrollIntoView({ block: card.getBoundingClientRect().height > window.innerHeight ? 'start' : 'center' });
     var sw = card.querySelector('[data-ctl="switch"]');
-    if (sw) sw.focus();
+    if (sw) sw.focus({ preventScroll: true });
+  }
+
+  /**
+   * The landing, once. The web fonts change the card's height as they arrive, and the scroll position
+   * is worked out from the height the card has at that moment, so it waits for them. It does nothing
+   * if the GM has scrolled, pointed, touched or typed meanwhile, or has put focus anywhere.
+   */
+  function landOnce() {
+    var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+    ready.then(null, function () {}).then(function () {
+      var elsewhere = document.activeElement && document.activeElement !== document.body;
+      var gone = moved || elsewhere;
+      watchMoves(false);
+      if (!gone) focusCard();
+    });
   }
 
   // -- the banner ---------------------------------------------------------------------------------
@@ -391,7 +420,7 @@
       rest.appendChild(buildCard());
       if (landing) {
         landing = false;
-        focusCard();
+        landOnce();
       }
       if (active) {
         var again = rest.querySelector('[data-ctl="' + active + '"]');
@@ -434,6 +463,8 @@
   /** Called once at boot when the session carries the "updates" landing. */
   function land() {
     landing = true;
+    moved = false;
+    watchMoves(true);
   }
 
   A.updates = { mount: mount, whenText: whenText, land: land };
