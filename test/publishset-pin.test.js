@@ -410,3 +410,26 @@ test('frontmatter: value comments and wrongly typed values read as the pin\'s ow
     fs.rmSync(vault, { recursive: true, force: true });
   }
 });
+
+// From publish-v1.17.0 the pin forgives case and spaces in publish.mode and reads anything else as
+// player (lib/config.js:110). leak/l1 runs only when the mode is exactly "player", so a raw
+// "Player" here would skip it on a vault the build publishes as a player site.
+test('publish.mode: case, spaces and unknown values read as the pin reads them', () => {
+  // eslint-disable-next-line global-require
+  const pinConfig = require('gm-apprentice-publish/lib/config');
+  const cases = [['Player', 'player'], [' FULL ', 'full'], ['players', 'player'], ['', 'player'], [undefined, 'player']];
+  for (const [raw, expected] of cases) {
+    const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-mode-'));
+    try {
+      fs.mkdirSync(path.join(vault, '_meta'));
+      const modeLine = raw === undefined ? '' : `  mode: ${JSON.stringify(raw)}\n`;
+      fs.writeFileSync(path.join(vault, '_meta', 'vault-config.md'), `---\ntype: meta\npublish:\n${modeLine}  exclude_sections: []\n---\n`);
+      const ours = loadPublishConfig(vault, {}).publishConfig.mode;
+      assert.equal(ours, expected, `mode ${JSON.stringify(raw)}`);
+      const theirs = pinConfig.loadPublishConfig(vault, {}, () => {});
+      assert.equal(ours, (theirs.publishConfig || theirs).mode, `pin parity for ${JSON.stringify(raw)}`);
+    } finally {
+      fs.rmSync(vault, { recursive: true, force: true });
+    }
+  }
+});

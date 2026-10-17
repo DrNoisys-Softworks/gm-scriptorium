@@ -125,6 +125,20 @@ function canonicalizeOverrideFieldKeys(fields) {
  *
  * @returns {{ publishConfig: object, configSources: object }}
  */
+/**
+ * publishModeFrom() in lib/config.js:110-116, ported because the pin does not export it: case and
+ * spaces forgiven, anything but "player" or "full" read as "player", only a missing setting left
+ * at the default. The pin also warns about a bad value; check does not print, so this does not.
+ *
+ * @param {unknown} raw publish.mode as written
+ * @returns {'player'|'full'}
+ */
+function publishModeFrom(raw) {
+  if (raw === undefined) return pinned.PUBLISH_DEFAULTS.mode;
+  const mode = typeof raw === 'string' ? raw.trim().toLowerCase() : null;
+  return mode === 'player' || mode === 'full' ? mode : 'player';
+}
+
 function loadPublishConfig(vaultPath, jsonConfig = {}) {
   const configFile = path.join(vaultPath, '_meta', 'vault-config.md');
   let publish = {};
@@ -139,7 +153,7 @@ function loadPublishConfig(vaultPath, jsonConfig = {}) {
   const asList = (v) => (Array.isArray(v) ? v : undefined);
 
   const publishConfig = {
-    mode: publish.mode || pinned.PUBLISH_DEFAULTS.mode,
+    mode: publishModeFrom(publish.mode),
     system: publish.system || null,
     exclude_drafts: publish.exclude_drafts ?? pinned.PUBLISH_DEFAULTS.exclude_drafts,
     exclude_callouts: publish.exclude_callouts ?? jsonConfig.excludeCallouts ?? pinned.PUBLISH_DEFAULTS.exclude_callouts,
