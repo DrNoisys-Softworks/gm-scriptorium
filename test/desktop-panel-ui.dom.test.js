@@ -185,6 +185,21 @@ for (const browserName of ['chromium', 'firefox']) {
     });
   }
 
+  /**
+   * Runs `go` (a reload) and waits until the page has booted far enough for a landing to have happened:
+   * the session answered, the Updates card and the welcome are in the page (attached; the Overview is
+   * hidden on the Images screen), and the web fonts are in, which is what the landing waits for.
+   */
+  async function bootedWithoutLanding(page, go) {
+    const session = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/session');
+    await go();
+    await session;
+    await page.waitForSelector('#updates', { state: 'attached' });
+    await page.waitForSelector('[data-part="welcome"]', { state: 'attached' });
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await page.evaluate(() => document.fonts.ready);
+  }
+
   test(`the updates landing in ${browserName}: Overview, the Updates card in view, its switch focused once; a reload does not land again`, { skip: SKIP, timeout: 240000 }, async (t) => {
     await withPanel(t, { desktop: true }, async ({ open, ctx }) => {
       for (const size of WIDTHS) {
@@ -203,11 +218,138 @@ for (const browserName of ['chromium', 'firefox']) {
         assert.equal(ctx.launchLanding, null, 'the server cleared it');
 
         await page.evaluate(() => { window.location.hash = '#/images'; });
-        await page.reload({ waitUntil: 'load' });
-        await page.waitForFunction(() => window.location.hash === '#/images');
+        await bootedWithoutLanding(page, () => page.reload({ waitUntil: 'load' }));
+        assert.equal(await page.evaluate(() => window.location.hash), '#/images', 'the address is still the Images screen after boot');
         assert.equal(await page.evaluate(() => (document.activeElement && document.activeElement.getAttribute('data-ctl')) || ''), '', 'a reload lands nowhere');
       }
     });
+  });
+
+  // Test-only counters for the landing: how often the card is scrolled to, how often its switch takes
+  // focus, and whether the GM's input reached the page. Everything calls through.
+  const LANDING_COUNTERS = () => {
+    window.__n = { si: 0, sw: 0, input: 0 };
+    const osi = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (...a) {
+      window.__n.si++;
+      return osi.apply(this, a);
+    };
+    document.addEventListener('focusin', (e) => {
+      if (e.target.closest && e.target.closest('#updates') && e.target.getAttribute('data-ctl') === 'switch') window.__n.sw++;
+    }, true);
+    for (const type of ['wheel', 'keydown']) window.addEventListener(type, () => { window.__n.input++; }, true);
+  };
+
+  /** Holds every request that matches `glob` until release(); `seen` resolves on the first one held. */
+  async function holdRequests(page, glob) {
+    let released = false;
+    const held = [];
+    let seen;
+    const first = new Promise((resolve) => { seen = resolve; });
+    await page.route(glob, (route) => {
+      if (released) return route.continue();
+      held.push(route);
+      seen();
+    });
+    return {
+      seen: first,
+      release: async () => {
+        released = true;
+        for (const r of held.splice(0)) await r.continue();
+      },
+    };
+  }
+
+  const restOrder = (page) => page.evaluate(() => [...document.querySelector('[data-part="ov-rest"]').children].map((c) => c.getAttribute('data-part') || c.tagName.toLowerCase()));
+  const cardInView = (page) => page.evaluate(() => {
+    const r = document.getElementById('updates').getBoundingClientRect();
+    return r.top >= 0 && r.top < window.innerHeight;
+  });
+  const switchFocused = (page) => page.waitForFunction(() => document.activeElement && document.activeElement.getAttribute('data-ctl') === 'switch');
+  const fontsLoaded = (page) => page.waitForFunction(() => document.fonts.status === 'loaded');
+
+  /** The tray's landing on a fresh load, with the web fonts held back. Resolves once the Overview is drawn in full. */
+  async function landWithFontsHeld(ctx, page) {
+    await page.addInitScript(LANDING_COUNTERS);
+    const fonts = await holdRequests(page, '**/assets/fonts/**');
+    ctx.launchLanding = { to: 'updates', expiresAt: Date.now() + 15000 };
+    await page.reload({ waitUntil: 'load' });
+    await fonts.seen;
+    await page.waitForSelector('#updates');
+    await page.waitForSelector('[data-part="welcome"]');
+    await page.waitForSelector('#desktop-ports');
+    return fonts;
+  }
+
+  test(`the landing after late web fonts in ${browserName}: the card ends in view and its switch focused once`, { skip: SKIP, timeout: 240000 }, async (t) => {
+    await withPanel(t, { desktop: true }, async ({ open, ctx }) => {
+      for (const size of WIDTHS) {
+        const page = await open(size, { hash: '#/images', waitCard: false });
+        await page.waitForFunction(() => window.location.hash === '#/images');
+        const fonts = await landWithFontsHeld(ctx, page);
+        const orderBefore = await restOrder(page);
+        await fonts.release();
+        await fontsLoaded(page);
+        await switchFocused(page);
+        const inView = await page.evaluate(() => {
+          const r = document.getElementById('updates').getBoundingClientRect();
+          return r.top >= 0 && r.top < window.innerHeight;
+        });
+        assert.equal(inView, true, `the card is scrolled into view at ${size.width}`);
+        assert.deepEqual(await page.evaluate(() => ({ si: window.__n.si, sw: window.__n.sw })), { si: 1, sw: 1 }, 'one scroll, one focus');
+        assert.deepEqual(await restOrder(page), orderBefore, 'the landing moved no node');
+
+        await page.evaluate(() => {
+          const A = window.ScriptoriumAdmin;
+          A.store.set({ busy: !A.store.get().busy });
+          A.store.set({ busy: !A.store.get().busy });
+        });
+        assert.equal(await page.evaluate(() => window.__n.si), 1, 'drawing the Overview again does not land again');
+        const order = await restOrder(page);
+        assert.ok(order.indexOf('update-setting') >= 0 && order.indexOf('desktop-slot') > order.indexOf('update-setting'), JSON.stringify(order));
+      }
+    });
+  });
+
+  test(`a card taller than the window in ${browserName}: the landing puts its top in view`, { skip: SKIP, timeout: 240000 }, async (t) => {
+    await withPanel(t, { desktop: true }, async ({ open, ctx }) => {
+      const page = await open({ width: 390, height: 600 }, { hash: '#/images', waitCard: false });
+      await page.waitForFunction(() => window.location.hash === '#/images');
+      const fonts = await landWithFontsHeld(ctx, page);
+      await fonts.release();
+      await fontsLoaded(page);
+      await switchFocused(page);
+      const tall = await page.evaluate(() => document.getElementById('updates').getBoundingClientRect().height > window.innerHeight);
+      assert.equal(tall, true, 'the card is taller than this window');
+      const inView = await page.evaluate(() => {
+        const r = document.getElementById('updates').getBoundingClientRect();
+        return r.top >= 0 && r.top < window.innerHeight;
+      });
+      assert.equal(inView, true, 'the top of the card is in view');
+    });
+  });
+
+  test(`the landing in ${browserName} leaves the page alone when the GM scrolls or moves focus before the fonts arrive`, { skip: SKIP, timeout: 240000 }, async (t) => {
+    for (const act of ['wheel', 'tab', 'focus']) {
+      await withPanel(t, { desktop: true }, async ({ open, ctx }) => {
+        const page = await open(WIDTHS[1], { hash: '#/images', waitCard: false });
+        await page.waitForFunction(() => window.location.hash === '#/images');
+        const fonts = await landWithFontsHeld(ctx, page);
+        if (act === 'wheel') {
+          await page.mouse.move(200, 300);
+          await page.mouse.wheel(0, 200);
+        } else if (act === 'tab') {
+          await page.keyboard.press('Tab');
+        } else {
+          await page.evaluate(() => document.querySelector('[data-part="welcome"] a, [data-part="welcome"] button').focus());
+        }
+        if (act !== 'focus') await page.waitForFunction(() => window.__n.input > 0);
+        await fonts.release();
+        await fontsLoaded(page);
+        await page.evaluate(() => document.fonts.ready);
+        assert.deepEqual(await page.evaluate(() => ({ si: window.__n.si, sw: window.__n.sw })), { si: 0, sw: 0 }, `no scroll and no focus after a ${act}`);
+      });
+    }
   });
 
   test(`the preview landing in ${browserName}: the tab goes to the preview origin from the session (stubbed navigation, http and https)`, { skip: SKIP, timeout: 240000 }, async (t) => {
@@ -234,10 +376,9 @@ for (const browserName of ['chromium', 'firefox']) {
     await withPanel(t, { desktop: true }, async ({ open, ctx }) => {
       const page = await open(WIDTHS[0], { hash: '#/images', waitCard: false });
       ctx.launchLanding = { to: 'updates', expiresAt: Date.now() - 1 };
-      await page.reload({ waitUntil: 'load' });
-      await page.waitForFunction(() => window.location.hash === '#/images');
-      await settle();
-      assert.equal(await page.evaluate(() => window.location.hash), '#/images');
+      await bootedWithoutLanding(page, () => page.reload({ waitUntil: 'load' }));
+      assert.equal(await page.evaluate(() => window.location.hash), '#/images', 'the address is still the Images screen after boot');
+      assert.equal(await page.evaluate(() => (document.activeElement && document.activeElement.getAttribute('data-ctl')) || ''), '', 'an expired landing focuses nothing');
     });
   });
 }

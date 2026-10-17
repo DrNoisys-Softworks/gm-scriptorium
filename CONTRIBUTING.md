@@ -13,7 +13,8 @@ touching anything under `src/generator/`, `src/build/`, `src/vault/publishset.js
 - No real campaign, player, character or personal names in repo text, test
   fixtures or commit messages. Use neutral, made-up example names instead.
 - Keep `main` green: run `npm test` and `npm run verify-generator` before
-  proposing a change.
+  proposing a change. Panel changes also need the browser tests; see
+  [Running the browser tests](docs/DEVELOPING.md#running-the-browser-tests).
 - Every change reaches `main` through a pull request. See "How to open a pull
   request" below.
 - Releases, tags, version bumps and deploys are the owner's.
@@ -36,7 +37,7 @@ touching anything under `src/generator/`, `src/build/`, `src/vault/publishset.js
    latest `main`. Name it for the change, for example `fix-toc-focus`.
 2. Make one change per branch. Keep commits small and use conventional
    commit messages such as `fix(a11y): ...` or `docs: ...`.
-3. Run `npm test` and `npm run verify-generator` on your machine first.
+3. Run `npm test` and `npm run verify-generator` on your machine first. If you change the admin panel, also run the browser tests: see [Running the browser tests](docs/DEVELOPING.md#running-the-browser-tests).
 4. Open a pull request against `main`. Fill in the template. Say what changed,
    why, and how you checked it.
 5. Add a written review to the pull request, in the description or a
