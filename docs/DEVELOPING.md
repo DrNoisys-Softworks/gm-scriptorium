@@ -40,8 +40,8 @@ a throwaway Linux target to prove the pipeline, and proves nothing about the Win
 **`assets/vault-template/`, by hand.** It is the output of gm-apprentice's vault scaffold, captured and derived by `scripts/vault-template.js`. Change it only by following the starter pin bump procedure in [COLLABORATING.md](COLLABORATING.md); a hand edit breaks byte parity with the scaffold and fails the manifest check.
 
 **`node_modules/gm-apprentice-publish/`, directly.** It is a vendored, integrity-pinned copy of the
-upstream generator's own release tarball. The current pin is `publish-v1.17.0` (commit
-`db6fb2b`). It is verified against the release's `SHA256SUMS` and, file by file, by sha256 against
+upstream generator's own release tarball. The current pin is `publish-v1.21.0` (commit
+`9def97e`). It is verified against the release's `SHA256SUMS` and, file by file, by sha256 against
 `vendor/gm-apprentice-publish/PIN.json`.
 
 Go through the facade at `src/generator/pinned.js`, which is the only sanctioned way in. Re-run

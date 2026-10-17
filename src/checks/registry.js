@@ -282,7 +282,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'Track D2: a withheld: true entity\'s hidden name reaches the generator\'s ACTUAL emitted output — a relationship-graph SVG <text> label, an aggregate index card built from a frontmatter field, a recency/landing excerpt, a copied attachment\'s own filename — even though no source-side check (L1-L5) can see it, because these are derived views the pin builds from published data, not renderings of one page\'s own markdown. Reads the real built tree (ctx.outputPath) when a build exists, one INFO when it does not (leak/l2\'s posture, reused verbatim), and the staging tree before the swap during `build` (src/build/outputgate.js). No suppression mechanism of any kind; see docs/decisions/0009-output-leak-scan.md.',
+      'Track D2: a withheld: true entity\'s hidden name reaches the generator\'s ACTUAL emitted output — a page\'s Connections section, an aggregate index card built from a frontmatter field, a recency/landing excerpt, a copied attachment\'s own filename — even though no source-side check (L1-L5) can see it, because these are derived views the pin builds from published data, not renderings of one page\'s own markdown. Reads the real built tree (ctx.outputPath) when a build exists, one INFO when it does not (leak/l2\'s posture, reused verbatim), and the staging tree before the swap during `build` (src/build/outputgate.js). No suppression mechanism of any kind; see docs/decisions/0009-output-leak-scan.md.',
   },
   {
     id: 'leak/l4-index-term',

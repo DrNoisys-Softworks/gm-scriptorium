@@ -30,17 +30,17 @@ changed upstream.
 ### The pin and its verification
 
 - `vendor/gm-apprentice-publish/PIN.json` is the integrity anchor: repository, `tools/publish`
-  path, the 40-character commit SHA (`db6fb2b083e8ee897a381b9de4642f12769e4cc2`, tag
-  `publish-v1.17.0`, package version `1.17.0`), the vendored release tarball's filename and
+  path, the 40-character commit SHA (`9def97ea6586009019b35d77ba480738a936c457`, tag
+  `publish-v1.21.0`, package version `1.21.0`), the vendored release tarball's filename and
   sha256, the vendored `SHA256SUMS` filename, a `crossCheck` record (method, npm version,
   `treeSha256` of a reproducible-build cross-check tree), every shipped file's sha256 keyed by
-  package-relative POSIX path (578 files, bundled dependencies included), and one `treeSha256` over
+  package-relative POSIX path (584 files, bundled dependencies included), and one `treeSha256` over
   all of them. There is no `omitted` list: the manifest is derived from the extracted release
   tarball directly, with no omit rules of any kind (see "Pin bump procedure" below).
-- `vendor/gm-apprentice-publish/gm-apprentice-publish-1.17.0.tgz` is the vendored **release**
+- `vendor/gm-apprentice-publish/gm-apprentice-publish-1.21.0.tgz` is the vendored **release**
   tarball itself (not a locally-`npm pack`ed one), installed via `package.json`'s
   `dependencies["gm-apprentice-publish"]` as
-  `file:vendor/gm-apprentice-publish/gm-apprentice-publish-1.17.0.tgz`.
+  `file:vendor/gm-apprentice-publish/gm-apprentice-publish-1.21.0.tgz`.
   `vendor/gm-apprentice-publish/SHA256SUMS` is upstream's own release checksum file, vendored
   alongside it.
 - `scripts/generator-pin.js` implements the mechanism: `manifestOf()` hashes a tree,
@@ -76,6 +76,8 @@ what `leak/l5-gm-heading-survives` reads headings with, `docs/decisions/0045-lea
 (`lib/session-hub.js`), `isWrapUp`, `WRAP_UP_TYPES` (also `lib/session-hub.js`),
 `resolveGenrePreset` (`lib/theme.js`), `labelsForLinks` (`lib/wikilink.js`, from publish-v1.17.0;
 `src/vault/publishset.js` prints a wikilink in a title by its label, as the scanner does),
+`linkText`, `wikilinkRe`, `parseWikilink` (also `lib/wikilink.js`) and `buildLinkMap` (`lib/scanner.js`, these four
+from publish-v1.21.0; the Connections lane resolves a relationship's target as the pin does),
 `cutValueComments` (`lib/frontmatter.js`) and `shapeFrontmatter` (`lib/frontmatter-shape.js`, both from
 publish-v1.17.0; `publishset.js` reads frontmatter values as the scanner does), `canonicalNfc`,
 `truncateGraphemes` (`lib/unicode.js`), `metadataBadgesFor`, `TYPE_BADGE_FIELDS`, `DIR_LABELS`
@@ -141,8 +143,9 @@ frontmatter engine guard). None of them touch a byte on disk in `node_modules/gm
   granularity only, feeding `graphemes()`/`truncateGraphemes()` at `lib/unicode.js:81-90`) would
   crash inside the packaged executable. This module patches
   `Intl.Segmenter.prototype.segment` with a pure-JS grapheme splitter, scoped to exactly the
-  granularity the generator uses. Its only two upstream consumers are
-  `lib/templates/landing-data.js:72` and `lib/relationship-graph.js:193`.
+  granularity the generator uses. From `publish-v1.18.0` its only upstream consumer is
+  `lib/templates/landing-data.js:136`, the landing page's initials; the relationship graph that also
+  used it is gone.
 
 - **`src/generator/fmguard.js`** (new, `docs/decisions/0034-executable-frontmatter-guard.md`). The
   generator's bundled `gray-matter` (`node_modules/gm-apprentice-publish/node_modules/gray-matter`,
@@ -222,6 +225,19 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   the "after the generated theme, before the page-local `<style>`" ordering it documents.
 - **`src/build/themestyle.js`**: anchors immediately after `housestyle.js`'s own `<link>` tag
   (never re-derives from `theme.css`'s href directly, to avoid matching its own tag).
+- **`src/build/connections.js`** (the Connections lane, `docs/decisions/0017-story-timeline-and-connections-lane.md`):
+  from `publish-v1.18.0` it replaces the generator's `<section class="cx" ...>`
+  (`lib/templates/connections.js`) in place and reads the section's own
+  `<script type="application/json" class="cx-data">` block. It depends on that block's shape:
+  `s` the subject, `t` the tabs, each with groups `g` of a label `n` and items `d` (`t` title, `h`
+  href or null, `l` lines, `f` how many of those lines are this page's own), and `m` the mentions as
+  `[title, href]` pairs. A section whose block does not parse is left as the generator wrote it, with a
+  build warning. Whether a relationship is this page's own or the other page's is read from the
+  published frontmatter, resolved with the pin's own `buildLinkMap` and `linkText` the way
+  `lib/connections.js:159-169` resolves it; nothing the lane prints comes from there. It also removes the
+  generator's `js/connections.js` script tag from a page whose section it replaced.
+  `test/build-connections.test.js` builds the story-vault fixture and checks every lane, so a change to the
+  section or its block fails there by name.
 
 ### CSS that styles upstream classes
 
@@ -230,7 +246,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   the generator's own stylesheets and before the campaign's `overrides.css`. It styles the
   generator's own template classes directly, `.card-grid`, `.entity-card`, `.dashboard-section`,
   `.hero-banner`, `.nav-group`, `.nav-group-toggle`, `.pc-card`, `.npc-card`,
-  `.relationship-graph`, `.stat-block`, `.search-result-item`, among others, so a class rename in
+  `.relationship-graph` (no longer emitted from `publish-v1.18.0`; its rules are dead), `.stat-block`, `.search-result-item`, among others, so a class rename in
   any generator template is a silent styling break, not a build failure. It also now depends on
   two more specific shapes: a Sessions-typed card carrying `data-entity-type="session"` sitting
   directly inside `main.content > .card-grid`, and the header's `.nav-search-icon-btn` sitting
@@ -259,8 +275,7 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
 - **Labels and vocabulary** (`docs/decisions/0020-labels-and-vocabulary.md`): `pack.toml`'s
   `[labels]`/`[timeline]`/`[recaps]` tables let a campaign rename emitted nouns, but explicitly do
   **not** touch the strings that are matchers against the generator's own output (e.g.
-  `connections.js`'s `GRAPH_BLOCK_RE`, the literal "Connections" heading the generator itself
-  emits), those are fixed, because they name a contract with `gm-apprentice-publish`, not the
+  `connections.js`'s `CX_SECTION_RE`, which finds the generator's own Connections section), those are fixed, because they name a contract with `gm-apprentice-publish`, not the
   campaign's vocabulary.
 
 ### The vault config contract Scriptorium reads or validates
@@ -363,9 +378,9 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
 - **The output-leak scan** (`src/checks/leak/outputscan.js`, `docs/decisions/0009-output-leak-scan.md`):
   reads the *built* site tree rather than source, because several leak surfaces are derived views
   the generator assembles at render time and a source-side scan structurally cannot see them:
-  relationship-graph SVG `<text>` labels (`lib/relationship-graph.js:206-207`, including the
-  truncation at `truncateGraphemes(name, 15, 13)`, `lib/unicode.js:87-91`, and the de-underscoring
-  fallback `title.replace(/_/g, ' ')` at `lib/relationship-graph.js:62`), aggregate index cards built
+  each page's Connections section, list and data block alike (`lib/templates/connections.js`, from
+  `publish-v1.18.0`; a target with no page prints its name with underscores read as spaces,
+  `lib/connections.js:232`, which the scan's de-underscored needle covers), aggregate index cards built
   from another page's frontmatter (e.g. `factions/index.html`'s `escapeHtml(leadership)`,
   `lib/templates/index-page.js:604,609-611`), and the landing page's recency-widget excerpt
   (`escapeHtml(fm.outcome)`, `lib/templates/landing.js:200,204`).

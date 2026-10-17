@@ -30,8 +30,8 @@
  * prelude relies on the same property (bootstrap-shared.js:419-423).
  *
  * Scope: grapheme granularity only. graphemes()/truncateGraphemes()
- * (unicode.js:77-86) are the pin's only two consumers, reached from
- * templates/landing-data.js:133 and relationship-graph.js:191, and
+ * (unicode.js:77-86) are reached from templates/landing-data.js:136 only,
+ * from publish-v1.18.0 (the relationship graph, the other consumer, is gone), and
  * unicode.js:75 is the pin's only Intl.Segmenter construction, always with
  * `{ granularity: 'grapheme' }`. Any other requested granularity throws
  * the same RangeError text pkg's own prelude uses, since this shim does

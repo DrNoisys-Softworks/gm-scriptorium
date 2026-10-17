@@ -1250,3 +1250,53 @@ Scriptorium's Connections build reads. The release-tarball pin source is unchang
 `npm run package` was not run: this host has no Node 22 for `@yao-pkg/pkg` and no mingw-w64, and the
 startup self-test needs a Linux host. No Windows run. The browser tests ran on macOS (Chromium and
 Firefox): 207 of 209 pass, and the two failures fail the same way on `main` on this host.
+
+## Addendum: repin to publish-v1.21.0 (9def97ea), 2026-10-17
+
+Repin from `publish-v1.17.0` (db6fb2b0), the second rung toward `publish-v1.34.0`. Follows
+`docs/COLLABORATING.md`'s pin bump procedure. Upstream went through 1.18.0, 1.19.0, 1.20.0, 1.20.1 and
+1.21.0. It stops at 1.21.0 because 1.22.0 begins the settings-file overhaul (#152).
+
+### What upstream changed (the part that reaches us)
+
+- **Connections** (1.18.0): the relationship graph, the sidebar and the relationship list are replaced by
+  one `<section class="cx">` with its content as data (#79). The Connections lane now reads that section;
+  see ADR 0017's addendum.
+- **The GURPS to-hit calculator** (1.21.0): `js/gurps-tohit.js` carries rules tables, and `reference.js`
+  exports its rows. Both are redacted; see ADR 0007's addendum.
+- **A `withheld:` line** now also gates the frontmatter read in the pin's note walk;
+  `src/vault/sessionpairs.js`'s port follows it.
+- `js/connections.js` names the SVG namespace URL, an identifier passed to `createElementNS`; the
+  same-origin test lets that one string through.
+
+### What the procedure found
+
+- **Release artefact.** Tarball checked against upstream's `SHA256SUMS`; two independent downloads of
+  both files are byte-identical. The tag is a lightweight tag on the pinned commit.
+- **Reproducible-build cross-check.** A fresh checkout at the pinned commit, `npm ci --ignore-scripts`,
+  `npm pack`: `diff -rq` clean against the extracted release, 584 files, `treeSha256`
+  `ce47f7ae36634f76c6b93915d37580f72de03e4800a6137728d6c4fd9d0f2a10`. npm 11.8.0 on macOS.
+- **Dependency set: unchanged.** The bundled `node_modules/` are identical. The generator-owned delta is
+  48 changed, 8 new and 2 removed paths (`lib/relationship-graph.js`, `lib/templates/context-sidebar.js`).
+  `fmguard.js`'s four bound files and `coc/skills-data.js` are byte-identical; `gurps/blocks/reference.js`
+  changed only in its export line, read by hand. `npm audit --omit=dev` reports the same seven
+  bundled-package advisories.
+- **Lockfile.** Allowed hunks only; the root `name`/`version` and `pkg.patches` formatting restored.
+  `npm ci` reproduces and `verify-generator` passes before and after. No top-level `node_modules/lunr`.
+- **Network posture.** No changed or new file under `lib/` or `bin/` gained a `fetch(`, an `eval(`, a
+  `new Function` or a network builtin.
+- **Rules-content scan.** `PIN_SCAN_BASELINE` re-derived: 48 hits before, 56 after. Eight are new, read
+  by hand: two in the now-redacted `js/gurps-tohit.js`, six comments naming a system.
+- **Citations re-derived** in `src/` and `docs/COLLABORATING.md`: 51 by unchanged text, the rest by
+  reading the changed function; five that were already stale now point at the code they describe.
+- **Equivalence check:** clean on `story-vault`, `wrapup-vault`, `grapheme-vault` and
+  `examples/the-long-lease` (40 pages).
+- **Before and after.** `examples/the-long-lease` built at both pins: the same page set plus
+  `js/connections.js` and the stub `js/gurps-tohit.js`; `check` is finding-for-finding identical. Of the
+  35 lanes at 1.17.0, 11 are identical and 24 gain named-by items; none loses one. One relationship word
+  changes ("ancestor of" to "family"), and the three session pages gain a lane. 141 packaged assets.
+
+### What this does not prove here
+
+`npm run package` was not run (no Node 22 for pkg, no mingw-w64 on this host). No Windows run: C210 and
+C211 are OPEN.
