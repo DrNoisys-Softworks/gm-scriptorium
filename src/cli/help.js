@@ -18,7 +18,7 @@ const EXIT_LINES = {
   0: '  0  success, or warnings only',
   1: '  1  Scriptorium could not do what you asked (see the message); also used for unexpected failures',
   2: '  2  the vault has errors (check found problems, or build refused and wrote nothing)',
-  3: '  3  the campaign, its config or its vault cannot be used: no campaign registered, unknown campaign, missing or malformed config, vault missing or not a gm-apprentice vault, output folder missing or inside the vault',
+  3: '  3  the campaign, its config or its vault cannot be used: no campaign registered, unknown campaign, missing or malformed config, vault missing or not a gm-apprentice vault, output folder missing or inside the vault, or a vault on a settings file this version can\'t read',
   4: '  4  update cannot run (GitHub could not be reached, or there is no such release)',
 };
 

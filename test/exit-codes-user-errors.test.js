@@ -41,6 +41,18 @@ function copyPackVault(root, packToml) {
   return v;
 }
 
+/** A copy of the sample vault at <root>/v whose settings moved (only .yaml) or are mixed (both files). */
+function copyMovedVault(root, state) {
+  const v = path.join(root, 'v');
+  fs.cpSync(SAMPLE, v, { recursive: true });
+  const md = path.join(v, '_meta', 'vault-config.md');
+  const yaml = path.join(v, '_meta', 'vault-config.yaml');
+  if (state === 'moved') fs.renameSync(md, yaml);
+  else fs.copyFileSync(md, yaml);
+  writeCfg(root, `config_version = 1\n[campaigns.t]\nvault = '${v}'\noutput = '${path.join(root, 'site')}'\n`);
+  return v;
+}
+
 // [label, setup(root) -> args | {args, input}, expected code, stderr/stdout pattern]
 const CASES = [
   ['check, no campaigns registered', (r) => (writeCfg(r, 'config_version = 1\n'), ['check']), 3, /no campaigns registered/],
@@ -58,6 +70,10 @@ const CASES = [
   ['config entry points at a missing vault', (r) => (writeCfg(r, `config_version = 1\n[campaigns.t]\nvault = '${r}/nowhere'\noutput = '${r}/site'\n`), ['check']), 3, /nowhere/],
   ['campaign has no output folder (build)', (r) => (writeCfg(r, `config_version = 1\n[campaigns.t]\nvault = '${SAMPLE}'\n`), ['build']), 3, /has no output folder/],
   ['remote password with the config folder inside a vault (an unlisted one, found by its settings page)', (r) => (fs.mkdirSync(path.join(r, '_meta'), { recursive: true }), fs.writeFileSync(path.join(r, '_meta', 'vault-config.md'), '# settings\n'), goodCfg(r), { args: ['remote', 'password'], input: 'a long enough passphrase\n' }), 3, /never inside a vault/],
+  ['check on a vault whose settings moved to vault-config.yaml', (r) => (copyMovedVault(r, 'moved'), ['check']), 3, /keeps its settings in _meta\/vault-config\.yaml, the file the gm-apprentice plugin's update moves a vault's settings to\./],
+  ['check on a vault that holds both vault-config.yaml and a leftover vault-config.md', (r) => (copyMovedVault(r, 'mixed'), ['check']), 3, /Its _meta\/vault-config\.md is a leftover that gm-apprentice ignores\./],
+  ['init --new-vault inside a vault whose settings moved', (r) => (fs.mkdirSync(`${r}-nv`, { recursive: true }), copyMovedVault(`${r}-nv`, 'moved'), ['init', '--yes', '--name', 'x', '--new-vault', path.join(`${r}-nv`, 'v', 'zz-new'), '--system', 'none']), 3, /it is inside the vault at /],
+  ['remote password with the config folder inside a vault that holds only vault-config.yaml', (r) => (fs.mkdirSync(path.join(r, '_meta'), { recursive: true }), fs.writeFileSync(path.join(r, '_meta', 'vault-config.yaml'), 'type: meta\n'), goodCfg(r), { args: ['remote', 'password'], input: 'a long enough passphrase\n' }), 3, /never inside a vault, but .* is inside the vault at /],
   ['--out inside the vault', (r) => (goodCfg(r), ['build', '--no-check', '--out', path.join(SAMPLE, 'zz-out')]), 3, /refusing to build inside the vault/],
   ['--out contains the vault', (r) => (goodCfg(r), ['build', '--no-check', '--out', path.dirname(SAMPLE)]), 3, /contains the vault/],
   ['serve before any build', (r) => (goodCfg(r), ['serve', '--port', '0']), 3, /no build exists/],

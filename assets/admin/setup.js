@@ -692,6 +692,14 @@
           commandRows(['git add -A', 'git commit -m "Checkpoint before GM-Scriptorium setup"'])
         ]));
       }
+    } else if (f.settingsMoved) {
+      rows = [['ok', 'Folder found', code(r.value)], ['bad', 'Settings this version can’t read', code(joinPath(['_meta', 'vault-config.yaml']))], ['na', 'Where it lives', 'Checked once its settings can be read']];
+      var a4 = h('div', 'a1-actions');
+      a4.classList.add('su-mt8');
+      a4.appendChild(acrossBtn(input));
+      var p4 = h('p');
+      p4.appendChild(h('b', null, 'This version of GM-Scriptorium can’t read this vault’s settings.'));
+      extra.push(note('err', 'warn', [p4, a4, ruleLine(r.rule)]));
     } else if (f.found) {
       rows = [['ok', 'Folder found', code(r.value)], ['bad', 'Not a gm-apprentice vault', 'There is no ' + joinPath(['_meta', 'vault-config.md']) + ' in this folder'], ['na', 'Where it lives', 'Checked once it is a vault']];
       var kids = [h('p'), null];
