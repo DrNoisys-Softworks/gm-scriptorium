@@ -101,12 +101,20 @@ const {
  * the sub-heading published, and with it the search index and backlinks. UPSTREAM DEFECT, not
  * Scriptorium's section filter (src/ never filters sections). See the report / docs/COLLABORATING.md.
  *
- * Scriptorium-layer fix: this guard runs filterSections (the excluded sections, withheld parent
- * wins) BEFORE the pin's keepOnlySections. That is semantically identical to the pin's own order
- * for everything except the leak: filterSections runs on every published body afterwards anyway.
+ * Scriptorium-layer fix, until publish-v1.14.0: this guard ran filterSections (the excluded
+ * sections, withheld parent wins) BEFORE the pin's keepOnlySections.
+ *
+ * From publish-v1.17.0 the pin fixes this itself (#320 there): keepOnlySections takes the build's
+ * `withhold` object (lib/processor.js:474) and runs the note's strips, then the exclude list, then
+ * the cut. Filtering first would now undo that order: it drops a gm-only opener that sits inside an
+ * excluded section and leaves the closer, so the text between them publishes (proved on a real
+ * build in test/stub-heading-collision.test.js). The guard therefore only makes sure the exclude
+ * list is always there, from the caller, the build in flight or PUBLISH_DEFAULTS, and hands
+ * everything else to the pin unchanged.
  *
  * Reach: lib/build.js destructures keepOnlySections from the processor's exports at ITS module load
- * (the only callers on the build path are lib/build.js:523 and :529; processor.js calls it from nowhere;
+ * (from publish-v1.17.0 the build's one caller is lib/build.js:601, a stub PC's story; the page body
+ * goes through stubCut at :593, which applies the same withhold itself; processor.js calls it from nowhere;
  * lib/lines-cli.js and lib/sheet-cli.js also use it, but a build never reaches them), so replacing
  * the export here works for the build if, and only if, it happens before lib/build.js first loads.
  * That is unlike ADR 0013's filterSections, which processor.js also calls internally. The
@@ -122,11 +130,21 @@ function installStubSectionGuard() {
   // Idempotent across a re-evaluated copy of this module: reuse the first install, so the state
   // build.js's binding reads from is the one state every copy of this module writes to.
   if (existing && existing.scriptoriumStubGuard) return existing;
-  function guardedKeepOnlySections(markdown, includeSections = [], excludeSections) {
-    const exclude = Array.isArray(excludeSections)
-      ? excludeSections
-      : guardedKeepOnlySections.currentExclude || PUBLISH_DEFAULTS.exclude_sections;
-    return upstreamKeepOnlySections(filterSections(markdown, exclude), includeSections);
+  // The third argument is an exclude list (Scriptorium's own callers) or, from publish-v1.17.0,
+  // the build's `withhold` object (lib/processor.js:474). The object goes on to the pin whole: its
+  // callout setting, frontmatter and warn are the pin's own protections and must not be dropped.
+  function guardedKeepOnlySections(markdown, includeSections = [], excludeOrWithhold) {
+    const withhold = Array.isArray(excludeOrWithhold) ? {} : Object.assign({}, excludeOrWithhold);
+    const exclude = Array.isArray(excludeOrWithhold)
+      ? excludeOrWithhold
+      : Array.isArray(withhold.excludeSections)
+        ? withhold.excludeSections
+        : guardedKeepOnlySections.currentExclude || PUBLISH_DEFAULTS.exclude_sections;
+    // From publish-v1.17.0 the pin applies the exclude list itself, after its strips and before the
+    // cut (#320 there), which withholds the parent as issue #100 needs. Filtering here first would
+    // undo that order, so the guard only makes sure the list is always there.
+    withhold.excludeSections = exclude;
+    return upstreamKeepOnlySections(markdown, includeSections, withhold);
   }
   guardedKeepOnlySections.scriptoriumStubGuard = true;
   guardedKeepOnlySections.currentExclude = null;

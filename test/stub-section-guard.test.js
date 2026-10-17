@@ -68,6 +68,67 @@ test('guard: the per-build list set by setStubExcludeSections is used, and clear
   assert.ok(pinned.keepOnlySections(md, ['Appearance']).includes('HUSHED-TEXT'));
 });
 
+// From publish-v1.17.0 the pin's keepOnlySections takes a third argument, the build's `withhold`
+// object: { excludeSections, excludeCallouts, frontmatter, warn } (lib/processor.js:474, #320
+// there). lib/build.js passes it for a stub PC's story. The guard must hand it on, not drop it.
+
+test('guard: the build\'s withhold object reaches the pin, so a stub handout\'s Keeper "Clues" is withheld', () => {
+  const md = ['## Clues', 'KEEPER-CLUE-TEXT', '', '## Text', 'The letter reads plainly.'].join('\n');
+  const out = pinned.keepOnlySections(md, ['Clues', 'Text'], {
+    excludeSections: ['GM Notes'],
+    frontmatter: { type: 'document' },
+    warn: () => {},
+  });
+  assert.ok(!out.includes('KEEPER-CLUE-TEXT'), out);
+  assert.ok(out.includes('The letter reads plainly.'), out);
+});
+
+test('guard: the build\'s withhold.warn hears the pin\'s warning about an unclosed marker', () => {
+  const heard = [];
+  pinned.keepOnlySections(['<!-- gm-only -->', 'hidden', '', '## Text', 'ok'].join('\n'), ['Text'], {
+    excludeSections: [],
+    warn: (message) => heard.push(message),
+  });
+  assert.equal(heard.length, 1, JSON.stringify(heard));
+});
+
+// #320 in the pin: the strips run on the whole note before the exclude list and the cut. Cutting
+// the excluded section first drops the gm-only opener inside it and leaves its closer, so the text
+// between them would publish. Both argument forms must keep the pin's order.
+const ORDER_MD = [
+  '## GM Notes',
+  '<!-- gm-only -->',
+  '## Appearance',
+  'ORDER-SECRET-TEXT',
+  '<!-- /gm-only -->',
+  '',
+  '## Appearance',
+  'public appearance text',
+].join('\n');
+
+test('guard: a gm-only block opened inside an excluded section stays withheld (withhold object)', () => {
+  const out = pinned.keepOnlySections(ORDER_MD, ['Appearance'], { excludeSections: ['GM Notes'], warn: () => {} });
+  assert.ok(!out.includes('ORDER-SECRET-TEXT'), out);
+  assert.ok(out.includes('public appearance text'), out);
+});
+
+test('guard: a gm-only block opened inside an excluded section stays withheld (exclude list)', () => {
+  const out = pinned.keepOnlySections(ORDER_MD, ['Appearance'], ['GM Notes']);
+  assert.ok(!out.includes('ORDER-SECRET-TEXT'), out);
+  assert.ok(out.includes('public appearance text'), out);
+});
+
+test('guard: a withhold object with no excludeSections still gets the build\'s list, then the defaults', () => {
+  const md = ['## Appearance', 'keep', '## Hush', '### Appearance', 'HUSHED-TEXT'].join('\n');
+  pinned.setStubExcludeSections(['Hush']);
+  try {
+    assert.ok(!pinned.keepOnlySections(md, ['Appearance'], { warn: () => {} }).includes('HUSHED-TEXT'));
+  } finally {
+    pinned.setStubExcludeSections(null);
+  }
+  assert.ok(!pinned.keepOnlySections(MD, ['Appearance'], { warn: () => {} }).includes('WITHHELD-TEXT'));
+});
+
 test('guard: the processor export lib/build.js binds is the guard, and assertStubGuardLive passes', () => {
   // eslint-disable-next-line global-require
   const processor = require('gm-apprentice-publish/lib/processor');
