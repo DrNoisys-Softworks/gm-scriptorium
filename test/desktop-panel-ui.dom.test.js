@@ -326,6 +326,36 @@ for (const browserName of ['chromium', 'firefox']) {
         return r.top >= 0 && r.top < window.innerHeight;
       });
       assert.equal(inView, true, 'the top of the card is in view');
+      const below = await page.evaluate(() => document.getElementById('updates').getBoundingClientRect().top >= document.querySelector('[data-role="top-bar"]').getBoundingClientRect().bottom);
+      assert.equal(below, true, 'the top edge is below the top bar');
+    });
+  });
+
+  test(`the landing in ${browserName} keeps the Updates card's top edge below the narrow top bar`, { skip: SKIP, timeout: 240000 }, async (t) => {
+    // 844 is a usual narrow window. 760 is a band height: the card is 722 to 723 px tall at 390 wide, so 760
+    // leaves 36 to 38 px, under the 59 px (the 75 px top bar less 16 px) inside which centring the card with
+    // the space kept above it would put its top under the bar.
+    await withPanel(t, { desktop: true }, async ({ open, ctx }) => {
+      for (const size of [{ width: 390, height: 844 }, { width: 390, height: 760 }]) {
+        const page = await open(size, { hash: '#/images', waitCard: false });
+        await page.waitForFunction(() => window.location.hash === '#/images');
+        const fonts = await landWithFontsHeld(ctx, page);
+        await fonts.release();
+        await fontsLoaded(page);
+        await switchFocused(page);
+        await page.evaluate(() => document.fonts.ready);
+        if (size.height === 760) {
+          const slack = await page.evaluate(() => 760 - document.getElementById('updates').getBoundingClientRect().height);
+          assert.ok(slack > 0 && slack < 59, `760 is a band height for this card (${slack} px to spare)`);
+        }
+        const inView = await page.evaluate(() => {
+          const r = document.getElementById('updates').getBoundingClientRect();
+          return r.top >= 0 && r.top < window.innerHeight;
+        });
+        assert.equal(inView, true, `the top of the card is in view at ${size.height}`);
+        const below = await page.evaluate(() => document.getElementById('updates').getBoundingClientRect().top >= document.querySelector('[data-role="top-bar"]').getBoundingClientRect().bottom);
+        assert.equal(below, true, `the top edge is below the top bar at ${size.height}`);
+      }
     });
   });
 
