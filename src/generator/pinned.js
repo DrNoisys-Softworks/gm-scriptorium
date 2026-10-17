@@ -203,7 +203,7 @@ const lunr = require('gm-apprentice-publish/node_modules/lunr');
 // eslint-disable-next-line global-require
 const LUNR_VERSION = require('gm-apprentice-publish/node_modules/lunr/package.json').version;
 
-const PIN_COMMIT = 'ea94de7f47f398eb695600653017323ee20caa65';
+const PIN_COMMIT = 'db6fb2b083e8ee897a381b9de4642f12769e4cc2';
 
 /*
  * V1e-1 (ADR 0033, SD-5): the generator's OWN gray-matter, as the pin's lib/frontmatter.js:2 itself
