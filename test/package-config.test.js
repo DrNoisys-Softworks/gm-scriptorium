@@ -66,7 +66,7 @@ function starterTemplateAssets() {
   return ['manifest.json', ...stored].map((rel) => `assets/vault-template/${rel}`);
 }
 
-test('expectedAssets() is exactly the 39 PIN.json paths under css/, js/, templates-scaffold/, plus lunr.js, THIRD-PARTY-NOTICES.txt and FIRST_PARTY_SITE_ASSETS (139 total including the starter; publish-v1.17.0 added six css/skins/ files and js/previews.js to the 132; the desktop ports card adding assets/admin/desktop.js to the 131, the update notice adding assets/admin/updates.js to the 130, 87 before it, ADR 0050 adding assets/admin/campaigns.js to the 86, ADR 0049 adding assets/admin/picker.js to the 85, ADR 0028 adding assets/admin/alive.js, launch-locked.html, launch.html and launch.js to the 81, Lantern branding adding assets/admin/favicon-32.png to the 80, and before that setup.html, setup.js and welcome.js to the 77; V1.5a adding assets/admin/remote.js, signin.html and signin.js to the 74 on main; publish-v1.14.0 added js/dnd-live.js and js/dnd-party.js; issue #84 added 6 haze font/NOTICE files and its follow-up removed them again, haze now shares gloam\'s via fontsFrom: the base theme slice adds the gloam theme\'s 5 vendored font files (C2) plus its theme.json/theme.css/NOTICE.txt (C3) to the 61 panel v2 V1b total, then V1e-3 adds assets/admin/sitepane.js, then V1e-9 adds assets/admin/vaultcfg.js, then V1e-7 adds assets/admin/variants.js)', () => {
+test('expectedAssets() is exactly the 41 PIN.json paths under css/, js/, templates-scaffold/, plus lunr.js, THIRD-PARTY-NOTICES.txt and FIRST_PARTY_SITE_ASSETS (141 total including the starter; publish-v1.21.0 added js/connections.js and js/gurps-tohit.js to the 139; publish-v1.17.0 added six css/skins/ files and js/previews.js to the 132; the desktop ports card adding assets/admin/desktop.js to the 131, the update notice adding assets/admin/updates.js to the 130, 87 before it, ADR 0050 adding assets/admin/campaigns.js to the 86, ADR 0049 adding assets/admin/picker.js to the 85, ADR 0028 adding assets/admin/alive.js, launch-locked.html, launch.html and launch.js to the 81, Lantern branding adding assets/admin/favicon-32.png to the 80, and before that setup.html, setup.js and welcome.js to the 77; V1.5a adding assets/admin/remote.js, signin.html and signin.js to the 74 on main; publish-v1.14.0 added js/dnd-live.js and js/dnd-party.js; issue #84 added 6 haze font/NOTICE files and its follow-up removed them again, haze now shares gloam\'s via fontsFrom: the base theme slice adds the gloam theme\'s 5 vendored font files (C2) plus its theme.json/theme.css/NOTICE.txt (C3) to the 61 panel v2 V1b total, then V1e-3 adds assets/admin/sitepane.js, then V1e-9 adds assets/admin/vaultcfg.js, then V1e-7 adds assets/admin/variants.js)', () => {
   const pin = JSON.parse(fs.readFileSync(path.join(ROOT, 'vendor', 'gm-apprentice-publish', 'PIN.json'), 'utf8'));
   const pinPaths = Object.keys(pin.files);
   const cssRel = pinPaths.filter((rel) => rel.startsWith('css/'));
@@ -87,11 +87,13 @@ test('expectedAssets() is exactly the 39 PIN.json paths under css/, js/, templat
   // The desktop ports card adds assets/admin/desktop.js (131 -> 132), same literal, same reasoning.
   // publish-v1.17.0 ships css/skins/{_layer,_print,case-file,console,ledger,parchment}.css and
   // js/previews.js (132 -> 139), counted from the PIN.json diff against publish-v1.14.0.
-  assert.equal(expectedAssets(ROOT).length, 139);
+  // publish-v1.21.0 ships js/connections.js and js/gurps-tohit.js (139 -> 141), counted from the
+  // PIN.json diff against publish-v1.17.0. The second is embedded as its redaction stub (ADR 0007).
+  assert.equal(expectedAssets(ROOT).length, 141);
 
   // publish-v1.17.0: css/ 6 -> 12 (the six skins), js/ 14 -> 15 (previews.js).
   assert.equal(cssRel.length, 12);
-  assert.equal(jsRel.length, 15);
+  assert.equal(jsRel.length, 17); // publish-v1.21.0: 15 -> 17
   assert.equal(scaffoldRel.length, 12);
 
   // SD-2 (P3b): the built-in haze theme's two files, added to the same hand-maintained literal
@@ -242,7 +244,7 @@ test('every __dirname-relative build-path read in the pin sits under a pkg.asset
     { file: path.join(GENERATOR_DIR, 'lib', 'build.js'), line: 183, label: 'build.js:183 (copyCSS)' },
     { file: path.join(GENERATOR_DIR, 'lib', 'build.js'), line: 201, label: 'build.js:201 (copyGenreCSS)' },
     { file: path.join(GENERATOR_DIR, 'lib', 'build.js'), line: 235, label: 'build.js:235 (copyJS)' },
-    { file: path.join(GENERATOR_DIR, 'lib', 'init.js'), line: 8, label: 'init.js:8 (TEMPLATES_DIR)' },
+    { file: path.join(GENERATOR_DIR, 'lib', 'init.js'), line: 9, label: 'init.js:9 (TEMPLATES_DIR)' },
     { file: path.join(GENERATOR_DIR, 'lib', 'sync-functions.js'), line: 4, label: 'sync-functions.js:4 (SCAFFOLD_FUNCTIONS_DIR)' },
     // New at this pin (Δ): lib/fonts.js's presetFamiliesFor reads css/themes/<preset>.css directly,
     // same __dirname-relative shape and same covered prefix as copyGenreCSS above.
