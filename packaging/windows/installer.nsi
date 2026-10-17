@@ -39,6 +39,9 @@ Unicode true
   !ifndef TRAY_IN
     !error "TRAY_IN is required in the installer stage"
   !endif
+  !ifndef STARTER_SYSTEMS
+    !error "STARTER_SYSTEMS is required in the installer stage"
+  !endif
 !endif
 
 !include "MUI2.nsh"

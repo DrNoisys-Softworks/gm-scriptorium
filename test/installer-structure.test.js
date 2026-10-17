@@ -503,7 +503,7 @@ test('version.nsh: pure string parsing, no registry, no file writes, no process 
 });
 
 test('the installer script gives its two build stages the defines installer.js passes', () => {
-  for (const name of ['VERSION', 'VERSION4', 'OUTFILE', 'EXTRACT_UNINSTALLER', 'UNINSTALLER_OUT', 'EXE_IN', 'UNINSTALLER_IN', 'NOTICES_IN', 'TRAY_IN', 'WITH_PATH_OPTION']) {
+  for (const name of ['VERSION', 'VERSION4', 'OUTFILE', 'EXTRACT_UNINSTALLER', 'UNINSTALLER_OUT', 'EXE_IN', 'UNINSTALLER_IN', 'NOTICES_IN', 'TRAY_IN', 'STARTER_SYSTEMS', 'WITH_PATH_OPTION']) {
     assert.match(NSI, new RegExp(`\\b${name}\\b`), name);
   }
 });

@@ -26,7 +26,7 @@
  *                CONTAINS exe yes / CONTAINS uninstaller yes / CONTAINS tray yes / MANIFEST asInvoker yes
  *                INSTALLER sha256=<h> path=<p>
  *   failure:     FAIL <reason>  (makensis-missing, makensis-failed, bad-path, out-exists,
- *                not-packed-exe, not-packed-uninstaller, not-packed-tray, no-asinvoker, bad-version, usage)
+ *                not-packed-exe, not-packed-uninstaller, not-packed-tray, bad-starter-systems, no-asinvoker, bad-version, usage)
  *
  * `usage` is the one reason beyond the contract: a mode or flag this script does not know.
  */
@@ -36,6 +36,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
+const template = require('../src/setup/template');
 
 const ROOT = path.join(__dirname, '..');
 const NSI_PATH = path.join(ROOT, 'packaging', 'windows', 'installer.nsi');
@@ -46,6 +47,10 @@ const PATH_RE = /^\/[A-Za-z0-9/._-]+$/;
 // The one grammar packaging/windows/version.nsh parses: X.Y.Z or X.Y.Z-rc.N, numerics only. Each
 // X, Y and Z must also fit the 16-bit fields of the PE version resource.
 const VERSION_RE = /^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})(?:-rc\.(0|[1-9]\d{0,8}))?$/;
+
+// The one grammar a game system id may have. It equals SYSTEM_ID_RE in src/setup/template.js (which
+// does not export it); test/installer-script.test.js pins both lines, so they cannot drift apart.
+const STARTER_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 class InstallerError extends Error {
   constructor(reason, detail) {
@@ -59,6 +64,24 @@ function checkVersion(version) {
   const m = typeof version === 'string' ? VERSION_RE.exec(version) : null;
   if (!m || [m[1], m[2], m[3]].some((n) => Number(n) > 65535)) throw new InstallerError('bad-version', JSON.stringify(version));
   return `${m[1]}.${m[2]}.${m[3]}.0`;
+}
+
+/**
+ * The value of -DSTARTER_SYSTEMS: the starter's game system ids joined by "|". Every id must be a
+ * plain lowercase id, so none can carry a quote, a space, a bar or an NSIS escape into the define.
+ *
+ * @param {string[]} ids the starter's systems, without "none" (the installer adds that itself)
+ * @returns {string}
+ * @throws {InstallerError} bad-starter-systems
+ */
+function starterSystemsDefine(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) throw new InstallerError('bad-starter-systems', 'no game systems');
+  for (const id of ids) {
+    if (typeof id !== 'string' || !STARTER_ID_RE.test(id) || id === 'none') {
+      throw new InstallerError('bad-starter-systems', `game system ${JSON.stringify(id)}`);
+    }
+  }
+  return ids.join('|');
 }
 
 function checkPath(value, flag) {
@@ -100,7 +123,7 @@ function parseArgs(argv) {
  *
  * @param {'installer'|'uninstaller'} mode
  * @param {{ version: string, out: string, exe?: string, uninstaller?: string, notices?: string, tray?: string,
- *   stageDir?: string, withPath?: boolean }} opts withPath defaults to true: the PATH option is
+ *   stageDir?: string, withPath?: boolean, starterSystems?: string[] }} opts withPath defaults to true: the PATH option is
  *   compiled in, and is dropped for a build by passing false (ADR 0053, "The PATH option").
  * @returns {string[]}
  */
@@ -111,7 +134,8 @@ function makensisArgs(mode, opts) {
   if (mode === 'uninstaller') {
     args.push('-DEXTRACT_UNINSTALLER', `-DUNINSTALLER_OUT=${opts.out}`, `-DOUTFILE=${path.join(opts.stageDir, 'stage-a-setup.exe')}`);
   } else {
-    args.push(`-DEXE_IN=${opts.exe}`, `-DUNINSTALLER_IN=${opts.uninstaller}`, `-DNOTICES_IN=${opts.notices}`, `-DTRAY_IN=${opts.tray}`, `-DOUTFILE=${opts.out}`);
+    args.push(`-DEXE_IN=${opts.exe}`, `-DUNINSTALLER_IN=${opts.uninstaller}`, `-DNOTICES_IN=${opts.notices}`, `-DTRAY_IN=${opts.tray}`,
+      `-DSTARTER_SYSTEMS=${starterSystemsDefine(opts.starterSystems)}`, `-DOUTFILE=${opts.out}`);
   }
   args.push(NSI_PATH);
   return args;
@@ -163,12 +187,14 @@ function mustExist(file, flag) {
 
 /**
  * @param {{ argv?: string[], exec?: Function, version?: string, withPath?: boolean,
+ *   starterSystems?: () => string[],
  *   stdout?: (line: string) => void, stderr?: (line: string) => void }} [deps]
  * @returns {number} the process exit code
  */
-function run({ argv = process.argv.slice(2), exec = defaultExec, version, withPath, stdout = console.log, stderr = console.error } = {}) {
+function run({ argv = process.argv.slice(2), exec = defaultExec, version, withPath, starterSystems = () => template.starterSystems(template.loadTemplate()), stdout = console.log, stderr = console.error } = {}) {
   let outFile = null;
   let stageDir = null;
+  let systems;
   try {
     const args = parseArgs(argv);
     const v = version === undefined ? readPackageVersion() : version;
@@ -179,6 +205,12 @@ function run({ argv = process.argv.slice(2), exec = defaultExec, version, withPa
       mustExist(args.uninstaller, '--uninstaller');
       mustExist(args.notices, '--notices');
       mustExist(args.tray, '--tray');
+      try {
+        systems = starterSystems();
+      } catch (err) {
+        throw new InstallerError('bad-starter-systems', err && err.message);
+      }
+      starterSystemsDefine(systems);
     }
 
     let makensisVersion;
@@ -205,7 +237,7 @@ function run({ argv = process.argv.slice(2), exec = defaultExec, version, withPa
       stageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gm-scriptorium-installer-'));
     }
 
-    const makeArgs = makensisArgs(args.mode, { ...args, version: v, stageDir, withPath });
+    const makeArgs = makensisArgs(args.mode, { ...args, version: v, stageDir, withPath, starterSystems: systems });
     try {
       const log = exec('makensis', makeArgs);
       if (log && String(log).trim()) stderr(String(log).trim());
@@ -251,4 +283,4 @@ if (require.main === module) {
   process.exit(run());
 }
 
-module.exports = { parseArgs, makensisArgs, verifyPacked, checkVersion, run, InstallerError, PATH_RE, VERSION_RE };
+module.exports = { parseArgs, makensisArgs, verifyPacked, checkVersion, starterSystemsDefine, run, InstallerError, PATH_RE, VERSION_RE, STARTER_ID_RE };
