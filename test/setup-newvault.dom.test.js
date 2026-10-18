@@ -210,13 +210,68 @@ async function expectOutputAnswer(page, value) {
   };
 }
 
+// The three folder questions mark every draw of their status (data-drawn). The name and site title
+// statuses do not, so for those a draw is told apart by when the status changed: see watchDraws.
+const MARKED_STATUS = new Set(['su-vault-st', 'su-newvault-st', 'su-out-st']);
+
+/** Starts noting, in the page, the time of every change to the status. Returns the time now. */
+async function watchDraws(page, statusId) {
+  return page.evaluate((id) => {
+    const el = document.getElementById(id);
+    if (!el.__draws) {
+      el.__draws = [];
+      new MutationObserver(() => el.__draws.push(performance.now())).observe(el, { childList: true, subtree: true, characterData: true });
+    }
+    return performance.now();
+  }, statusId);
+}
+
 /**
  * Call before the keystrokes that send `value` to `field`, then call drawn() once they are done.
- * drawn() resolves when the status under the box shows `needle`.
+ * The check request for that value is sent after this call, so an answer for a typed part of it, or
+ * one still on its way from before, cannot match it. drawn() reads that request's answer and then
+ * waits, for at most 30 seconds, until the status shows that answer under a draw it did not hold at
+ * the call (the name and title statuses carry no draw mark: a change to them after the request
+ * went out is that answer, because the page drops every older one). If that never happens the test
+ * fails with a message that says so. `needle` is then checked as before.
  */
 async function expectAnswer(page, { field, statusId, value, commit = '0', needle }) {
+  await page.waitForSelector(`#${statusId}`, { state: 'attached' });
+  const marked = MARKED_STATUS.has(statusId);
+  const before = marked ? await page.getAttribute(`#${statusId}`, 'data-drawn') : null;
+  const since = marked ? 0 : await watchDraws(page, statusId);
+  const sent = page.waitForRequest((r) => isCheck(r.url(), field, value, commit), { timeout: ANSWER_WAIT_MS });
+  sent.catch(() => {}); // a request that never comes is reported by drawn(), not as an unhandled rejection
   return {
     drawn: async () => {
+      try {
+        const request = await sent;
+        const resp = await request.response();
+        await resp.finished();
+        if (marked) {
+          const want = JSON.stringify(await resp.json()) + '\u0000';
+          await page.waitForFunction(
+            ([id, w, b]) => {
+              const d = document.getElementById(id).getAttribute('data-drawn');
+              return d !== null && d !== b && d.startsWith(w);
+            },
+            [statusId, want, before],
+            { timeout: ANSWER_WAIT_MS },
+          );
+        } else {
+          await page.waitForFunction(
+            ([id, url, t0]) => {
+              const e = performance.getEntriesByName(url).filter((x) => x.startTime >= t0).pop();
+              return Boolean(e) && (document.getElementById(id).__draws || []).some((t) => t >= e.startTime);
+            },
+            [statusId, request.url(), since],
+            { timeout: ANSWER_WAIT_MS },
+          );
+        }
+      } catch (e) {
+        if (e instanceof pw.errors.TimeoutError) assert.fail('the answer for the value typed in full was never drawn');
+        throw e;
+      }
       await waitStatus(page, statusId, needle);
     },
   };
