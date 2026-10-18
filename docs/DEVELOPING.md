@@ -136,6 +136,7 @@ prerequisite) for a user mistake. The table-driven test is `test/exit-codes-user
 | `config remove` or `config set-default` of an unknown name | 1 | 3 | `no campaign named "x" to remove` / `no campaign named "x"` |
 | bad `SCRIPTORIUM_PROFILE`, or two equally specific profiles | 1 | 3 | `SCRIPTORIUM_PROFILE="x" names a profile that does not exist ...` / `two profiles are equally specific for this machine: a, b` |
 | unusable campaign pack: pack folder missing, no `vault.config.json`, malformed `pack.toml`, unknown theme, missing or oversize image slot file | 1 | 3 | the pack message, e.g. `campaign "x": pack directory does not exist: <path>` |
+| `vault.config.json` missing `excludeDirs` or `folderMap`, or either of the wrong kind | 1 | 3 | `campaign "x": <path> is missing required key folderMap` (and the wrong-kind messages) |
 | campaign entry with no `vault` key | 1 | 3 | `campaign "x" has no vault configured. Set one with: gm-scriptorium config add x --vault <vault folder> --out <output folder>` |
 | vault with no `site_config`, no `pack` and no `_meta/scriptorium` (what a plain `config add` makes) | 1 | 3 | `campaign "x" has no site config: ... does not exist. Run "gm-scriptorium init" to create one, or set site_config or pack on the campaign.` |
 | `remote password`, `remote account add`, `change`, `reset`, `remove` or `rename`, `signout-all` or `off` with the config folder inside a vault (registered or not) | 1 | 3 | `remote access keeps its files beside the config, never inside a vault, but <path> is inside the vault at <vault>` |
@@ -160,7 +161,7 @@ prerequisite) for a user mistake. The table-driven test is `test/exit-codes-user
 
 Not remapped, still 1: a folderMap output collision, and any genuinely unexpected
 exception (including one while loading a pack), which prints its stack. Only a `ConfigError`
-raised while resolving a pack becomes exit 3 (`asPackProblem` in `src/cli/check.js`).
+raised while resolving a pack, or by the required-key check on `vault.config.json`, becomes exit 3 (`asPackProblem` in `src/cli/check.js`).
 
 ## Testing standards
 

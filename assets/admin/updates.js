@@ -102,8 +102,9 @@
   function focusCard() {
     var card = document.getElementById('updates');
     if (!card) return;
-    // A card taller than the window cannot be centred, so show its top, and never let focus() scroll it away again.
-    card.scrollIntoView({ block: card.getBoundingClientRect().height > window.innerHeight ? 'start' : 'center' });
+    // The card keeps room above it (scroll-margin-top in admin.css), so the top edge never sits on the window's edge or under
+    // the narrow top bar. A card that cannot be centred with that room is shown from its top, and focus() never scrolls it away again.
+    card.scrollIntoView({ block: card.getBoundingClientRect().height + (parseFloat(window.getComputedStyle(card).scrollMarginTop) || 0) > window.innerHeight ? 'start' : 'center' });
     var sw = card.querySelector('[data-ctl="switch"]');
     if (sw) sw.focus({ preventScroll: true });
   }
@@ -416,8 +417,23 @@
     }
     if (rest && rest.isConnected) {
       var oldCard = rest.querySelector('[data-part="update-setting"]');
-      if (oldCard) oldCard.parentNode.removeChild(oldCard);
-      rest.appendChild(buildCard());
+      var card = buildCard();
+      // Order on the Overview: this card, then the ports card (desktop.js, the direct child
+      // [data-part="desktop-slot"] of rest), whichever answer arrives first. A redraw replaces the old
+      // card where it stands; a first draw goes in before the slot when the slot is already there.
+      if (oldCard) {
+        oldCard.parentNode.replaceChild(card, oldCard);
+      } else {
+        var slot = null;
+        for (var i = 0; i < rest.children.length; i++) {
+          if (rest.children[i].getAttribute('data-part') === 'desktop-slot') {
+            slot = rest.children[i];
+            break;
+          }
+        }
+        if (slot) rest.insertBefore(card, slot);
+        else rest.appendChild(card);
+      }
       if (landing) {
         landing = false;
         landOnce();

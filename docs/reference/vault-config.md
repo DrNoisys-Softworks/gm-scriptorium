@@ -172,7 +172,7 @@ A real `folderMap` needs an entry for every folder you want published.
 
 - **A `vault.config.json` that is not valid JSON stops the command with exit 3.** The message names the
   file and says `is not valid JSON`, then what the parser found, such as `Unexpected end of JSON input`.
-- **A missing `excludeDirs` or `folderMap` stops the command with exit 1.** The message names the
+- **A missing `excludeDirs` or `folderMap` stops the command with exit 3.** The message names the
   campaign and the file and says `is missing required key excludeDirs`, or `keys excludeDirs and
   folderMap` when both are gone. A key of the wrong kind stops it the same way. See
   [exit codes](exit-codes.md).

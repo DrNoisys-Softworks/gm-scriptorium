@@ -9295,6 +9295,9 @@ dialog.cs-dialog::backdrop {
 .upd-priv{margin:0;max-width:70ch}
 /* In the approved mock the card is a direct child of main, where the 1180px content cap outranks the 760px above, so it fills the column. Here it sits one level deeper, so say so. */
 .upd-card{max-width:none}
+/* Room above the card for the landing's scroll: 16px, so its top edge never sits on the window's edge, and 91px below 700px, the 75px top bar that sticks to the top of the window plus 16px. */
+.upd-card{scroll-margin-top:16px}
+@media (max-width:699px){.upd-card{scroll-margin-top:91px}}
 .upd-chan{border:0;margin:0;padding:0;display:grid;gap:8px}
 .upd-chan legend{padding:0;margin:0 0 4px;font:500 15px var(--font-body);color:var(--text)}
 .upd-opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
