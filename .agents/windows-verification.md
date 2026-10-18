@@ -2475,6 +2475,17 @@ Issue #171. **Mark this OPEN: Linux tests prove the logic only; a mapped drive a
 4. Create `M:\moved\cfg\config.toml` holding only the line `config_version = 1`, so that no registered campaign names `M:\moved` (otherwise the registered-vault check refuses first and this step would pass without testing the settings-file detection). Pipe a passphrase into `remote password --config M:\moved\cfg\config.toml` with `SCRIPTORIUM_CONFIG` set to the same path: exit 3, `remote access keeps its files beside the config, never inside a vault, but`, then `is inside the vault at` and the moved copy, and no `M:\moved\cfg\panel` exists.
 5. `M:\pick` holds only a moved copy `camp`. Start `serve --admin` with a fresh empty scratch config (setup mode), type `M:\pick` as the vault: setup offers `camp` one folder down. Choose it: the screen shows the step 1 message, and `dir /s /b M:\pick` lists the same files as before (no `_meta\scriptorium`).
 
+### C214: the ports card stays below the Updates card
+
+[ADR 0057](../docs/decisions/0057-windows-desktop-app.md) section 8, "The ports card".
+
+**Mark this OPEN: Linux tests drive the panel in real Chromium and Firefox with a stand-in host and each answer held back in turn; only a real tray, a real Windows browser and real timings can be checked here.** The rules in "C190 to C205: rules that hold for every desktop-app criterion" apply: a scratch `SCRIPTORIUM_CONFIG` set with `setx`, then sign out and in. Never the real config, never `N:`.
+
+1. Start from a fresh install through browser setup, then open the panel from the tray. "This PC's addresses" is the last card, directly below the Updates card. Reload five times: the cards never change places.
+2. Turn "Check for updates once a day" off, then on. After each, the Updates card stays where it was, with "This PC's addresses" directly below it.
+3. Change the update channel to Beta and back to Stable. The cards stay where they are.
+4. Choose Check for updates from the tray. It lands as in C207, and "This PC's addresses" is below the card.
+
 ### C170: a bare `--force` is refused with one line, in the real win-x64 exe
 
 Issue #15, [ADR 0055](../docs/decisions/0055-force-split.md). **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match. Use a scratch copy of the-long-lease example vault, registered as campaign `c170` with an output folder `S\out` that does not exist.

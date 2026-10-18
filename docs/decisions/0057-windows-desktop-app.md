@@ -220,7 +220,7 @@ Will not catch, deliberately:
 
 ## Windows verification
 
-C190 to C207 in `.agents/windows-verification.md`, added by the slices that build each part, all OPEN until a person confirms them on a real Windows machine against the release candidate.
+C190 to C207 and C214 in `.agents/windows-verification.md`, added by the slices that build each part, all OPEN until a person confirms them on a real Windows machine against the release candidate.
 
 ## Protocol v1
 
