@@ -231,3 +231,29 @@ the pin ships.
 - `src/build/notice.js` gains no third `NOTICE.txt` entry: after this work, no built site
   redistributes either module any more, so the site-level notice obligation this file exists to
   discharge (lunr.js, the pin's own CSS/JS) is unchanged.
+
+## Addendum: a redacted browser script (publish-v1.21.0, 2026-10-17)
+
+The second safeguard noticed a third carrier. From `publish-v1.21.0` GURPS character pages get a to-hit
+calculator. Its data module reads the two reference tables from `reference.js`, which the stub already
+empties. But its browser script, `js/gurps-tohit.js`, hardcodes more rules tables in its own source, and
+the generator copies every `js/` file into every site.
+
+The script is now an asset redaction (`ASSET_REDACTIONS` in `src/generator/redactions.js`), with the same
+two layers as the modules:
+
+1. **Runtime:** the build overwrites the copied file in the staging site with a stub, before any transform
+   or scan reads it. The stub removes the calculator's empty box.
+2. **Packaging:** `pkg.patches` erases the file and puts in exactly the same stub, so the executable never
+   carries it. pkg applies a patch to any embedded file it reads, assets included.
+
+`reference.js` also exports its two tables' rows now; its stub exports them empty, so the calculator's
+data block holds a character's own weapons and no table data. A GURPS page has no calculator; pages that
+would have run it count as degraded in the build's report. Upstream issue
+AntTheLimey/gm-apprentice#420 asks for the rules numbers to live only in `reference.js`, which would
+retire the asset redaction.
+
+The data module itself, `lib/templates/gurps/tohit-data.js`, is not redacted, on purpose. Its own
+source holds names only (aiming aids, hit locations) and one number, the Dual-Weapon Attack default of
+skill-4. Its table rows come from `reference.js`, whose stub is already empty. The registry redacts a
+module because of the rules text it carries, and this one carries none.

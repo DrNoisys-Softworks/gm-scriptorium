@@ -10,9 +10,9 @@ const pinned = require('../../generator/pinned');
 /*
  * Track D2: the leak check that reads what the generator actually EMITTED,
  * not the source markdown L1-L5 read. A withheld name that only reaches the
- * published site through a derived view — a relationship-graph SVG `<text>`
- * label (escapeHtml(truncateGraphemes(node.displayTitle, 15, 13)) inside
- * `<text>`, lib/relationship-graph.js:193-194), an aggregate index card
+ * published site through a derived view — a page's Connections section, list
+ * and data block alike (lib/templates/connections.js, from publish-v1.18.0; the
+ * relationship-graph SVG labels before it), an aggregate index card
  * built from a frontmatter field (escapeHtml(leadership) inside
  * `<div class="intel-leadership">`, lib/templates/index-page.js:604,609-611),
  * a recency/landing excerpt (escapeHtml(fm.outcome) inside
@@ -50,7 +50,7 @@ const BINARY_EXTENSIONS = new Set([
 // regex.replace call means an already-decoded "&amp;lt;" becomes "&lt;" (its
 // entity form left alone), never "<" — a second pass over the same string
 // would double-decode and could fabricate a match that was never really
-// there. escapeHtml only ever escapes `& < > "` (lib/processor.js:11-17), so
+// there. escapeHtml only ever escapes `& < > "` (lib/processor.js:30-36), so
 // `&#39;`/`&#x27;`/`&apos;` are covered defensively for any future escaper,
 // not because the pin's own escapeHtml emits them today.
 const ENTITY_RE = /&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);/g;
@@ -75,7 +75,7 @@ function decodeEntitiesOnce(text) {
 }
 
 // Folds markdown-it's typographer output (`typographer: true`,
-// lib/markdown.js:74) back toward the plain source characters a withheld
+// lib/markdown.js:172) back toward the plain source characters a withheld
 // name was actually authored with, so a source-side needle still matches
 // the rendered HTML byte-for-byte without Scriptorium generating variant
 // needles per name (Structural decision 6: normalise the haystack, not the
@@ -103,21 +103,23 @@ function normaliseEmitted(text) {
  * each computed with the pin's own functions so it can never drift from
  * what the pin actually renders (Structural decision 7):
  *
- *   - truncated-label: mirrors the relationship-graph SVG label
+ *   - truncated-label: mirrored the relationship-graph SVG label
  *     (`escapeHtml(truncateGraphemes(node.displayTitle, 15, 13))`,
- *     lib/relationship-graph.js:193-194, lib/unicode.js:83-87 for
- *     truncateGraphemes itself). Present only when the name is actually
- *     long enough to be truncated.
- *   - underscored: mirrors the unpublished-target graph-node fallback
- *     (`title.replace(/_/g, ' ')`, lib/relationship-graph.js:47, the same
- *     transform as humanizeName, lib/processor.js:17-19). Present only when
- *     the name contains `_`.
+ *     lib/unicode.js:87-91 for truncateGraphemes itself). publish-v1.18.0
+ *     removed the graph, so no page prints this form any more; it stays as
+ *     one more needle, which can only find more. Present only when the name
+ *     is actually long enough to be truncated.
+ *   - underscored: mirrors the Connections section's no-page item, a name
+ *     with underscores read as spaces (`noPage.name.replace(/_/g, ' ')`,
+ *     lib/connections.js:232; the relationship graph's fallback did the same
+ *     until publish-v1.17.0), the same transform as humanizeName,
+ *     lib/processor.js:36-38. Present only when the name contains `_`.
  */
 function needleFormsFor(name) {
   const forms = [{ form: 'literal', needle: name }];
   const truncated = pinned.truncateGraphemes(name, 15, 13);
   if (truncated !== name) {
-    // truncateGraphemes always appends a literal "…" (lib/unicode.js:86's
+    // truncateGraphemes always appends a literal "…" (lib/unicode.js:90's
     // default ellipsis param), never authored prose markdown-it's
     // typographer would have rendered — the SVG label is built by plain
     // string concatenation, not markdown rendering. normaliseEmitted still

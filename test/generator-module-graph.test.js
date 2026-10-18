@@ -384,7 +384,9 @@ test('FR-19/FR-DEP-08: the pin reads its site config from disk, with no non-lite
   // Up to publish-v1.11.44 the pin loaded the site config with two non-literal requires,
   // lib/build.js:34 `require(resolvedConfigPath)` and lib/fonts.js:267 `require(resolved)`, and this
   // test recorded both lines. At publish-v1.12.0 both call `loadVaultConfig()` (lib/config.js),
-  // which reads the file with fs and JSON.parse (lib/build.js:67 then, :69 from publish-v1.12.3, :70 from publish-v1.14.0).
+  // which reads the file with fs and JSON.parse (lib/build.js:67 then, :69 from publish-v1.12.3, :70 from publish-v1.14.0,
+  // :96 from publish-v1.17.0). From publish-v1.17.0 that line reads `options.rawConfig` instead when a
+  // caller passes one (the pin's in-memory audit build); Scriptorium never passes it.
   // What is recorded now is that the two call sites
   // are still where the config is read, and that no file under lib/ requires a bare identifier.
   const fontsSource = fs.readFileSync(path.join(GENERATOR_DIR, 'lib', 'fonts.js'), 'utf8');
@@ -392,11 +394,11 @@ test('FR-19/FR-DEP-08: the pin reads its site config from disk, with no non-lite
   assert.match(line267, /loadVaultConfig\(\s*resolved\s*\)/, `lib/fonts.js:267 no longer reads the config through loadVaultConfig(resolved): "${line267}"`);
 
   const buildSource = fs.readFileSync(path.join(GENERATOR_DIR, 'lib', 'build.js'), 'utf8');
-  const line70 = buildSource.split('\n')[69];
+  const line96 = buildSource.split('\n')[95];
   assert.match(
-    line70,
+    line96,
     /loadVaultConfig\(\s*resolvedConfigPath\s*\)/,
-    `lib/build.js:70 no longer reads the config through loadVaultConfig(resolvedConfigPath): "${line70}"`,
+    `lib/build.js:96 no longer reads the config through loadVaultConfig(resolvedConfigPath): "${line96}"`,
   );
 
   const offenders = [];

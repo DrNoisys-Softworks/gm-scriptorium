@@ -115,16 +115,14 @@ test('a nested excluded heading\'s sibling reaches no built surface: HTML, searc
       'the nested excluded region reached search-index.json (lib/build.js:345 -> publishedSource -> lib/search-index.js)',
     );
 
-    // -- 3. No "Mentioned In" backlink on the entity linked only from the
-    //       nested region. The Grotto is wiki-linked ONLY from inside
-    //       `### Rumours In Play`. --
+    // -- 3. No backlink on the entity linked only from the nested region. The
+    //       Grotto is wiki-linked ONLY from inside `### Rumours In Play`. Until
+    //       publish-v1.17.0 a backlink was a "Mentioned In" sidebar; from
+    //       publish-v1.18.0 it is a mention in the page's Connections, so the
+    //       link to the Warden's page is what is checked. --
     const grottoPath = path.join(outDir, 'locations', 'grotto.html');
     assert.ok(fs.existsSync(grottoPath), 'expected locations/grotto.html to be built');
     const grottoHtml = fs.readFileSync(grottoPath, 'utf8');
-    assert.ok(
-      !grottoHtml.includes('Mentioned In'),
-      'Grotto gained a "Mentioned In" backlink from a link that lives only inside an excluded section',
-    );
     assert.ok(!grottoHtml.includes('warden.html'), 'Grotto links back to the Warden from an excluded-only mention');
 
     // -- 4. Positive controls, so none of the above can pass vacuously --
@@ -142,14 +140,13 @@ test('a nested excluded heading\'s sibling reaches no built surface: HTML, searc
     );
 
     // The backlink machinery itself works in this fixture: the Shrine is
-    // wiki-linked from the Warden's PUBLISHED body and does get its sidebar.
+    // wiki-linked from the Warden's PUBLISHED body and does link back to it.
     const shrinePath = path.join(outDir, 'locations', 'shrine.html');
     assert.ok(fs.existsSync(shrinePath), 'expected locations/shrine.html to be built');
     const shrineHtml = fs.readFileSync(shrinePath, 'utf8');
     assert.ok(
-      shrineHtml.includes('Mentioned In'),
-      'the Shrine lost its backlink sidebar — backlinks are not working in this fixture, so the Grotto negative proves nothing',
+      shrineHtml.includes('warden.html'),
+      'the Shrine does not link back to the Warden — backlinks are not working in this fixture, so the Grotto negative proves nothing',
     );
-    assert.ok(shrineHtml.includes('warden.html'), 'expected the Shrine\'s backlink sidebar to link the Warden');
   });
 });

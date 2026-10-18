@@ -27,7 +27,7 @@ function withTmpDir(fn) {
 // A minimal but shape-accurate donor page: nav above <main class="content">, breadcrumb and
 // body content inside it, footer/scripts below </main>. Modelled on a real generator build's
 // sessions/session-01.html (mini-vault fixture, checked by hand against the pinned generator).
-function donorHtml({ title = 'Session One', siteTitle = 'Mini Vault', body = '<p>The party arrived.</p>' } = {}) {
+function donorHtml({ title = 'Session One', siteTitle = 'Mini Vault', body = '<p>The party arrived.</p>', mainAttrs = '' } = {}) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -42,7 +42,7 @@ function donorHtml({ title = 'Session One', siteTitle = 'Mini Vault', body = '<p
   <nav class="nav-groups"><a href="index.html">Sessions</a></nav>
 </header>
 
-<main class="content">
+<main class="content"${mainAttrs}>
 <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="../index.html">Home</a><span class="sep">&rsaquo;</span>Sessions<span class="sep">&rsaquo;</span>${title}</nav>
 <h1 class="page-title">${title}</h1>
 ${body}
@@ -123,6 +123,25 @@ test('writes sessions/index.html from the donor: nav/footer preserved, title rew
   });
 });
 
+test('a donor whose <main class="content"> carries further attributes is spliced inside it, attributes kept (publish-v1.17.0)', () => {
+  withTmpDir((dir) => {
+    const sessionsDir = path.join(dir, 'sessions');
+    fs.mkdirSync(sessionsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(sessionsDir, 'session-01.html'),
+      donorHtml({ title: 'Session One', mainAttrs: ' data-previews="on"' }),
+    );
+
+    const result = writeSessionsIndex(dir, { siteTitle: 'Mini Vault' });
+
+    assert.deepEqual(result, { written: true, reason: null, entries: 1 });
+    const html = fs.readFileSync(path.join(sessionsDir, 'index.html'), 'utf8');
+    assert.match(html, /<main class="content" data-previews="on">\n?<[^/]/);
+    assert.match(html, /href="session-01\.html"><h4>Session One/);
+    assert.doesNotMatch(html, /The party arrived/);
+  });
+});
+
 test('a lone session produces a singular entry count and escapes an entry title with markup-like characters', () => {
   withTmpDir((dir) => {
     const sessionsDir = path.join(dir, 'sessions');
@@ -193,10 +212,12 @@ test('throws a ScriptoriumError, and writes nothing, when the donor has no </mai
 
 test('the pin\'s baseShell still emits <main class="content"> and </main> (SD-4 donor-transform assumption)', () => {
   const baseSource = fs.readFileSync(path.join(GENERATOR_DIR, 'lib', 'templates', 'base.js'), 'utf8');
+  // This reads the template's source, not a built page. The `$` in `[\s>$]` is a literal dollar on
+  // purpose: from publish-v1.17.0 the tag reads `<main class="content"${mainAttrs || ''}...>`.
   assert.match(
     baseSource,
-    /<main class="content">/,
-    'the pin no longer emits <main class="content">; update the donor-transform assumption in src/build/sessions-index.js',
+    /<main class="content"[\s>$]/,
+    'the pin no longer emits <main class="content" ...>; update the donor-transform assumption in src/build/sessions-index.js',
   );
   assert.match(
     baseSource,

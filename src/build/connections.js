@@ -7,27 +7,35 @@ const pinned = require('../generator/pinned');
 const { collectRecaps, topLevelListItems } = require('./recaps');
 const { linkSiteScript, writeSiteScript, serializeDataIsland } = require('./sitescript');
 const { computePublishedSet } = require('../vault/publishset');
+const { scanAllNotesForPairing } = require('../vault/sessionpairs');
 const { DEFAULT_VOCAB } = require('./labels');
 
 /*
  * Engineering Brief: "Story timeline + Connections lane" (docs/agent-runs/
  * timeline-connections-engineering-brief-2026-09-24.md), "Interfaces and contracts: connections.js".
  *
- * Replaces the pin's relationship-graph SVG, in place, on every page that carries one, with a
- * ranked, grouped lane built ONLY from the pin's own hop-1 set for that page (parsed from the SVG
- * itself, not re-derived -- Structural decision 3). Collect-then-write (FR-C8): the whole tree is
+ * Replaces the pin's Connections section, in place, on every page that carries one, with a
+ * ranked, grouped lane built ONLY from what that section publishes (read from its own data block,
+ * not re-derived -- Structural decision 3). Until publish-v1.17.0 the lane replaced the
+ * relationship-graph SVG and read its items from the graph, the relationship list and the sidebar. Collect-then-write (FR-C8): the whole tree is
  * read into memory and every page's model computed before any page is rewritten, so a lane can
  * never quote another page's already-injected lane.
  */
 
 const CONNECTIONS_MARKER = 'data-scriptorium-connections';
 
-const GRAPH_BLOCK_RE = /<div class="relationship-graph"><h2>Connections(?: Graph)?<\/h2><svg/;
-const GRAPH_PC_RE = /<h2>Connections<\/h2>\n<div class="relationship-graph"><svg/;
-const NODE_RE = /(?:<a href="([^"]*)">)?<g opacity="(1|0\.5)">[\s\S]*?<text\b[^>]*>([^<]*)<\/text>\s*<\/g>/g;
-const WHOS_HERE_CX_RE = /<div class="whos-here">\s*<h2>Connections<\/h2>\s*<div class="relationship-cards">/;
+// From publish-v1.18.0 the pin draws a page's Connections as one section (lib/templates/connections.js),
+// carrying the same content as data. The lane replaces that section in place and reads only that data:
+// what the pin published, already reduced for the reader (lib/connections.js).
+const CX_SECTION_RE = /<section class="cx"[\s>]/;
+const CX_DATA_RE = /<script type="application\/json" class="cx-data">([\s\S]*?)<\/script>/;
+// The pin's own script for that section. A page whose section the lane replaced has no use for it.
+const CX_SCRIPT_RE = /<script src="[^"]*js\/connections\.js"><\/script>\n?/;
 
-const EXCLUDED_TYPES = new Set(['session', 'campaign_overview', 'roster', 'timeline']);
+// How a named item words the two group labels the pin makes up, before this page's name.
+const PIN_LABEL_WORDING = { Family: 'family of', Connected: 'connected to' };
+
+const EXCLUDED_TYPES =new Set(['session', 'campaign_overview', 'roster', 'timeline']);
 
 const GROUP_DEFS = [
   { key: 'tie' },
@@ -48,84 +56,116 @@ function groupForType(type) {
   return 'other';
 }
 
-// -- declared relationships (relationship-list, sidebar) -----------------------------------------
+// -- the pin's Connections section ---------------------------------------------------------------
 
 /**
- * Array-form relationships as published in `<ul class="relationship-list">`.
+ * Where the page's Connections section starts and ends, or null.
  *
  * @param {string} html
- * @returns {{name: string, href: string|null, type: string, description: string|null}[]}
+ * @returns {{ start: number, end: number } | null}
  */
-function parseRelationshipList(html) {
-  const openMatch = html.match(/<ul class="relationship-list">/);
-  if (!openMatch) return [];
-  const ulStart = openMatch.index;
-  const ulEnd = htmltext.sliceBalanced(html, ulStart, 'ul');
-  if (ulEnd === -1) return [];
-  const inner = html.slice(ulStart + openMatch[0].length, ulEnd - '</ul>'.length);
-  const out = [];
-  for (const li of topLevelListItems(inner)) {
-    const typeMatch = li.match(/^<strong class="rel-label">([\s\S]*?)<\/strong>\s*/);
-    if (!typeMatch) continue;
-    const type = htmltext.textOf(typeMatch[1]);
-    let rest = li.slice(typeMatch[0].length);
-    let description = null;
-    const descMatch = rest.match(/ &mdash; ([\s\S]*)$/);
-    if (descMatch) {
-      description = htmltext.textOf(descMatch[1]);
-      rest = rest.slice(0, descMatch.index);
-    }
-    const linkMatch = rest.match(/^<a href="([^"]*)" class="entity-link">([\s\S]*?)<\/a>$/);
-    let href = null;
-    let name;
-    if (linkMatch) {
-      href = linkMatch[1];
-      name = htmltext.textOf(linkMatch[2]);
-    } else {
-      name = htmltext.textOf(rest);
-    }
-    out.push({ name, href, type, description });
-  }
-  return out;
+function findCxRegion(html) {
+  const m = CX_SECTION_RE.exec(html);
+  if (!m) return null;
+  const end = htmltext.sliceBalanced(html, m.index, 'section');
+  return end === -1 ? null : { start: m.index, end };
 }
 
 /**
- * Object-form (or any-form) relationships as published in the context sidebar's "Relationships"
- * section. No description field (the sidebar never carries one).
+ * The section's data, as the items and mentions the lane needs. Relationship items keep their group
+ * label (the pin's own wording, already in this page's direction), their lines and how many of those
+ * lines come from this page's own note. A data block that does not parse gives null: the page is
+ * left as the pin wrote it.
  *
- * @param {string} html
- * @returns {{name: string, href: string|null, type: string, description: null}[]}
+ * @param {string} regionHtml
+ * @returns {{ subject: string, items: {title: string, rawHref: string|null, label: string, lines: string[], own: number}[], mentions: {title: string, rawHref: string}[] } | null}
  */
-function parseSidebarRelationships(html) {
-  const asideMatch = html.match(/<aside class="context-sidebar">/);
-  if (!asideMatch) return [];
-  const asideEnd = htmltext.sliceBalanced(html, asideMatch.index, 'aside');
-  if (asideEnd === -1) return [];
-  const asideHtml = html.slice(asideMatch.index, asideEnd);
-  const h3m = asideHtml.match(/<h3>Relationships<\/h3>\n<ul>([\s\S]*?)<\/ul>/);
-  if (!h3m) return [];
-  const out = [];
-  for (const li of topLevelListItems(h3m[1])) {
-    const badgeMatch = li.match(/<span class="sidebar-badge">([\s\S]*?)<\/span>\s*$/);
-    if (!badgeMatch) continue;
-    const type = htmltext.textOf(badgeMatch[1]);
-    const namePart = li.slice(0, badgeMatch.index).trim();
-    const linkMatch = namePart.match(/^<a href="([^"]*)">([\s\S]*?)<\/a>$/);
-    let href = null;
-    let name;
-    if (linkMatch) {
-      href = linkMatch[1];
-      name = htmltext.textOf(linkMatch[2]);
-    } else {
-      name = htmltext.textOf(namePart);
-    }
-    out.push({ name, href, type, description: null });
+function readCxData(regionHtml) {
+  const m = CX_DATA_RE.exec(regionHtml);
+  if (!m) return null;
+  let data;
+  try {
+    data = JSON.parse(m[1]);
+  } catch (_) {
+    return null;
   }
-  return out;
+  const items = [];
+  const seen = new Set();
+  for (const tab of Array.isArray(data.t) ? data.t : []) {
+    for (const group of Array.isArray(tab.g) ? tab.g : []) {
+      for (const d of Array.isArray(group.d) ? group.d : []) {
+        const key = d.h || `\u0000${d.t}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        items.push({
+          title: String(d.t),
+          rawHref: d.h || null,
+          label: String(group.n || ''),
+          lines: Array.isArray(d.l) ? d.l.map(String) : [],
+          own: Number.isInteger(d.f) ? d.f : 0,
+        });
+      }
+    }
+  }
+  const mentions = [];
+  for (const group of Array.isArray(data.m) ? data.m : []) {
+    for (const d of Array.isArray(group.d) ? group.d : []) {
+      if (Array.isArray(d) && d[1]) mentions.push({ title: String(d[0]), rawHref: String(d[1]) });
+    }
+  }
+  return { subject: String(data.s || ''), items, mentions };
 }
 
-function declaredEntries(html) {
-  return [...parseRelationshipList(html), ...parseSidebarRelationships(html)];
+// -- which pages a page's own note names in its relationships ---------------------------------------
+
+/**
+ * The relationship targets of each published page's reader-visible frontmatter, resolved to output
+ * paths the way the pin's Connections model resolves them (lib/connections.js:159-169), against the
+ * pin's own link table. Decides only whether a connection is this page's own (a tie) or the other
+ * page's (named by); every word the lane prints comes from the pin's section. As in the pin, the link
+ * table is built from the raw frontmatter (lib/build.js:535), then every GM alias is rewritten to its
+ * owner's title (`rewriter`, lib/build.js:546), then the frontmatter is reduced to its published view.
+ *
+ * @param {object[]} publishedPages
+ * @param {object} publishConfig
+ * @param {{ frontmatter: function(object): object } | null} [rewriter] the pin's gmAliasRewriter, or null when the vault has no GM alias
+ * @returns {Map<string, Set<string>>} outputPath -> output paths its own relationships name
+ */
+function ownTargets(publishedPages, publishConfig, rewriter = null) {
+  const linkMap = pinned.buildLinkMap(
+    publishedPages.map((p) => ({ title: p.title, frontmatter: p.frontmatter, outputPath: p.outputPath, vaultPath: p.rel.replace(/\.md$/i, '') })),
+  );
+  const resolve = (value) => {
+    const ref = pinned.linkText(value, { humanize: true });
+    const links = String(value).match(pinned.wikilinkRe('g')) || [];
+    const key = !ref.labelled && links.length === 1
+      ? pinned.parseWikilink(pinned.wikilinkRe('').exec(links[0])[1]).name.trim()
+      : ref.key;
+    const name = pinned.canonicalNfc(key.split(/[#^]/)[0].replace(/\.md$/i, '').trim());
+    const out = name ? linkMap[name] : undefined;
+    return typeof out === 'string' ? out : null;
+  };
+  const fieldOverrides = (publishConfig.overrides && publishConfig.overrides.fields) || {};
+  const out = new Map();
+  for (const p of publishedPages) {
+    const written = rewriter ? rewriter.frontmatter(p.frontmatter) : p.frontmatter;
+    const fm = pinned.publishedFrontmatter(written, publishConfig.exclude_fields || [], fieldOverrides[p.rel] || {});
+    const raw = fm.relationships;
+    const targets = [];
+    if (Array.isArray(raw)) {
+      for (const r of raw) if (r && typeof r === 'object' && !Array.isArray(r)) targets.push(r.target);
+    } else if (raw && typeof raw === 'object') {
+      for (const value of Object.values(raw)) targets.push(...(Array.isArray(value) ? value : [value]));
+    }
+    const set = new Set();
+    for (const t of targets) {
+      if (typeof t !== 'string' || !t.trim()) continue;
+      const resolved = resolve(t);
+      if (resolved) set.add(resolved);
+    }
+    out.set(p.outputPath, set);
+  }
+  return out;
 }
 
 // -- trimLine --------------------------------------------------------------------------------
@@ -188,127 +228,93 @@ function findMentionSnippet(targetHtml, targetOutputPath, pageOutputPath) {
   return null;
 }
 
-// -- SVG hop-1 extraction ----------------------------------------------------------------------
-
-function findGraphRegion(html) {
-  const blockMatch = html.match(GRAPH_BLOCK_RE);
-  if (blockMatch) {
-    const divStart = blockMatch.index;
-    const end = htmltext.sliceBalanced(html, divStart, 'div');
-    if (end !== -1) return { start: divStart, end, shape: 'standard' };
-  }
-  const pcMatch = html.match(GRAPH_PC_RE);
-  if (pcMatch) {
-    const h2Len = '<h2>Connections</h2>\n'.length;
-    const divStart = pcMatch.index + h2Len;
-    const end = htmltext.sliceBalanced(html, divStart, 'div');
-    if (end !== -1) return { start: pcMatch.index, end, shape: 'pc' };
-  }
-  return null;
-}
-
-/**
- * @param {string} regionHtml
- * @returns {{ rawHref: string|null, label: string }[]}
- */
-function extractHop1Nodes(regionHtml) {
-  const matches = [...regionHtml.matchAll(NODE_RE)];
-  if (matches.length === 0) return [];
-  return matches
-    .slice(1)
-    .filter((m) => m[2] === '1')
-    .map((m) => ({ rawHref: m[1] || null, label: htmltext.decodeEntities(m[3]) }));
-}
-
 // -- Phase 1: collect --------------------------------------------------------------------------
 
 /**
  * Reads the whole staged tree into memory and builds one connection model per page that carries
- * a graph. Never writes anything.
+ * the pin's Connections section. Never writes anything.
  *
  * @param {Object<string,string>} htmlByPath outputPath -> full page HTML
  * @param {Map<string,{displayTitle:string,type:string}>} published outputPath -> {displayTitle, type}
  * @param {object} [vocab] ADR 0020; defaults to DEFAULT_VOCAB
  * @param {Map<string,string>} [wrapUpByHub] hub outputPath -> paired Wrap-Up outputPath (src/build/sessionmodel.js)
+ * @param {Map<string,Set<string>>} [ownByPath] outputPath -> the pages its own relationships name (ownTargets)
  * @returns {{ pageModels: object[], warnings: string[] }}
  */
-function collectConnections(htmlByPath, published, vocab = DEFAULT_VOCAB, wrapUpByHub = new Map()) {
+function collectConnections(htmlByPath, published, vocab = DEFAULT_VOCAB, wrapUpByHub = new Map(), ownByPath = new Map()) {
   const warnings = [];
   const recaps = collectRecaps(htmlByPath, vocab, wrapUpByHub);
   warnings.push(...recaps.warnings);
 
-  const pageModels = [];
-
-  const sortedPaths = Object.keys(htmlByPath).sort(htmltext.cmpCodeUnit);
-  for (const outputPath of sortedPaths) {
+  // Every page's section, read once: a lane also reads the other page's (its wording, its ties).
+  const cxByPath = new Map();
+  for (const outputPath of Object.keys(htmlByPath).sort(htmltext.cmpCodeUnit)) {
     const html = htmlByPath[outputPath];
-    const region = findGraphRegion(html);
+    const region = findCxRegion(html);
     if (!region) continue;
+    const data = readCxData(html.slice(region.start, region.end));
+    if (!data) {
+      warnings.push(`${outputPath}: the Connections section's data could not be read; the page keeps the generator's own section`);
+      continue;
+    }
+    cxByPath.set(outputPath, { region, data });
+  }
 
+  const pageModels = [];
+  for (const [outputPath, { region, data }] of cxByPath) {
     const pageInfo = published.get(outputPath) || { displayTitle: outputPath, type: '' };
-    const listEntries = parseRelationshipList(html);
-    const sidebarEntries = parseSidebarRelationships(html);
-    const declared = [...listEntries, ...sidebarEntries];
+    const mine = ownByPath.get(outputPath) || new Set();
 
-    const rawNodes = extractHop1Nodes(html.slice(region.start, region.end));
-
+    const candidates = [
+      ...data.items.map((it) => ({ ...it, mention: false })),
+      ...data.mentions.map((m) => ({ title: m.title, rawHref: m.rawHref, label: '', lines: [], own: 0, mention: true })),
+    ];
     const hop1OutputPaths = new Set();
     const rawItems = [];
-    for (const node of rawNodes) {
-      const resolvedPath = node.rawHref ? htmltext.resolveHref(outputPath, node.rawHref) : null;
+    for (const it of candidates) {
+      const resolvedPath = it.rawHref ? htmltext.resolveHref(outputPath, it.rawHref) : null;
       const targetInfo = resolvedPath ? published.get(resolvedPath) : null;
       // ADR 0036: a Wrap-Up is never a lane item either -- it stands in for its paired session's
       // recap, but it is never itself a hop-1 entity a lane should list.
       if (targetInfo && (EXCLUDED_TYPES.has(targetInfo.type) || pinned.WRAP_UP_TYPES.has(targetInfo.type))) continue;
       if (resolvedPath) hop1OutputPaths.add(resolvedPath);
-      rawItems.push({ resolvedPath, label: node.label, targetInfo });
+      rawItems.push({ ...it, resolvedPath, targetInfo });
     }
 
     const items = [];
     for (const it of rawItems) {
-      let tieEntry = null;
-      if (it.resolvedPath) {
-        tieEntry =
-          listEntries.find((e) => e.href && htmltext.resolveHref(outputPath, e.href) === it.resolvedPath) ||
-          sidebarEntries.find((e) => e.href && htmltext.resolveHref(outputPath, e.href) === it.resolvedPath);
-      } else {
-        tieEntry =
-          declared.find((e) => pinned.truncateGraphemes(e.name, 15, 13) === it.label) || null;
-      }
-
+      const name = it.targetInfo ? it.targetInfo.displayTitle : it.title;
       let kind;
       let rel = null;
       let line = null;
       let src = null;
-      let name;
-      let targetDeclared = [];
 
-      if (tieEntry) {
+      // The other page's own section lists this page back only when one of the two declared a
+      // relationship. With no such item, the connection is this page's own whatever its kind: a
+      // relationship, a parent place, or what the pin adds itself, such as a session's NPCs.
+      const theirs = it.resolvedPath ? cxByPath.get(it.resolvedPath) : null;
+      const back = theirs
+        ? theirs.data.items.find((x) => x.rawHref && htmltext.resolveHref(it.resolvedPath, x.rawHref) === outputPath)
+        : null;
+      if (!it.mention && (!back || mine.has(it.resolvedPath))) {
+        // This page's own. The pin's group label is its type, worded for this page.
         kind = 'tie';
-        rel = tieEntry.type.toLowerCase();
-        line = tieEntry.description;
+        rel = it.label ? it.label.toLowerCase() : null;
+        line = it.own > 0 ? it.lines[0] : null;
         src = outputPath;
-        name = tieEntry.name;
+      } else if (!it.mention) {
+        // The other page's relationship to this one, in that page's own wording: its section lists
+        // this page under the label it wrote. Two labels are the pin's own, not a type the GM wrote
+        // (lib/ontology.js groupLabel): every kinship type is "Family", no type at all is "Connected".
+        kind = 'named';
+        const label = back.label ? (PIN_LABEL_WORDING[back.label] || back.label.toLowerCase()) : '';
+        rel = label ? `${label} ${pageInfo.displayTitle}` : null;
+        line = it.lines.length > it.own ? it.lines[it.own] : null;
+        src = it.resolvedPath;
       } else {
-        name = it.targetInfo ? it.targetInfo.displayTitle : it.label;
-        if (it.resolvedPath && htmlByPath[it.resolvedPath] !== undefined) {
-          targetDeclared = declaredEntries(htmlByPath[it.resolvedPath]);
-          const backlink = targetDeclared.find(
-            (e) => e.href && htmltext.resolveHref(it.resolvedPath, e.href) === outputPath,
-          );
-          if (backlink) {
-            kind = 'named';
-            rel = `${backlink.type.toLowerCase()} ${pageInfo.displayTitle}`;
-            line = backlink.description;
-            src = it.resolvedPath;
-          } else {
-            kind = 'mention';
-            src = it.resolvedPath;
-            line = findMentionSnippet(htmlByPath[it.resolvedPath], it.resolvedPath, outputPath);
-          }
-        } else {
-          kind = 'mention';
-        }
+        kind = 'mention';
+        src = it.resolvedPath;
+        if (htmlByPath[it.resolvedPath] !== undefined) line = findMentionSnippet(htmlByPath[it.resolvedPath], it.resolvedPath, outputPath);
       }
 
       const type = it.targetInfo ? it.targetInfo.type : '';
@@ -322,17 +328,11 @@ function collectConnections(htmlByPath, published, vocab = DEFAULT_VOCAB, wrapUp
           .sort((a, b) => a - b);
       }
 
+      // One point when the other page has a relationship of its own beyond this page and its lane.
       let externalTie = 0;
       if (it.resolvedPath) {
-        if (targetDeclared.length === 0 && htmlByPath[it.resolvedPath] !== undefined) {
-          targetDeclared = declaredEntries(htmlByPath[it.resolvedPath]);
-        }
-        const hasExternal = targetDeclared.some((e) => {
-          if (!e.href) return false;
-          const resolved = htmltext.resolveHref(it.resolvedPath, e.href);
-          return resolved && resolved !== outputPath && !hop1OutputPaths.has(resolved);
-        });
-        if (hasExternal) externalTie = 1;
+        const theirs = ownByPath.get(it.resolvedPath) || new Set();
+        if ([...theirs].some((p) => p !== outputPath && !hop1OutputPaths.has(p))) externalTie = 1;
       }
 
       const score = (kind === 'tie' ? 100 : kind === 'named' ? 50 : 0) + 5 * shared.length + externalTie;
@@ -381,7 +381,6 @@ function collectConnections(htmlByPath, published, vocab = DEFAULT_VOCAB, wrapUp
 
     pageModels.push({
       outputPath,
-      shape: region.shape,
       start: region.start,
       end: region.end,
       name: pageInfo.displayTitle,
@@ -497,10 +496,10 @@ function renderLane(model, vocab = DEFAULT_VOCAB) {
 }
 
 /**
- * Computes the patched HTML for one page, or null if it carries no graph (byte-untouched).
+ * Computes the patched HTML for one page, or null if it carries no Connections section (byte-untouched).
  *
  * @param {string} html
- * @param {object} model this page's model (or undefined if collectConnections found no graph)
+ * @param {object} model this page's model (or undefined if collectConnections found no section)
  * @param {object} [vocab] ADR 0020; defaults to DEFAULT_VOCAB
  * @returns {string | null}
  */
@@ -511,11 +510,8 @@ function transformConnections(html, model, vocab = DEFAULT_VOCAB) {
   const rendered = renderLane(model, vocab);
   let out = html.slice(0, model.start) + rendered.html + html.slice(model.end);
 
-  const whosHereMatch = out.match(WHOS_HERE_CX_RE);
-  if (whosHereMatch) {
-    const end = htmltext.sliceBalanced(out, whosHereMatch.index, 'div');
-    if (end !== -1) out = out.slice(0, whosHereMatch.index) + out.slice(end);
-  }
+  // The pin's own section script draws nothing once its section is gone.
+  out = out.replace(CX_SCRIPT_RE, '');
 
   if (rendered.linkScript) {
     const linked = linkSiteScript(out);
@@ -531,7 +527,14 @@ function transformConnections(html, model, vocab = DEFAULT_VOCAB) {
  * @returns {{ pagesPatched: number, lanes: number, hubOnly: number, removedOnly: string[], warnings: string[] }}
  */
 function applyConnections(siteRoot, { vaultPath, jsonConfig, vocab = DEFAULT_VOCAB, wrapUpByHub = new Map() }) {
-  const { publishedPages } = computePublishedSet(vaultPath, jsonConfig);
+  const { publishedPages, unpublishedPages, publishConfig } = computePublishedSet(vaultPath, jsonConfig);
+  // The notes pairHubs hands the pin's rewriter (lib/session-hub.js:147-152): every scanned page,
+  // published or not, then every note the scan skipped.
+  const corpus = publishedPages.concat(unpublishedPages);
+  const { notes } = scanAllNotesForPairing(vaultPath);
+  const scanned = new Set(corpus.map((p) => p.sourcePath));
+  const rewriter = pinned.gmAliasRewriter(corpus.concat(notes.filter((n) => !scanned.has(n.sourcePath))), publishedPages, notes);
+  const ownByPath = ownTargets(publishedPages, publishConfig, rewriter);
   const published = new Map();
   for (const p of publishedPages) {
     published.set(p.outputPath, { displayTitle: p.displayTitle, type: p.frontmatter.type || '' });
@@ -551,7 +554,7 @@ function applyConnections(siteRoot, { vaultPath, jsonConfig, vocab = DEFAULT_VOC
     }
   })(siteRoot, '');
 
-  const { pageModels, warnings } = collectConnections(htmlByPath, published, vocab, wrapUpByHub);
+  const { pageModels, warnings } = collectConnections(htmlByPath, published, vocab, wrapUpByHub, ownByPath);
   const modelByPath = new Map(pageModels.map((m) => [m.outputPath, m]));
 
   let pagesPatched = 0;
@@ -567,7 +570,7 @@ function applyConnections(siteRoot, { vaultPath, jsonConfig, vocab = DEFAULT_VOC
     pagesPatched++;
     if (result.removedOnly) {
       removedOnly.push(model.outputPath);
-      warnings.push(`${model.outputPath}: no declared ties, backlinks, mentions or shared recaps; the graph was removed`);
+      warnings.push(`${model.outputPath}: no declared ties, backlinks, mentions or shared recaps; the Connections section was removed`);
     } else if (result.hubOnly) {
       hubOnly++;
     } else {
@@ -580,13 +583,11 @@ function applyConnections(siteRoot, { vaultPath, jsonConfig, vocab = DEFAULT_VOC
 
 module.exports = {
   CONNECTIONS_MARKER,
-  GRAPH_BLOCK_RE,
-  GRAPH_PC_RE,
-  NODE_RE,
-  WHOS_HERE_CX_RE,
+  CX_SECTION_RE,
   trimLine,
-  parseRelationshipList,
-  parseSidebarRelationships,
+  findCxRegion,
+  readCxData,
+  ownTargets,
   findMentionSnippet,
   collectConnections,
   renderLane,
