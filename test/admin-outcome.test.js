@@ -182,4 +182,7 @@ test('refused-by-check: 422 with error:"refused-by-check" -- message verbatim, r
 test('positive control: a 422 with error:"unsupported" still falls through to the generic invalid-on-disk branch', () => {
   const outcome = OC.mapOutcome({ ok: false, status: 422, body: { error: 'unsupported', message: 'x' } }, 'save');
   assert.equal(outcome.kind, 'invalid-on-disk');
+  assert.equal(outcome.message, 'x');
+  assert.equal(outcome.detail, 'Fix the file outside the panel, then reload.');
+  assert.deepEqual(outcome.actions, ['reload']);
 });
