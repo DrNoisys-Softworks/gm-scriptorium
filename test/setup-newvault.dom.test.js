@@ -179,16 +179,34 @@ const isOutputCheck = (url, value, commit) => {
 const ANSWER_WAIT_MS = 30000;
 
 /**
- * Call before the keystrokes. drawn() resolves once the answer to the output question has come back
- * and the screen has had two paint frames to react to it.
+ * Call before the keystrokes, with the value the box will hold when the typing is done. drawn()
+ * resolves once the answer for that value, and no other, has been drawn after the call: the check
+ * request for that value is sent after this call (so an answer for an earlier value, or for a typed
+ * character on its own, cannot match), its answer is read, and then the status has to show that
+ * answer under a draw it did not hold when this was called.
  */
 async function expectOutputAnswer(page, value) {
-  const asked = page.waitForResponse((r) => isOutputCheck(r.url(), undefined, '0'), { timeout: ANSWER_WAIT_MS });
+  const before = await page.getAttribute('#su-out-st', 'data-drawn');
+  const sent = page.waitForRequest((r) => isOutputCheck(r.url(), value, '0'), { timeout: ANSWER_WAIT_MS });
+  sent.catch(() => {}); // a request that never comes is reported by drawn(), not as an unhandled rejection
   return {
     drawn: async () => {
-      await (await asked).finished();
-      // two paint frames: every handler the answer queued has run by then
-      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      try {
+        const resp = await (await sent).response();
+        await resp.finished();
+        const want = JSON.stringify(await resp.json()) + '\u0000';
+        await page.waitForFunction(
+          ([w, b]) => {
+            const d = document.getElementById('su-out-st').getAttribute('data-drawn');
+            return d !== null && d !== b && d.startsWith(w);
+          },
+          [want, before],
+          { timeout: ANSWER_WAIT_MS },
+        );
+      } catch (e) {
+        if (e instanceof pw.errors.TimeoutError) assert.fail('the answer for the final value was never drawn after the confirmation was cleared, so the box could stay ticked');
+        throw e;
+      }
     },
   };
 }
