@@ -56,10 +56,12 @@ If a newer version is already installed in the folder, or Setup cannot tell whic
 
 The PATH entry is offered, unticked, and is compiled in only when the build passes `/DWITH_PATH_OPTION`, which `scripts/installer.js` does by default. Dropping it is a one-line change in that script, kept for the case that the Windows check of the option fails.
 
-Setup reads the size and type of the user's `Path` value first. NSIS strings top out at 1024 characters, so a long PATH cannot be edited the usual way without truncating it:
+**Amended (issue #117).** The exact-length rule refused every PATH on Windows, because the size the registry reports for a text value is not its stored length: it counts two bytes more than the value holds. The second bullet below now says how the value is read. A tolerance of one extra character was considered and rejected: it leans on padding the registry does not promise, and from the size alone it cannot tell two closing NUL characters from data after an embedded NUL.
+
+Setup reads the user's `Path` value whole, with its type, before it changes anything. NSIS strings top out at 1024 characters, so a long PATH cannot be edited the usual way without truncating it:
 
 - No value: Setup creates one holding only the install folder.
-- A value of the string or expandable-string type, with room to add the folder, read back at exactly the length the registry reported: Setup appends `;<folder>` unless the folder is already an exact component (compared without regard to case), and writes the value back with the type it had. Entries are never reordered.
+- A value of the string or expandable-string type, with room to add the folder, that Setup reads whole: closing NUL characters end the value and are not part of it. A value with anything after an embedded NUL, a value bigger than the read buffer, or text that reads back shorter than the stored characters, is left alone. The room rule is unchanged: with D stored characters and K the length of the install folder, Setup acts only when D + 1 + K is at most 1022, so on the default folder (54 characters) a value of 967 characters is accepted and one of 968 is refused. Setup appends `;<folder>` unless the folder is already an exact component (compared without regard to case), and writes the value back with the type it had. Entries are never reordered.
 - Anything else: Setup leaves PATH alone and tells the GM, in plain words, that the install worked and how to add the folder by hand.
 
 Setup then tells running programs the environment changed, with a five second timeout. It writes only `HKCU`. It records `PathAdded` under its uninstall key only when it added the entry. The uninstaller removes only its own exact component, under the same guard, and when the guard trips it leaves PATH alone and says so.
@@ -101,4 +103,4 @@ NSIS and its plug-ins are in both outputs, so the notices gain Section 9 with th
 - The download is larger than the program: about the executable's size plus the uninstaller.
 - The PATH entry is skipped when the PATH list is too long to change safely.
 - Old portable copies are not removed. A GM who used the single file before has to delete that copy.
-- Nothing the installer does when it runs can be tried on Linux. The pages, the running-copy check, the version compare, the PATH guard, the shortcuts and the launch from the finish page are checked on Windows (criteria C143 to C146 and C151 in the Windows verification runbook).
+- Nothing the installer does when it runs can be tried on Linux. The pages, the running-copy check, the version compare, the PATH guard, the shortcuts and the launch from the finish page are checked on Windows (criteria C143 to C146, C151 and C212 in the Windows verification runbook).

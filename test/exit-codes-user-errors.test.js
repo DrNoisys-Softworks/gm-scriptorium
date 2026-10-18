@@ -89,6 +89,15 @@ const CASES = [
   ['pack folder given but missing', (r) => (writeCfg(r, `config_version = 1\n[campaigns.t]\nvault = '${SAMPLE}'\npack = '${r}/nopack'\noutput = '${r}/site'\n`), ['check']), 3, /pack directory does not exist/],
   ['pack folder without vault.config.json', (r) => (fs.mkdirSync(path.join(r, 'pk')), writeCfg(r, `config_version = 1\n[campaigns.t]\nvault = '${SAMPLE}'\npack = '${r}/pk'\noutput = '${r}/site'\n`), ['check']), 3, /has no vault\.config\.json/],
 
+  ['vault.config.json missing folderMap (#143)', (r) => {
+    const v = copyPackVault(r);
+    const cfgPath = path.join(v, '_meta', 'scriptorium', 'vault.config.json');
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    delete cfg.folderMap;
+    fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+    return ['check'];
+  }, 3, /is missing required key folderMap/],
+
   ['unknown command', () => ['chek'], 1, /unknown command: chek/],
   ['unknown flag', (r) => (goodCfg(r), ['check', '--prot']), 1, /unknown flag --prot/],
   ['build --force (split)', (r) => (goodCfg(r), ['build', '--force']), 1, /--force has been split/],
