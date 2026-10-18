@@ -8,7 +8,7 @@ const path = require('path');
 const { PassThrough } = require('stream');
 const { execFileSync } = require('child_process');
 
-const { ConfigError } = require('../src/util/errors');
+const { ConfigError, VaultUnreachableError } = require('../src/util/errors');
 const { EXIT_CODES } = require('../src/util/exitcodes');
 
 /*
@@ -23,8 +23,11 @@ const { EXIT_CODES } = require('../src/util/exitcodes');
  *
  * src/cli/check.js's assertScanKeysPresent (called from resolveVaultContext, the one function
  * `check`, `build`, `serve --admin`'s preview build, and init's post-scaffold check all resolve
- * the site config through) now refuses early with a ConfigError naming the missing key and the
- * file, before any of those four ever reaches the generator. Synthetic cast only, scratch dirs
+ * the site config through) now refuses early naming the missing key and the file, before any of
+ * those four ever reaches the generator. Issue #143: resolveVaultContext wraps that refusal in
+ * asPackProblem, so a caller sees a VaultUnreachableError (reason 'bad-pack', exit 3) for every
+ * site source, with the message unchanged; assertScanKeysPresent itself still throws ConfigError
+ * (the unit tests below). Synthetic cast only, scratch dirs
  * only, per this repo's own convention (NFR-08/NFR-10/NFR-11 as used throughout test/).
  *
  * Reviewer correction (2026-09-29, same-day re-review): the original assertScanKeysPresent only
@@ -39,6 +42,10 @@ const { EXIT_CODES } = require('../src/util/exitcodes');
  * without throwing -- so the shape check below only rejects folderMap shapes that are actually not
  * an object (an array, or a primitive), which is the type Object.entries/mapFolder's own
  * `[vaultDir, outputDir]` destructuring assumes.
+ *
+ * Tests that pass on main and so prove nothing for #143: the assertScanKeysPresent unit tests (they
+ * assert ConfigError on purpose) and init's post-scaffold check (it prints the same message and
+ * exits 0 either way). They are regression guards only.
  */
 
 const BIN = path.join(__dirname, '..', 'bin', 'scriptorium.js');
@@ -108,6 +115,11 @@ const SHAPES = [
   { label: 'folderMap only (no excludeDirs)', json: { siteTitle: 'Scan Keys', folderMap: {} }, missing: ['excludeDirs'] },
   { label: 'excludeDirs only (no folderMap)', json: { siteTitle: 'Scan Keys', excludeDirs: [] }, missing: ['folderMap'] },
 ];
+
+/** Predicate for assert.throws: a bad-pack VaultUnreachableError carrying exactly `message`. */
+function isBadPack(message) {
+  return (err) => err instanceof VaultUnreachableError && err.reason === 'bad-pack' && err.message === message;
+}
 
 function expectedMessage(jsonPath, missing) {
   return `campaign "fixture": ${jsonPath} is missing required key${missing.length > 1 ? 's' : ''} ${missing.join(' and ')}`;
@@ -223,11 +235,11 @@ test('the shape check does not regress any real, already-shipped config: mini-va
   assert.doesNotThrow(() => assertScanKeysPresent(scaffold, '<scaffold>', 'fixture'));
 });
 
-test('reproduces the reviewer-found crash live, then confirms it is refused: excludeDirs as a string reaches src/vault/publishset.js\'s own ported scan unrefused today only without the fix', () => {
+test('reproduces the reviewer-found crash live, then confirms it is refused with exit 3 (bad-pack): excludeDirs as a string reaches src/vault/publishset.js\'s own ported scan unrefused today only without the fix', () => {
   // This is the exact repro from the live-reproduced finding: runCheckCommand against a real
   // scratch vault with excludeDirs: "not-an-array". Before the fix this throws a raw TypeError
   // out of src/vault/publishset.js:208 with a full stack trace; after the fix it throws a clean
-  // ConfigError instead. Asserting the ConfigError here is the red/green evidence for the fix
+  // bad-pack VaultUnreachableError instead (#143). Asserting it here is the red/green evidence for the fix
   // itself (see the entry-point tests below for check/build coverage of every shape).
   withScratchDir((dir) => {
     const vaultPath = makeVault(dir);
@@ -239,8 +251,7 @@ test('reproduces the reviewer-found crash live, then confirms it is refused: exc
     assert.throws(
       () => runCheckCommand({ config: configPath }, 'fixture'),
       (err) =>
-        err instanceof ConfigError &&
-        err.message === `campaign "fixture": ${jsonPath}: excludeDirs must be an array of directory names, not a string` &&
+        isBadPack(`campaign "fixture": ${jsonPath}: excludeDirs must be an array of directory names, not a string`)(err) &&
         !(err instanceof TypeError),
     );
   });
@@ -248,7 +259,7 @@ test('reproduces the reviewer-found crash live, then confirms it is refused: exc
 
 // --- Entry point 1: check ---------------------------------------------------------------------
 
-test('runCheckCommand refuses with a ConfigError naming the missing key and the file, for all three shapes', () => {
+test('#143: runCheckCommand refuses with exit 3 (bad-pack) naming the missing key and the file, for all three shapes', () => {
   for (const shape of SHAPES) {
     withScratchDir((dir) => {
       const vaultPath = makeVault(dir);
@@ -259,7 +270,7 @@ test('runCheckCommand refuses with a ConfigError naming the missing key and the 
       const { runCheckCommand } = requireFresh('../src/cli/check');
       assert.throws(
         () => runCheckCommand({ config: configPath }, 'fixture'),
-        (err) => err instanceof ConfigError && err.message === expectedMessage(jsonPath, shape.missing),
+        isBadPack(expectedMessage(jsonPath, shape.missing)),
         shape.label,
       );
     });
@@ -286,7 +297,7 @@ test('runCheckCommand: positive control, both keys present, check runs to comple
 
 // --- Entry point 2: build ----------------------------------------------------------------------
 
-test('runBuildCommand refuses with a ConfigError and writes nothing, for all three shapes', () => {
+test('#143: runBuildCommand refuses with exit 3 (bad-pack) and writes nothing, for all three shapes', () => {
   for (const shape of SHAPES) {
     withScratchDir((dir) => {
       const vaultPath = makeVault(dir);
@@ -298,7 +309,7 @@ test('runBuildCommand refuses with a ConfigError and writes nothing, for all thr
       const { runBuildCommand } = requireFresh('../src/cli/build');
       assert.throws(
         () => runBuildCommand({ config: configPath, 'force-check': true }, 'fixture'),
-        (err) => err instanceof ConfigError && err.message === expectedMessage(jsonPath, shape.missing),
+        isBadPack(expectedMessage(jsonPath, shape.missing)),
         shape.label,
       );
       assert.equal(fs.existsSync(outDir), false, 'nothing should be written; the vault context never even resolves');
@@ -309,7 +320,7 @@ test('runBuildCommand refuses with a ConfigError and writes nothing, for all thr
   }
 });
 
-test('runBuildCommand refuses with a ConfigError and writes nothing, for all six wrong-shape cases', () => {
+test('#143: runBuildCommand refuses with exit 3 (bad-pack) and writes nothing, for all six wrong-shape cases', () => {
   for (const shape of WRONG_SHAPES) {
     withScratchDir((dir) => {
       const vaultPath = makeVault(dir);
@@ -321,7 +332,7 @@ test('runBuildCommand refuses with a ConfigError and writes nothing, for all six
       const { runBuildCommand } = requireFresh('../src/cli/build');
       assert.throws(
         () => runBuildCommand({ config: configPath, 'force-check': true }, 'fixture'),
-        (err) => err instanceof ConfigError && err.message === shape.expected(jsonPath),
+        isBadPack(shape.expected(jsonPath)),
         shape.label,
       );
       assert.equal(fs.existsSync(outDir), false, 'nothing should be written; the vault context never even resolves');
@@ -362,7 +373,7 @@ test('runBuildCommand: positive control, a real mini-vault with both keys builds
 
 // --- Entry point 3: the panel preview build -----------------------------------------------------
 
-test('the panel preview build (runPreviewBuild) refuses with the same ConfigError', () => {
+test('#143: the panel preview build (runPreviewBuild) refuses with the same exit 3 (bad-pack) error', () => {
   withScratchDir((dir) => {
     const vaultPath = makeVault(dir);
     const jsonPath = writeConventionPack(vaultPath, SHAPES[0].json);
@@ -378,7 +389,7 @@ test('the panel preview build (runPreviewBuild) refuses with the same ConfigErro
 
     assert.throws(
       () => preview.runPreviewBuild(ctx),
-      (err) => err instanceof ConfigError && err.message === expectedMessage(jsonPath, SHAPES[0].missing),
+      isBadPack(expectedMessage(jsonPath, SHAPES[0].missing)),
     );
 
     preview.removePreviewRoot(ctx);
@@ -521,7 +532,7 @@ test("init's post-scaffold check: positive control, a complete pack runs a real 
 
 // --- CLI-level: exit code and no stack trace, for both check and build --------------------------
 
-test('CLI: check on a vault.config.json missing folderMap prints one clean line, no stack trace, exit 1 (existing exit code)', () => {
+test('CLI: check on a vault.config.json missing folderMap prints one clean line, no stack trace, exit 3 (#143)', () => {
   withScratchDir((dir) => {
     const vaultPath = makeVault(dir);
     const jsonPath = writeConventionPack(vaultPath, SHAPES[2].json);
@@ -537,13 +548,13 @@ test('CLI: check on a vault.config.json missing folderMap prints one clean line,
       status = err.status;
     }
 
-    assert.equal(status, EXIT_CODES.SCRIPTORIUM_ERROR);
+    assert.equal(status, 3);
     assert.equal(stderr.trim(), expectedMessage(jsonPath, SHAPES[2].missing));
     assert.ok(!stderr.includes('    at '), 'must not print a stack trace for a user config error');
   });
 });
 
-test('CLI: build on a vault.config.json missing both keys prints one clean line, no stack trace, exit 1, writes nothing', () => {
+test('CLI: build on a vault.config.json missing both keys prints one clean line, no stack trace, exit 3, writes nothing (#143)', () => {
   withScratchDir((dir) => {
     const vaultPath = makeVault(dir);
     const jsonPath = writeConventionPack(vaultPath, SHAPES[0].json);
@@ -560,9 +571,185 @@ test('CLI: build on a vault.config.json missing both keys prints one clean line,
       status = err.status;
     }
 
-    assert.equal(status, EXIT_CODES.SCRIPTORIUM_ERROR);
+    assert.equal(status, 3);
     assert.equal(stderr.trim(), expectedMessage(jsonPath, SHAPES[0].missing));
     assert.ok(!stderr.includes('    at '), 'must not print a stack trace for a user config error');
     assert.equal(fs.existsSync(outDir), false);
+  });
+});
+
+// --- #143: wrong-kind keys at the CLI, every site source, status, and the panel ------------------
+
+/** Runs the CLI against a scratch config; returns { status, stderr } (status 0 when it succeeds). */
+function runCli(args) {
+  try {
+    execFileSync(process.execPath, [BIN, ...args], { stdio: 'pipe' });
+    return { status: 0, stderr: '' };
+  } catch (err) {
+    return { status: err.status, stderr: err.stderr.toString('utf8') };
+  }
+}
+
+test('#143: CLI check and build refuse a wrong-kind excludeDirs or folderMap with exit 3 and one clean line', () => {
+  // Expected messages are written out literally, not built from the code under test.
+  const cases = [
+    {
+      json: { excludeDirs: 'x', folderMap: {} },
+      expected: (p) => `campaign "fixture": ${p}: excludeDirs must be an array of directory names, not a string`,
+    },
+    {
+      json: { excludeDirs: [], folderMap: [] },
+      expected: (p) => `campaign "fixture": ${p}: folderMap must be an object mapping vault folders to output folders, not an array`,
+    },
+  ];
+  for (const c of cases) {
+    for (const command of ['check', 'build']) {
+      withScratchDir((dir) => {
+        const vaultPath = makeVault(dir);
+        const jsonPath = writeConventionPack(vaultPath, c.json);
+        const outDir = path.join(dir, 'out');
+        const configPath = path.join(dir, 'config.toml');
+        writeScratchToml(configPath, { vault: vaultPath, output: outDir });
+
+        const args = command === 'build' ? ['build', 'fixture', '--config', configPath, '--force-check'] : ['check', 'fixture', '--config', configPath];
+        const { status, stderr } = runCli(args);
+
+        const label = `${command} ${JSON.stringify(c.json)}`;
+        assert.equal(status, 3, label);
+        assert.equal(stderr.trim(), c.expected(jsonPath), label);
+        assert.ok(!stderr.includes('    at '), 'must not print a stack trace for a user config error');
+        if (command === 'build') assert.equal(fs.existsSync(outDir), false, 'build must not create the out folder');
+      });
+    }
+  }
+});
+
+/** Sets up a vault whose settings file lacks folderMap, reached through the given site source. */
+function setupSource(dir, source) {
+  const vaultPath = makeVault(dir);
+  const outDir = path.join(dir, 'out');
+  const configPath = path.join(dir, 'config.toml');
+  const head = ['config_version = 1', 'default_campaign = "fixture"', '', '[campaigns.fixture]', `vault = '${vaultPath}'`, `output = '${outDir}'`];
+  if (source === 'pack') {
+    const packDir = path.join(dir, 'elsewhere-pack');
+    fs.mkdirSync(packDir, { recursive: true });
+    const jsonPath = path.join(packDir, 'vault.config.json');
+    fs.writeFileSync(jsonPath, JSON.stringify({ siteTitle: 'Scan Keys', excludeDirs: [] }, null, 2));
+    fs.writeFileSync(configPath, [...head, `pack = '${packDir}'`, ''].join('\n'));
+    return { vaultPath, configPath, jsonPath, ctxExtra: { pack: packDir }, outDir };
+  }
+  // Legacy site_config: a file outside the vault; the message uses the path as given.
+  const jsonPath = path.join(dir, 'legacy-site.json');
+  fs.writeFileSync(jsonPath, JSON.stringify({ siteTitle: 'Scan Keys', excludeDirs: [] }, null, 2));
+  fs.writeFileSync(configPath, [...head, `site_config = '${jsonPath}'`, ''].join('\n'));
+  return { vaultPath, configPath, jsonPath, ctxExtra: { site_config: jsonPath }, outDir };
+}
+
+test('#143: runCheckCommand, runBuildCommand and runPreviewBuild throw bad-pack for a pack-key and a site_config source', () => {
+  for (const source of ['pack', 'site_config']) {
+    withScratchDir((dir) => {
+      const { vaultPath, configPath, jsonPath, ctxExtra, outDir } = setupSource(dir, source);
+      const expected = `campaign "fixture": ${jsonPath} is missing required key folderMap`;
+
+      const { runCheckCommand } = requireFresh('../src/cli/check');
+      assert.throws(() => runCheckCommand({ config: configPath }, 'fixture'), isBadPack(expected), `check, ${source}`);
+
+      const { runBuildCommand } = requireFresh('../src/cli/build');
+      assert.throws(() => runBuildCommand({ config: configPath, 'force-check': true }, 'fixture'), isBadPack(expected), `build, ${source}`);
+      assert.equal(fs.existsSync(outDir), false);
+
+      const { resolveVaultSite } = requireFresh('../src/cli/check');
+      const { createAdminContext } = requireFresh('../src/admin/context');
+      const preview = requireFresh('../src/admin/preview');
+      const ctxInfo = { campaign: 'fixture', vault: vaultPath, output: outDir, ...ctxExtra };
+      const { vaultPath: resolvedVaultPath, site } = resolveVaultSite(ctxInfo);
+      const ctx = createAdminContext({ ctxInfo, vaultPath: resolvedVaultPath, site, token: 'TOK' });
+      preview.ensurePreviewRoot(ctx);
+      try {
+        assert.throws(() => preview.runPreviewBuild(ctx), isBadPack(expected), `preview, ${source}`);
+      } finally {
+        preview.removePreviewRoot(ctx);
+      }
+    });
+  }
+});
+
+test('#143: status reports the campaign as unreachable (bad-pack) and exits 3', () => {
+  withScratchDir((dir) => {
+    const vaultPath = makeVault(dir);
+    const jsonPath = writeConventionPack(vaultPath, SHAPES[2].json);
+    const configPath = path.join(dir, 'config.toml');
+    writeScratchToml(configPath, { vault: vaultPath, output: path.join(dir, 'out') });
+    const expected = expectedMessage(jsonPath, SHAPES[2].missing);
+
+    const { runStatusCommand } = requireFresh('../src/cli/status');
+    const result = runStatusCommand({ config: configPath }, 'fixture');
+    assert.equal(result.exitCode, 3);
+    assert.equal(result.human, `fixture: unreachable (bad-pack): ${expected}`);
+    assert.equal(result.envelope.reachable, false);
+    assert.equal(result.envelope.reason, 'bad-pack');
+
+    const { status, stderr } = runCli(['status', 'fixture', '--config', configPath]);
+    assert.equal(status, 3, stderr);
+  });
+});
+
+test('#143: POST /api/check answers exitCode 3 with the unchanged message', async (t) => {
+  const http = require('http');
+  const { startLocalListener } = require('../src/serve/server');
+  const { createAdminHandler } = require('../src/admin/router');
+  const { createAdminContext } = require('../src/admin/context');
+  const { resolveVaultSite } = require('../src/cli/check');
+
+  await withScratchDirAsync(async (dir) => {
+    const vaultPath = makeVault(dir);
+    const jsonPath = writeConventionPack(vaultPath, SHAPES[2].json);
+    const expected = expectedMessage(jsonPath, SHAPES[2].missing);
+
+    const ctxInfo = { campaign: 'fixture', vault: vaultPath, output: path.join(dir, 'out') };
+    // resolveVaultSite does not run the key check, so the admin context builds.
+    const { vaultPath: resolvedVaultPath, site } = resolveVaultSite(ctxInfo);
+    const ctx = createAdminContext({ ctxInfo, vaultPath: resolvedVaultPath, site, token: 'TOK' });
+    const handle = await startLocalListener(createAdminHandler(ctx), { port: 0 });
+    ctx.adminPort = handle.port;
+    t.after(async () => {
+      try {
+        await handle.close();
+      } catch {
+        // already closed
+      }
+    });
+
+    const body = Buffer.from('{}');
+    const res = await new Promise((resolve, reject) => {
+      const req = http.request(
+        {
+          host: '127.0.0.1',
+          port: handle.port,
+          method: 'POST',
+          path: '/api/check',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': String(body.length),
+            Host: `127.0.0.1:${handle.port}`,
+            Origin: `http://127.0.0.1:${handle.port}`,
+            Cookie: `scriptorium_admin_${handle.port}=TOK`,
+          },
+        },
+        (r) => {
+          const chunks = [];
+          r.on('data', (c) => chunks.push(c));
+          r.on('end', () => resolve({ status: r.statusCode, text: Buffer.concat(chunks).toString('utf8') }));
+        },
+      );
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
+
+    assert.equal(res.status, 200, res.text);
+    const json = JSON.parse(res.text);
+    assert.equal(json.exitCode, 3);
+    assert.equal(json.error, expected);
   });
 });

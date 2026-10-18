@@ -250,13 +250,16 @@ async function runUpdateCommand(
     // description of it -- deleting it there would destroy correct information (see the header
     // comment on discardNoticesBesideExecutable, src/update/replace.js). Best-effort and
     // swallowed inside discardNoticesBesideExecutable itself; a failed delete must not change
-    // this result any more than a failed cleanup above did.
-    discardNoticesBesideExecutable(exeDir);
+    // this result any more than a failed cleanup above did. The message names the clearing
+    // only when a file was actually removed (issue #119).
+    const noticesCleared = discardNoticesBesideExecutable(exeDir);
 
     let human =
       `updated ${currentVersion} -> ${tag}. Previous binary kept at ${oldPath}. ` +
-      "Any third-party notices file beside the executable described the OLD version and has been " +
-      'cleared; run --notices to print the new one. ' +
+      (noticesCleared
+        ? 'Any third-party notices file beside the executable described the OLD version and has been ' +
+          'cleared; run --notices to print the new one. '
+        : '') +
       `Release notes: ${releaseNotesUrl(tag)}`;
     // Installed copies only (a helper was beside the exe): the running tray app is the old version.
     if (stagedTrayPath !== null) human += `\nThe tray helper was updated too. ${QUIT_AND_RESTART}`;
