@@ -155,6 +155,44 @@ async function pressWhileCommitLands(page, field, buttonSelector) {
   await page.mouse.up();
 }
 
+/** From the start screen of the new-campaign path to the output question, with the suggested folder shown. */
+async function toOutputBox(page, fx) {
+  await toNewFolder(page);
+  await typeInto(page, '#su-newvault', path.join(fx.C, 'Ember Road'));
+  await waitStatus(page, 'su-newvault-st', 'A new folder will be created');
+  await page.click('[data-part="next"]');
+  await page.waitForFunction(() => !!document.getElementById('su-title') && document.getElementById('su-title').value !== '');
+  await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+  await page.click('[data-part="next"]');
+  await page.waitForSelector('input[name="su-sys"]');
+  await page.waitForFunction(() => !document.querySelector('[data-part="next"]').disabled);
+  await page.click('[data-part="next"]');
+  await page.waitForSelector('#su-out');
+  await page.waitForFunction(() => document.getElementById('su-out').value !== '' && document.getElementById('su-out-st').textContent.includes('Outside the vault'));
+}
+
+const isOutputCheck = (url, value, commit) => {
+  const u = new URL(url);
+  return u.pathname === '/api/setup/check' && u.searchParams.get('field') === 'output' && u.searchParams.get('commit') === commit && (value === undefined || u.searchParams.get('value') === value);
+};
+
+const ANSWER_WAIT_MS = 30000;
+
+/**
+ * Call before the keystrokes. drawn() resolves once the answer to the output question has come back
+ * and the screen has had two paint frames to react to it.
+ */
+async function expectOutputAnswer(page, value) {
+  const asked = page.waitForResponse((r) => isOutputCheck(r.url(), undefined, '0'), { timeout: ANSWER_WAIT_MS });
+  return {
+    drawn: async () => {
+      await (await asked).finished();
+      // two paint frames: every handler the answer queued has run by then
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    },
+  };
+}
+
 for (const browserName of ['chromium', 'firefox']) {
   test(`start a new campaign, browsing in ${browserName}`, { skip: SKIP, timeout: 420000 }, async (t) => {
     const fx = makeFixture();
@@ -361,14 +399,75 @@ for (const browserName of ['chromium', 'firefox']) {
       await pressWhileCommitLands(page, 'output', '#su-outok');
       assert.equal(await page.isChecked('#su-outok'), true);
       assert.equal(await nextEnabled(page), true, 'ticking the box lets you continue');
-      const asked = page.waitForResponse((r) => r.url().includes('field=output') && r.url().includes('commit=0'));
+      const final = await expectOutputAnswer(page, fx.notEmpty);
       await page.focus('#su-out');
       await page.keyboard.type('x');
       await page.keyboard.press('Backspace');
       assert.equal(await page.inputValue('#su-out'), fx.notEmpty);
-      await (await asked).finished();
-      // two paint frames: every handler the answer queued has run by then
-      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      await final.drawn();
+      assert.equal(await nextEnabled(page), false, 'the confirmation was cleared, so Continue is off');
+      assert.equal(await page.isChecked('#su-outok'), false, 'and the box shows it');
+      await page.context().close();
+    });
+
+    // The same read, with the typed character checked on its own: the check for the character alone
+    // comes back first, and it is not the answer for the folder the box ends up holding.
+    await t.test('the output question: the box is read after the answer for the final value, when the typed character is checked on its own', async () => {
+      const page = await open(1280);
+      await toOutputBox(page, fx);
+      await typeInto(page, '#su-out', fx.notEmpty);
+      await waitStatus(page, 'su-out-st', 'already has other files');
+      await pressWhileCommitLands(page, 'output', '#su-outok');
+      assert.equal(await page.isChecked('#su-outok'), true);
+      assert.equal(await nextEnabled(page), true, 'ticking the box lets you continue');
+      const final = await expectOutputAnswer(page, fx.notEmpty);
+      const typedAlone = page.waitForRequest((r) => isOutputCheck(r.url(), fx.notEmpty + 'x', '0'));
+      await page.focus('#su-out');
+      await page.keyboard.type('x');
+      await typedAlone;
+      await page.keyboard.press('Backspace');
+      assert.equal(await page.inputValue('#su-out'), fx.notEmpty);
+      await final.drawn();
+      assert.equal(await nextEnabled(page), false, 'the confirmation was cleared, so Continue is off');
+      assert.equal(await page.isChecked('#su-outok'), false, 'and the box shows it');
+      await page.context().close();
+    });
+
+    // The same read, with an answer for an earlier value still on its way when the box is ticked and
+    // the last keys are typed. It is held by the test until the final value is being waited for.
+    await t.test('the output question: the box is read after the answer for the final value, when an earlier answer arrives late', async () => {
+      const page = await open(1280);
+      await toOutputBox(page, fx);
+      const prefix = fx.notEmpty.slice(0, -1);
+      let heldOnce = false;
+      let seen;
+      const prefixSeen = new Promise((resolve) => {
+        seen = resolve;
+      });
+      let release;
+      await page.route((url) => isOutputCheck(url.href, prefix, '0'), async (route) => {
+        if (heldOnce) return route.continue();
+        heldOnce = true;
+        const resp = await route.fetch();
+        release = () => route.fulfill({ response: resp });
+        seen();
+      });
+      await typeInto(page, '#su-out', prefix);
+      await prefixSeen;
+      await page.keyboard.type(fx.notEmpty.slice(-1));
+      await waitStatus(page, 'su-out-st', 'already has other files');
+      await pressWhileCommitLands(page, 'output', '#su-outok');
+      assert.equal(await page.isChecked('#su-outok'), true);
+      assert.equal(await nextEnabled(page), true, 'ticking the box lets you continue');
+      const final = await expectOutputAnswer(page, fx.notEmpty);
+      const late = page.waitForResponse((r) => isOutputCheck(r.url(), prefix, '0'));
+      release();
+      await (await late).finished();
+      await page.focus('#su-out');
+      await page.keyboard.type('x');
+      await page.keyboard.press('Backspace');
+      assert.equal(await page.inputValue('#su-out'), fx.notEmpty);
+      await final.drawn();
       assert.equal(await nextEnabled(page), false, 'the confirmation was cleared, so Continue is off');
       assert.equal(await page.isChecked('#su-outok'), false, 'and the box shows it');
       await page.context().close();
