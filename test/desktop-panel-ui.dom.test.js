@@ -88,7 +88,7 @@ const FULL = { state: 'available', tag: 'v1.0.1', prerelease: false, notesUrl: '
 
 for (const browserName of ['chromium', 'firefox']) {
   /** Runs `fn` with a fresh in-process panel (desktop or not) and a browser. */
-  async function withPanel(t, { desktop }, fn) {
+  async function withPanel(t, { desktop, check }, fn) {
     const fx = makeCampaigns(t, ['alpha']);
     addPending(fx.panelDir, 'alpha');
     const result = await startAdminPanel({ admin: true, config: fx.configPath }, undefined, {
@@ -97,7 +97,7 @@ for (const browserName of ['chromium', 'firefox']) {
       startPanelListener: async () => {
         throw new Error('no remote listener expected');
       },
-      updateDeps: { isPkg: true, check: () => Promise.resolve(FULL), currentVersion: '1.0.0' },
+      updateDeps: { isPkg: true, check: check || (() => Promise.resolve(FULL)), currentVersion: '1.0.0' },
     });
     assert.equal(result.ok, true, JSON.stringify(result));
     await settle();
@@ -111,7 +111,7 @@ for (const browserName of ['chromium', 'firefox']) {
     const base = `http://127.0.0.1:${result.ctx.adminPort}`;
     const browser = await pw[browserName].launch();
     try {
-      const open = async (size = WIDTHS[0], { waitCard = true, hash = '' } = {}) => {
+      const open = async (size = WIDTHS[0], { waitCard = true, hash = '', prepare } = {}) => {
         const bctx = await browser.newContext({ viewport: size });
         const page = await bctx.newPage();
         const problems = [];
@@ -120,6 +120,7 @@ for (const browserName of ['chromium', 'firefox']) {
         });
         page.on('pageerror', (e) => problems.push(String(e)));
         page.problems = problems;
+        if (prepare) page.prepared = await prepare(page);
         await page.goto(`${base}/auth?token=${result.token}`, { waitUntil: 'load' });
         if (hash) await page.evaluate((h) => { window.location.hash = h; }, hash);
         await page.waitForFunction(() => document.querySelector('[data-screen="overview"]') !== null || window.location.hash !== '#/overview');
@@ -205,7 +206,7 @@ for (const browserName of ['chromium', 'firefox']) {
       for (const size of WIDTHS) {
         const page = await open(size, { hash: '#/images', waitCard: false });
         await page.waitForFunction(() => window.location.hash === '#/images');
-        ctx.launchLanding = { to: 'updates', expiresAt: Date.now() + 15000 };
+        await armLanding(ctx, page, { to: 'updates', expiresAt: Date.now() + 15000 });
         await page.reload({ waitUntil: 'load' });
         await page.waitForSelector('#updates');
         await page.waitForFunction(() => document.activeElement && document.activeElement.getAttribute('data-ctl') === 'switch');
@@ -267,6 +268,32 @@ for (const browserName of ['chromium', 'firefox']) {
   });
   const switchFocused = (page) => page.waitForFunction(() => document.activeElement && document.activeElement.getAttribute('data-ctl') === 'switch');
   const fontsLoaded = (page) => page.waitForFunction(() => document.fonts.status === 'loaded');
+
+  /**
+   * Hands the tray's one-shot landing to the panel for the NEXT load. The server gives it to whichever page
+   * asks for its session first, so the opened page must have had its own session answer before this arms it.
+   */
+  async function armLanding(ctx, page, landing) {
+    // The Overview is built only after the page's own session answer, so its presence is that answer. Keep this the first line: the assignment below must wait for it.
+    await page.waitForSelector('[data-screen="overview"]', { state: 'attached' });
+    ctx.launchLanding = landing;
+  }
+
+  test(`the landing is armed only after the opened page has its own session answer in ${browserName}`, { skip: SKIP, timeout: 240000 }, async (t) => {
+    await withPanel(t, { desktop: true }, async ({ open, ctx }) => {
+      const landing = { to: 'updates', expiresAt: Date.now() + 15000 };
+      const page = await open(WIDTHS[0], { hash: '#/images', waitCard: false, prepare: (p) => holdRequests(p, '**/api/session') });
+      await page.prepared.seen;
+      const armed = armLanding(ctx, page, landing);
+      assert.equal(ctx.launchLanding ?? null, null, 'nothing is armed while the opened page waits for its session answer');
+      await page.prepared.release();
+      await armed;
+      assert.deepEqual(ctx.launchLanding, landing, 'the opened page booted without taking it');
+      await page.reload({ waitUntil: 'load' });
+      await switchFocused(page);
+      assert.equal(ctx.launchLanding, null, 'the reload took it');
+    });
+  });
 
   /** The tray's landing on a fresh load, with the web fonts held back. Resolves once the Overview is drawn in full. */
   async function landWithFontsHeld(ctx, page) {
@@ -362,12 +389,11 @@ for (const browserName of ['chromium', 'firefox']) {
   });
 
   /**
-   * The tray's landing on a fresh load with the ports card drawn above the Updates card, which is how
-   * the panel comes out when the desktop answer beats the update answer: the update answer is held until
-   * the welcome and the ports card are in. Resolves once the switch has focus (the landing's last act) and
-   * the web fonts are in (the landing's own condition, checked again here).
+   * The tray's landing on a fresh load when the ports answer comes first: the update answer is held until
+   * the welcome and the ports card are in, so the Updates card is drawn last. Resolves once the switch has
+   * focus (the landing's last act) and the web fonts are in (the landing's own condition, checked again here).
    */
-  async function landBelowPortsCard(ctx, page) {
+  async function landWithPortsAnswerFirst(ctx, page) {
     await page.waitForSelector('[data-screen="overview"]', { state: 'attached' });
     await page.addInitScript(LANDING_COUNTERS);
     const update = await holdRequests(page, '**/api/update');
@@ -387,12 +413,12 @@ for (const browserName of ['chromium', 'firefox']) {
     { size: { width: 390, height: 600 }, narrow: true },
     { size: { width: 1280, height: 400 }, narrow: false },
   ]) {
-    test(`a tall Updates card drawn below the ports card in ${browserName} at ${shape.size.width}x${shape.size.height}: the landing keeps its top edge on screen${shape.narrow ? ' and below the top bar' : ''}`, { skip: SKIP, timeout: 240000 }, async (t) => {
+    test(`a tall Updates card when the ports answer comes first in ${browserName} at ${shape.size.width}x${shape.size.height}: drawn above the ports card, the landing keeps room above it${shape.narrow ? ' and below the top bar' : ''}`, { skip: SKIP, timeout: 240000 }, async (t) => {
       await withPanel(t, { desktop: true }, async ({ open, ctx }) => {
         const page = await open(shape.size, { hash: '#/images', waitCard: false });
         await page.waitForFunction(() => window.location.hash === '#/images');
-        await landBelowPortsCard(ctx, page);
-        assert.deepEqual(await restOrder(page), ['div', 'section', 'desktop-slot', 'update-setting'], 'the ports card is above the Updates card');
+        await landWithPortsAnswerFirst(ctx, page);
+        assert.deepEqual(await restOrder(page), ['div', 'section', 'update-setting', 'desktop-slot'], 'the Updates card is drawn above the ports card');
         const tall = await page.evaluate(() => document.getElementById('updates').getBoundingClientRect().height > window.innerHeight);
         assert.equal(tall, true, 'the card is taller than this window');
         const inView = await page.evaluate(() => {
@@ -400,6 +426,11 @@ for (const browserName of ['chromium', 'firefox']) {
           return r.top >= 0 && r.top < window.innerHeight;
         });
         assert.equal(inView, true, 'the top of the card is in view');
+        if (!shape.narrow) {
+          // ADR 0057 section 11: 16 px of room; a whole-pixel scroll position can take up to half a pixel.
+          const room = await page.evaluate(() => document.getElementById('updates').getBoundingClientRect().top);
+          assert.ok(room >= 15, `the card keeps its room above it (${room} px)`);
+        }
         if (shape.narrow) {
           const below = await page.evaluate(() => document.getElementById('updates').getBoundingClientRect().top >= document.querySelector('[data-role="top-bar"]').getBoundingClientRect().bottom);
           assert.equal(below, true, 'the top edge is below the top bar');
@@ -408,6 +439,46 @@ for (const browserName of ['chromium', 'firefox']) {
       });
     });
   }
+
+  const CARD_FIRST = ['div', 'section', 'update-setting', 'desktop-slot'];
+
+  /** Opens the Overview once the Updates card and the ports card are both drawn. */
+  async function openWithPortsDrawn(open) {
+    const page = await open(WIDTHS[0], { prepare: (p) => holdRequests(p, '**/api/desktop') });
+    await page.prepared.release();
+    await page.waitForSelector('#desktop-ports');
+    return page;
+  }
+
+  test(`the Updates switch in ${browserName} redraws the card where it was, above the ports card`, { skip: SKIP, timeout: 240000 }, async (t) => {
+    await withPanel(t, { desktop: true }, async ({ open }) => {
+      const page = await openWithPortsDrawn(open);
+      assert.deepEqual(await restOrder(page), CARD_FIRST, 'the Updates card is drawn above the ports card');
+      await page.locator('#updates [role="switch"]').click();
+      await page.waitForFunction(() => document.querySelector('#updates [role="switch"]').getAttribute('aria-checked') === 'false');
+      assert.deepEqual(await restOrder(page), CARD_FIRST, 'the redrawn Updates card is still above the ports card');
+    });
+  });
+
+  test(`a poll while the update check runs in ${browserName} redraws the card where it was, above the ports card`, { skip: SKIP, timeout: 240000 }, async (t) => {
+    let finish;
+    const held = new Promise((resolve) => { finish = resolve; });
+    try {
+      await withPanel(t, { desktop: true, check: () => held }, async ({ open, ctx }) => {
+        const page = await openWithPortsDrawn(open);
+        assert.deepEqual(await restOrder(page), CARD_FIRST, 'the Updates card is drawn above the ports card');
+        assert.equal(ctx.updateNotice.snapshot().state, 'checking');
+        const polled = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/update');
+        finish(FULL);
+        await polled;
+        // The banner is drawn in the same pass as the card, so it is the real sign of the poll's redraw.
+        await page.waitForSelector('[data-part="update-notice"]');
+        assert.deepEqual(await restOrder(page), CARD_FIRST, 'the card the poll redrew is still above the ports card');
+      });
+    } finally {
+      finish(FULL);
+    }
+  });
 
   test(`the landing in ${browserName} leaves the page alone when the GM scrolls or moves focus before the fonts arrive`, { skip: SKIP, timeout: 240000 }, async (t) => {
     for (const act of ['wheel', 'tab', 'focus']) {
@@ -455,7 +526,7 @@ for (const browserName of ['chromium', 'firefox']) {
   test(`an expired landing is not followed in ${browserName}`, { skip: SKIP, timeout: 120000 }, async (t) => {
     await withPanel(t, { desktop: true }, async ({ open, ctx }) => {
       const page = await open(WIDTHS[0], { hash: '#/images', waitCard: false });
-      ctx.launchLanding = { to: 'updates', expiresAt: Date.now() - 1 };
+      await armLanding(ctx, page, { to: 'updates', expiresAt: Date.now() - 1 });
       await bootedWithoutLanding(page, () => page.reload({ waitUntil: 'load' }));
       assert.equal(await page.evaluate(() => window.location.hash), '#/images', 'the address is still the Images screen after boot');
       assert.equal(await page.evaluate(() => (document.activeElement && document.activeElement.getAttribute('data-ctl')) || ''), '', 'an expired landing focuses nothing');

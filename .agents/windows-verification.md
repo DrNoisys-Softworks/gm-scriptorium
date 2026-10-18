@@ -2502,6 +2502,17 @@ Issue #118. **Mark this OPEN: structure tests pin the source and makensis compil
 
 Also re-run C145 step 3. C151 step 2 stays with the owner.
 
+### C214: the ports card stays below the Updates card
+
+[ADR 0057](../docs/decisions/0057-windows-desktop-app.md) section 8, "The ports card".
+
+**Mark this OPEN: Linux tests drive the panel in real Chromium and Firefox with a stand-in host and each answer held back in turn; only a real tray, a real Windows browser and real timings can be checked here.** The rules in "C190 to C205: rules that hold for every desktop-app criterion" apply: a scratch `SCRIPTORIUM_CONFIG` set with `setx`, then sign out and in. Never the real config, never `N:`.
+
+1. Start from a fresh install through browser setup, then open the panel from the tray. "This PC's addresses" is the last card, directly below the Updates card. Reload five times: the cards never change places.
+2. Turn "Check for updates once a day" off, then on. After each, the Updates card stays where it was, with "This PC's addresses" directly below it.
+3. Change the update channel to Beta and back to Stable. The cards stay where they are.
+4. Choose Check for updates from the tray. It lands as in C207, and "This PC's addresses" is below the card.
+
 ### C170: a bare `--force` is refused with one line, in the real win-x64 exe
 
 Issue #15, [ADR 0055](../docs/decisions/0055-force-split.md). **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match. Use a scratch copy of the-long-lease example vault, registered as campaign `c170` with an output folder `S\out` that does not exist.
