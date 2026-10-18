@@ -386,3 +386,23 @@ test('D-AUD control: a planted ADR line-number citation is caught, a section cit
   // A line citation of a non-ADR file is not this check's business.
   assert.deepEqual(adrLineCitations('v1-restyle-lead-requirements-2026-09-29.md:43'), []);
 });
+
+// ---- the pull request template (#147) ----
+
+/** Targets that are neither a full https address nor an in-page anchor. GitHub shows the template
+ * in a place where a relative link does not resolve. */
+function nonAbsoluteTargets(text) {
+  return extractLinks(text)
+    .map((l) => l.target)
+    .filter((t) => !(t.startsWith('https://') || t.startsWith('#')));
+}
+
+test('docs-links: every link in .github/pull_request_template.md is a full https address or an in-page anchor (#147)', () => {
+  const text = fs.readFileSync(path.join(ROOT, '.github', 'pull_request_template.md'), 'utf8');
+  assert.ok(extractLinks(text).length > 0, 'the template has links');
+  assert.deepEqual(nonAbsoluteTargets(text), []);
+});
+
+test('control: a relative link in a template is reported', () => {
+  assert.deepEqual(nonAbsoluteTargets('[a](../CONTRIBUTING.md) [b](https://x.test/) [c](#here)'), ['../CONTRIBUTING.md']);
+});

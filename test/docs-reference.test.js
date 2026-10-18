@@ -7,7 +7,7 @@
  *
  * Tests that pass today and so prove nothing on their own (their evidence is the recorded mutation
  * that turns each red): the freshness test, the per-block coverage test, the no-conflict test, the
- * environment parity test, the UPDATE_KEYS pin, the page example test and the style test, all on
+ * environment parity test, the UPDATE_KEYS pin, the page example test, the full-path example test (#147) and the style test, all on
  * the real repository. The scratch-string controls and the literal expectations below are what
  * show the checks can fail.
  *
@@ -28,6 +28,7 @@ const { parseConfig } = require('../src/config/load');
 const { parseRemoteTable } = require('../src/remote/settings');
 const { parseUpdateTable, UPDATE_KEYS } = require('../src/config/updatesettings');
 const { parseDesktopTable } = require('../src/config/desktopsettings');
+const TOML = require('smol-toml');
 const { ONEDRIVE_VARS } = require('../src/setup/checks');
 
 const ROOT = path.join(__dirname, '..');
@@ -340,6 +341,39 @@ test('the example on the settings page loads with no warnings and its tables pas
 test('control: a misspelt key in an example produces a warning', () => {
   const { warnings } = parseConfig('config_version = 1\n\n[campaigns.lease]\nvault = "v"\nvaullt = "x"\n');
   assert.deepEqual(warnings, ['campaigns.lease: unrecognised key "vaullt" (preserved, not applied)']);
+});
+
+// The example must show full paths: a leading `~` and environment variables are not expanded.
+function isFullPathValue(v) {
+  if (typeof v !== 'string') return false;
+  if (!(path.posix.isAbsolute(v) || path.win32.isAbsolute(v))) return false;
+  if (v.startsWith('~')) return false;
+  return !/\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|%[A-Za-z_][A-Za-z0-9_]*%/.test(v);
+}
+
+test('#147: every path in the settings-page example is a full path, with no ~ and no environment variable', () => {
+  const text = read('docs/reference/config-toml.md');
+  const blocks = [...text.matchAll(/```toml\n([\s\S]*?)```/g)].map((m) => m[1]);
+  const doc = TOML.parse(blocks[0]);
+  const values = [];
+  for (const camp of Object.values(doc.campaigns)) {
+    const tables = [camp, ...Object.values(camp.paths || {})];
+    for (const t of tables) {
+      for (const key of ['vault', 'site_config', 'output', 'pack']) {
+        if (Object.prototype.hasOwnProperty.call(t, key)) values.push(t[key]);
+      }
+    }
+  }
+  assert.ok(values.length >= 3, 'the example has path values');
+  const bad = values.filter((v) => !isFullPathValue(v));
+  assert.deepEqual(bad, []);
+  assert.ok(values.some((v) => v.startsWith('/')), 'a Linux or macOS full path');
+  assert.ok(values.some((v) => /^[A-Za-z]:\\/.test(v)), 'a Windows full path');
+});
+
+test('control: the full-path rule rejects ~, $HOME, ${HOME} and %APPDATA% and accepts /srv/x and D:\\x', () => {
+  for (const v of ['~/x', '$HOME/x', '${HOME}/x', '%APPDATA%\\x', 'relative/x']) assert.equal(isFullPathValue(v), false, v);
+  for (const v of ['/srv/x', 'D:\\x']) assert.equal(isFullPathValue(v), true, v);
 });
 
 // ---- style and privacy ----

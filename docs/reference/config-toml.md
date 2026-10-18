@@ -34,9 +34,9 @@ config_version = 1
 default_campaign = "lease"
 
 [campaigns.lease]
-vault = '~/campaigns/lease/vault'
-site_config = '~/campaigns/lease/site/vault.config.json'
-output = '~/campaigns/lease/out'
+vault = '/srv/campaigns/lease/vault'
+site_config = '/srv/campaigns/lease/site/vault.config.json'
+output = '/srv/campaigns/lease/out'
 serve_port = 8080
 
 [campaigns.lease.paths.windows-desktop]
@@ -46,6 +46,8 @@ output = 'D:\Campaigns\lease\out'
 ```
 
 Use single quotes for Windows paths, so the backslashes are taken as they are.
+
+Write the paths in full. A path that starts with `~` is not expanded in this file, and neither is an environment variable such as `$HOME` or `%APPDATA%`.
 
 ## Top level
 
