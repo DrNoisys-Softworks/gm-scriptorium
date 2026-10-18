@@ -1074,6 +1074,7 @@ const UNFIN_ARITH_MOVE = [
   'IntOp $3 $3 - $2',
 ];
 const UNFIN_STYLE_LINE = '${NSD_AddStyle} $mui.FinishPage.Text ${SS_NOPREFIX}';
+const UNFIN_WRAP_LINE = '${NSD_AddStyle} $mui.FinishPage.Text ${SS_EDITCONTROL}';
 
 function unfinBody() {
   const body = functionBody(NSI, 'un.GmFinishShow');
@@ -1084,7 +1085,7 @@ function unfinBody() {
 test('finish page: un.GmFinishShow reads Modern UI\'s own layout in pixels and moves only with the allowed calls, in order', () => {
   const lines = unfinBody();
   const U = UNFIN_LINES;
-  const order = [UNFIN_STYLE_LINE, U.alloc, U.origin, U.originRead, U.runRect, U.runRead, U.textRect, U.textRead, U.clientRect, U.clientRead, U.free, U.moveText, U.moveBox];
+  const order = [UNFIN_STYLE_LINE, UNFIN_WRAP_LINE, U.alloc, U.origin, U.originRead, U.runRect, U.runRead, U.textRect, U.textRead, U.clientRect, U.clientRead, U.free, U.moveText, U.moveBox];
   const at = order.map((l) => {
     assert.equal(lines.filter((x) => x === l).length, 1, `exactly once in the body: ${l}`);
     return lines.indexOf(l);
@@ -1138,4 +1139,47 @@ test('finish page: un.GmFinishShow keeps $0 to $9 for its caller', () => {
   const seq = (re) => lines.filter((l) => re.test(l));
   assert.deepEqual(seq(/^Push \$\d$/), ['Push $0', 'Push $1', 'Push $2', 'Push $3', 'Push $4', 'Push $5', 'Push $6', 'Push $7', 'Push $8', 'Push $9']);
   assert.deepEqual(seq(/^Pop \$\d$/), ['Pop $9', 'Pop $8', 'Pop $7', 'Pop $6', 'Pop $5', 'Pop $4', 'Pop $3', 'Pop $2', 'Pop $1', 'Pop $0']);
+});
+
+// The uninstaller confirm page (un.ConfirmShow). The path label grows so a path too long for one line
+// can break across lines (SS_EDITCONTROL), and the four labels under it move down to make room.
+const CONFIRM_LINES = {
+  path: '${NSD_CreateLabel} 0 11u 100% 27u "${APP_NAME} will be removed from$\\r$\\n$INSTDIR."',
+  removed: '${NSD_CreateLabel} 0 40u 100% 9u "Removed"',
+  removedList: '${NSD_CreateLabel} 8u 49u 100% 42u "The program, its tray helper, and any leftovers from updates$\\r$\\nThe Start menu and desktop shortcuts, if Setup made them$\\r$\\nThe start-with-Windows entry$\\r$\\nThe PATH entry, if Setup added one$\\r$\\nThe Installed apps entry"',
+  never: '${NSD_CreateLabel} 0 94u 100% 9u "Never touched"',
+  keptList: '${NSD_CreateLabel} 8u 103u 100% 28u "Your settings and campaign list, in $APPDATA\\Scriptorium$\\r$\\nYour campaign vaults, including their _meta\\scriptorium\\ folders$\\r$\\nYour built sites, and anything you have published"',
+};
+
+test('confirm page: the five labels sit at their pinned positions and the path label is styled for wrapping', () => {
+  const lines = functionBody(NSI, 'un.ConfirmShow').split('\n').map((l) => l.trim());
+  for (const [k, l] of Object.entries(CONFIRM_LINES)) assert.equal(lines.filter((x) => x === l).length, 1, `exactly once: ${k}`);
+  const i = lines.indexOf(CONFIRM_LINES.path);
+  assert.deepEqual(lines.slice(i + 1, i + 4), ['Pop $0', '${NSD_AddStyle} $0 ${SS_NOPREFIX}', '${NSD_AddStyle} $0 ${SS_EDITCONTROL}']);
+  // order on the page
+  const at = Object.values(CONFIRM_LINES).map((l) => lines.indexOf(l));
+  assert.deepEqual(at, at.slice().sort((a, b) => a - b));
+});
+
+test('confirm page: no label overlaps the next, and the last one ends inside the page', () => {
+  // The inner page height is not in any local source. 131u is the bottom the layout was designed to
+  // (about 140u is recalled, so 9u spare); the Windows check C213 confirms the last line shows.
+  const BOTTOM = 131;
+  const geo = (l) => {
+    const m = /NSD_CreateLabel\}\s+(?:0|(\d+)u)\s+(\d+)u\s+100%\s+(\d+)u/.exec(l);
+    return { top: Number(m[2]), height: Number(m[3]) };
+  };
+  const g = Object.fromEntries(Object.entries(CONFIRM_LINES).map(([k, l]) => [k, geo(l)]));
+  const lines = functionBody(NSI, 'un.ConfirmShow').split('\n').map((l) => l.trim());
+  const keys = { path: 'will be removed from', removed: '"Removed"', removedList: 'The program, its tray helper', never: '"Never touched"', keptList: 'Your settings and campaign list' };
+  const real = Object.fromEntries(Object.entries(keys).map(([k, t]) => [k, geo(lines.find((x) => x.startsWith('${NSD_CreateLabel}') && x.includes(t)))]));
+  assert.deepEqual(real, g, 'the source matches the pinned geometry');
+  assert.ok(g.path.top + g.path.height <= g.removed.top, '38 <= 40');
+  assert.ok(g.removed.top + g.removed.height <= g.removedList.top, '49 <= 49');
+  assert.ok(g.removedList.top + g.removedList.height <= g.never.top, '91 <= 94');
+  assert.ok(g.never.top + g.never.height <= g.keptList.top, '103 <= 103');
+  assert.ok(g.keptList.top + g.keptList.height <= BOTTOM, 'ends by 131');
+  // controls: the old layout overlaps
+  assert.equal(11 + 18 <= 31 && 31 + 9 <= 40 && 85 + 9 <= 94, true, 'sanity: old layout was tight but valid');
+  assert.equal(11 + 27 <= 31, false, 'a 27u path label at the old Removed position would overlap');
 });

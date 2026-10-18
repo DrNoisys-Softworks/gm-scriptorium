@@ -1058,18 +1058,19 @@ Function un.ConfirmShow
   ${NSD_CreateLabel} 0 0 100% 10u "${APP_NAME} is running. Uninstall will close it first."
   Pop $0
   confirm_not_running:
-  ${NSD_CreateLabel} 0 11u 100% 18u "${APP_NAME} will be removed from$\r$\n$INSTDIR."
+  ${NSD_CreateLabel} 0 11u 100% 27u "${APP_NAME} will be removed from$\r$\n$INSTDIR."
   Pop $0
   ${NSD_AddStyle} $0 ${SS_NOPREFIX}
-  ${NSD_CreateLabel} 0 31u 100% 9u "Removed"
+  ${NSD_AddStyle} $0 ${SS_EDITCONTROL}
+  ${NSD_CreateLabel} 0 40u 100% 9u "Removed"
   Pop $0
   SendMessage $0 ${WM_SETFONT} $gmBold 0
-  ${NSD_CreateLabel} 8u 40u 100% 42u "The program, its tray helper, and any leftovers from updates$\r$\nThe Start menu and desktop shortcuts, if Setup made them$\r$\nThe start-with-Windows entry$\r$\nThe PATH entry, if Setup added one$\r$\nThe Installed apps entry"
+  ${NSD_CreateLabel} 8u 49u 100% 42u "The program, its tray helper, and any leftovers from updates$\r$\nThe Start menu and desktop shortcuts, if Setup made them$\r$\nThe start-with-Windows entry$\r$\nThe PATH entry, if Setup added one$\r$\nThe Installed apps entry"
   Pop $0
-  ${NSD_CreateLabel} 0 85u 100% 9u "Never touched"
+  ${NSD_CreateLabel} 0 94u 100% 9u "Never touched"
   Pop $0
   SendMessage $0 ${WM_SETFONT} $gmBold 0
-  ${NSD_CreateLabel} 8u 94u 100% 28u "Your settings and campaign list, in $APPDATA\Scriptorium$\r$\nYour campaign vaults, including their _meta\scriptorium\ folders$\r$\nYour built sites, and anything you have published"
+  ${NSD_CreateLabel} 8u 103u 100% 28u "Your settings and campaign list, in $APPDATA\Scriptorium$\r$\nYour campaign vaults, including their _meta\scriptorium\ folders$\r$\nYour built sites, and anything you have published"
   Pop $0
   ${NSD_AddStyle} $0 ${SS_NOPREFIX}
 
@@ -1132,6 +1133,7 @@ Function un.GmFinishShow
   Push $8
   Push $9
   ${NSD_AddStyle} $mui.FinishPage.Text ${SS_NOPREFIX}
+  ${NSD_AddStyle} $mui.FinishPage.Text ${SS_EDITCONTROL}
   System::Call '*(i 0, i 0, i 0, i 0) p .r1'
   IntCmp $1 0 finish_done
   System::Call 'user32::ClientToScreen(p $mui.FinishPage, p r1) i .r0'
