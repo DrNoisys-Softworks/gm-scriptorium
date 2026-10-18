@@ -77,7 +77,9 @@ test('CLI: with the pin\'s own reader alone (no build-side rewrite), check resol
     const m = /<td><a href="([^"]+)">Label Zqx<\/a><\/td>/.exec(html);
     assert.ok(m, `expected a link cell, got: ${html.slice(html.indexOf('<table'), html.indexOf('</table>') + 8)}`);
     assert.equal(m[1], 'emlyn-crewe.html');
-    assert.ok(!html.includes('[['), 'no raw wikilink syntax may leak');
+    // From publish-v1.18.0 a page carries its Connections as JSON, whose nested arrays open with `[["`.
+    // Wikilink syntax opens with a name, never a quote.
+    assert.ok(!/\[\[(?!")/.test(html), 'no raw wikilink syntax may leak');
     assert.ok(!html.includes('Emlyn Crewe\\'), 'no stray backslash target');
     const idx = fs.readFileSync(path.join(root, 'out', 'search-index.json'), 'utf8');
     assert.ok(idx.includes('"zqx"'), 'search index must contain the label term');
@@ -106,29 +108,6 @@ test('rewrite: an inline code span in a table cell is left alone, prose link bes
 
 test('rewrite: a table row after a closed fence is rewritten again', () => {
   assert.equal(rw('```\nx\n```\n| [[A\\|B]] |'), '```\nx\n```\n| [[A|B]] |');
-});
-
-function scratchVault() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-shim-'));
-  const vault = path.join(root, 'vault');
-  fs.mkdirSync(vault);
-  fs.writeFileSync(path.join(vault, 'in.md'), '| [[A\\|B]] |\n');
-  return { root, vault };
-}
-
-// ADR 0043 addendum (publish-v1.14.0): the build half of the escaped-pipe rewrite is retired. The
-// shim infrastructure stays (vault scope, restore, comment stripping: test/obsidian-comments.test.js),
-// but a table-cell escaped pipe now reaches the pin byte for byte, and the pin's own reader
-// (lib/wikilink.js) resolves it. The CLI test above is the proof of that, on a real build.
-test('the build read shim leaves a table-cell escaped pipe alone (the pin reads it itself)', () => {
-  const { root, vault } = scratchVault();
-  const restore = bootstrap.installVaultReadShim(vault, bootstrap.READ_TRANSFORMS_FOR_BUILD);
-  try {
-    assert.equal(fs.readFileSync(path.join(vault, 'in.md'), 'utf8'), '| [[A\\|B]] |\n');
-  } finally {
-    restore();
-    fs.rmSync(root, { recursive: true, force: true });
-  }
 });
 
 test('runGeneratorBuild restores fs.readFileSync after a throw and after a success', () => {

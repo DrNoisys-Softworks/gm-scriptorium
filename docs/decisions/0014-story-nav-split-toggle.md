@@ -206,3 +206,12 @@ else, it does nothing, so it is inert once the pin handles focus itself. It edit
 **Retire it when upstream adds the focus return** (delete the module, its call in `run.js` and the shim test in
 `test/story-nav-pin.test.js`). The real-browser test in `test/story-nav-pin.test.js` was red without the shim and
 is green with it.
+
+## Addendum: the focus shim is retired (publish-v1.21.0)
+
+The pin's `js/nav.js` has returned focus to the group's toggle on Escape since `publish-v1.15.1`
+(upstream #324): it closes every open group and, when focus was inside one, focuses that group's toggle.
+So `src/build/storyfocus.js`, its call in `src/build/run.js` and its unit test are deleted, as the
+section above planned. The real-browser test in `test/story-nav-pin.test.js`, which was red without the
+shim at 1.14.0, is green without it at 1.21.0, and the no-browser test now checks that the
+`data-scriptorium-storyfocus` marker never comes back. Nothing a reader sees changes.

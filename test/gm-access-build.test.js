@@ -16,6 +16,13 @@ const { resolveVaultContext, resolveVaultSite } = require('../src/cli/check');
 const { createAdminContext } = require('../src/admin/context');
 const preview = require('../src/admin/preview');
 
+// A preload standing in for "every comment strip failed": test/helpers/comment-leak-preload.js deletes
+// the `%%` markers, keeping their text, in what the generator reads, so nothing is left for its strip to
+// find. The output gate reads the comments from the vault itself.
+function unwrapCommentsPreload() {
+  return `require(${JSON.stringify(path.join(__dirname, 'helpers', 'comment-leak-preload.js'))});\n`;
+}
+
 /*
  * The published GM link, through the real build. The off build is the parent's build, byte for
  * byte: (a) the writer touches nothing when off, (b) an on build minus the one snippet per page
@@ -282,7 +289,7 @@ test('(d) link on: a %% comment that survives into the output is refused, exit 2
     const breaker = path.join(root, 'break.js');
     fs.writeFileSync(
       breaker,
-      `require(${JSON.stringify(path.join(__dirname, '..', 'src', 'generator', 'bootstrap.js'))}).READ_TRANSFORMS_FOR_BUILD.length = 0;\n`,
+      unwrapCommentsPreload(),
     );
     const env = { NODE_OPTIONS: `--require ${breaker}` };
     for (const extra of [[], ['--force-check']]) {

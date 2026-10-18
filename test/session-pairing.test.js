@@ -89,7 +89,7 @@ test('change detector: lib/scanner.js still carries the exact SESSION_TYPE_LINE 
   assert.ok(
     src.includes('const SESSION_TYPE_LINE = /^type:\\s*["\']?(session|session_wrap|session-wrap-up|session-wrapup)["\']?\\s*$/m;'),
   );
-  assert.ok(src.includes('if (/^(gm_)?aliases:/m.test(text) || SESSION_TYPE_LINE.test(text)) frontmatter = parseNote(text).data || {};'));
+  assert.ok(src.includes('if (/^(?:(?:gm_)?aliases|withheld):/m.test(text) || SESSION_TYPE_LINE.test(text)) frontmatter = parseNote(text).data || {};'));
 });
 
 test('the pin\'s SESSION_TYPE_LINE alternation equals {session} union WRAP_UP_TYPES', () => {
@@ -129,6 +129,8 @@ test('port parity: scanAllNotesForPairing matches the pin\'s own scanAllNotes ac
     writeFile(path.join(scratch, 'AliasLine.md'), 'Some prose.\naliases: not-real-frontmatter\n');
     writeFile(path.join(scratch, 'Malformed.md'), '---\ngm_aliases: [Foo\n---\n');
     writeFile(path.join(scratch, 'JsonFence.md'), '---json\n{"aliases": ["Foo"]}\n---\n');
+    // From publish-v1.21.0 a `withheld:` line also gates the frontmatter read.
+    writeFile(path.join(scratch, 'Withheld.md'), '---\ntype: npc\nwithheld: yes\n---\n');
 
     const realFile = path.join(scratch, 'Real.md');
     writeFile(realFile, '---\ntype: npc\n---\n');

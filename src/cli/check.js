@@ -187,6 +187,12 @@ function loadPackConfig(packConfigPath, campaign) {
 }
 
 /**
+ * Kept as Scriptorium's own check (owner decision, 2026-10-17). The reason below is history: from
+ * publish-v1.14.0 at the latest the pin fills in defaults for both keys (resolveConfig, lib/config.js)
+ * and no longer throws, but its default folderMap maps nothing, so a site config without one would
+ * build a site of empty index pages. Refusing gives the GM one clear message instead. A wrongly typed
+ * excludeDirs would still throw in Scriptorium's own ported scan (src/vault/publishset.js).
+ *
  * rc.2 Windows follow-ups, DEFECT 2: the pinned generator's own scan (lib/scanner.js's
  * scanVaultReport, reached from the real `build()` via src/generator/bootstrap.js's
  * runGeneratorBuild) reads `config.excludeDirs` and `config.folderMap` with no defaulting

@@ -10,6 +10,13 @@ const { scanObsidianComments, stripObsidianComments } = require('../src/vault/co
 const { scanCommentsInOutput, needlesFor } = require('../src/checks/leak/commentscan');
 const bootstrap = require('../src/generator/bootstrap');
 
+// A preload standing in for "every comment strip failed": test/helpers/comment-leak-preload.js deletes
+// the `%%` markers, keeping their text, in what the generator reads, so nothing is left for its strip to
+// find. The output gate reads the comments from the vault itself.
+function unwrapCommentsPreload() {
+  return `require(${JSON.stringify(path.join(__dirname, 'helpers', 'comment-leak-preload.js'))});\n`;
+}
+
 /*
  * ADR 0044: Obsidian %%comments%% are withheld. Expected values are written out literally.
  */
@@ -91,34 +98,10 @@ test('%%% is treated as an opener (fail closed), never published', () => {
 
 // ---- the shim ----
 
-test('the build shim strips comments and leaves a table-cell escaped pipe to the pin, in vault .md reads only', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-cmt-shim-'));
-  const vault = path.join(root, 'vault');
-  fs.mkdirSync(vault);
-  fs.writeFileSync(path.join(vault, 'a.md'), 'a %%hid%% b\n| [[T\\|L]] |\n');
-  fs.writeFileSync(path.join(root, 'outside.md'), 'a %%hid%% b\n');
-  fs.writeFileSync(path.join(vault, 'a.txt'), 'a %%hid%% b\n');
-  const orig = fs.readFileSync;
-  const restore = bootstrap.installVaultReadShim(vault, bootstrap.READ_TRANSFORMS_FOR_BUILD);
-  try {
-    assert.equal(fs.readFileSync(path.join(vault, 'a.md'), 'utf8'), 'a  b\n| [[T\\|L]] |\n');
-    assert.equal(fs.readFileSync(path.join(root, 'outside.md'), 'utf8'), 'a %%hid%% b\n');
-    assert.equal(fs.readFileSync(path.join(vault, 'a.txt'), 'utf8'), 'a %%hid%% b\n');
-    assert.equal(fs.readFileSync(path.join(vault, 'a.md')).toString(), 'a %%hid%% b\n| [[T\\|L]] |\n');
-  } finally {
-    restore();
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-  assert.equal(fs.readFileSync, orig);
-});
-
-test('the build installs exactly one transform, the comment strip (the escaped-pipe rewrite is retired, ADR 0043 addendum)', () => {
-  assert.deepEqual(bootstrap.READ_TRANSFORMS_FOR_BUILD, [stripObsidianComments]);
+test('the build ships no vault read hook: the pin strips comments itself (ADR 0044, last addendum)', () => {
+  assert.equal(bootstrap.installVaultReadShim, undefined);
+  assert.equal(bootstrap.READ_TRANSFORMS_FOR_BUILD, undefined);
   assert.equal(bootstrap.installEscapedPipeReadShim, undefined);
-});
-
-test('the build installs comment stripping first', () => {
-  assert.equal(bootstrap.READ_TRANSFORMS_FOR_BUILD[0], stripObsidianComments);
 });
 
 // ---- the output scan, on a hand-made tree ----
@@ -622,7 +605,7 @@ test('CLI: if the read shim failed, the output gate refuses the build and --forc
     const run = cli(root, 'with', vault);
     // A preload that empties the shim's transform list, standing in for "the shim stopped working".
     const breaker = path.join(root, 'break.js');
-    fs.writeFileSync(breaker, `require(${JSON.stringify(path.join(__dirname, '..', 'src', 'generator', 'bootstrap.js'))}).READ_TRANSFORMS_FOR_BUILD.length = 0;\n`);
+    fs.writeFileSync(breaker, unwrapCommentsPreload());
     const cfg = path.join(root, 'cfg.toml');
     const env = { ...process.env, XDG_CONFIG_HOME: path.join(root, 'xdg'), APPDATA: path.join(root, 'ad'), SCRIPTORIUM_CONFIG: cfg, NODE_OPTIONS: `--require ${breaker}` };
     delete env.SCRIPTORIUM_PROFILE;
@@ -653,7 +636,7 @@ test('CLI: a comment that reaches only a timeline data island is refused by the 
     fs.writeFileSync(tl, next);
     const run = cli(root, 'v', vault);
     const breaker = path.join(root, 'break.js');
-    fs.writeFileSync(breaker, `require(${JSON.stringify(path.join(__dirname, '..', 'src', 'generator', 'bootstrap.js'))}).READ_TRANSFORMS_FOR_BUILD.length = 0;\n`);
+    fs.writeFileSync(breaker, unwrapCommentsPreload());
     const cfg = path.join(root, 'cfg.toml');
     const env = { ...process.env, XDG_CONFIG_HOME: path.join(root, 'xdg'), APPDATA: path.join(root, 'ad'), SCRIPTORIUM_CONFIG: cfg, NODE_OPTIONS: `--require ${breaker}` };
     delete env.SCRIPTORIUM_PROFILE;

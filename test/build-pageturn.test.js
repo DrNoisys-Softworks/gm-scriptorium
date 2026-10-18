@@ -25,7 +25,7 @@ function withTmpDir(fn) {
 
 // -- Page shape builders --------------------------------------------------------------------
 
-function basePage({ landing } = {}) {
+function basePage({ landing, mainAttrs = '' } = {}) {
   const heroDiv = landing ? '<div class="landing-hero"><h1>Welcome</h1></div>' : '<p>Body.</p>';
   return `<!DOCTYPE html>
 <html lang="en">
@@ -37,7 +37,7 @@ function basePage({ landing } = {}) {
 <header class="top-nav">
   <a href="index.html" class="nav-brand">Site</a>
 </header>
-<main class="content">
+<main class="content"${mainAttrs}>
 ${heroDiv}
 </main>
 </body>
@@ -144,6 +144,12 @@ test('.vt-fx is inserted exactly once, immediately before the first </main>, on 
   assert.ok(fxAt !== -1 && fxAt < mainCloseAt);
 });
 
+test('.vt-fx is inserted on a leaf page whose <main class="content"> carries further attributes (publish-v1.17.0)', () => {
+  const out = transformPageTurn(basePage({ mainAttrs: ' data-previews="on"' }));
+  assert.equal(out.split('<div class="vt-fx" aria-hidden="true"></div>').length - 1, 1);
+  assert.match(out, /<div class="vt-fx" aria-hidden="true"><\/div>\n<\/main>/);
+});
+
 test('.vt-fx is NOT inserted on a landing-shaped page (has .top-nav AND .landing-hero); it still gets the script', () => {
   const out = transformPageTurn(basePage({ landing: true }));
   assert.notEqual(out, null);
@@ -195,24 +201,6 @@ test('with two </main> in a page, .vt-fx lands before the FIRST one after the FI
   const fxAt = out.indexOf('<div class="vt-fx"');
   assert.ok(fxAt > firstMainOpenAt && fxAt < firstMainCloseAt);
   assert.equal((out.match(/class="vt-fx"/g) || []).length, 1);
-});
-
-// -- writeSessionsIndex output (real donor splice) ---------------------------------------------
-
-test('a real writeSessionsIndex output gets both the script and .vt-fx', () => {
-  withTmpDir((dir) => {
-    const { writeSessionsIndex } = require('../src/build/sessions-index');
-    const sessionsDir = path.join(dir, 'sessions');
-    fs.mkdirSync(sessionsDir, { recursive: true });
-    fs.writeFileSync(path.join(sessionsDir, 'recap-01.html'), basePage());
-    writeSessionsIndex(dir, { siteTitle: 'Test Site' });
-
-    const indexHtml = fs.readFileSync(path.join(sessionsDir, 'index.html'), 'utf8');
-    const out = transformPageTurn(indexHtml);
-    assert.notEqual(out, null);
-    assert.equal((out.match(new RegExp(PAGETURN_MARKER, 'g')) || []).length, 1);
-    assert.equal((out.match(/class="vt-fx"/g) || []).length, 1);
-  });
 });
 
 // -- applyPageTurn / walk, fxInserted counting --------------------------------------------------

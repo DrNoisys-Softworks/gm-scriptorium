@@ -99,3 +99,9 @@ Not retired, on purpose: `tablepipes.js`, which the brief listed, because `check
 `src/vault/links.js`; removing it would break `check`'s agreement with the build. The "Will not catch"
 residual about a different reader added by a future generator version now points the other way: a future
 pin that stops reading table-cell escaped pipes shows up in the CLI test above, by name.
+
+## Addendum: the mechanism is retired too (publish-v1.21.0)
+
+The comment strip, the shim's last transform, is retired ([ADR 0044](0044-obsidian-comments-withheld.md),
+last addendum), so `installVaultReadShim` itself is deleted. Nothing in the build reads the vault through
+a hook any more. `check`'s escaped-pipe rewrite (`src/vault/links.js`) is unchanged.

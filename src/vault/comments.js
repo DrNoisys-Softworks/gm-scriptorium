@@ -2,12 +2,13 @@
 
 /*
  * ADR 0044. Obsidian comments: `%%text%%` inline, or a `%%` ... `%%` block over several lines.
- * Obsidian hides them from reading view, so a GM uses them for private notes; the pinned generator
- * knows nothing about them and would publish them as written (upstream issue 305, a leak).
+ * Obsidian hides them from reading view, so a GM uses them for private notes. Until publish-v1.16.0 the
+ * pinned generator published them as written (upstream issue 305, a leak); it now strips them itself.
  *
- * scanObsidianComments() is the one reader of this syntax. The build's read shim
- * (src/generator/bootstrap.js) uses its `text`; `check` and the build's output gate use its
- * `comments`. One function, so what check reports is exactly what the build removes.
+ * scanObsidianComments() is Scriptorium's one reader of this syntax. `check` and the build's output
+ * gate use its `comments`, and the leak text model its `text`. The pinned generator strips comments
+ * itself since publish-v1.16.0, so the build no longer uses this reader to remove them (ADR 0044, last
+ * addendum); the output gate is what proves none was published.
  *
  * Rules (each one fails closed, so an ambiguous `%%` withholds text rather than publishes it):
  *  - A `%%` inside a fenced code block or an inline code span is code, never a comment opener.
@@ -116,7 +117,7 @@ function scanObsidianComments(markdown) {
   return { text: out.join('\n'), comments };
 }
 
-/** The markdown with every Obsidian comment removed (what the build's read shim returns). */
+/** The markdown with every Obsidian comment removed. */
 function stripObsidianComments(markdown) {
   return scanObsidianComments(markdown).text;
 }

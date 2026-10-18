@@ -21,9 +21,9 @@ function withTmpDir(fn) {
   }
 }
 
-function buildGraphemeVault(outDir) {
+function buildGraphemeVault(outDir, vaultPath = VAULT_PATH) {
   const siteConfig = JSON.parse(fs.readFileSync(SITE_CONFIG_SRC, 'utf8'));
-  const synthesized = Object.assign({}, siteConfig, { vaultPath: VAULT_PATH, outputDir: outDir });
+  const synthesized = Object.assign({}, siteConfig, { vaultPath, outputDir: outDir });
   const tmpConfigPath = path.join(
     fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-grapheme-config-')),
     'vault.config.json',
@@ -60,16 +60,27 @@ function sha256Manifest(dir) {
   return out;
 }
 
+// From publish-v1.18.0 the pin splits graphemes only for initials (lib/templates/landing-data.js:136),
+// which an NPC page with no portrait prints. None of the fixture's names starts a word with a cluster
+// of more than one code point once NFC has run, so this test adds one, in a scratch copy of the
+// fixture: a ZWJ emoji sequence that splits wrongly unless GB11 holds.
+const CLUSTER_NPC = '---\ntype: npc\ntitle: "👩‍🔬 Ines"\n---\n\nA synthetic NPC whose initials start with a ZWJ sequence.\n';
+const CLUSTER_INITIALS = '👩‍🔬I';
+
 test('grapheme-vault builds identically under plain node and inside installSegmenterShim({force:true})', () => {
   withTmpDir((dir) => {
+    const vaultPath = path.join(dir, 'vault');
+    fs.cpSync(VAULT_PATH, vaultPath, { recursive: true });
+    fs.writeFileSync(path.join(vaultPath, 'Characters', 'NPCs', 'cluster-initials-npc.md'), CLUSTER_NPC);
+
     const plainOut = path.join(dir, 'out-plain');
-    buildGraphemeVault(plainOut);
+    buildGraphemeVault(plainOut, vaultPath);
     const plainManifest = sha256Manifest(plainOut);
 
     const shimmedOut = path.join(dir, 'out-shimmed');
     const restore = installSegmenterShim({ force: true });
     try {
-      buildGraphemeVault(shimmedOut);
+      buildGraphemeVault(shimmedOut, vaultPath);
     } finally {
       restore();
     }
@@ -77,10 +88,15 @@ test('grapheme-vault builds identically under plain node and inside installSegme
 
     assert.deepEqual(shimmedManifest, plainManifest);
     assert.ok(Object.keys(plainManifest).length > 0, 'the build must actually produce files');
+    const npcPages = fs.readdirSync(path.join(shimmedOut, 'characters', 'npcs'))
+      .map((f) => fs.readFileSync(path.join(shimmedOut, 'characters', 'npcs', f), 'utf8'));
+    assert.ok(npcPages.some((html) => html.includes(`>${CLUSTER_INITIALS}</div>`)), 'the shim kept the ZWJ sequence whole in the initials');
   });
 });
 
-test('grapheme-vault build embeds the horror theme CSS and truncated (ellipsis) graph labels', () => {
+// Until publish-v1.17.0 this also counted the relationship graph's truncated (ellipsis) labels, the
+// shim's main consumer. publish-v1.18.0 removed the graph; the test above now checks the initials.
+test('grapheme-vault build embeds the horror theme CSS and no page carries the retired relationship graph', () => {
   withTmpDir((dir) => {
     const outDir = path.join(dir, 'out');
     buildGraphemeVault(outDir);
@@ -90,12 +106,8 @@ test('grapheme-vault build embeds the horror theme CSS and truncated (ellipsis) 
     const npcDir = path.join(outDir, 'characters', 'npcs');
     const npcFiles = fs.readdirSync(npcDir).filter((f) => f.endsWith('.html') && f !== 'index.html');
     assert.equal(npcFiles.length, 4);
-
-    let ellipsisCount = 0;
     for (const file of npcFiles) {
-      const html = fs.readFileSync(path.join(npcDir, file), 'utf8');
-      if (html.includes('…')) ellipsisCount++;
+      assert.ok(!fs.readFileSync(path.join(npcDir, file), 'utf8').includes('relationship-graph'), file);
     }
-    assert.equal(ellipsisCount, 4, 'every NPC page in the relationship ring should render at least one truncated graph label');
   });
 });

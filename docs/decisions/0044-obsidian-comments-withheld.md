@@ -103,3 +103,29 @@ timeline and connections pages carry. Those islands are now searched, and an isl
 parsed is an error. This replaces the "outside `<script>`" scope for JSON islands only; other
 `<script>` and `<style>` content is still left out. See
 [ADR 0045](0045-leak-checks-read-rendered-headings-and-data-islands.md).
+
+## Addendum: the build's comment strip is retired (publish-v1.21.0)
+
+The pinned generator has stripped `%%` comments itself since `publish-v1.16.0` (upstream #305),
+including inside frontmatter values, so the build's read shim was removing them a second time. The
+shim (`installVaultReadShim` and `READ_TRANSFORMS_FOR_BUILD` in `src/generator/bootstrap.js`) is
+deleted. Everything else in this record stays: `check`'s findings, the leak text model and the output
+gate still read the comments from the vault with `src/vault/comments.js`, and the gate still refuses a
+build that publishes one.
+
+Proof: a copy of `examples/the-long-lease` with comments in ten placements on published pages (inline,
+a block naming another page, a block holding a GM Notes heading, around a whole frontmatter line, in a
+frontmatter value, in a list item around a link, in a table cell, unterminated at the end of a note,
+and in a quoted value around a link) built with the shim and without it gives byte-identical output,
+every HTML and JSON file included, and none of the comment text appears in either. Control text placed
+beside seven of the comments does appear, so those pages really are published. The only difference is
+that, without the shim, the build prints the generator's own warning for the unterminated comment,
+which tells the GM something true.
+
+The tests that prove the output gate refuses a leaked comment used to swap the shim's transform for one
+that kept the comment text. They now load `test/helpers/comment-leak-preload.js`, which does the same to
+what the generator reads, only while it builds. With that helper made inert, those three tests fail, so
+they still inject a real leak. `test/obsidian-comments.test.js` checks the build ships no read hook.
+
+Limits: an inline code span holding `%%` prints the two percent signs, and the output gate then refuses
+the build. That is unchanged by this retirement (it happens with the shim too).

@@ -8,9 +8,9 @@
  *
  * src/vault/links.js's rewriteEscapedPipeLinksOutsideCode() (the code-aware caller) turns `\|` into `|` inside a wikilink on a TABLE ROW only (a line
  * whose first non-space character is `|`), the one place the escape is meaningful. Outside a
- * table a backslash-pipe is left alone. Both the check's link scan (src/vault/links.js) and the
- * build's read shim (src/generator/bootstrap.js) call this one function, so check and build
- * cannot disagree about what such a link means. The unescaped pipe is safe for the build because
+ * table a backslash-pipe is left alone. The check's link scan (src/vault/links.js) calls it; the build
+ * leaves the escape to the pin, which has read it itself since publish-v1.12.3 (ADR 0043 addendum).
+ * The unescaped pipe would be safe for a build because
  * the generator replaces the whole wikilink (with `[Label](href)` or plain Label) before the
  * markdown table parser ever sees the row.
  */

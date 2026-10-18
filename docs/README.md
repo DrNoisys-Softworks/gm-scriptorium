@@ -110,7 +110,7 @@ the way.
 - [0038. The panel shows art from your vault's attachments folder](decisions/0038-vault-art-in-the-panel.md): The panel can pick art already in your vault's attachments folder.
 - [0039. Preview copies of your site, built privately on this computer](decisions/0039-preview-copies.md): The Theme screen shows your own site in each theme.
 - [0041. Check runs on an edited copy of a vault file before it is saved](decisions/0041-check-an-edited-copy.md): The panel runs `check` on an edited copy before saving.
-- [0042. Stub pages: withheld sections win over include entries (guard on keepOnlySections)](decisions/0042-stub-section-guard.md): A stub page can no longer publish a heading nested inside a withheld section.
+- [0042. Stub pages: withheld sections win over include entries (guard on keepOnlySections)](decisions/0042-stub-section-guard.md): A stub page can no longer publish a heading nested inside a withheld section. Retired at publish-v1.17.0, when the generator began doing this itself.
 - [0043. A table cell link with an escaped pipe is read the same way by check and by the build](decisions/0043-escaped-pipe-read-shim.md): `[[Target\|Label]]` in a table cell is read as a link with a label.
 - [0044. Obsidian %% comments are removed before the site is built, and the build refuses to publish one](decisions/0044-obsidian-comments-withheld.md): `%%private notes%%` never reach the site.
 - [0045. The leak checks read headings the way the generator renders them, and read JSON data islands](decisions/0045-leak-checks-read-rendered-headings-and-data-islands.md): a bold, indented, underlined or story-file `GM Notes` heading is caught, and comment text inside timeline and connections data is searched.

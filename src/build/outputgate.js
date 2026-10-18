@@ -25,7 +25,7 @@ const { GM_LINK_MARKER, findGmLinkMarker } = require('./gmmarker');
  * @param {string} opts.vaultPath absolute
  * @param {object} opts.jsonConfig parsed vault.config.json, vaultPath already resolved
  * @param {string} opts.stagingOut absolute, the fully-built staging tree (after the
- *   generator run, the sessions-index write, the NOTICE pass, the house-style
+ *   generator run, the NOTICE pass, the house-style
  *   write+link pass, and the ADR 0019 theme/image-slot asset pass — i.e. exactly
  *   what would be swapped into finalOut)
  * @param {string} opts.campaign

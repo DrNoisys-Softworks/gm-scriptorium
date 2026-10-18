@@ -326,7 +326,6 @@ const JSON_READ_KEYS = Object.freeze([
   'folderMap',
   'outputDir',
   'searchEnabled',
-  'siteTitle',
   'vaultPath',
 ]);
 

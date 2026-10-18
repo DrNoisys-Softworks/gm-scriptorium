@@ -98,7 +98,7 @@ function matchHeading(heading, entries) {
 
 /**
  * L5: a heading, as the pinned generator reads and renders it, equals or starts with an entry in
- * the union of both exclude_sections surfaces. filterSections (lib/processor.js:284, required via
+ * the union of both exclude_sections surfaces. filterSections (lib/processor.js:324, required via
  * src/generator/pinned.js) withholds a section only when the raw title equals an entry
  * (case-insensitive), so "## GM Notes (spoilers)" or "## **GM Notes**" is published and fails
  * silently; the "starts with" arm and the display-text keys are why this check exists at all.

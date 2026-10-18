@@ -271,3 +271,37 @@ and `.tab-panel` stay in the selector unchanged for everywhere the original scop
   fore-edge and the flap's brass rule), but CDP round-trip latency made landing on precisely 190ms
   of a 380ms animation unreliable from a scripted capture; the Reviewer's own Playwright run, closer
   to the render loop, is the more trustworthy source for this specific frame.
+
+## Addendum: the pin's ISO dates (publish-v1.17.0)
+
+From `publish-v1.16.0` the pinned generator prints a YAML date as `2026-07-11` (`lib/processor.js`
+`dateText`) wherever it used to print `Date.prototype.toString()` text, except the landing page's "Last
+Played". The transform above matches only the long machine text, so after the repin the session badges
+of a vault with YAML dates read `2026-07-11` instead of "11 July 2026". That was not a decision, so the
+old form is put back.
+
+`dates.js` now has a second pass, `transformIsoDates`. It rewrites a date only in the three places the
+pin prints a YAML date as ISO: a metadata badge, a header line (`<span class="label">Date</span> ...`, an
+event's date) and a timeline entry on a location or NPC page. It rewrites only when the page the text
+belongs to has a YAML date that the pin's own `dateText` prints as exactly that text. For a badge or a
+header line that is the page itself; for a timeline entry it is the event the entry links to. The page
+frontmatter comes from `computePublishedSet`, which the build already runs. A date the GM typed as text
+(`play_date: "2026-07-11"`, or prose) prints as typed, as it did at publish-v1.14.0. The pin is loaded
+only when there are pages to check, so the first pass still runs with the ICU-backed globals deleted.
+
+Proof: `test/build-dates.test.js` builds the-long-lease and expects the badges to read "11 July 2026",
+"25 July 2026" and "8 August 2026", as a build at publish-v1.14.0 does. A second real build gives every
+typed note a YAML date in each date field and fails if any page still prints one as `YYYY-MM-DD`, so a
+pin that prints a date somewhere new fails at the bump. Every printed date on every page of both builds
+matches a build at publish-v1.14.0. Mutations: no pages passed in, no page check, the timeline checking
+its own page, and no header pass each turn at least one test red.
+
+Rejected: rewriting every `YYYY-MM-DD` on a page. Scriptorium's own timeline and Connections lane print
+ISO dates on purpose ("S1, 2026-07-11"), and so can a GM's prose; at publish-v1.14.0 those were never
+rewritten. Also rejected: making the pin print `Date.toString()` text again by patching
+`Date.prototype.toISOString` during the build. It would reach every use of that method in the pin, not
+only the printed dates.
+
+Limits: `previews.json` (the link previews, new at publish-v1.17.0) carries the ISO form, as
+`search-index.json` carries the raw form; both are data files, out of scope as before. A date inside a
+nested frontmatter value is not looked up.

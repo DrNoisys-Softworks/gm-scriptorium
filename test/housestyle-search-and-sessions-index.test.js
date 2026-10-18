@@ -368,7 +368,7 @@ test('T4: a real build of wrapup-vault gives sessions/index.html the expected co
     assert.ok(fs.existsSync(indexPath), 'expected sessions/index.html to exist');
     const html = fs.readFileSync(indexPath, 'utf8');
 
-    const iMain = html.indexOf('<main class="content">');
+    const iMain = html.search(/<main class="content"[\s>]/);
     assert.notEqual(iMain, -1);
     const iBreadcrumb = html.indexOf('<nav class="breadcrumbs"', iMain);
     assert.notEqual(iBreadcrumb, -1, 'expected nav.breadcrumbs inside main.content');

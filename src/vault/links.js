@@ -225,8 +225,8 @@ function maskProseForLinks(markdown) {
 
 /**
  * Issue #48 (ADR 0043). In table rows that are not inside a fenced block, rewrites `[[T\\|L]]` to
- * `[[T|L]]`, leaving inline code spans untouched. Shared by check and the build's read shim so the
- * two agree. Line- and length-wise safe: only a backslash is removed, no line is added or dropped.
+ * `[[T|L]]`, leaving inline code spans untouched. Used by check; the build leaves the escape to the pin,
+ * which reads it itself (ADR 0043 addendum). Line- and length-wise safe: only a backslash is removed, no line is added or dropped.
  *
  * @param {string} markdown
  * @returns {string}

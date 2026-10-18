@@ -12,7 +12,8 @@ const { MARKERS } = require('../scripts/content-markers');
 const ROOT = path.join(__dirname, '..');
 const FIXTURE = path.join(__dirname, 'fixtures', 'redaction-gurps-vault');
 const SITE_CONFIG_SRC = path.join(__dirname, 'fixtures', 'redaction-gurps-vault-site-config.json');
-const GURPS_MARKERS = MARKERS.find((m) => m.id === 'gurps-reference').strings;
+const GURPS_MARKERS = MARKERS.filter((m) => m.id.startsWith('gurps-')).flatMap((m) => m.strings);
+const { ASSET_REDACTIONS } = require('../src/generator/redactions');
 
 function withTmpDir(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-redaction-gurps-'));
@@ -74,6 +75,19 @@ test('build --force-check against the GURPS fixture renders gurps-combat and shi
 
     const htmlFiles = walkFiles(outDir).filter((f) => f.endsWith('.html'));
     assert.ok(htmlFiles.length > 0, 'expected at least one built HTML file');
+
+    // publish-v1.21.0: the to-hit calculator script is copied into every site; it must be the stub,
+    // and no file of any kind may carry a GURPS marker.
+    const tohit = ASSET_REDACTIONS.find((e) => e.id === 'gurps-tohit-script');
+    assert.equal(fs.readFileSync(path.join(outDir, ...tohit.pinPath.split('/')), 'utf8'), tohit.stubSource);
+    const anyFileHits = [];
+    for (const file of walkFiles(outDir)) {
+      const text = fs.readFileSync(file, 'latin1');
+      for (const marker of GURPS_MARKERS) if (text.includes(marker)) anyFileHits.push({ file, marker });
+    }
+    assert.deepEqual(anyFileHits, [], `no built file may carry a GURPS marker: ${JSON.stringify(anyFileHits)}`);
+    const tohitEntry = result.envelope.redactions.find((x) => x.id === 'gurps-tohit-script');
+    assert.ok(tohitEntry && tohitEntry.calls > 0, 'expected the calculator page to be counted as degraded');
 
     let sawGurpsCombat = false;
     const hits = [];

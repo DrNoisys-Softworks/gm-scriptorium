@@ -9,7 +9,7 @@ const { normaliseEmitted, noBuildInfo, deferredInfo } = require('./outputscan');
 
 /*
  * ADR 0044: the Obsidian `%%comment%%` guard's check side. Two views of the same scan
- * (src/vault/comments.js, the function the build's read shim also uses):
+ * (src/vault/comments.js, the one reader of the syntax):
  *
  *   leak/l6-comment-withheld     INFO, one per published file with comments: they are being withheld.
  *   leak/l6-comment-unterminated WARN, a `%%` with no closing `%%`: withheld to the end of the file.
