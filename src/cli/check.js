@@ -362,7 +362,8 @@ function resolveVaultContext(ctxInfo) {
     site.siteSource === 'site_config'
       ? loadSiteConfig(site.siteConfigPath)
       : asPackProblem(() => loadPackConfig(site.siteConfigPath, ctxInfo.campaign), ctxInfo.campaign);
-  assertScanKeysPresent(siteConfig, site.siteConfigPath, ctxInfo.campaign);
+  // Issue #143: a missing or wrong-kind required key is a config problem, exit 3, like its pack siblings.
+  asPackProblem(() => assertScanKeysPresent(siteConfig, site.siteConfigPath, ctxInfo.campaign), ctxInfo.campaign);
   const vaultMismatch = computeVaultMismatch(siteConfig, vaultPath, site.siteConfigPath);
 
   // ADR 0019 (P3a-FR01, Structural decision 4): pack.toml's SYNTAX validation runs here, in

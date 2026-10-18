@@ -301,6 +301,16 @@ test('required: the PATH guard compares against NSIS_MAX_STRLEN and checks the v
   assert.match(NSI, /StrLen\s+\$\w+\s+\$gmPathVal/);
 });
 
+test('required: the build stops when makensis does not define NSIS_MAX_STRLEN', () => {
+  // A shape test: it pins the guard text and proves nothing about Windows.
+  const GUARD_RE = /!ifndef\s+NSIS_MAX_STRLEN\s*\n\s*!error\s+"NSIS_MAX_STRLEN is not defined by this makensis"\s*\n\s*!endif/;
+  assert.match(NSI, GUARD_RE);
+  assert.equal(GUARD_RE.test('!ifdef NSIS_MAX_STRLEN\n  !error "NSIS_MAX_STRLEN is not defined by this makensis"\n!endif'), false);
+  assert.equal(GUARD_RE.test('!ifndef NSIS_MAX_STRLEN\n  !error "something else"\n!endif'), false);
+  // The guard sits at the top level, before the first include.
+  assert.ok(NSI.search(GUARD_RE) < NSI.indexOf('!include "MUI2.nsh"'));
+});
+
 test('required: the PATH broadcast uses STR:Environment with a 5 second timeout', () => {
   assert.match(NSI, /SendMessage\s+\$\{HWND_BROADCAST\}\s+\$\{WM_SETTINGCHANGE\}\s+0\s+"STR:Environment"\s+\/TIMEOUT=5000/);
 });
@@ -601,6 +611,71 @@ test('registry: every WriteReg line targets the uninstall key or the user enviro
   assert.equal(REG_TARGET_RE.test('WriteRegExpandStr HKCU "Environment" "Path" "x"'), true);
 });
 
+const PATH_CALL_LINE = "System::Call 'advapi32::RegGetValueW(p 0x80000001, w \"Environment\", w \"Path\", i 0x1000ffff, *i .r1, p r2, *i ${GM_PATH_BUF_BYTES} r4) i .r0'";
+const PATH_WCHAR_LINE = "System::Call '*$5(&i2 .r6)'";
+const PATH_ALLOC_LINE = 'System::Alloc ${GM_PATH_BUF_BYTES}';
+const PATH_FREE_LINE = 'System::Free $2';
+
+/** The trimmed lines of a function body that equal `line`. */
+function countExact(body, line) {
+  return body.split('\n').filter((l) => l.trim() === line).length;
+}
+
+test('required: GmPathRead reads the whole stored PATH into a buffer, trims closing NULs and cross-checks the length', () => {
+  // A shape test: it pins the source and proves nothing about Windows (the VM criterion C212 does that).
+  const body = functionBody(NSI, '${UN}GmPathRead');
+  assert.ok(body, 'Function ${UN}GmPathRead not found');
+  const lines = body.split('\n').map((l) => l.trim());
+  // the buffer define is inside the PATH option, and the exact lines appear once each, inside the function
+  const define = findLines(NSI, /^\s*!define \/math GM_PATH_BUF_BYTES \$\{NSIS_MAX_STRLEN\} \* 2\s*$/);
+  assert.equal(define.length, 1);
+  assert.ok(define[0].conds.includes('ifdef WITH_PATH_OPTION'));
+  for (const line of [PATH_CALL_LINE, PATH_WCHAR_LINE, PATH_ALLOC_LINE]) {
+    const hits = findLines(NSI, /^\s*System::/).filter((h) => h.line.trim() === line);
+    assert.equal(hits.length, 1, `${line} must appear once`);
+    assert.ok(hits[0].conds.includes('ifdef WITH_PATH_OPTION'), `${line} is outside WITH_PATH_OPTION`);
+    assert.equal(countExact(body, line), 1, `${line} must sit inside GmPathRead`);
+  }
+  assert.equal(countExact(body, PATH_FREE_LINE), 1);
+  assert.equal(NSI.includes('2048'), false, 'the buffer size is the define, never a literal');
+  // no size-only read, and the old size derived count is gone
+  assert.equal(/RegGetValueW\([^)]*i 0x1000ffff, \*i \.r1, p 0, \*i \.r2\)/.test(NSI), false, 'size-only RegGetValueW is back');
+  assert.equal(/IntOp \$\w+ \$\w+ \/ 2\s*\n\s*IntOp \$\w+ \$\w+ - 1/.test(body), false, 'size / 2 - 1 is back');
+  // outcomes
+  const idx = (re) => lines.findIndex((l) => re.test(l));
+  assert.ok(idx(/^IntCmp \$0 2 path_absent \+1 path_unsafe$/) >= 0, 'error 2 goes to path_absent, other errors to path_unsafe');
+  assert.ok(idx(/^IntCmp \$0 0 \+1 path_unsafe path_unsafe$/) >= 0);
+  assert.ok(idx(/^IntCmp \$1 2 path_typed path_unsafe path_unsafe$/) >= 0, 'a wrong type goes to path_unsafe');
+  assert.ok(idx(/^IntCmp \$7 0 \+1 path_unsafe path_unsafe$/) >= 0, 'an odd byte count goes to path_unsafe');
+  assert.ok(idx(/^StrCmp \$2 0 path_done$/) >= 0, 'a failed Alloc leaves the value alone');
+  // the trailing zero scan stops at the first non-zero WCHAR from the end
+  assert.ok(idx(/^IntCmp \$6 0 \+1 path_scanned path_scanned$/) >= 0, 'the scan stops at a non-zero WCHAR');
+  assert.ok(idx(/^IntCmp \$3 0 path_scanned path_scanned \+1$/) >= 0, 'the scan never reads below index 0');
+  // the cross-check: the error flag and StrLen against D go to path_unsafe
+  assert.ok(idx(/^IfErrors path_unsafe$/) >= 0);
+  assert.ok(lines.includes('StrLen $5 $gmPathVal'));
+  assert.ok(idx(/^IntCmp \$5 \$3 \+1 path_unsafe path_unsafe$/) >= 0, 'StrLen must equal D');
+  // the size check keeps its form and runs on D
+  assert.ok(lines.includes('IntOp $5 ${NSIS_MAX_STRLEN} - 1'));
+  assert.ok(lines.includes('IntOp $4 $3 + $4'));
+  assert.ok(idx(/^IntCmp \$4 \$5 path_unsafe \+1 path_unsafe$/) >= 0);
+  // every register is pushed at entry and popped in reverse, all exits go through path_done
+  const push = lines.filter((l) => /^Push \$\d$/.test(l)).map((l) => l.slice(5));
+  const pop = lines.slice(lines.indexOf('path_popped:')).filter((l) => /^Pop \$\d$/.test(l)).map((l) => l.slice(4));
+  assert.deepEqual(push, ['$0', '$1', '$2', '$3', '$4', '$5', '$6', '$7']);
+  assert.deepEqual(pop, push.slice().reverse());
+  const free = lines.indexOf(PATH_FREE_LINE);
+  assert.ok(lines.indexOf('path_done:') >= 0 && lines.indexOf('path_done:') < free, 'the Free is on the path_done path');
+  assert.ok(free < lines.indexOf('Pop $7'));
+  // the function is inserted exactly once for Setup and once for the uninstaller
+  assert.equal(NSI.split('\n').filter((l) => l.trim() === '!insertmacro GmPathCommon ""').length, 1);
+  assert.equal(NSI.split('\n').filter((l) => l.trim() === '!insertmacro GmPathCommon "un."').length, 1);
+  // controls
+  assert.equal(/IntOp \$\w+ \$\w+ \/ 2\s*\n\s*IntOp \$\w+ \$\w+ - 1/.test('IntOp $3 $2 / 2\n  IntOp $3 $3 - 1'), true);
+  assert.equal(/IntOp \$\w+ \$\w+ \/ 2\s*\n\s*IntOp \$\w+ \$\w+ - 1/.test('IntOp $3 $4 / 2\nStrLen $4 "x"'), false);
+  assert.equal(/RegGetValueW\([^)]*i 0x1000ffff, \*i \.r1, p 0, \*i \.r2\)/.test(`System::Call 'advapi32::RegGetValueW(p 0x80000001, w "Environment", w "Path", i 0x1000ffff, *i .r1, p 0, *i .r2) i .r0'`), true);
+});
+
 const CONFIG_PATH_FORMS = [
   'ReadEnvStr $gmConfigPath SCRIPTORIUM_CONFIG',
   'StrCmp $gmConfigPath "" 0 +2',
@@ -635,7 +710,9 @@ test('settings: the settings path is only looked for with IfFileExists and shown
 
 const PLUGIN_CALLS = ['System::Alloc', 'System::Call', 'System::Free', 'nsDialogs::Create', 'nsDialogs::Show', 'nsExec::ExecToLog', 'nsExec::ExecToStack'];
 const SYSTEM_LINES = [
-  `System::Call 'advapi32::RegGetValueW(p 0x80000001, w "Environment", w "Path", i 0x1000ffff, *i .r1, p 0, *i .r2) i .r0'`,
+  PATH_CALL_LINE,
+  PATH_WCHAR_LINE,
+  PATH_ALLOC_LINE,
   `System::Call '*$2(&i1 .r3)'`,
   'System::Alloc 64',
   'System::Free $2',

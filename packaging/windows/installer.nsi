@@ -41,6 +41,10 @@ Unicode true
   !endif
 !endif
 
+!ifndef NSIS_MAX_STRLEN
+  !error "NSIS_MAX_STRLEN is not defined by this makensis"
+!endif
+
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !include "nsDialogs.nsh"
@@ -101,10 +105,16 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "${PUBLISHER}. MIT licence."
 !define MUI_UNABORTWARNING
 
 !ifdef WITH_PATH_OPTION
+  !define /math GM_PATH_BUF_BYTES ${NSIS_MAX_STRLEN} * 2
   !macro GmPathCommon UN
     ; Reads the user PATH, but only when it is safe to change. $gmPathState is 0 when the value is
     ; absent, 1 when $gmPathVal holds it whole and there is room to add this folder, 2 when it must
     ; be left alone (wrong type, would not fit, or read back truncated). $gmPathType is its type.
+    ; The stored value is read into a buffer. Closing NUL characters end the value and are not part
+    ; of it. A value with anything after an embedded NUL, a value bigger than the buffer, or text
+    ; that reads back shorter than the stored characters, is left alone.
+    ; $0 error code, $1 type (1 = REG_SZ, 2 = REG_EXPAND_SZ), $2 buffer, $3 character count,
+    ; $4 byte count, $5 pointer then length, $6 one character, $7 scratch.
     Function ${UN}GmPathRead
       Push $0
       Push $1
@@ -112,24 +122,40 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "${PUBLISHER}. MIT licence."
       Push $3
       Push $4
       Push $5
+      Push $6
+      Push $7
       StrCpy $gmPathState 2
       StrCpy $gmPathVal ""
-      System::Call 'advapi32::RegGetValueW(p 0x80000001, w "Environment", w "Path", i 0x1000ffff, *i .r1, p 0, *i .r2) i .r0'
-      ; $0 error code, $1 type (1 = REG_SZ, 2 = REG_EXPAND_SZ), $2 size in bytes with the final NUL.
-      ; 0x10000000 (RRF_NOEXPAND) keeps the type and the size those of the stored value.
+      System::Alloc ${GM_PATH_BUF_BYTES}
+      Pop $2
+      StrCmp $2 0 path_done
+      ; 0x10000000 (RRF_NOEXPAND) keeps the type and the bytes those of the stored value.
+      System::Call 'advapi32::RegGetValueW(p 0x80000001, w "Environment", w "Path", i 0x1000ffff, *i .r1, p r2, *i ${GM_PATH_BUF_BYTES} r4) i .r0'
       IntCmp $0 2 path_absent +1 path_unsafe
       IntCmp $0 0 +1 path_unsafe path_unsafe
       IntCmp $1 1 path_typed +1 +1
       IntCmp $1 2 path_typed path_unsafe path_unsafe
       path_typed:
-        IntCmp $2 2 +1 path_unsafe +1
-        IntOp $3 $2 / 2
+        IntOp $7 $4 & 1
+        IntCmp $7 0 +1 path_unsafe path_unsafe
+        IntOp $3 $4 / 2
+      path_scan:
+        IntCmp $3 0 path_scanned path_scanned +1
+        IntOp $7 $3 - 1
+        IntOp $7 $7 * 2
+        IntPtrOp $5 $2 + $7
+        System::Call '*$5(&i2 .r6)'
+        IntCmp $6 0 +1 path_scanned path_scanned
         IntOp $3 $3 - 1
+        Goto path_scan
+      path_scanned:
         StrLen $4 ";$INSTDIR"
         IntOp $4 $3 + $4
         IntOp $5 ${NSIS_MAX_STRLEN} - 1
         IntCmp $4 $5 path_unsafe +1 path_unsafe
+        ClearErrors
         ReadRegStr $gmPathVal HKCU "Environment" "Path"
+        IfErrors path_unsafe
         StrLen $5 $gmPathVal
         IntCmp $5 $3 +1 path_unsafe path_unsafe
         StrCpy $gmPathType $1
@@ -141,6 +167,11 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "${PUBLISHER}. MIT licence."
       path_unsafe:
         StrCpy $gmPathState 2
       path_done:
+      StrCmp $2 0 path_popped
+      System::Free $2
+      path_popped:
+      Pop $7
+      Pop $6
       Pop $5
       Pop $4
       Pop $3
