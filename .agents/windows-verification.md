@@ -2380,6 +2380,24 @@ ADR 0057 section 6.
 5. Run Setup again with the scratch config present. The "Your Campaigns" page shows the settings path and "Setup found your settings and won't change them.", the port fields are empty and locked with "Setup found your settings, so it keeps the ports saved there. Change them later on the panel's Overview.", each shortcut box starts as you left it, and the scratch config hash is unchanged after Install.
 6. Finish with "Start GM-Scriptorium now" ticked: the tray app starts with no console window, and with no campaign the browser opens on setup.
 7. On a clean snapshot with no scratch config, run `gm-scriptorium-setup-win-x64.exe /S` and wait for it to exit: the exit code is 0, the Start menu shortcut exists and starts the tray app, there is no desktop shortcut, the `Run` value exists, and no settings file was made.
+8. With no scratch config and no earlier install, the options page has Start menu ticked and the first-campaign page has "Set it up in my browser" selected ([ADR 0058](../docs/decisions/0058-installer-options.md) section 2). Screenshot it against frame W04 with owner note 2 applied: "Read the user guide" opens the documentation index on github.com, the page has no line about reaching the panel from another device, and nothing is clipped at 100% or 150% scaling.
+9. "Set it up in my browser" with "Start GM-Scriptorium now" ticked opens setup after Finish; with it unticked, setup opens at the first start.
+
+### C199: the first-campaign questions in Setup
+
+[ADR 0058](../docs/decisions/0058-installer-options.md) section 2.
+
+**Mark this OPEN: Linux tests pin the installer source and compile it with makensis; the questions, the program's answers and the refused-answers page run only on Windows.** The desktop-app rules apply: a scratch `SCRIPTORIUM_CONFIG` that does not exist yet, never the real config, never `N:`, and scratch vaults and output folders only, as in C135. Untick Start with Windows before Install. Record `certutil -hashfile <scratch config> SHA256` where a step says the config is unchanged. Between steps, uninstall and delete the scratch config, or revert to the clean snapshot. Remove the scratch variable when done.
+
+1. Choose "Answer the questions here now" and answer with an existing scratch vault. Screenshot the details page against frame W05 with owner note 3 applied: "You can change the site title and the theme later in the panel." is its first line, in bold. After Finish, the scratch config's campaign entry and the files under `<vault>\_meta\scriptorium\` are hash-identical to those from `gm-scriptorium init --yes --name <name> --vault <vault> --out <out>` run with the same answers against a parallel scratch config and a copy of the vault.
+2. Repeat with "Make a new vault" in a new empty folder and a game system from the list. The list holds the game systems `gm-scriptorium init` offers, then none.
+3. Choose an output folder inside the vault. After the progress page, the page shows "Setup couldn't set up <name>." and the program's own line ("refusing to build inside the vault: ..."), and the scratch config does not exist or its hash is unchanged. Screenshot it against frame W05e. Fix the output folder and choose Try again: Finish follows and the campaign is registered.
+4. Refuse again, then choose "Set it up in my browser instead": Finish follows, and with "Start GM-Scriptorium now" ticked the browser opens on setup. On the refused page, Try again and "Set it up in my browser instead" are the only ways on: Back and Cancel are greyed, and no "Skip" or "Set it up later" appears.
+5. On the details page, leave a field empty, or type a double quote into any field, and choose Install: Setup shows "Fill in the campaign name, the vault folder and the output folder, and choose a game system for a new vault. Double quotes can't be used." and stays on the page.
+6. Browse to the root of a removable drive (for example `E:\`) as the output folder: the program's line on the refused page names `E:\`, so the folder reached the program whole.
+7. Use a vault folder named `D&D Grün` with an output folder inside it: the program's line on the refused page shows the folder name exactly, ampersand and accented letter included.
+8. Set the ports to 7410 and 7411 under Advanced and answer here: the scratch config holds the campaign and, under `[desktop]`, `port = 7410` and `preview_port = 7411`.
+9. With a scratch config present, run Setup: no first-campaign page appears, and the config hash is unchanged after Install.
 
 ### C200: installer and uninstaller with the app running
 
@@ -2422,6 +2440,17 @@ ADR 0057 section 6.
 ADR 0057 section 9.
 1. On light and dark taskbars, at 100% and 150% scaling, in the overflow and pinned, each badge state is readable. Tooltips read as T01 and T08. Menus are not clipped at 150%.
 2. `taskkill /f /im explorer.exe`, then start Explorer: the icon returns.
+
+### C204: the owner's hands-on desktop session
+
+[ADR 0057](../docs/decisions/0057-windows-desktop-app.md); [ADR 0058](../docs/decisions/0058-installer-options.md).
+
+**Mark this OPEN: only the owner, at a real Windows desktop, can judge whether the desktop app reads and behaves as the storyboard promised.** Run it on the VM, or with a scratch config only: `setx SCRIPTORIUM_CONFIG <scratch>\config.toml`, then sign out and in. Never the real config, never `N:`. Use a scratch vault and output folder. Run it after the other desktop-app criteria, so it finds only what they cannot.
+
+1. With Start with Windows unticked on the options page, install with "Answer the questions here now".
+2. Use the panel and every tray menu item, then Quit. (Remote access at sign-in is checked in C206.)
+3. Throughout steps 1, 2 and 4, read every Setup page, tray menu, notification and uninstaller page aloud against the storyboard. Sign off these deviations from it, or name the ones to change: the running-app warning is a Setup page with "Close and continue", not a message box; a refused campaign answer shows after the files are copied; the existing-settings page names the settings file but does not list the campaigns; the first-campaign page links the user guide and has no line about reaching the panel from another device; the game system list shows ids as `gm-scriptorium init` names them; the refused page shows a general line and the program's own line, not a tailored hint; the finish page does not name the new campaign and says "It lives in the system tray, by the clock."; changing ports on the Overview opens a new tab.
+4. End the session: remove the scratch `SCRIPTORIUM_CONFIG` user variable, uninstall, and confirm that neither the `Run` nor the `StartupApproved\Run` value named `GM-Scriptorium` remains.
 
 ### C205: remote mode under the background app
 

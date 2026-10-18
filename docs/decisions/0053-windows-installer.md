@@ -82,6 +82,8 @@ Then it removes the install folder with a plain `RMDir`, which fails if anything
 
 ## 9. The feedback box
 
+**Amended by [ADR 0058](0058-installer-options.md).** Setup's first-campaign page also opens one fixed address, the documentation index on GitHub, and the test now allows exactly that address besides this one.
+
 The uninstaller's finish page has an unticked box, "Leave feedback for the developer. All feedback is read.", that opens one fixed address, `https://tally.so/r/eq19jQ`, in the browser after Finish. A test requires every web address in the script to be `https` on `tally.so`.
 
 ## 10. Notices
