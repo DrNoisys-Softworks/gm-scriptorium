@@ -198,7 +198,7 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
   // scanned tree is exactly the tree that swaps). Badges run before dates because they match the
   // raw Date string inside the badge block.
   const sessionBadges = applySessionBadgeFields(stagingOut, { vaultPath, jsonConfig: userJsonConfig });
-  const dates = applyDateFormat(stagingOut);
+  const dates = applyDateFormat(stagingOut, { pages: sessionPublishSet.publishedPages });
   const accordions = applyAccordionOpen(stagingOut);
 
   // Engineering Brief "Story timeline + Connections lane" (2026-09-24), Structural decision 2:

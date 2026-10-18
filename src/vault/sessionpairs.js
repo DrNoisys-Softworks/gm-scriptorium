@@ -10,17 +10,17 @@ const { toRelativePosix } = require('../util/paths');
  * reads what a real build actually did). This module never touches the vault except through
  * `src/vault/read.js`, and never asks the pin's own `scanAllNotes(vaultPath)` (which bypasses that
  * chokepoint and swallows read errors) -- `scanAllNotesForPairing` below is a faithful, structurally
- * change-detected port of it instead (lib/scanner.js:379-413).
+ * change-detected port of it instead (lib/scanner.js:408-442).
  *
  * All internal calls the rest of the codebase makes go through `module.exports`, so a test can spy
  * on `adaptPage` / `scanAllNotesForPairing` independently of `computeSessionPairing`.
  */
 
-// lib/scanner.js:377,397: the note is frontmatter-gated when its raw text matches either the
-// aliases line or the session-type line. ALIASES_LINE mirrors :367's own aliases half verbatim.
+// lib/scanner.js:426,406: the note is frontmatter-gated when its raw text matches either the
+// aliases line or the session-type line. ALIASES_LINE mirrors :426's own aliases half verbatim.
 const ALIASES_LINE = /^(gm_)?aliases:/m;
 
-// lib/scanner.js:377's SESSION_TYPE_LINE, in its exact shape, built from the pin's own
+// lib/scanner.js:406's SESSION_TYPE_LINE, in its exact shape, built from the pin's own
 // WRAP_UP_TYPES rather than a hand copy of the three type strings -- a pin bump that changes the
 // Wrap-Up type list changes this gate too, by construction, and test/session-pairing.test.js's
 // change detector proves the alternation still equals {'session'} union WRAP_UP_TYPES.
@@ -55,7 +55,7 @@ function adaptPage(page) {
 }
 
 /**
- * A faithful port of lib/scanner.js:379-413's scanAllNotes, routed through src/vault/read.js
+ * A faithful port of lib/scanner.js:408-442's scanAllNotes, routed through src/vault/read.js
  * (Structural decision 2). Every note in the vault, ignoring excludeDirs/folderMap/type, the way
  * Obsidian resolves a link to any note in the vault and a GM-only folder the site never scans is
  * the likeliest home for a secret pairing link.

@@ -8,11 +8,12 @@ const path = require('path');
 
 /*
  * Issue #100. On a `publish: stub` page, the pinned generator's keepOnlySections
- * (lib/processor.js, called at lib/build.js:520 and :526) keeps any heading whose TEXT matches an
- * include entry, wherever it sits in the tree, so `### Appearance` under the withheld
- * `## GM Notes` was published (the parent heading is gone by the time filterSections runs). The fix
- * is Scriptorium's guarded wrapper in src/generator/pinned.js; this is the real-build proof across
- * every surface fed from the page: HTML, search-index.json, backlinks.
+ * (lib/processor.js, called at lib/build.js:520 and :526 at publish-v1.14.0) kept any heading whose
+ * TEXT matched an include entry, wherever it sat in the tree, so `### Appearance` under the withheld
+ * `## GM Notes` was published (the parent heading was gone by the time filterSections ran). A
+ * Scriptorium guard fixed it until publish-v1.14.0; from publish-v1.17.0 the pin withholds it itself
+ * (ADR 0042, "Retired"). This is the real-build proof across every surface fed from the page: HTML,
+ * search-index.json, backlinks.
  *
  * Sentinels are single lowercase words with a shared "sentinel" ending because search-index.json is
  * a lunr index (lowercased, stemmed); identical morphology keeps the positive controls honest.
@@ -84,6 +85,24 @@ test('#100: a GM Notes sub-heading that matches a stub include entry reaches no 
     assert.ok(sentry.includes(PUBLISHED[0]), 'included stub section missing from its HTML: the negatives prove nothing');
     assert.ok(keeper.includes(PUBLISHED[1]), 'included stub section missing from its HTML: the negatives prove nothing');
     for (const s of PUBLISHED) assert.ok(index.includes(s), `${s} missing from search-index.json`);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// #320 in the pin: lib/build.js cuts a stub PC's story
+// companion with keepOnlySections and its withhold object. A gm-only block that opens under the
+// withheld GM Notes heading and closes after a kept heading must still hide what it holds.
+test('#320: a stub PC story keeps a gm-only block opened under GM Notes withheld', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-stub-order-'));
+  try {
+    const { result, outDir } = buildFixture(dir);
+    assert.equal(result.envelope.ok, true, result.human);
+    const pages = walkFiles(outDir).filter((f) => f.endsWith('.html')).map((f) => fs.readFileSync(f, 'utf8').toLowerCase());
+    assert.ok(pages.some((t) => t.includes('storyappearancesentinel')), 'the kept story section is missing: the negative proves nothing');
+    assert.ok(!pages.some((t) => t.includes('storyordersentinel')), 'gm-only story text reached built HTML');
+    const index = fs.readFileSync(path.join(outDir, 'search-index.json'), 'utf8').toLowerCase();
+    assert.ok(!index.includes('storyordersentinel'), 'gm-only story text reached search-index.json');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

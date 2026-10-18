@@ -338,7 +338,7 @@ async function saveTheme(req, res, ctx) {
  * `backend.statusBar`/`backend.inbox` (never vault-config.md's `publish.backend`, and never a
  * deployed-backend detection -- a residual, recorded in ADR 0022) gates whether the dry-run body
  * gains a `campaignId` key at all; the id itself is computed only through the pinned facade
- * (`lib/build.js:827,865`'s own `slugify(config.siteTitle || 'campaign')`), never re-implemented
+ * (`lib/build.js:911,965`'s own `slugify(config.siteTitle || 'campaign')`), never re-implemented
  * client-side, so it can never drift from what a real build actually names the campaign.
  * `raw`/`candidate` have already passed `productParse` by the time this runs (buildAndWrite step
  * 9 precedes step 10), so both are valid JSON here.

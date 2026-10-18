@@ -18,16 +18,16 @@ const htmltext = require('./htmltext');
 
 const SESSION_RECAP_MARKER = 'class="recap session-recap"';
 
-// lib/templates/session.js:36's own literal open tag (the change detector in
+// lib/templates/session.js:48's own literal open tag (the change detector in
 // test/session-pairing.test.js pins this against the installed pin).
 const OPEN_DIV_RE = /<div class="recap session-recap">/;
-// lib/templates/session.js:34's own literal recap-link anchor.
+// lib/templates/session.js:46's own literal recap-link anchor.
 const RECAP_LINK_RE = /<a class="recap-link" href="([^"]*)">/;
 
 /**
  * Reads the staged (about-to-swap) output tree and finds every hub page the pin itself withheld
  * and replaced with a Wrap-Up recap (`<div class="recap session-recap">`, lib/templates/
- * session.js:36), then resolves that block's own `<a class="recap-link">` (`:34`) to the
+ * session.js:48), then resolves that block's own `<a class="recap-link">` (`:46`) to the
  * Wrap-Up's own output-relative path. A hub page carrying the marker but no resolvable,
  * existing link goes to `unreadable` instead of `wrapUpByHub` -- this can only happen if the pin's
  * own markup changes shape underneath this reader (a change detector pins the two literals).

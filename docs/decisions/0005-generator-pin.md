@@ -1181,3 +1181,79 @@ A real campaign vault clone and `examples/the-long-lease`, built at `7eba2d8` an
 file changes are `css/style.css` (upstream's D&D rules), `css/scriptorium.css` (our retired Story-nav block),
 two new unreferenced scripts `js/dnd-live.js` and `js/dnd-party.js`, and the Story menu markup in the nav of
 116 and 60 pages. `check` is finding-for-finding identical on both. No Windows run.
+
+## Addendum: repin to publish-v1.17.0 (db6fb2b0), 2026-10-17
+
+Repin from `publish-v1.14.0` (ea94de7f). Follows `docs/COLLABORATING.md`'s pin bump procedure. Upstream
+went through 1.15.0 to 1.15.4, 1.16.0 and 1.17.0 in between. This is the first of a chain of repins up to
+`publish-v1.34.0`; it stops at 1.17.0 because 1.18.0 replaces the relationship graph and sidebar that
+Scriptorium's Connections build reads. The release-tarball pin source is unchanged.
+
+### What upstream changed (the part that reaches us)
+
+- **Link previews** (1.17.0). `<main class="content">` now carries attributes, `data-previews="on"` by
+  default (`lib/templates/base.js:100`). Every page loads `js/previews.js`, which fetches a new
+  `previews.json` from the site's own folder. Three Scriptorium transforms matched the bare tag and did
+  nothing: the page-turn effect, the Sessions index fallback and `proseRegion` (recap links and Connections
+  excerpts). One matcher, `htmltext.findMainOpen`, now serves all three.
+- **Stub pages are cut after the note's strips** (#320 upstream). `keepOnlySections` and the new `stubCut`
+  take the build's `withhold` object (`lib/processor.js:474`). Scriptorium's stub guard is retired: see
+  ADR 0042's "Retired" addendum, including the story-page leak the guard would have reopened.
+- **Obsidian `%%` comments are stripped by the pin itself** (#305 upstream, `lib/processor.js:877`), and
+  cut out of frontmatter values too. Scriptorium's read shim and output gate stay as they are; the gate
+  tests now unwrap comments rather than empty the shim, since emptying it no longer lets one through.
+- **A heading wrapped whole in emphasis or code** (`## **GM Notes**`) is read as its bare text and
+  withheld. `leak/l5` rightly stops reporting it.
+- **The scanner reads frontmatter more carefully**: titles as strings, a wikilink in a title by its label,
+  value comments cut, wrongly typed values shaped or left unread (`lib/scanner.js:126-160`). `publishset.js`
+  now calls the pin's own `labelsForLinks`, `cutValueComments` and `shapeFrontmatter` through the facade.
+- **`publish.mode` forgives case and spaces** and reads any other value as `player` (`lib/config.js:110`).
+  `publishset.js` ports that rule, so `leak/l1` no longer skips a `mode: Player` vault.
+- **Sheet skins** (`css/skins/`, `lib/skins/`), read relative to the pin's own folder under the already
+  embedded `css/` prefix.
+- `lib/build.js` accepts `options.rawConfig` for upstream's in-memory audit build. Scriptorium never
+  passes it.
+
+### What the procedure found
+
+- **Release artefact.** Tarball sha256 checked against upstream's `SHA256SUMS`; two independent downloads
+  (`gh release download` and a direct HTTPS fetch) of both files are byte-identical. The tag is a
+  lightweight tag on the pinned commit.
+- **Reproducible-build cross-check.** A fresh checkout at the pinned commit, `npm ci --ignore-scripts`,
+  `npm pack`: `diff -rq` clean against the extracted release, 578 files, `treeSha256`
+  `1a208d40626434a494a30cba04d44c0a22b4df6b680906ff66f0f6a140991d8a`. npm 11.8.0 on macOS.
+- **Dependency set: unchanged.** `diff -rq` of the bundled `node_modules/` between the 1.14.0 and 1.17.0
+  trees is empty. The generator-owned delta is 44 changed paths and 11 new ones (`css/skins/`,
+  `js/previews.js`, `lib/{excluding-values,frontmatter-shape,heading-key,kind-label,markers,note-faults,pc-header-meta,previews}.js`,
+  `lib/skins/`). `fmguard.js`'s four bound files and both redaction targets are byte-identical.
+  `npm audit --omit=dev` reports the same seven bundled-package advisories as at 1.14.0.
+- **Lockfile.** Allowed hunks only: the root dependency spec and the `gm-apprentice-publish` entry.
+  `npm install` rewrote the root `name`/`version` and reformatted `pkg.patches`; both restored.
+  `rm -rf node_modules && npm ci` reproduces and `verify-generator` passes before and after. No top-level
+  `node_modules/lunr`.
+- **Network posture.** No changed or new file under `lib/` or `bin/` gained a `fetch(`, an `eval(`, a
+  `new Function` or a network builtin. `js/previews.js` fetches only `previews.json`, relative to the site.
+- **Rules-content scan.** `PIN_SCAN_BASELINE` re-derived: 42 hits before, 48 after. Nine moved with their
+  text unchanged (one re-indented), and six are new comments in `css/skins/_layer.css`,
+  `css/skins/_print.css` and `css/style.css`, each read by hand: presentation only, no rules data.
+- **Citations re-derived** (step 7) in `src/` and `docs/COLLABORATING.md`: 41 moved with their text
+  unchanged, the rest mapped by reading the changed function. Shorthand follow-on citations
+  (`, :865`) and `test/` comments are not re-derived.
+- **Equivalence check** (step 10): clean on `story-vault`, `wrapup-vault`, `grapheme-vault` and
+  `examples/the-long-lease` (40 pages).
+- **Before and after.** `examples/the-long-lease` built at both pins: the same page set plus
+  `js/previews.js` and `previews.json`; `check` is finding-for-finding identical. 139 packaged assets, up
+  from 132.
+- **Dates, found by a later page-text comparison.** That before-and-after compared page sets and
+  `check` findings, not page text, and missed one change. From `publish-v1.16.0` the pin prints a YAML
+  date as `2026-07-11`, which `src/build/dates.js` (written for `Date.prototype.toString()` text) does
+  not recognise, so the-long-lease's session badges changed from "11 July 2026" to `2026-07-11`. The
+  date step now puts the old form back ([ADR 0016](0016-book-leaves-and-page-motion.md), last
+  addendum); every printed date on every page of the-long-lease, and of a copy with a YAML date in every
+  date field, now matches a build at 1.14.0.
+
+### What this does not prove here
+
+`npm run package` was not run: this host has no Node 22 for `@yao-pkg/pkg` and no mingw-w64, and the
+startup self-test needs a Linux host. No Windows run. The browser tests ran on macOS (Chromium and
+Firefox): 207 of 209 pass, and the two failures fail the same way on `main` on this host.
