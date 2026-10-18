@@ -700,7 +700,6 @@ test('#143: POST /api/check answers exitCode 3 with the unchanged message', asyn
   const { createAdminHandler } = require('../src/admin/router');
   const { createAdminContext } = require('../src/admin/context');
   const { resolveVaultSite } = require('../src/cli/check');
-  const TOKEN = 'scan-keys-143-token';
 
   await withScratchDirAsync(async (dir) => {
     const vaultPath = makeVault(dir);
@@ -710,7 +709,7 @@ test('#143: POST /api/check answers exitCode 3 with the unchanged message', asyn
     const ctxInfo = { campaign: 'fixture', vault: vaultPath, output: path.join(dir, 'out') };
     // resolveVaultSite does not run the key check, so the admin context builds.
     const { vaultPath: resolvedVaultPath, site } = resolveVaultSite(ctxInfo);
-    const ctx = createAdminContext({ ctxInfo, vaultPath: resolvedVaultPath, site, token: TOKEN });
+    const ctx = createAdminContext({ ctxInfo, vaultPath: resolvedVaultPath, site, token: 'TOK' });
     const handle = await startLocalListener(createAdminHandler(ctx), { port: 0 });
     ctx.adminPort = handle.port;
     t.after(async () => {
@@ -734,7 +733,7 @@ test('#143: POST /api/check answers exitCode 3 with the unchanged message', asyn
             'Content-Length': String(body.length),
             Host: `127.0.0.1:${handle.port}`,
             Origin: `http://127.0.0.1:${handle.port}`,
-            Cookie: `scriptorium_admin_${handle.port}=${TOKEN}`,
+            Cookie: `scriptorium_admin_${handle.port}=TOK`,
           },
         },
         (r) => {
