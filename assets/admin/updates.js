@@ -417,8 +417,23 @@
     }
     if (rest && rest.isConnected) {
       var oldCard = rest.querySelector('[data-part="update-setting"]');
-      if (oldCard) oldCard.parentNode.removeChild(oldCard);
-      rest.appendChild(buildCard());
+      var card = buildCard();
+      // Order on the Overview: this card, then the ports card (desktop.js, the direct child
+      // [data-part="desktop-slot"] of rest), whichever answer arrives first. A redraw replaces the old
+      // card where it stands; a first draw goes in before the slot when the slot is already there.
+      if (oldCard) {
+        oldCard.parentNode.replaceChild(card, oldCard);
+      } else {
+        var slot = null;
+        for (var i = 0; i < rest.children.length; i++) {
+          if (rest.children[i].getAttribute('data-part') === 'desktop-slot') {
+            slot = rest.children[i];
+            break;
+          }
+        }
+        if (slot) rest.insertBefore(card, slot);
+        else rest.appendChild(card);
+      }
       if (landing) {
         landing = false;
         landOnce();
