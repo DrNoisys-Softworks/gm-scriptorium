@@ -1112,22 +1112,14 @@ UninstPage custom un.ConfirmShow un.ConfirmLeave
 !define MUI_FINISHPAGE_RUN_TEXT "Leave feedback for the developer. All feedback is read."
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW un.GmFinishShow
-; Layout of the finish page, in dialog units. The page is 193 high. The text starts at 45 and the
-; box is 10 high; those three match Modern UI's own values and are not applied. The callback
-; applies LEFT, TEXT_W, TEXT_H and BOX_TOP: 128 high text ends at 173, a 5 gap, then the box.
-!define GM_UNFIN_LEFT 120
-!define GM_UNFIN_TEXT_TOP 45
-!define GM_UNFIN_TEXT_W 195
-!define GM_UNFIN_TEXT_H 128
-!define GM_UNFIN_BOX_TOP 178
-!define GM_UNFIN_BOX_H 10
-!define GM_UNFIN_PAGE_H 193
 !insertmacro MUI_UNPAGE_FINISH
 
-; Runs as the finish page is shown. The text gets the taller area it needs for the folder lines, and
-; the feedback box moves below it. The box itself, its unticked state and its action stay Modern
-; UI's. Defined after the page macro, which declares the variables used here. If the rectangle
-; cannot be converted, Modern UI's own layout stays.
+; Runs as the finish page is shown. It reads where Modern UI put its own controls, in the page's
+; real pixels, then gives the text the room down to one Modern UI gap above the feedback box and
+; moves the box down so it sits one gap above the page's bottom. No unit conversion is used, so it
+; holds at any display scale. The box itself, its unticked state and its action stay Modern UI's.
+; Defined after the page macro, which declares the variables used here. If any call fails or the
+; layout is not the expected one, Modern UI's own layout stays.
 Function un.GmFinishShow
   Push $0
   Push $1
@@ -1135,17 +1127,50 @@ Function un.GmFinishShow
   Push $3
   Push $4
   Push $5
+  Push $6
+  Push $7
+  Push $8
+  Push $9
   ${NSD_AddStyle} $mui.FinishPage.Text ${SS_NOPREFIX}
-  System::Call '*(i ${GM_UNFIN_LEFT}, i ${GM_UNFIN_BOX_TOP}, i ${GM_UNFIN_TEXT_W}, i ${GM_UNFIN_TEXT_H}) p .r1'
+  System::Call '*(i 0, i 0, i 0, i 0) p .r1'
   IntCmp $1 0 finish_done
-  System::Call 'user32::MapDialogRect(p $mui.FinishPage, p r1) i .r0'
+  System::Call 'user32::ClientToScreen(p $mui.FinishPage, p r1) i .r0'
   IntCmp $0 0 finish_free
-  System::Call '*$1(i .r2, i .r3, i .r4, i .r5)'
-  System::Call 'user32::SetWindowPos(p $mui.FinishPage.Text, p 0, i 0, i 0, i r4, i r5, i 0x16)'
-  System::Call 'user32::SetWindowPos(p $mui.FinishPage.Run, p 0, i r2, i r3, i 0, i 0, i 0x15)'
+  System::Call '*$1(i .r8, i .r9)'
+  System::Call 'user32::GetWindowRect(p $mui.FinishPage.Run, p r1) i .r0'
+  IntCmp $0 0 finish_free
+  System::Call '*$1(i .r4, i .r5, i, i .r6)'
+  IntOp $4 $4 - $8
+  IntOp $5 $5 - $9
+  IntOp $6 $6 - $9
+  System::Call 'user32::GetWindowRect(p $mui.FinishPage.Text, p r1) i .r0'
+  IntCmp $0 0 finish_free
+  System::Call '*$1(i .r8, i .r2, i .r0, i .r3)'
+  IntOp $8 $0 - $8
+  IntOp $2 $2 - $9
+  IntOp $3 $3 - $9
+  System::Call 'user32::GetClientRect(p $mui.FinishPage, p r1) i .r0'
+  IntCmp $0 0 finish_free
+  System::Call '*$1(i, i, i, i .r7)'
   finish_free:
   System::Free $1
+  IntCmp $0 0 finish_done
+  IntOp $0 $5 - $3
+  IntOp $6 $6 - $5
+  IntCmp $0 0 finish_done finish_done
+  IntCmp $6 0 finish_done finish_done
+  IntOp $7 $7 - $0
+  IntOp $7 $7 - $6
+  IntCmp $7 $5 finish_done finish_done
+  IntOp $3 $7 - $0
+  IntOp $3 $3 - $2
+  System::Call 'user32::SetWindowPos(p $mui.FinishPage.Text, p 0, i 0, i 0, i r8, i r3, i 0x16)'
+  System::Call 'user32::SetWindowPos(p $mui.FinishPage.Run, p 0, i r4, i r7, i 0, i 0, i 0x15)'
   finish_done:
+  Pop $9
+  Pop $8
+  Pop $7
+  Pop $6
   Pop $5
   Pop $4
   Pop $3

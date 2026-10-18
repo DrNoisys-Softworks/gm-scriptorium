@@ -709,6 +709,21 @@ test('settings: the settings path is only looked for with IfFileExists and shown
 });
 
 const PLUGIN_CALLS = ['System::Alloc', 'System::Call', 'System::Free', 'nsDialogs::Create', 'nsDialogs::Show', 'nsExec::ExecToLog', 'nsExec::ExecToStack'];
+// The twelve System lines of un.GmFinishShow (stage A). Named so no test indexes SYSTEM_LINES by position.
+const UNFIN_LINES = {
+  alloc: `System::Call '*(i 0, i 0, i 0, i 0) p .r1'`,
+  origin: `System::Call 'user32::ClientToScreen(p $mui.FinishPage, p r1) i .r0'`,
+  originRead: `System::Call '*$1(i .r8, i .r9)'`,
+  runRect: `System::Call 'user32::GetWindowRect(p $mui.FinishPage.Run, p r1) i .r0'`,
+  runRead: `System::Call '*$1(i .r4, i .r5, i, i .r6)'`,
+  textRect: `System::Call 'user32::GetWindowRect(p $mui.FinishPage.Text, p r1) i .r0'`,
+  textRead: `System::Call '*$1(i .r8, i .r2, i .r0, i .r3)'`,
+  clientRect: `System::Call 'user32::GetClientRect(p $mui.FinishPage, p r1) i .r0'`,
+  clientRead: `System::Call '*$1(i, i, i, i .r7)'`,
+  free: 'System::Free $1',
+  moveText: `System::Call 'user32::SetWindowPos(p $mui.FinishPage.Text, p 0, i 0, i 0, i r8, i r3, i 0x16)'`,
+  moveBox: `System::Call 'user32::SetWindowPos(p $mui.FinishPage.Run, p 0, i r4, i r7, i 0, i 0, i 0x15)'`,
+};
 const SYSTEM_LINES = [
   PATH_CALL_LINE,
   PATH_WCHAR_LINE,
@@ -716,13 +731,8 @@ const SYSTEM_LINES = [
   `System::Call '*$2(&i1 .r3)'`,
   'System::Alloc 64',
   'System::Free $2',
-  // The uninstaller finish page callback (un.GmFinishShow), stage A only.
-  `System::Call '*(i \${GM_UNFIN_LEFT}, i \${GM_UNFIN_BOX_TOP}, i \${GM_UNFIN_TEXT_W}, i \${GM_UNFIN_TEXT_H}) p .r1'`,
-  `System::Call 'user32::MapDialogRect(p $mui.FinishPage, p r1) i .r0'`,
-  `System::Call '*$1(i .r2, i .r3, i .r4, i .r5)'`,
-  'System::Free $1',
-  `System::Call 'user32::SetWindowPos(p $mui.FinishPage.Text, p 0, i 0, i 0, i r4, i r5, i 0x16)'`,
-  `System::Call 'user32::SetWindowPos(p $mui.FinishPage.Run, p 0, i r2, i r3, i 0, i 0, i 0x15)'`,
+  // The uninstaller finish page callback (un.GmFinishShow), stage A only. Named, never indexed.
+  ...Object.values(UNFIN_LINES),
 ];
 
 /** Plug-in calls (a word, two colons, a word at the start of a trimmed line) that are not allowed. */
@@ -1033,44 +1043,6 @@ test('labels: the two options-page folder labels are styled right behind their P
   }
 });
 
-// Expected values come from Modern UI 2, Pages/Finish.nsh (page 193u high, text at 120u and
-// 17u + 28u, 195u wide, run box 10u high), not from installer.nsi.
-const MUI_FINISH = { left: 120, textW: 195, textTop: 45, gap: 5, pageH: 193 };
-
-function unfinDefines(text) {
-  const out = {};
-  for (const m of text.matchAll(/^\s*!define\s+GM_UNFIN_(\w+)\s+(\d+)\s*$/gm)) out[m[1]] = Number(m[2]);
-  return out;
-}
-
-/** The arithmetic rules for the finish page defines; returns the list of broken rules. */
-function unfinBroken(d) {
-  const broken = [];
-  if (d.LEFT !== MUI_FINISH.left) broken.push('LEFT');
-  if (d.TEXT_W !== MUI_FINISH.textW) broken.push('TEXT_W');
-  if (d.TEXT_TOP !== MUI_FINISH.textTop) broken.push('TEXT_TOP');
-  if (!(d.TEXT_H >= 128)) broken.push('TEXT_H');
-  if (!(d.TEXT_TOP + d.TEXT_H + MUI_FINISH.gap <= d.BOX_TOP)) broken.push('gap');
-  if (!(d.BOX_TOP + d.BOX_H <= MUI_FINISH.pageH)) broken.push('page');
-  if (d.PAGE_H !== MUI_FINISH.pageH) broken.push('PAGE_H');
-  return broken;
-}
-
-const GOOD_UNFIN = { LEFT: 120, TEXT_TOP: 45, TEXT_W: 195, TEXT_H: 128, BOX_TOP: 178, BOX_H: 10, PAGE_H: 193 };
-
-test('finish page: the GM_UNFIN defines are 120 / 45 / 195 / 128 / 178 / 10 inside 193 dialog units', () => {
-  const d = unfinDefines(NSI);
-  assert.deepEqual(d, GOOD_UNFIN);
-  assert.deepEqual(unfinBroken(d), []);
-  // controls: each mutation breaks a named rule
-  assert.deepEqual(unfinBroken({ ...GOOD_UNFIN, TEXT_H: 60 }), ['TEXT_H']);
-  assert.deepEqual(unfinBroken({ ...GOOD_UNFIN, BOX_TOP: 110 }), ['gap']);
-  assert.deepEqual(unfinBroken({ ...GOOD_UNFIN, BOX_TOP: 185 }), ['page']);
-  assert.deepEqual(unfinBroken({ ...GOOD_UNFIN, LEFT: 119 }), ['LEFT']);
-  assert.deepEqual(unfinBroken({ ...GOOD_UNFIN, TEXT_W: 190 }), ['TEXT_W']);
-  assert.deepEqual(unfinBroken({ ...GOOD_UNFIN, TEXT_TOP: 46 }), ['TEXT_TOP', 'gap']);
-});
-
 test('finish page: the SHOW hook sits between the feedback box defines and the page macro, in stage A', () => {
   const hits = findLines(NSI, /^\s*!define\s+MUI_PAGE_CUSTOMFUNCTION_SHOW\s+un\.GmFinishShow\s*$/);
   assert.equal(hits.length, 1);
@@ -1088,29 +1060,82 @@ test('finish page: the SHOW hook sits between the feedback box defines and the p
   assert.ok(lines.indexOf('Function un.GmFinishShow') > insert, 'un.GmFinishShow comes after the page macro');
 });
 
-test('finish page: un.GmFinishShow styles the text, then resizes it and moves the box, with exactly the allowed calls', () => {
+const UNFIN_ARITH_BOX = ['IntOp $4 $4 - $8', 'IntOp $5 $5 - $9', 'IntOp $6 $6 - $9'];
+const UNFIN_ARITH_TEXT = ['IntOp $8 $0 - $8', 'IntOp $2 $2 - $9', 'IntOp $3 $3 - $9'];
+const UNFIN_ARITH_MOVE = [
+  'IntOp $0 $5 - $3',
+  'IntOp $6 $6 - $5',
+  'IntCmp $0 0 finish_done finish_done',
+  'IntCmp $6 0 finish_done finish_done',
+  'IntOp $7 $7 - $0',
+  'IntOp $7 $7 - $6',
+  'IntCmp $7 $5 finish_done finish_done',
+  'IntOp $3 $7 - $0',
+  'IntOp $3 $3 - $2',
+];
+const UNFIN_STYLE_LINE = '${NSD_AddStyle} $mui.FinishPage.Text ${SS_NOPREFIX}';
+
+function unfinBody() {
   const body = functionBody(NSI, 'un.GmFinishShow');
   assert.ok(body, 'un.GmFinishShow exists');
-  const lines = body.split('\n').map((l) => l.trim()).filter(Boolean);
-  const [alloc, rect, read, free, sizeText, moveBox] = SYSTEM_LINES.slice(6);
-  const want = ['${NSD_AddStyle} $mui.FinishPage.Text ${SS_NOPREFIX}', alloc, rect, read, sizeText, moveBox, free];
-  const at = want.map((l) => lines.indexOf(l));
-  assert.ok(at.every((i) => i >= 0), `all lines present: ${at}`);
+  return body.split('\n').map((l) => l.trim()).filter(Boolean);
+}
+
+test('finish page: un.GmFinishShow reads Modern UI\'s own layout in pixels and moves only with the allowed calls, in order', () => {
+  const lines = unfinBody();
+  const U = UNFIN_LINES;
+  const order = [UNFIN_STYLE_LINE, U.alloc, U.origin, U.originRead, U.runRect, U.runRead, U.textRect, U.textRead, U.clientRect, U.clientRead, U.free, U.moveText, U.moveBox];
+  const at = order.map((l) => {
+    assert.equal(lines.filter((x) => x === l).length, 1, `exactly once in the body: ${l}`);
+    return lines.indexOf(l);
+  });
   assert.deepEqual(at, at.slice().sort((a, b) => a - b), 'in order');
-  assert.equal(new Set(at).size, at.length);
-  // the callback keeps $0 to $5 for its caller
-  assert.deepEqual(lines.filter((l) => /^Push \$\d$/.test(l)), ['Push $0', 'Push $1', 'Push $2', 'Push $3', 'Push $4', 'Push $5']);
-  assert.deepEqual(lines.filter((l) => /^Pop \$\d$/.test(l)), ['Pop $5', 'Pop $4', 'Pop $3', 'Pop $2', 'Pop $1', 'Pop $0']);
-  // only MapDialogRect and SetWindowPos are called by name, once and twice, and the struct is freed once
-  const calls = lines.filter((l) => /^System::Call 'user32::/.test(l)).map((l) => /user32::(\w+)/.exec(l)[1]);
-  assert.deepEqual(calls, ['MapDialogRect', 'SetWindowPos', 'SetWindowPos']);
-  assert.equal(lines.filter((l) => l === 'System::Free $1').length, 1);
-  // a failed allocation or MapDialogRect leaves MUI's own layout alone
-  const rectAt = lines.indexOf(rect);
-  const setPos = lines.indexOf(sizeText);
-  assert.ok(lines.some((l, i) => /^IntCmp \$1 0 /.test(l) && i < rectAt), 'a null struct pointer is checked before MapDialogRect');
-  assert.ok(lines.some((l, i) => /^IntCmp \$0 0 /.test(l) && i > rectAt && i < setPos), 'a zero MapDialogRect result is checked before SetWindowPos');
+  // each System line appears once in the whole file, in stage A only
+  for (const l of Object.values(U)) {
+    const hits = findLines(NSI, new RegExp(`^\\s*${l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`));
+    assert.equal(hits.length, 1, `once in the file: ${l}`);
+    assert.deepEqual(hits[0].conds, ['ifdef EXTRACT_UNINSTALLER'], l);
+  }
+  // user32 names, in order; no dialog-unit conversion anywhere
+  const names = lines.filter((l) => /^System::Call 'user32::/.test(l)).map((l) => /user32::(\w+)/.exec(l)[1]);
+  assert.deepEqual(names, ['ClientToScreen', 'GetWindowRect', 'GetWindowRect', 'GetClientRect', 'SetWindowPos', 'SetWindowPos']);
+  assert.equal(/MapDialogRect/.test(NSI), false);
+  assert.equal(/GM_UNFIN_/.test(NSI), false);
   // controls
-  assert.equal(strayPluginLines(`System::Call 'user32::SetWindowPos(p 0)'`).length, 1);
-  assert.equal(strayPluginLines(SYSTEM_LINES[10]).length, 0);
+  assert.equal(strayPluginLines(`System::Call 'user32::MapDialogRect(p $mui.FinishPage, p r1) i .r0'`).length, 1);
+  for (const l of Object.values(U)) assert.equal(strayPluginLines(l).length, 0, l);
+});
+
+test('finish page: un.GmFinishShow checks every call and frees the buffer on every path after the allocation', () => {
+  const lines = unfinBody();
+  const U = UNFIN_LINES;
+  const next = (l) => lines[lines.indexOf(l) + 1];
+  assert.equal(next(U.alloc), 'IntCmp $1 0 finish_done');
+  for (const l of [U.origin, U.runRect, U.textRect, U.clientRect]) assert.equal(next(l), 'IntCmp $0 0 finish_free', l);
+  assert.equal(lines[lines.indexOf(U.free) - 1], 'finish_free:');
+  assert.equal(next(U.free), 'IntCmp $0 0 finish_done');
+  const done = lines.indexOf('finish_done:');
+  assert.ok(done > lines.indexOf(U.moveBox) && lines[done + 1] === 'Pop $9', 'finish_done sits between the second SetWindowPos and Pop $9');
+  assert.equal(lines.filter((l) => l === 'finish_done:').length, 1);
+  assert.equal(lines.filter((l) => l === 'finish_free:').length, 1);
+});
+
+test('finish page: the pixel arithmetic is the reviewed listing, in its three places', () => {
+  const lines = unfinBody();
+  const U = UNFIN_LINES;
+  const run = (from, n) => lines.slice(lines.indexOf(from) + 1, lines.indexOf(from) + 1 + n);
+  // after the box read, after the text read (a guard comes first there), after the guard that follows the free
+  assert.deepEqual(run(U.runRead, 3), UNFIN_ARITH_BOX);
+  assert.deepEqual(run(U.textRead, 3), UNFIN_ARITH_TEXT);
+  const afterFree = lines.indexOf(U.free) + 2;
+  assert.deepEqual(lines.slice(afterFree, afterFree + UNFIN_ARITH_MOVE.length), UNFIN_ARITH_MOVE);
+  // the move block is straight before the two SetWindowPos lines
+  assert.equal(lines[afterFree + UNFIN_ARITH_MOVE.length], U.moveText);
+});
+
+test('finish page: un.GmFinishShow keeps $0 to $9 for its caller', () => {
+  const lines = unfinBody();
+  const seq = (re) => lines.filter((l) => re.test(l));
+  assert.deepEqual(seq(/^Push \$\d$/), ['Push $0', 'Push $1', 'Push $2', 'Push $3', 'Push $4', 'Push $5', 'Push $6', 'Push $7', 'Push $8', 'Push $9']);
+  assert.deepEqual(seq(/^Pop \$\d$/), ['Pop $9', 'Pop $8', 'Pop $7', 'Pop $6', 'Pop $5', 'Pop $4', 'Pop $3', 'Pop $2', 'Pop $1', 'Pop $0']);
 });
