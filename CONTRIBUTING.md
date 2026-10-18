@@ -65,12 +65,6 @@ push again. Don't merge `main` into your branch.
 All three must pass before a pull request can merge. The checks use no secrets, so
 they skip in a fork's own Actions tab, so a fork shows no checks there. The checks run when you open the pull request against this repository, and the result appears on the pull request.
 
-One known flake has a re-run allowance. If `browser` fails, and the only failures are the new-vault
-setup test described in [issue 137](https://github.com/DrNoisys-Softworks/gm-scriptorium/issues/137) and its parent test, `start a new campaign, browsing in <browser>`, a maintainer may re-run the
-failed job once, with "Re-run failed jobs" on the Actions page. One flake shows as two failures,
-because a failing subtest also fails its parent. Any other failure, or a failure on the re-run, is a
-real failure. The allowance is removed in the change that fixes that issue.
-
 ## The review expectation
 
 Every pull request carries a written review before it merges. The review is a

@@ -2,7 +2,7 @@
 
 ## Summary
 
-Seventeen test files drive a real browser, and until now they skipped themselves on the machines that ran every pull request, so the admin panel's screens were not checked before merge. A new `browser` check in CI installs Playwright and axe-core outside the repository and runs those files in Chromium and Firefox, on every pull request and every push to `main`. A small runner script reads the test output and fails on any failed, cancelled, skipped or todo test, on zero tests and on a missing summary, because `node --test` treats a skip as success. The main alternative, running them only after a merge, is rejected below because it finds a broken screen when the change is already in `main`. The limit a reader will meet is that one known flake, the new-vault setup test in issue 137, may be re-run once, and the packaged executable and Windows browsers are still not covered.
+Seventeen test files drive a real browser, and until now they skipped themselves on the machines that ran every pull request, so the admin panel's screens were not checked before merge. A new `browser` check in CI installs Playwright and axe-core outside the repository and runs those files in Chromium and Firefox, on every pull request and every push to `main`. A small runner script reads the test output and fails on any failed, cancelled, skipped or todo test, on zero tests and on a missing summary, because `node --test` treats a skip as success. The main alternative, running them only after a merge, is rejected below because it finds a broken screen when the change is already in `main`. The limit a reader will meet is that the packaged executable and Windows browsers are still not covered.
 
 Status: accepted. Builds on [ADR 0059](0059-hosted-sample-site.md), section 2 (the workflow rails), and on the artefact rule in `docs/DEVELOPING.md`.
 
@@ -53,6 +53,8 @@ Rejected:
 ## 6. The re-run rule, and when it ends
 
 If the `browser` check fails, and the only failures are the new-vault setup test described in [issue 137](https://github.com/DrNoisys-Softworks/gm-scriptorium/issues/137) and its parent test, `start a new campaign, browsing in <browser>`, a maintainer may re-run the failed job once. One flake shows as two failures, because a failing subtest also fails its parent. Any other failure, or a failure on the re-run, is a real failure. The allowance is removed in the change that fixes that issue.
+
+**Amended.** The allowance ended when issue 137 was fixed. A failure in that test now fails the `browser` check like any other failure, with no re-run.
 
 ## 7. Cost
 
