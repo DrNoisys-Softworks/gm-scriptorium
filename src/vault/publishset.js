@@ -83,6 +83,38 @@ function unionExcludeList(primary, fallback, defaults) {
 }
 
 /**
+ * The merged exclude_dirs list spelled the way the scanner spells a folder: each entry through the
+ * pin's own normalizeExcludeDir (silently: `check` writes nothing to stderr), then de-duplicated
+ * case-insensitively, first spelling kept. The pin's normalizeExcludeDirs (lib/config.js:147-160,
+ * unexported) does exactly this to the list its pick() chose.
+ */
+function normalizeExcludeDirs(list, vaultPath) {
+  const seen = new Set();
+  const out = [];
+  for (const item of list) {
+    const normalized = pinned.normalizeExcludeDir(item, vaultPath, false);
+    if (normalized == null) continue;
+    const key = normalized.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(normalized);
+    }
+  }
+  return out;
+}
+
+/**
+ * exclude_callouts as the pin's pick() chooses it (lib/config.js:192-236): an empty vault value
+ * (null) says nothing; with both files set, the stricter wins (the pin's own stricterCallouts).
+ */
+function pickExcludeCallouts(fromVaultRaw, fromSite) {
+  const fromVault = fromVaultRaw === null ? undefined : fromVaultRaw;
+  if (fromVault === undefined) return fromSite;
+  if (fromSite === undefined) return fromVault;
+  return pinned.stricterCallouts(fromVault, fromSite);
+}
+
+/**
  * A single publish.overrides.fields[path] entry is malformed if it is not a
  * map, or has a non-array/non-string-array "include". Ported from the
  * pin's (unexported) overrideEntryProblem, lib/config.js:285-297,
@@ -142,7 +174,7 @@ function loadPublishConfig(vaultPath, jsonConfig = {}) {
     mode: publish.mode || pinned.PUBLISH_DEFAULTS.mode,
     system: publish.system || null,
     exclude_drafts: publish.exclude_drafts ?? pinned.PUBLISH_DEFAULTS.exclude_drafts,
-    exclude_callouts: publish.exclude_callouts ?? jsonConfig.excludeCallouts ?? pinned.PUBLISH_DEFAULTS.exclude_callouts,
+    exclude_callouts: pickExcludeCallouts(publish.exclude_callouts, jsonConfig.excludeCallouts) ?? pinned.PUBLISH_DEFAULTS.exclude_callouts,
     exclude_sections: unionExcludeList(
       publish.exclude_sections,
       jsonConfig.excludeSections,
@@ -153,11 +185,11 @@ function loadPublishConfig(vaultPath, jsonConfig = {}) {
       jsonConfig.excludeFields,
       pinned.PUBLISH_DEFAULTS.exclude_fields,
     ),
-    exclude_dirs: unionExcludeList(
+    exclude_dirs: normalizeExcludeDirs(unionExcludeList(
       publish.exclude_dirs,
       jsonConfig.excludeDirs,
       pinned.PUBLISH_DEFAULTS.exclude_dirs,
-    ),
+    ), vaultPath),
     overrides: {
       fields: canonicalizeOverrideFieldKeys(
         (publish.overrides && publish.overrides.fields) ?? pinned.PUBLISH_DEFAULTS.overrides.fields,

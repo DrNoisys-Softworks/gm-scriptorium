@@ -325,6 +325,15 @@ test('L6 dirs: the vault-side list comes from configSources.vault.exclude_dirs, 
   assert.equal(scenesHit.data.appliesInOutput, true);
 });
 
+test('L6 dirs: the same folder spelled differently in the two files is not a divergence', () => {
+  // pin-vault's vault file excludes Scenes; this site file names it as "Scenes/" and "./Threads".
+  const ctx = pinContext({ jsonConfig: { ...pinVaultConfig(), excludeDirs: ['_meta', '_Templates', 'Scenes/', './Threads'] } });
+  const findings = runExcludeDirsDivergence(ctx);
+  assert.ok(!findings.some((f) => f.data && f.data.dir.startsWith('Scenes')), JSON.stringify(findings.map((f) => f.data)));
+  const threads = findings.filter((f) => f.data && f.data.jsonOnly && f.data.dir.includes('Threads'));
+  assert.deepEqual(threads.map((f) => f.data.dir), ['./Threads'], 'a JSON-only entry is still reported as the GM wrote it');
+});
+
 test('L6 dirs: the vault-only WARN message (folder holds pages or images) reads exactly as written (wording, #141)', () => {
   const ctx = pinContext();
   const hit = runExcludeDirsDivergence(ctx).find((f) => f.data && f.data.dir === 'Scenes' && !f.data.jsonOnly);

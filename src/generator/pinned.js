@@ -162,8 +162,10 @@ const {
 // lib/manifest.js:99 (module.exports)
 const { parseManifest } = require('gm-apprentice-publish/lib/manifest');
 
-// lib/config.js:539 (module.exports)
-const { PUBLISH_DEFAULTS, vaultRelPath, scanConfigFor } = require('gm-apprentice-publish/lib/config');
+// lib/config.js:539 (module.exports). normalizeExcludeDir (lib/config.js:123-140) and stricterCallouts
+// (lib/config.js:165-175) are how the pin's own config merge spells an exclude_dirs entry and picks
+// exclude_callouts; src/vault/publishset.js's port calls them so it cannot drift from either rule.
+const { PUBLISH_DEFAULTS, vaultRelPath, scanConfigFor, normalizeExcludeDir, stricterCallouts } = require('gm-apprentice-publish/lib/config');
 
 // lib/scanner.js:415 (module.exports). dirIsExcluded is FR-16/SD-19's new export: the pin's own
 // case-insensitive excludeDirs matcher (matchExcludedDir), used by src/vault/publishset.js so its
@@ -291,6 +293,8 @@ module.exports = {
   PUBLISH_DEFAULTS,
   vaultRelPath,
   scanConfigFor,
+  normalizeExcludeDir,
+  stricterCallouts,
   slugify,
   mapFolder,
   dirIsExcluded,

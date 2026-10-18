@@ -305,7 +305,9 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   bypass Scriptorium's read-only, abort-on-EIO chokepoint and write straight to stderr, which
   `check` cannot allow. Only the *pure* functions (`decidePage`, `publishesPage`, `slugify`,
   `mapFolder`, `dirIsExcluded`, `vaultRelPath`, `scanConfigFor`, `canonicalNfc`, `parseManifest`,
-  `PUBLISH_DEFAULTS`) are required through the facade and called directly; everything else in this
+  `normalizeExcludeDir`, `stricterCallouts`, `PUBLISH_DEFAULTS`) are required through the facade and
+  called directly. The last two were added after the port missed them: a folder written as
+  `NPCs/` was left out of the build but still counted by `check`. Everything else in this
   file is logic someone re-typed
   from `lib/config.js` by hand and has to be re-checked, not re-verified automatically, on every pin
   move. **This is the single largest place a silent, undetected drift could happen**: an upstream

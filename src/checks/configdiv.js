@@ -2,6 +2,7 @@
 
 const { createFinding } = require('../report/finding');
 const { PUBLISH_DEFAULTS } = require('../vault/publishset');
+const pinned = require('../generator/pinned');
 const { hubBodyWithheld } = require('./sessionmodel');
 
 /*
@@ -102,7 +103,13 @@ function runExcludeSectionsDivergence(ctx) {
 function runExcludeDirsDivergence(ctx) {
   const jsonList = ctx.jsonConfig.excludeDirs || [];
   const vaultList = ctx.publishSet.configSources.vault.exclude_dirs || [];
-  const jsonSet = new Set(jsonList);
+  // Two entries name the same folder when the pin spells them the same (normalizeExcludeDir: no
+  // trailing slash, no leading ./, forward slashes, relative to the vault) and match case-insensitively,
+  // as the scanner matches them. A finding still quotes the entry as the GM wrote it.
+  const spelled = (dir) => pinned.normalizeExcludeDir(dir, ctx.vaultPath, false);
+  const keyOf = (dir) => (spelled(dir) || '').toLowerCase();
+  const jsonSet = new Set(jsonList.map(keyOf));
+  const vaultSet = new Set(vaultList.map(keyOf));
   const findings = [];
 
   function underPrefix(relPath, prefix) {
@@ -110,11 +117,12 @@ function runExcludeDirsDivergence(ctx) {
   }
 
   for (const dir of vaultList) {
-    if (jsonSet.has(dir)) continue; // also gates the real walk; not a divergence
-    const contributedPage = ctx.allCandidatePages.some((p) => underPrefix(p.relPath, dir));
-    const contributedAttachment = [...ctx.index.claims.values()]
+    if (jsonSet.has(keyOf(dir))) continue; // also gates the real walk; not a divergence
+    const folder = spelled(dir);
+    const contributedPage = !!folder && ctx.allCandidatePages.some((p) => underPrefix(p.relPath, folder));
+    const contributedAttachment = !!folder && [...ctx.index.claims.values()]
       .flat()
-      .some((c) => c.kind === 'image' && underPrefix(c.relPath.replace(/^<attachments>\//, ''), dir));
+      .some((c) => c.kind === 'image' && underPrefix(c.relPath.replace(/^<attachments>\//, ''), folder));
     const fires = contributedPage || contributedAttachment;
     findings.push(
       createFinding({
@@ -133,7 +141,7 @@ function runExcludeDirsDivergence(ctx) {
   }
 
   for (const dir of jsonList) {
-    if (vaultList.includes(dir)) continue;
+    if (vaultSet.has(keyOf(dir))) continue;
     findings.push(
       createFinding({
         id: 'config/exclude-dirs-divergence',

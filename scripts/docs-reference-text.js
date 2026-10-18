@@ -551,7 +551,7 @@ module.exports = deepFreeze({
       what: 'Headings whose section is removed from every page, at any heading level. Joined with `excludeSections` in `vault.config.json`.',
     },
     exclude_dirs: {
-      what: 'Vault folders that are skipped completely. Joined with `excludeDirs` in `vault.config.json`. `check` compares the two lists and says if they differ.',
+      what: 'Vault folders that are skipped completely. Joined with `excludeDirs` in `vault.config.json`. A trailing slash, a leading `./` and backslashes make no difference. `check` compares the two lists and says if they differ.',
     },
     exclude_drafts: {
       type: 'true or false',
@@ -559,7 +559,7 @@ module.exports = deepFreeze({
     },
     exclude_callouts: {
       type: 'true or false, or a list of text',
-      what: 'Whether callout blocks are removed from pages. When this key is absent, `excludeCallouts` in `vault.config.json` is used instead, and then the default.',
+      what: 'Whether callout blocks are removed from pages. When `excludeCallouts` in `vault.config.json` is also set, the stricter of the two is used.',
     },
     overrides: {
       type: 'table',
@@ -651,7 +651,7 @@ module.exports = deepFreeze({
     },
     excludeDirs: {
       type: 'list of text',
-      what: 'Vault folders skipped completely. Joined with `publish.exclude_dirs`.',
+      what: 'Vault folders skipped completely. Joined with `publish.exclude_dirs`. A trailing slash, a leading `./` and backslashes make no difference.',
       changedBy: '`init`, or by hand',
     },
     excludeSections: {
@@ -661,7 +661,7 @@ module.exports = deepFreeze({
     },
     excludeCallouts: {
       type: 'true or false, or a list of text',
-      what: 'Whether callout blocks are removed. Used only when `publish.exclude_callouts` is absent from the vault file.',
+      what: 'Whether callout blocks are removed. When `publish.exclude_callouts` is also set, the stricter of the two is used.',
       changedBy: '`init`, or by hand',
     },
     backend: {
