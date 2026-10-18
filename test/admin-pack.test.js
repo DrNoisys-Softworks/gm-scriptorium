@@ -529,7 +529,7 @@ test('FR31: a save while ctx.busy is already set gets 409 busy, and nothing is w
 // "../" and an arbitrary target name are unit-tested at src/vault/packreplace.js's own layer
 // (test/pack-replace.test.js): the admin API never lets a client name the file it writes.
 
-test('real pipeline: a symlinked pack.toml already on disk is refused through the actual HTTP save path (503 io), unchanged', async (t) => {
+test('#120: a symlinked pack.toml already on disk is refused through the actual HTTP save path as 422 unsupported, unchanged', async (t) => {
   await withScratchDir(async (root) => {
     const { vaultPath, packDir } = writeVault(root);
     const tomlPath = path.join(packDir, 'pack.toml');
@@ -542,8 +542,9 @@ test('real pipeline: a symlinked pack.toml already on disk is refused through th
 
     const baseSha256 = sha256(fs.readFileSync(outsideFile));
     const res = await post(port, '/api/pack/theme', { theme: 'haze', baseSha256 });
-    assert.equal(res.status, 503);
-    assert.equal(res.json.error, 'io');
+    assert.equal(res.status, 422);
+    assert.equal(res.json.error, 'unsupported');
+    assert.ok(res.json.message.endsWith(': it is not a regular file'), res.json.message);
     assert.equal(fs.readFileSync(outsideFile, 'utf8'), 'theme = "plain"\n');
   });
 });
@@ -622,4 +623,88 @@ test('parsePackConfigText: JSON null gives the exact "must contain a JSON object
 test('parsePackConfigText positive control: a plain object parses with no throw', () => {
   const result = parsePackConfigText('{"siteTitle":"X"}', '/p/vault.config.json', 'alpha');
   assert.equal(result.siteTitle, 'X');
+});
+
+// --- #120: refusal status for the pack write ---------------------------------
+
+test('#120: a pack folder that resolves outside _meta is refused as 422 unsupported and nothing is written', async (t) => {
+  await withScratchDir(async (root) => {
+    const vaultPath = path.join(root, 'vault');
+    const notes = path.join(vaultPath, 'Notes');
+    fs.mkdirSync(path.join(vaultPath, '_meta'), { recursive: true });
+    fs.mkdirSync(notes, { recursive: true });
+    fs.writeFileSync(path.join(vaultPath, '_meta', 'vault-config.md'), '---\ntype: meta\n---\n');
+    fs.writeFileSync(path.join(notes, 'pack.toml'), 'theme = "plain"\n');
+    fs.writeFileSync(path.join(notes, 'vault.config.json'), `${JSON.stringify({ siteTitle: 'Alpha' })}\n`);
+    try {
+      fs.symlinkSync('../Notes', path.join(vaultPath, '_meta', 'scriptorium'), 'dir');
+    } catch (err) {
+      if (err.code === 'EPERM') {
+        t.skip('symlinks unavailable: EPERM');
+        return;
+      }
+      throw err;
+    }
+    const ctx = ctxFor(vaultPath);
+    const port = await launch(t, ctx);
+
+    const baseSha256 = sha256(fs.readFileSync(path.join(notes, 'pack.toml')));
+    const res = await post(port, '/api/pack/theme', { theme: 'haze', baseSha256 });
+    assert.equal(res.status, 422);
+    assert.equal(res.json.error, 'unsupported');
+    assert.match(res.json.message, /resolves outside the vault's _meta folder/);
+    assert.equal(fs.readFileSync(path.join(notes, 'pack.toml'), 'utf8'), 'theme = "plain"\n');
+    assert.deepEqual(fs.readdirSync(notes).sort(), ['pack.toml', 'vault.config.json']);
+  });
+});
+
+test('#120 control: a rename that keeps failing with a non-retryable error still answers 503 io, unchanged', async (t) => {
+  await withScratchDir(async (root) => {
+    const { vaultPath, packDir } = writeVault(root);
+    const tomlPath = path.join(packDir, 'pack.toml');
+    const ctx = ctxFor(vaultPath);
+    const port = await launch(t, ctx);
+
+    const baseSha256 = sha256(fs.readFileSync(tomlPath));
+    const realRename = fs.renameSync;
+    fs.renameSync = () => {
+      throw Object.assign(new Error('simulated EIO'), { code: 'EIO' });
+    };
+    let res;
+    try {
+      res = await post(port, '/api/pack/theme', { theme: 'haze', baseSha256 });
+    } finally {
+      fs.renameSync = realRename;
+    }
+    assert.equal(res.status, 503);
+    assert.equal(res.json.error, 'io');
+    assert.equal(fs.readFileSync(tomlPath, 'utf8'), 'theme = "plain"\n');
+  });
+});
+
+test('#120 control: a change on disk between the panel\'s read and its write still answers 409 changed', async (t) => {
+  await withScratchDir(async (root) => {
+    const { vaultPath, packDir } = writeVault(root);
+    const tomlPath = path.join(packDir, 'pack.toml');
+    const ctx = ctxFor(vaultPath);
+    const port = await launch(t, ctx);
+
+    const baseSha256 = sha256(fs.readFileSync(tomlPath));
+    const packfiles = require('../src/admin/packfiles');
+    const realRead = packfiles.readPackFile;
+    packfiles.readPackFile = (...args) => {
+      const result = realRead(...args);
+      fs.writeFileSync(tomlPath, 'theme = "external"\n');
+      return result;
+    };
+    let res;
+    try {
+      res = await post(port, '/api/pack/theme', { theme: 'haze', baseSha256 });
+    } finally {
+      packfiles.readPackFile = realRead;
+    }
+    assert.equal(res.status, 409);
+    assert.deepEqual(res.json, { error: 'changed', message: 'pack.toml changed outside the panel. Reload before saving.' });
+    assert.equal(fs.readFileSync(tomlPath, 'utf8'), 'theme = "external"\n');
+  });
 });

@@ -101,3 +101,7 @@ nothing. The line it printed before named a file that was often not there (moved
 folder was read-only), and writing a file from a version query surprised people. `--notices` always
 works because the text is embedded. `update` still clears an old copy left by an earlier release, and
 its success message now only names `--notices`. Decision points 2 to 4 above otherwise stand.
+
+## Amendment: the message names the clearing only when it happened (issue #119)
+
+`update` now mentions the notices file only when it actually removed one. When there was no file, the file was not recognisably GM-Scriptorium's, or it could not be removed, the success message leaves that sentence out. Decision points 2 to 4 otherwise stand.

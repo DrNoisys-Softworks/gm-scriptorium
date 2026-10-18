@@ -193,6 +193,10 @@ function buildAndWrite(ctx, spec) {
     if (err instanceof PackChangedError) {
       throw new HandlerRefusal(409, { error: 'changed', message: err.message });
     }
+    // #120: a deliberate refusal (symlink, not a regular file, outside _meta), not an I/O failure; the client says to fix the file outside the panel.
+    if (err instanceof ConfigError) {
+      throw new HandlerRefusal(422, { error: 'unsupported', message: err.message });
+    }
     if (err instanceof ScriptoriumError) {
       throw new HandlerRefusal(503, { error: 'io', message: err.message });
     }
