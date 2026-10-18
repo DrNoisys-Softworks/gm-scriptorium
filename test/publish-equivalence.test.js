@@ -76,3 +76,26 @@ test('publish-equivalence: computePublishedSet matches a real build of test/fixt
     fs.rmSync(scratch, { recursive: true, force: true });
   }
 });
+
+test('publish-equivalence: an excluded folder written with a trailing slash, ./, backslashes or an absolute path is left out of the prediction, as the real build leaves it out', () => {
+  const vaultPath = path.join(__dirname, 'fixtures', 'story-vault');
+  const siteConfig = require(path.join(__dirname, 'fixtures', 'story-vault-site-config.json'));
+  for (const spelling of ['Characters/NPCs/', './Characters/NPCs', 'Characters\\NPCs', path.join(vaultPath, 'Characters', 'NPCs')]) {
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-exclude-spelling-'));
+    try {
+      const siteDir = path.join(scratch, 'site');
+      fs.mkdirSync(siteDir, { recursive: true });
+      const userJsonConfig = { ...siteConfig, vaultPath, excludeDirs: [...(siteConfig.excludeDirs || []), spelling] };
+      const finalOut = path.join(scratch, 'out');
+      const buildResult = runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign: 'exclude-spelling', force: true });
+      assert.equal(buildResult.ok, true, buildResult.ok ? '' : JSON.stringify(buildResult.error && buildResult.error.message));
+      assert.equal(fs.existsSync(path.join(finalOut, 'characters', 'npcs', 'doran.html')), false, `${spelling}: the real build leaves the folder out`);
+      const publishSet = computePublishedSet(vaultPath, userJsonConfig);
+      const result = compareBuiltToPublishSet(finalOut, publishSet);
+      assert.deepEqual(result.missing, [], `${spelling}: predicted but not built`);
+      assert.deepEqual(result.extra, [], `${spelling}: built but not predicted`);
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  }
+});

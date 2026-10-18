@@ -295,6 +295,31 @@ test('loadPublishConfig: exclude_callouts passthrough, publish block over jsonCo
   });
 });
 
+test('loadPublishConfig: exclude_dirs entries are spelled the way the scanner spells a folder, as the pin does', () => {
+  withTmpVault((vaultDir) => {
+    writeVaultConfig(vaultDir, '  mode: player\n  exclude_dirs:\n    - "Secrets/"\n');
+    const outside = path.join(path.dirname(vaultDir), 'elsewhere');
+    const { publishConfig } = loadPublishConfig(vaultDir, {
+      excludeDirs: ['./NPCs/Hidden', 'Lore\\Old', path.join(vaultDir, 'Maps', 'GM'), 'secrets', outside],
+    });
+    // Trailing slash, leading ./ and backslashes go; an absolute path inside the vault becomes
+    // relative to it; one outside the vault names nothing; a second spelling of Secrets is the same folder.
+    assert.deepEqual(publishConfig.exclude_dirs, ['Secrets', 'NPCs/Hidden', 'Lore/Old', 'Maps/GM']);
+  });
+});
+
+test('loadPublishConfig: exclude_callouts takes the stricter of the two files, as the pin does', () => {
+  withTmpVault((vaultDir) => {
+    writeVaultConfig(vaultDir, '  mode: player\n  exclude_callouts: false\n');
+    assert.equal(loadPublishConfig(vaultDir, { excludeCallouts: true }).publishConfig.exclude_callouts, true, 'all callouts beats off');
+
+    writeVaultConfig(vaultDir, '  mode: player\n  exclude_callouts:\n    - secret\n');
+    assert.equal(loadPublishConfig(vaultDir, { excludeCallouts: true }).publishConfig.exclude_callouts, true, 'all callouts beats a list');
+    assert.deepEqual(loadPublishConfig(vaultDir, { excludeCallouts: ['Secret', 'keeper'] }).publishConfig.exclude_callouts, ['secret', 'keeper'], 'two lists are joined, the vault file first');
+    assert.deepEqual(loadPublishConfig(vaultDir, { excludeCallouts: false }).publishConfig.exclude_callouts, ['secret'], 'a list beats off');
+  });
+});
+
 test('loadPublishConfig: a malformed overrides.fields entry is dropped, not applied', () => {
   withTmpVault((vaultDir) => {
     writeVaultConfig(

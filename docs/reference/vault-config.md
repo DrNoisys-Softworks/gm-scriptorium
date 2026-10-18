@@ -40,8 +40,9 @@ folders, as it does the other two.
 The other settings are read like this:
 
 - **`publish.mode`** is `player` when the key is absent or empty.
-- **`publish.exclude_callouts`** comes from the vault file first, then from `excludeCallouts` in
-  `vault.config.json`, then the built-in value.
+- **`publish.exclude_callouts`** and `excludeCallouts` in `vault.config.json`: when both are set,
+  the stricter one is used. `true` beats a list, a list beats `false`, and two lists are joined. When
+  neither is set, the built-in value is used.
 - **`publish.overrides.fields`** is read from the vault file only.
 - **The campaign's title** is `siteTitle` in `vault.config.json`. When a new campaign is made, its
   title comes from the `campaign:` line at the top of `_meta/vault-config.md`, and from the campaign's
@@ -73,9 +74,9 @@ table: `max_npcs:` under `landing:`.
 | `mode` | text | player | Publish mode (shown) | Which pages are published. `player` publishes only the pages ticked in `_meta/publish-manifest.md`. The panel shows this key but has no field to change it, because it decides what players can see. Change it in the panel's text editor, or by hand. |
 | `exclude_fields` | list of text | secrets, current_plan, plan_progress, gm_notes, prep_notes, reliability | Hidden fields (edit) | Frontmatter fields that are never published, on any page. Joined with `excludeFields` in `vault.config.json`; see how the two files combine, above. |
 | `exclude_sections` | list of text | GM Notes, DM Notes, Player Notes, Source References, Reconciliation Context, Handoff to Reconcile | Hidden headings (edit) | Headings whose section is removed from every page, at any heading level. Joined with `excludeSections` in `vault.config.json`. |
-| `exclude_dirs` | list of text | _meta, _Templates | Hidden folders (edit) | Vault folders that are skipped completely. Joined with `excludeDirs` in `vault.config.json`. `check` compares the two lists and says if they differ. |
+| `exclude_dirs` | list of text | _meta, _Templates | Hidden folders (edit) | Vault folders that are skipped completely. Joined with `excludeDirs` in `vault.config.json`. A trailing slash, a leading `./` and backslashes make no difference. `check` compares the two lists and says if they differ. |
 | `exclude_drafts` | true or false | false | - | Whether pages with `canon_status: DRAFT` are left out of the site. |
-| `exclude_callouts` | true or false, or a list of text | false | - | Whether callout blocks are removed from pages. When this key is absent, `excludeCallouts` in `vault.config.json` is used instead, and then the default. |
+| `exclude_callouts` | true or false, or a list of text | false | - | Whether callout blocks are removed from pages. When `excludeCallouts` in `vault.config.json` is also set, the stricter of the two is used. |
 | `overrides` | table | No overrides | - | Per-page exceptions to the hidden fields, under `overrides.fields`. An entry the generator cannot read is dropped. |
 | `theme.palette` | table of colours | The built-in colours | Colours (shown) | The four site colours: `primary`, `accent`, `background` and `text`. The panel shows them but has no field to change them. |
 | `theme.fonts` | table | The system font | Fonts (shown) | The heading and body fonts, and where font files come from. |
@@ -130,9 +131,9 @@ get" is what `init` writes. *Since 0.5.0.* The panel's first-run setup writes th
 | `host` | text | no | github-pages | Where the generator is told the site will be hosted: `github-pages`, or `cloudflare-pages`. It affects only the generator's deploy step. GM-Scriptorium does not read it. | `init`, or by hand |
 | `attachmentsDir` | text | no | _attachments | The folder inside the vault that holds images. | `init`, or by hand |
 | `folderMap` | table | yes | - | Which vault folder becomes which folder on the site. A map with no entries is allowed; the key must be there. New campaigns get the standard folders, and the generator's README lists them. | `init`, or by hand |
-| `excludeDirs` | list of text | yes | _meta, _Templates, _resources | Vault folders skipped completely. Joined with `publish.exclude_dirs`. | `init`, or by hand |
+| `excludeDirs` | list of text | yes | _meta, _Templates, _resources | Vault folders skipped completely. Joined with `publish.exclude_dirs`. A trailing slash, a leading `./` and backslashes make no difference. | `init`, or by hand |
 | `excludeSections` | list of text | no | GM Notes, DM Notes, Player Notes, Source References, Reconciliation Context, Handoff to Reconcile | Headings whose section is removed from every page. Joined with `publish.exclude_sections`. | `init`, or by hand |
-| `excludeCallouts` | true or false, or a list of text | no | true | Whether callout blocks are removed. Used only when `publish.exclude_callouts` is absent from the vault file. | `init`, or by hand |
+| `excludeCallouts` | true or false, or a list of text | no | true | Whether callout blocks are removed. When `publish.exclude_callouts` is also set, the stricter of the two is used. | `init`, or by hand |
 | `backend` | table | no | - | Switches for the generator's optional site features: `statusBar` and `inbox`. New campaigns get both off. | `init`, or by hand |
 | `banners` | table | no | - | An older home of the section banners. The generator still uses an entry here for a section that `publish.banners` in `_meta/vault-config.md` does not mention. GM-Scriptorium reads it to tell a copied banner from an attachment. | By hand |
 | `excludeFields` | list of text | no | - | Frontmatter fields that are never published. Joined with `publish.exclude_fields`. A new campaign has none here, and relies on the defaults. | By hand |

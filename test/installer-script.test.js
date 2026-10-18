@@ -140,6 +140,7 @@ test('parseArgs: a missing value, a missing required flag, an unknown flag or mo
 test('makensisArgs: the installer stage passes the inputs, the version and the PATH switch', () => {
   const args = installer.makensisArgs('installer', {
     version: '0.4.0-rc.3', exe: '/tmp/a/e.exe', uninstaller: '/tmp/a/u.exe', notices: '/tmp/a/n.txt', tray: '/tmp/a/t.exe', out: '/tmp/a/s.exe',
+    starterSystems: ['dnd-5e-2024', 'fitd', 'pf2e'],
   });
   assert.equal(args[0], '-V2');
   assert.equal(args[1], '-WX');
@@ -151,6 +152,11 @@ test('makensisArgs: the installer stage passes the inputs, the version and the P
   assert.equal(defineOf(args, 'NOTICES_IN'), '/tmp/a/n.txt');
   assert.equal(defineOf(args, 'TRAY_IN'), '/tmp/a/t.exe');
   assert.equal(defineOf(args, 'OUTFILE'), '/tmp/a/s.exe');
+  assert.equal(defineOf(args, 'STARTER_SYSTEMS'), 'dnd-5e-2024|fitd|pf2e');
+  const iTray = args.findIndex((a) => a === '-DTRAY_IN=/tmp/a/t.exe');
+  const iSystems = args.findIndex((a) => a === '-DSTARTER_SYSTEMS=dnd-5e-2024|fitd|pf2e');
+  const iOut = args.findIndex((a) => a === '-DOUTFILE=/tmp/a/s.exe');
+  assert.ok(iTray >= 0 && iSystems > iTray && iOut > iSystems, 'the game systems come after the tray input and before the output');
   assert.equal(args.includes('-DEXTRACT_UNINSTALLER'), false);
   assert.equal(path.isAbsolute(args[args.length - 1]), true);
   assert.equal(args[args.length - 1].endsWith('packaging/windows/installer.nsi'), true);
@@ -159,6 +165,7 @@ test('makensisArgs: the installer stage passes the inputs, the version and the P
 test('makensisArgs: the PATH switch is one option away from being dropped', () => {
   const args = installer.makensisArgs('installer', {
     version: '1.0.0', exe: '/tmp/a/e.exe', uninstaller: '/tmp/a/u.exe', notices: '/tmp/a/n.txt', tray: '/tmp/a/t.exe', out: '/tmp/a/s.exe', withPath: false,
+    starterSystems: ['dnd-5e-2024', 'fitd', 'pf2e'],
   });
   assert.equal(args.includes('-DWITH_PATH_OPTION'), false);
   assert.ok(args.includes('-DVERSION4=1.0.0.0'));
@@ -304,6 +311,17 @@ test('run: an input that does not exist is a bad-path, before makensis compiles'
   }
 });
 
+test('starterSystemsDefine: refuses anything but a non-empty list of plain lowercase ids, and joins the good list with bars', () => {
+  for (const bad of [[], ['none'], ['a"b'], ['A'], ['-x'], ['a b'], ['a|b'], 'x', [1]]) {
+    assert.throws(() => installer.starterSystemsDefine(bad), (e) => e.reason === 'bad-starter-systems', JSON.stringify(bad));
+  }
+  assert.equal(installer.starterSystemsDefine(['dnd-5e-2024', 'fitd', 'pf2e']), 'dnd-5e-2024|fitd|pf2e');
+});
+
+test('starterSystemsDefine: a list with one bad id among good ones is refused whole', () => {
+  assert.throws(() => installer.starterSystemsDefine(['fitd', 'a"b', 'pf2e']), (e) => e.reason === 'bad-starter-systems');
+});
+
 // ---------------------------------------------------------------------------------------------
 // run: installer stage
 // ---------------------------------------------------------------------------------------------
@@ -348,6 +366,56 @@ test('run installer: success prints the contract lines in order, with independen
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('run installer: bad game systems, or a dependency that throws, fail bad-starter-systems before any makensis call', async () => {
+  const bad = [() => ['dnd-5e-2024', 'a"b'], () => { throw new Error('the starter is broken'); }];
+  for (const starterSystems of bad) {
+    const dir = scratch();
+    try {
+      const inputs = makeInputs(dir);
+      const out = path.join(dir, 'setup.exe');
+      const exec = fakeExec();
+      const r = await runCapture({
+        argv: ['installer', '--exe', inputs.exe, '--uninstaller', inputs.un, '--notices', inputs.notices, '--tray', inputs.tray, '--out', out],
+        exec,
+        version: '0.4.0',
+        starterSystems,
+      });
+      assert.equal(r.code, 1);
+      assert.deepEqual(r.out, ['FAIL bad-starter-systems']);
+      assert.equal(exec.calls.length, 0, 'makensis is never started');
+      assert.equal(fs.existsSync(out), false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('run installer: the default game systems are the starter manifest\'s, without none, and the output is unchanged', async () => {
+  const dir = scratch();
+  try {
+    const good = Buffer.concat([Buffer.from('MZstub'), EXE_BYTES, Buffer.from('|'), UNINST_BYTES, Buffer.from('|'), TRAY_BYTES, Buffer.from('|'), MANIFEST_BYTES]);
+    const t = installerRun(dir, () => good);
+    const r = await t.go();
+    assert.equal(r.code, 0, r.out.join('\n') + r.err.join('\n'));
+    assert.equal(r.out.length, 10);
+    const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'vault-template', 'manifest.json'), 'utf8'));
+    const expected = Object.keys(manifest.systems).filter((id) => id !== 'none').sort().join('|');
+    assert.ok(expected.length > 0);
+    const compile = t.exec.calls.find((c) => c.args.length > 1);
+    assert.equal(defineOf(compile.args, 'STARTER_SYSTEMS'), expected);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the starter id grammar here is the same line as the one in src/setup/template.js', () => {
+  const lines = fs.readFileSync(path.join(ROOT, 'src', 'setup', 'template.js'), 'utf8').split('\n').map((l) => l.trim());
+  assert.ok(lines.some((l) => l === 'const SYSTEM_ID_RE = /^[a-z0-9][a-z0-9-]*$/;'));
+  assert.equal(installer.STARTER_ID_RE.source, '^[a-z0-9][a-z0-9-]*$');
+  // control: a scratch text holding a different grammar is not matched
+  assert.equal(['const SYSTEM_ID_RE = /^[a-z0-9]+$/;'].some((l) => l === 'const SYSTEM_ID_RE = /^[a-z0-9][a-z0-9-]*$/;'), false);
 });
 
 test('run installer: an output lacking the exe bytes fails not-packed-exe, exits 1 and removes the output', async () => {

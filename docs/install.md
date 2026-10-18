@@ -31,7 +31,15 @@ themselves.
    - **GM-Scriptorium is running**, only when it is. Close and continue closes it for you.
    - **Your Campaigns**, only when Setup finds your settings. It shows where they are and never
      changes them.
+   - **Your First Campaign**, only when Setup finds no settings. "Set it up in my browser" is
+     chosen, and GM-Scriptorium opens setup in your browser when it starts. "Answer the questions
+     here now" takes you to **Campaign Details** for the campaign name, a vault you already have or
+     a new one with its game system, and the output folder for your players' website. "Read the user
+     guide" opens the GM-Scriptorium documentation.
    - **Progress.**
+   - **Campaign Details** again, only if GM-Scriptorium refused an answer. Setup copies its files
+     first, then sets up the campaign, so this page comes after the progress page and shows the
+     reason. Fix the answer and choose Try again, or choose "Set it up in my browser instead".
    - **Finish.** "Start GM-Scriptorium now" is ticked, and starts it in the system tray.
 4. Start GM-Scriptorium from the Start menu, or type its name in Start. It runs in the background
    with an icon in the system tray. Closing your browser doesn't stop it; use the icon's Quit.

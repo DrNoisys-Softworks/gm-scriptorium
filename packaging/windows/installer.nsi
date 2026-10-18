@@ -39,6 +39,9 @@ Unicode true
   !ifndef TRAY_IN
     !error "TRAY_IN is required in the installer stage"
   !endif
+  !ifndef STARTER_SYSTEMS
+    !error "STARTER_SYSTEMS is required in the installer stage"
+  !endif
 !endif
 
 !ifndef NSIS_MAX_STRLEN
@@ -54,6 +57,8 @@ Unicode true
 !ifdef EXTRACT_UNINSTALLER
   ${UnStrStr}
   !insertmacro un.GetParent
+!else
+  ${StrStr}
 !endif
 
 !define APP_NAME "GM-Scriptorium"
@@ -61,6 +66,7 @@ Unicode true
 !define PUBLISHER "DrNoisys Softworks"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\GM-Scriptorium"
 !define FEEDBACK_URL "https://tally.so/r/eq19jQ"
+!define DOCS_URL "https://github.com/DrNoisys-Softworks/gm-scriptorium/blob/main/docs/README.md"
 !define ART_DIR "${__FILEDIR__}/art"
 
 Name "${APP_NAME} ${VERSION}"
@@ -296,6 +302,31 @@ Var gmEdPanel
 Var gmLblPreview
 Var gmEdPreview
 Var gmHelpPorts
+Var gmAskHere
+Var gmNewVault
+Var gmBrowserInstead
+Var gmCompact
+Var gmInitRc
+Var gmInitLine
+Var gmCampName
+Var gmVaultPath
+Var gmOutPath
+Var gmSystem
+Var gmArgName
+Var gmArgVault
+Var gmArgOut
+Var gmBoldFont
+Var gmRdBrowser
+Var gmRdHere
+Var gmEdName
+Var gmEdVault
+Var gmEdOut
+Var gmRdExisting
+Var gmRdNew
+Var gmDlSystem
+Var gmLblHead
+Var gmLblReason
+Var gmBtnInstead
 !ifdef WITH_PATH_OPTION
   Var gmWantPath
   Var gmCkPath
@@ -321,9 +352,19 @@ Page custom GmRunningShow GmRunningLeave
 ; Existing settings: shown only when GmReadDefaults found a settings file. Setup never opens it.
 Page custom GmSettingsShow
 
+; First campaign: shown only when there are no settings. The GM sets it up in the browser, or answers
+; here and Setup hands the answers to the program's own init once its files are copied.
+Page custom GmCampaignShow GmCampaignLeave
+
+; Campaign details: shown only when the GM chose to answer here.
+Page custom GmDetailsShow GmDetailsLeave
+
 ; Progress: the running-copy checks run just before it, so nothing is written first.
 !define MUI_PAGE_CUSTOMFUNCTION_PRE GmInstallPre
 !insertmacro MUI_PAGE_INSTFILES
+
+; Refused answers: shown only when the program refused what the GM typed. It comes after the copy.
+Page custom GmRefusedShow GmRefusedLeave
 
 ; Finish: the box is ticked, and starts the tray app with no arguments.
 !define MUI_FINISHPAGE_TITLE "Completing ${APP_NAME} Setup"
@@ -506,6 +547,18 @@ Function GmReadDefaults
   !ifdef WITH_PATH_OPTION
     StrCpy $gmWantPath 0
   !endif
+
+  ; A silent install, and a PC that has settings, never ask the first-campaign questions.
+  StrCpy $gmAskHere 0
+  StrCpy $gmNewVault 0
+  StrCpy $gmBrowserInstead 0
+  StrCpy $gmCompact 0
+  StrCpy $gmInitRc ""
+  StrCpy $gmInitLine ""
+  StrCpy $gmCampName ""
+  StrCpy $gmVaultPath ""
+  StrCpy $gmOutPath ""
+  StrCpy $gmSystem ""
 
   ; A shortcut box starts as the record Setup left says. With no record the Start menu box is ticked,
   ; and the Desktop box only when a shortcut of that name is already there.
@@ -735,14 +788,6 @@ Function GmOptionsShow
     ${EndIf}
   !endif
   Call GmOptionsRefresh
-
-  ; With no settings and no running copy, this is the last page before the progress page.
-  StrCmp $gmHaveSettings 0 0 options_next_done
-  FindWindow $0 "${TRAY_WINDOW_CLASS}"
-  StrCmp $0 0 0 options_next_done
-  GetDlgItem $0 $HWNDPARENT 1
-  SendMessage $0 ${WM_SETTEXT} 0 "STR:Install"
-  options_next_done:
   nsDialogs::Show
 FunctionEnd
 
@@ -812,6 +857,426 @@ Function GmSettingsShow
   GetDlgItem $0 $HWNDPARENT 1
   SendMessage $0 ${WM_SETTEXT} 0 "STR:Install"
   nsDialogs::Show
+FunctionEnd
+
+; ---------------------------------------------------------------------------------------------
+; The first campaign (ADR 0058 section 2). Setup never writes the settings or the vault itself: once
+; its files are copied it runs the program's own init with the GM's answers, in GmRunInit only.
+; ---------------------------------------------------------------------------------------------
+
+; Takes a value on the stack and leaves it with each trailing backslash doubled, so a folder such as
+; E:\ reaches the program whole when the closing quote follows it. Stripping would turn E:\ into E:.
+Function GmArgSafe
+  Exch $0
+  Push $1
+  Push $2
+  Push $3
+  StrLen $1 $0
+  StrCpy $2 0
+  arg_count:
+    IntCmp $2 $1 arg_double
+    IntOp $3 $2 + 1
+    StrCpy $3 $0 1 -$3
+    StrCmp $3 "\" 0 arg_double
+    IntOp $2 $2 + 1
+    Goto arg_count
+  arg_double:
+    IntCmp $2 0 arg_end
+    StrCpy $0 "$0\"
+    IntOp $2 $2 - 1
+    Goto arg_double
+  arg_end:
+  Pop $3
+  Pop $2
+  Pop $1
+  Exch $0
+FunctionEnd
+
+; Takes a field's text on the stack and leaves 1 when it is filled in and holds no double quote, else 0.
+Function GmFieldOk
+  Exch $0
+  Push $1
+  StrCmp $0 "" field_bad
+  ${StrStr} $1 "$0" "$\""
+  StrCmp $1 "" field_good
+  field_bad:
+    StrCpy $0 0
+    Goto field_end
+  field_good:
+    StrCpy $0 1
+  field_end:
+  Pop $1
+  Exch $0
+FunctionEnd
+
+; Reads the details fields into the answer variables. Leaves 1 on the stack when every answer is usable
+; (the three fields filled in, no double quote, and a game system chosen for a new vault), else 0.
+Function GmDetailsRead
+  Push $0
+  Push $1
+  ${NSD_GetText} $gmEdName $gmCampName
+  ${NSD_GetText} $gmEdVault $gmVaultPath
+  ${NSD_GetText} $gmEdOut $gmOutPath
+  ${NSD_GetState} $gmRdNew $gmNewVault
+  ${NSD_GetText} $gmDlSystem $gmSystem
+  StrCpy $0 1
+  Push "$gmCampName"
+  Call GmFieldOk
+  Pop $1
+  StrCmp $1 1 +2
+  StrCpy $0 0
+  Push "$gmVaultPath"
+  Call GmFieldOk
+  Pop $1
+  StrCmp $1 1 +2
+  StrCpy $0 0
+  Push "$gmOutPath"
+  Call GmFieldOk
+  Pop $1
+  StrCmp $1 1 +2
+  StrCpy $0 0
+  StrCmp $gmNewVault 1 0 read_done
+  StrCmp $gmSystem "" 0 read_done
+  StrCpy $0 0
+  read_done:
+  Pop $1
+  Exch $0
+FunctionEnd
+
+; The one place the program's init runs. The three typed values go through GmArgSafe first; the game
+; system comes only from the read-only list. nsExec starts the program directly with no shell, so a
+; percent sign, an ampersand or a caret in an answer is only text. $gmInitRc is the exit code, or
+; error or timeout; $gmInitLine is the last line the program printed, or a general line.
+Function GmRunInit
+  Push $0
+  Push $1
+  Push $2
+  Push $3
+  Push $4
+  Push "$gmCampName"
+  Call GmArgSafe
+  Pop $gmArgName
+  Push "$gmVaultPath"
+  Call GmArgSafe
+  Pop $gmArgVault
+  Push "$gmOutPath"
+  Call GmArgSafe
+  Pop $gmArgOut
+  StrCmp $gmNewVault 1 init_new
+  nsExec::ExecToStack '"$INSTDIR\gm-scriptorium.exe" init --yes --name "$gmArgName" --vault "$gmArgVault" --out "$gmArgOut"'
+  Goto init_ran
+  init_new:
+    nsExec::ExecToStack '"$INSTDIR\gm-scriptorium.exe" init --yes --name "$gmArgName" --new-vault "$gmArgVault" --system "$gmSystem" --out "$gmArgOut"'
+  init_ran:
+  Pop $gmInitRc
+  Pop $0
+  StrCmp $gmInitRc 0 init_done
+  StrCpy $gmInitLine "Setup couldn't show the reason here."
+  StrLen $1 $0
+  IntOp $2 ${NSIS_MAX_STRLEN} - 1
+  IntCmp $1 $2 init_done init_scan init_done
+  init_scan:
+    StrCpy $2 ""
+    StrCpy $3 0
+  init_char:
+    StrCpy $4 $0 1 $3
+    StrCmp $4 "" init_last
+    StrCmp $4 "$\r" init_eol
+    StrCmp $4 "$\n" init_eol
+    StrCpy $2 "$2$4"
+    IntOp $3 $3 + 1
+    Goto init_char
+  init_eol:
+    StrCmp $2 "" +2
+    StrCpy $gmInitLine $2
+    StrCpy $2 ""
+    IntOp $3 $3 + 1
+    Goto init_char
+  init_last:
+    StrCmp $2 "" init_done
+    StrCpy $gmInitLine $2
+  init_done:
+  Pop $4
+  Pop $3
+  Pop $2
+  Pop $1
+  Pop $0
+FunctionEnd
+
+Function GmGuideClicked
+  Pop $0
+  ExecShell "open" "${DOCS_URL}"
+FunctionEnd
+
+; Next reads Install when the browser choice is selected, because the progress page follows.
+Function GmCampaignNextLabel
+  Push $0
+  Push $1
+  ${NSD_GetState} $gmRdHere $0
+  GetDlgItem $1 $HWNDPARENT 1
+  StrCmp $0 1 next_here
+  SendMessage $1 ${WM_SETTEXT} 0 "STR:Install"
+  Goto next_done
+  next_here:
+    SendMessage $1 ${WM_SETTEXT} 0 "STR:$(^NextBtn)"
+  next_done:
+  Pop $1
+  Pop $0
+FunctionEnd
+
+Function GmCampaignClicked
+  Pop $0
+  Call GmCampaignNextLabel
+FunctionEnd
+
+Function GmCampaignShow
+  StrCmp $gmHaveSettings 0 +2
+  Abort
+  !insertmacro MUI_HEADER_TEXT "Your First Campaign" "Tell ${APP_NAME} where your campaign lives, now or later."
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateFirstRadioButton} 0 0 100% 10u "Set it up in my browser (recommended)"
+  Pop $gmRdBrowser
+  ${NSD_CreateLabel} 12u 11u 288u 16u "A short setup with a preview of each theme. Nothing is written until you review it."
+  Pop $0
+  ${NSD_CreateAdditionalRadioButton} 0 30u 100% 10u "Answer the questions here now"
+  Pop $gmRdHere
+  ${NSD_CreateLabel} 12u 41u 288u 16u "Campaign name, vault and output folder. Title and theme stay in your browser."
+  Pop $0
+  ${NSD_CreateLink} 0 64u 100u 10u "Read the user guide"
+  Pop $0
+  ${NSD_OnClick} $0 GmGuideClicked
+  ${NSD_OnClick} $gmRdBrowser GmCampaignClicked
+  ${NSD_OnClick} $gmRdHere GmCampaignClicked
+  ${If} $gmAskHere == 1
+    ${NSD_Check} $gmRdHere
+  ${Else}
+    ${NSD_Check} $gmRdBrowser
+  ${EndIf}
+  Call GmCampaignNextLabel
+  nsDialogs::Show
+FunctionEnd
+
+Function GmCampaignLeave
+  ${NSD_GetState} $gmRdHere $gmAskHere
+FunctionEnd
+
+; The folder pickers: each keeps the field as it was when the GM cancels.
+Function GmBrowseVault
+  Pop $0
+  ${NSD_GetText} $gmEdVault $1
+  nsDialogs::SelectFolderDialog "Choose the vault folder" $1
+  Pop $0
+  StrCmp $0 error browse_vault_done
+  ${NSD_SetText} $gmEdVault $0
+  browse_vault_done:
+FunctionEnd
+
+Function GmBrowseOut
+  Pop $0
+  ${NSD_GetText} $gmEdOut $1
+  nsDialogs::SelectFolderDialog "Choose the output folder" $1
+  Pop $0
+  StrCmp $0 error browse_out_done
+  ${NSD_SetText} $gmEdOut $0
+  browse_out_done:
+FunctionEnd
+
+; The answer fields, shared by the details page and the refused-answers page. $gmCompact is 1 on the
+; refused-answers page, which leaves out the bold line and the help lines to make room for the refusal.
+; $8 is the running top edge in dialog units; the game systems come from the build, then none.
+Function GmDetailsFields
+  Push $0
+  Push $1
+  Push $2
+  Push $3
+  Push $4
+  Push $7
+  Push $8
+  StrCpy $8 0
+  StrCmp $gmCompact 1 fields_name
+  CreateFont $gmBoldFont "$(^Font)" "$(^FontSize)" 700
+  ${NSD_CreateLabel} 0 0 100% 9u "You can change the site title and the theme later in the panel."
+  Pop $0
+  SendMessage $0 ${WM_SETFONT} $gmBoldFont 0
+  StrCpy $8 11
+  fields_name:
+  IntOp $7 $8 + 2
+  ${NSD_CreateLabel} 0 $7u 62u 8u "Campaign name"
+  Pop $0
+  ${NSD_CreateText} 64u $8u 150u 12u "$gmCampName"
+  Pop $gmEdName
+  IntOp $8 $8 + 13
+  StrCmp $gmCompact 1 fields_vault
+  ${NSD_CreateLabel} 0 $8u 100% 8u "Lowercase letters, digits and hyphens. Used in commands and folder names."
+  Pop $0
+  IntOp $8 $8 + 9
+  fields_vault:
+  ${NSD_CreateLabel} 0 $8u 100% 8u "Vault"
+  Pop $0
+  IntOp $8 $8 + 9
+  ${NSD_CreateFirstRadioButton} 0 $8u 100% 10u "I already have a vault"
+  Pop $gmRdExisting
+  IntOp $8 $8 + 11
+  ${NSD_CreateAdditionalRadioButton} 0 $8u 168u 10u "Make a new vault, for the game system:"
+  Pop $gmRdNew
+  IntOp $7 $8 - 1
+  ${NSD_CreateDropList} 172u $7u 100u 50u ""
+  Pop $gmDlSystem
+  StrCpy $1 "${STARTER_SYSTEMS}|none"
+  StrCpy $2 ""
+  StrCpy $3 0
+  system_next:
+    StrCpy $4 $1 1 $3
+    StrCmp $4 "" system_last
+    StrCmp $4 "|" system_emit
+    StrCpy $2 "$2$4"
+    IntOp $3 $3 + 1
+    Goto system_next
+  system_emit:
+    ${NSD_CB_AddString} $gmDlSystem "$2"
+    StrCpy $2 ""
+    IntOp $3 $3 + 1
+    Goto system_next
+  system_last:
+    ${NSD_CB_AddString} $gmDlSystem "$2"
+  StrCmp $gmSystem "" system_chosen
+  ${NSD_CB_SelectString} $gmDlSystem "$gmSystem"
+  system_chosen:
+  IntOp $8 $8 + 12
+  StrCmp $gmCompact 1 fields_vault_edit
+  ${NSD_CreateLabel} 0 $8u 100% 8u "For a new vault, choose a new or empty folder."
+  Pop $0
+  IntOp $8 $8 + 9
+  fields_vault_edit:
+  ${NSD_CreateText} 0 $8u 236u 12u "$gmVaultPath"
+  Pop $gmEdVault
+  IntOp $7 $8 - 1
+  ${NSD_CreateButton} 240u $7u 58u 14u "Browse..."
+  Pop $0
+  ${NSD_OnClick} $0 GmBrowseVault
+  IntOp $8 $8 + 15
+  ${NSD_CreateLabel} 0 $8u 100% 8u "Output folder"
+  Pop $0
+  IntOp $8 $8 + 9
+  ${NSD_CreateText} 0 $8u 236u 12u "$gmOutPath"
+  Pop $gmEdOut
+  IntOp $7 $8 - 1
+  ${NSD_CreateButton} 240u $7u 58u 14u "Browse..."
+  Pop $0
+  ${NSD_OnClick} $0 GmBrowseOut
+  IntOp $8 $8 + 15
+  StrCmp $gmCompact 1 fields_state
+  ${NSD_CreateLabel} 0 $8u 100% 8u "Where your players' website is built. Must be outside the vault."
+  Pop $0
+  fields_state:
+  ${If} $gmNewVault == 1
+    ${NSD_Check} $gmRdNew
+  ${Else}
+    ${NSD_Check} $gmRdExisting
+  ${EndIf}
+  Pop $8
+  Pop $7
+  Pop $4
+  Pop $3
+  Pop $2
+  Pop $1
+  Pop $0
+FunctionEnd
+
+Function GmDetailsShow
+  StrCmp $gmHaveSettings 0 +2
+  Abort
+  StrCmp $gmAskHere 1 +2
+  Abort
+  !insertmacro MUI_HEADER_TEXT "Campaign Details" "${APP_NAME} checks these itself, once Setup has copied its files."
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  StrCpy $gmCompact 0
+  Call GmDetailsFields
+  GetDlgItem $0 $HWNDPARENT 1
+  SendMessage $0 ${WM_SETTEXT} 0 "STR:Install"
+  nsDialogs::Show
+FunctionEnd
+
+; Keeps the answers, and refuses an empty field or a double quote before any command line is built.
+Function GmDetailsLeave
+  Call GmDetailsRead
+  Pop $0
+  StrCmp $0 1 details_ok
+  MessageBox MB_OK|MB_ICONEXCLAMATION "Fill in the campaign name, the vault folder and the output folder, and choose a game system for a new vault. Double quotes can't be used."
+  Abort
+  details_ok:
+FunctionEnd
+
+Function GmInsteadClicked
+  Pop $0
+  StrCpy $gmBrowserInstead 1
+  SendMessage $HWNDPARENT ${WM_COMMAND} 1 0
+FunctionEnd
+
+; Shown after the copy, only when the program refused the answers. The two ways on are Try again and
+; "Set it up in my browser instead": Back and Cancel are greyed so there is no third.
+Function GmRefusedShow
+  StrCmp $gmAskHere 1 +2
+  Abort
+  StrCmp $gmInitRc 0 0 +2
+  Abort
+  !insertmacro MUI_HEADER_TEXT "Campaign Details" "Fix an answer and try again, or set it up in your browser."
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  StrCpy $gmCompact 1
+  Call GmDetailsFields
+  ${NSD_CreateLabel} 0 86u 100% 9u "Setup couldn't set up $gmCampName."
+  Pop $gmLblHead
+  ${NSD_AddStyle} $gmLblHead ${SS_NOPREFIX}
+  ${NSD_CreateLabel} 0 96u 100% 24u "$gmInitLine"
+  Pop $gmLblReason
+  ${NSD_AddStyle} $gmLblReason ${SS_NOPREFIX}
+  ${NSD_CreateButton} 0 122u 150u 14u "Set it up in my browser instead"
+  Pop $gmBtnInstead
+  ${NSD_OnClick} $gmBtnInstead GmInsteadClicked
+  GetDlgItem $0 $HWNDPARENT 3
+  EnableWindow $0 0
+  GetDlgItem $0 $HWNDPARENT 2
+  EnableWindow $0 0
+  GetDlgItem $0 $HWNDPARENT 1
+  SendMessage $0 ${WM_SETTEXT} 0 "STR:Try again"
+  nsDialogs::Show
+FunctionEnd
+
+; Try again: read the fields, run the program again, and stay here with its line if it refuses again.
+; "Set it up in my browser instead" sets $gmBrowserInstead and presses Next, so this leaves at once.
+Function GmRefusedLeave
+  StrCmp $gmBrowserInstead 1 refused_done
+  Call GmDetailsRead
+  Pop $0
+  StrCmp $0 1 refused_fields_ok
+  MessageBox MB_OK|MB_ICONEXCLAMATION "Fill in the campaign name, the vault folder and the output folder, and choose a game system for a new vault. Double quotes can't be used."
+  Abort
+  refused_fields_ok:
+  ${NSD_SetText} $gmLblReason "Setting up $gmCampName"
+  GetDlgItem $0 $HWNDPARENT 1
+  EnableWindow $0 0
+  EnableWindow $gmBtnInstead 0
+  Call GmRunInit
+  GetDlgItem $0 $HWNDPARENT 1
+  EnableWindow $0 1
+  EnableWindow $gmBtnInstead 1
+  StrCmp $gmInitRc 0 refused_done
+  ${NSD_SetText} $gmLblHead "Setup couldn't set up $gmCampName."
+  ${NSD_SetText} $gmLblReason "$gmInitLine"
+  Abort
+  refused_done:
 FunctionEnd
 
 Function .onInit
@@ -951,6 +1416,19 @@ Section "-Ports"
     StrCmp $0 0 ports_done
     DetailPrint "The ports couldn't be saved, so the panel uses 7400 and 7401. Change them later on the panel's Overview."
   ports_done:
+SectionEnd
+
+; The first campaign goes through the program's own init, after the copy and after the ports, so init
+; adds the campaign to the settings file that `desktop set` may just have made. A silent install never
+; asks the questions and never runs it. A refusal is not an error here: the page after this one shows it.
+Section "-First campaign"
+  SetShellVarContext current
+  IfSilent campaign_done
+  SetOutPath "$PROFILE"
+  StrCmp $gmAskHere 1 0 campaign_done
+  DetailPrint "Setting up $gmCampName"
+  Call GmRunInit
+  campaign_done:
 SectionEnd
 
 ; Leave the working folder away from the install folder, so the tray app the Finish box starts never

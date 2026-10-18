@@ -136,8 +136,35 @@
     return data && data.switchable === false ? data.lockedReason || '' : '';
   }
 
-  function messageBlock(parent, kind, iconName, text, id) {
-    var box = add(parent, 'div', 'cs-msg' + (kind ? ' ' + kind : ''));
+  /** A node drawn ahead of the campaign list goes in front of it; with no list yet it is simply appended. */
+  function placeBefore(parent, before, node) {
+    if (before) parent.insertBefore(node, before);
+    else parent.appendChild(node);
+    return node;
+  }
+
+  function addBefore(parent, before, tag, className, text) {
+    var n = el(tag);
+    if (className) n.className = className;
+    if (text !== undefined) setText(n, text);
+    return placeBefore(parent, before, n);
+  }
+
+  function childWithClass(parent, className) {
+    return Array.prototype.find.call(parent.children, function (child) {
+      return child.className === className;
+    }) || null;
+  }
+
+  function isActive(name) {
+    return Boolean(data) && data.campaigns.some(function (c) {
+      return c.name === name && c.active;
+    });
+  }
+
+  function messageBlock(parent, kind, iconName, text, id, before) {
+    var box = placeBefore(parent, before, el('div'));
+    box.className = 'cs-msg' + (kind ? ' ' + kind : '');
     if (id) box.id = id;
     if (kind !== 'is-lock' && kind !== 'is-info') box.setAttribute('role', 'alert');
     else if (kind === 'is-info') box.setAttribute('role', 'status');
@@ -146,20 +173,60 @@
     return box;
   }
 
+  /** A row's click reads its campaign and the current state when it fires, so a redraw never stacks a second handler. */
+  function onRowClick(row) {
+    var name = row.getAttribute('data-campaign');
+    if (isActive(name) || lockedReason() || busyName) return;
+    chooseCampaign(name);
+  }
+
   function renderPop(sw) {
     var pop = sw.pop;
-    clear(pop);
-    add(pop, 'div', 'cs-pop-h', 'Campaigns');
+    // The list keeps its node, so a row that has focus stays in the page through a refresh. Everything
+    // else in the panel is drawn again around it.
+    var list = childWithClass(pop, 'cs-list');
+    var existing = {};
+    if (list) {
+      Array.prototype.forEach.call(list.children, function (li) {
+        var row = li.firstChild;
+        if (row && row.getAttribute) existing[row.getAttribute('data-campaign')] = li;
+      });
+    }
+    Array.prototype.slice.call(pop.children).forEach(function (child) {
+      if (child !== list) pop.removeChild(child);
+    });
+    addBefore(pop, list, 'div', 'cs-pop-h', 'Campaigns');
     var reason = lockedReason();
-    if (reason) messageBlock(pop, 'is-lock', 'lock', reason, 'cs-lock-' + sw.which);
+    if (reason) messageBlock(pop, 'is-lock', 'lock', reason, 'cs-lock-' + sw.which, list);
     if (!data) {
-      if (loadError) messageBlock(pop, '', 'warn', loadError);
-      else add(pop, 'div', 'cs-pop-h', 'Loading…');
+      if (loadError) messageBlock(pop, '', 'warn', loadError, undefined, list);
+      else addBefore(pop, list, 'div', 'cs-pop-h', 'Loading…');
     } else {
-      var list = add(pop, 'ul', 'cs-list');
+      if (!list) list = add(pop, 'ul', 'cs-list');
+      var names = {};
       data.campaigns.forEach(function (c) {
-        var li = add(list, 'li');
-        var row = el('button');
+        names[c.name] = true;
+      });
+      Object.keys(existing).forEach(function (name) {
+        if (!names[name]) list.removeChild(existing[name]);
+      });
+      data.campaigns.forEach(function (c, index) {
+        var li = existing[c.name];
+        var row;
+        if (li) {
+          row = li.firstChild;
+          while (row.firstChild) row.removeChild(row.firstChild);
+        } else {
+          li = el('li');
+          row = el('button');
+          row.addEventListener('click', function () {
+            onRowClick(row);
+          });
+          li.appendChild(row);
+        }
+        row.removeAttribute('aria-describedby');
+        row.removeAttribute('aria-current');
+        row.removeAttribute('aria-disabled');
         row.type = 'button';
         row.setAttribute('data-campaign', c.name);
         var cls = 'cs-row';
@@ -187,11 +254,12 @@
           spin.setAttribute('role', 'status');
           spin.setAttribute('aria-label', 'Looking for the vault');
         }
-        row.addEventListener('click', function () {
-          if (c.active || reason || busyName) return;
-          chooseCampaign(c.name);
-        });
-        li.appendChild(row);
+        // Move a row only when it is out of place. Re-appending every row on each refresh drops focus.
+        var at = list.children[index];
+        if (at !== li) {
+          if (at) list.insertBefore(li, at);
+          else list.appendChild(li);
+        }
       });
     }
     if (busyName) {

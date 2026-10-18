@@ -368,10 +368,20 @@ test('required: version info on both exes names the product and the publisher', 
   assert.match(NSI, /VIAddVersionKey\s+\/LANG=1033\s+"FileVersion"\s+"\$\{VERSION\}"/);
 });
 
+// The one other address Setup opens: the documentation index, from the first-campaign page.
+const DOCS_URL = 'https://github.com/DrNoisys-Softworks/gm-scriptorium/blob/main/docs/README.md';
+const isAllowedUrl = (u) => isAllowedFeedbackUrl(u) || u === DOCS_URL;
+
 test('required: the uninstaller finish page has an unticked feedback box that opens the hosted form', () => {
   const urls = [...NSI.matchAll(/https?:\/\/[^\s"'$]+/g)].map((m) => m[0]);
   assert.ok(urls.length >= 1, 'the feedback URL is defined');
-  for (const u of urls) assert.equal(isAllowedFeedbackUrl(u), true, `${u} must be https on tally.so`);
+  for (const u of urls) assert.equal(isAllowedUrl(u), true, `${u} must be the feedback form on tally.so or the documentation index`);
+  assert.equal(NSI.split('\n').filter((l) => l.trim() === `!define DOCS_URL "${DOCS_URL}"`).length, 1);
+  // controls: the documentation address with anything added, another host and another repository are refused
+  assert.equal(isAllowedUrl(DOCS_URL), true);
+  assert.equal(isAllowedUrl(`${DOCS_URL}.x`), false);
+  assert.equal(isAllowedUrl('https://github.com.evil.example/DrNoisys-Softworks/gm-scriptorium/blob/main/docs/README.md'), false);
+  assert.equal(isAllowedUrl('https://github.com/evil/gm-scriptorium/blob/main/docs/README.md'), false);
   assert.match(NSI, /^\s*!define\s+FEEDBACK_URL\s+"https:\/\/tally\.so\/r\/[A-Za-z0-9]+"\s*$/m);
   assert.match(NSI, /ExecShell\s+"open"\s+"\$\{FEEDBACK_URL\}"/);
   const unFinish = /!define\s+MUI_FINISHPAGE_RUN_NOTCHECKED[\s\S]*?!insertmacro\s+MUI_UNPAGE_FINISH/m;
@@ -513,7 +523,7 @@ test('version.nsh: pure string parsing, no registry, no file writes, no process 
 });
 
 test('the installer script gives its two build stages the defines installer.js passes', () => {
-  for (const name of ['VERSION', 'VERSION4', 'OUTFILE', 'EXTRACT_UNINSTALLER', 'UNINSTALLER_OUT', 'EXE_IN', 'UNINSTALLER_IN', 'NOTICES_IN', 'TRAY_IN', 'WITH_PATH_OPTION']) {
+  for (const name of ['VERSION', 'VERSION4', 'OUTFILE', 'EXTRACT_UNINSTALLER', 'UNINSTALLER_OUT', 'EXE_IN', 'UNINSTALLER_IN', 'NOTICES_IN', 'TRAY_IN', 'STARTER_SYSTEMS', 'WITH_PATH_OPTION']) {
     assert.match(NSI, new RegExp(`\\b${name}\\b`), name);
   }
 });
@@ -564,9 +574,12 @@ const COMMAND_LINES = [
   `nsExec::ExecToLog '"$INSTDIR\\gm-scriptorium.exe" desktop set --port $gmPanelPort --preview-port $gmPreviewPort'`,
   `ExecWait '"$INSTDIR\\gm-scriptorium-tray.exe" --autostart on' $0`,
   `ExecWait '"$INSTDIR\\gm-scriptorium-tray.exe" --autostart off' $0`,
+  `nsExec::ExecToStack '"$INSTDIR\\gm-scriptorium.exe" init --yes --name "$gmArgName" --vault "$gmArgVault" --out "$gmArgOut"'`,
+  `nsExec::ExecToStack '"$INSTDIR\\gm-scriptorium.exe" init --yes --name "$gmArgName" --new-vault "$gmArgVault" --system "$gmSystem" --out "$gmArgOut"'`,
 ];
 const COMMAND_RE = /(?:^|\s)(?:Exec|ExecWait)\s|nsExec::/;
 const SHELL_LINE = 'ExecShell "open" "${FEEDBACK_URL}"';
+const DOCS_SHELL_LINE = 'ExecShell "open" "${DOCS_URL}"';
 
 /** The trimmed lines of `text` that start a program but are not one of the allowed lines. */
 function strayCommands(text) {
@@ -576,16 +589,17 @@ function strayCommands(text) {
     .filter((l) => COMMAND_RE.test(l) && !COMMAND_LINES.some((c) => c === l));
 }
 
-test('commands: only the four allowed command lines start a program, each once, and ExecShell opens only the feedback form', () => {
+test('commands: only the six allowed command lines start a program, each once, and ExecShell opens only the feedback form and the documentation index', () => {
   assert.deepEqual(strayCommands(NSI), []);
   const lines = NSI.split('\n').map((l) => l.trim());
   for (const c of COMMAND_LINES) assert.equal(lines.filter((l) => l === c).length, 1, c);
   const shells = lines.filter((l) => /\bExecShell\w*/.test(l));
-  assert.deepEqual(shells, [SHELL_LINE]);
+  assert.deepEqual(shells.slice().sort(), [SHELL_LINE, DOCS_SHELL_LINE].sort());
   // controls
   assert.deepEqual(strayCommands(`nsExec::ExecToLog '"$INSTDIR\\gm-scriptorium.exe" desktop set --x on --yes'`).length, 1);
   assert.deepEqual(strayCommands(`Exec '"$INSTDIR\\gm-scriptorium-tray.exe"'`).length, 1);
   assert.deepEqual(strayCommands(COMMAND_LINES[2]), []);
+  assert.equal(strayCommands(`${COMMAND_LINES[4].slice(0, -1)} --config x'`).length, 1, 'the existing-vault line with a config flag is stray');
 });
 
 test('no installer text, comment or argument names remote access or the sign-in setting', () => {
@@ -708,7 +722,7 @@ test('settings: the settings path is only looked for with IfFileExists and shown
   assert.equal(CONFIG_LABEL_RE.test('${NSD_CreateLabel} 0 0 100% 18u "Settings file: $gmConfigPath and more"'), false);
 });
 
-const PLUGIN_CALLS = ['System::Alloc', 'System::Call', 'System::Free', 'nsDialogs::Create', 'nsDialogs::Show', 'nsExec::ExecToLog', 'nsExec::ExecToStack'];
+const PLUGIN_CALLS = ['System::Alloc', 'System::Call', 'System::Free', 'nsDialogs::Create', 'nsDialogs::SelectFolderDialog', 'nsDialogs::Show', 'nsExec::ExecToLog', 'nsExec::ExecToStack'];
 const SYSTEM_LINES = [
   PATH_CALL_LINE,
   PATH_WCHAR_LINE,
@@ -900,7 +914,10 @@ const PAGE_ORDER = [
   'Page custom GmOptionsShow GmOptionsLeave',
   'Page custom GmRunningShow GmRunningLeave',
   'Page custom GmSettingsShow',
+  'Page custom GmCampaignShow GmCampaignLeave',
+  'Page custom GmDetailsShow GmDetailsLeave',
   '!insertmacro MUI_PAGE_INSTFILES',
+  'Page custom GmRefusedShow GmRefusedLeave',
   '!insertmacro MUI_PAGE_FINISH',
 ];
 
@@ -968,6 +985,32 @@ const COPY = [
   '"${APP_NAME} is running. Uninstall will close it first."',
   '"The program, its tray helper, and any leftovers from updates$\\r$\\nThe Start menu and desktop shortcuts, if Setup made them$\\r$\\nThe start-with-Windows entry$\\r$\\nThe PATH entry, if Setup added one$\\r$\\nThe Installed apps entry"',
   '!define MUI_FINISHPAGE_TEXT "${APP_NAME} has been removed from your computer. It no longer starts when you sign in.$\\r$\\n$\\r$\\nKept, as always: your settings and campaign list in $gmKept, your campaign vaults and your built sites.$gmFolderNote"',
+  '!insertmacro MUI_HEADER_TEXT "Your First Campaign" "Tell ${APP_NAME} where your campaign lives, now or later."',
+  '"Set it up in my browser (recommended)"',
+  '"A short setup with a preview of each theme. Nothing is written until you review it."',
+  '"Answer the questions here now"',
+  '"Campaign name, vault and output folder. Title and theme stay in your browser."',
+  '"Read the user guide"',
+  '!insertmacro MUI_HEADER_TEXT "Campaign Details" "${APP_NAME} checks these itself, once Setup has copied its files."',
+  '"You can change the site title and the theme later in the panel."',
+  '"Campaign name"',
+  '"Lowercase letters, digits and hyphens. Used in commands and folder names."',
+  '"Vault"',
+  '"I already have a vault"',
+  '"Make a new vault, for the game system:"',
+  '"For a new vault, choose a new or empty folder."',
+  '"Output folder"',
+  '"Where your players\' website is built. Must be outside the vault."',
+  '"Browse..."',
+  '"Choose the vault folder"',
+  '"Choose the output folder"',
+  '"Fill in the campaign name, the vault folder and the output folder, and choose a game system for a new vault. Double quotes can\'t be used."',
+  '"Setting up $gmCampName"',
+  '!insertmacro MUI_HEADER_TEXT "Campaign Details" "Fix an answer and try again, or set it up in your browser."',
+  '"Setup couldn\'t set up $gmCampName."',
+  '"Setup couldn\'t show the reason here."',
+  '"Set it up in my browser instead"',
+  '"STR:Try again"',
 ];
 
 test('copy: every user-facing string in the copy table is in installer.nsi exactly as written', () => {
@@ -977,4 +1020,173 @@ test('copy: every user-facing string in the copy table is in installer.nsi exact
   const finish = COPY.find((c) => /by the clock/.test(c));
   assert.ok(finish);
   assert.equal(NSI.includes(finish.replace('by the clock', 'by the clock.')), false);
+});
+
+// ---------------------------------------------------------------------------------------------
+// The first campaign: game systems, the one init writer, silent installs, the one exit and the link
+// (ADR 0058 section 2)
+// ---------------------------------------------------------------------------------------------
+
+test('game systems: STARTER_SYSTEMS is required in stage B only, and is named once, inside GmDetailsFields', () => {
+  const guard = findLines(NSI, /^\s*!ifndef\s+STARTER_SYSTEMS\s*$/);
+  assert.equal(guard.length, 1);
+  assert.ok(guard[0].conds.includes('ifndef EXTRACT_UNINSTALLER'), '!ifndef STARTER_SYSTEMS must sit in stage B');
+  const err = findLines(NSI, /^\s*!error\s+"STARTER_SYSTEMS is required in the installer stage"\s*$/);
+  assert.equal(err.length, 1);
+  assert.ok(err[0].conds.includes('ifndef EXTRACT_UNINSTALLER'));
+  assert.ok(err[0].conds.includes('ifndef STARTER_SYSTEMS'));
+  const refs = NSI.split('\n').map((l) => l.trim()).filter((l) => /\$\{STARTER_SYSTEMS\}/.test(l));
+  assert.deepEqual(refs, ['StrCpy $1 "${STARTER_SYSTEMS}|none"']);
+  const body = functionBody(NSI, 'GmDetailsFields');
+  assert.ok(body, 'GmDetailsFields is missing');
+  assert.equal(body.split('\n').filter((l) => l.trim() === refs[0]).length, 1);
+  // controls: a guard outside stage B is reported, and a second reference elsewhere is counted
+  const stray = findLines('!ifndef STARTER_SYSTEMS\n!error "x"\n!endif\n', /^\s*!error\b/);
+  assert.equal(stray[0].conds.includes('ifndef EXTRACT_UNINSTALLER'), false);
+  const twice = `${NSI}\nFunction GmOther\n  StrCpy $2 "\${STARTER_SYSTEMS}"\nFunctionEnd\n`;
+  assert.equal(twice.split('\n').filter((l) => /\$\{STARTER_SYSTEMS\}/.test(l)).length, 2);
+  assert.equal(functionBody(twice, 'GmDetailsFields').split('\n').filter((l) => /\$\{STARTER_SYSTEMS\}/.test(l)).length, 1);
+});
+
+/** The init lines found in `body`, and how many Call GmArgSafe lines come before its first nsExec line. */
+function initFacts(body) {
+  const lines = body.split('\n').map((l) => l.trim());
+  const firstExec = lines.findIndex((l) => /^nsExec::/.test(l));
+  return {
+    existing: lines.filter((l) => l === COMMAND_LINES[4]).length,
+    fresh: lines.filter((l) => l === COMMAND_LINES[5]).length,
+    safeBefore: firstExec === -1 ? 0 : lines.slice(0, firstExec).filter((l) => l === 'Call GmArgSafe').length,
+  };
+}
+
+test('init: both init lines are in GmRunInit after three GmArgSafe calls, and GmRunInit is called only from the first-campaign section and Try again', () => {
+  const body = functionBody(NSI, 'GmRunInit');
+  assert.ok(body, 'GmRunInit is missing');
+  const f = initFacts(body);
+  assert.equal(f.existing, 1);
+  assert.equal(f.fresh, 1);
+  assert.ok(f.safeBefore >= 3, `only ${f.safeBefore} GmArgSafe calls come first`);
+  const lines = NSI.split('\n').map((l) => l.trim());
+  assert.equal(lines.filter((l) => l === COMMAND_LINES[4]).length, 1, 'the existing-vault line is nowhere else');
+  assert.equal(lines.filter((l) => l === COMMAND_LINES[5]).length, 1, 'the new-vault line is nowhere else');
+  assert.equal(lines.filter((l) => l === 'Call GmRunInit').length, 2);
+  const section = firstCampaignBody(NSI);
+  assert.ok(section.some((l) => l === 'Call GmRunInit'));
+  assert.ok(functionBody(NSI, 'GmRefusedLeave').split('\n').some((l) => l.trim() === 'Call GmRunInit'));
+  // controls: a third call elsewhere is counted, and a body with two GmArgSafe calls is reported
+  const extra = `${NSI}\nFunction GmDetailsLeave\n  Call GmRunInit\nFunctionEnd\n`;
+  assert.equal(extra.split('\n').filter((l) => l.trim() === 'Call GmRunInit').length, 3);
+  const two = body.split('\n');
+  two.splice(two.findIndex((l) => l.trim() === 'Call GmArgSafe'), 1);
+  assert.equal(initFacts(two.join('\n')).safeBefore, 2);
+  assert.equal(initFacts(`${COMMAND_LINES[4]}\n`).safeBefore, 0);
+});
+
+/** The trimmed, non-blank lines of Section "-First campaign", to its SectionEnd, or null. */
+function firstCampaignBody(text) {
+  const ls = text.split('\n').map((l) => l.trim());
+  const start = ls.findIndex((l) => l === 'Section "-First campaign"');
+  if (start === -1) return null;
+  const end = ls.findIndex((l, i) => i > start && l === 'SectionEnd');
+  return ls.slice(start + 1, end).filter((l) => l !== '');
+}
+
+/** What is wrong with a first-campaign section body, as a list of plain sentences. */
+function firstCampaignProblems(body) {
+  const out = [];
+  if (!body) return ['the section is missing'];
+  if (body[0] !== 'SetShellVarContext current') out.push('the first line is not SetShellVarContext current');
+  if (body[1] !== 'IfSilent campaign_done') out.push('the second line is not the silent guard');
+  if (body[body.length - 1] !== 'campaign_done:') out.push('the last line is not campaign_done:');
+  return out;
+}
+
+test('silent: the first-campaign section guards on a silent install first, comes after the ports and before Finish, and the answers start empty', () => {
+  const body = firstCampaignBody(NSI);
+  assert.deepEqual(firstCampaignProblems(body), []);
+  const ls = NSI.split('\n').map((l) => l.trim());
+  const ports = ls.findIndex((l) => l === 'Section "-Ports"');
+  const campaign = ls.findIndex((l) => l === 'Section "-First campaign"');
+  const finish = ls.findIndex((l) => l === 'Section "-Finish" SecFinish');
+  assert.ok(ports > 0 && campaign > ports && finish > campaign, 'order: ports, then the first campaign, then finish');
+  assert.ok(body.some((l) => l === 'StrCmp $gmAskHere 1 0 campaign_done'));
+  const defaults = functionBody(NSI, 'GmReadDefaults').split('\n').map((l) => l.trim());
+  for (const l of ['StrCpy $gmAskHere 0', 'StrCpy $gmBrowserInstead 0', 'StrCpy $gmInitRc ""']) assert.ok(defaults.some((d) => d === l), l);
+  // controls: a body without the silent guard is reported, and so is a section that is not last-labelled
+  assert.equal(firstCampaignProblems(body.filter((l) => l !== 'IfSilent campaign_done')).length >= 1, true);
+  assert.equal(firstCampaignProblems(body.slice(0, -1)).length >= 1, true);
+  assert.deepEqual(firstCampaignProblems(null), ['the section is missing']);
+});
+
+/** True when `want` appears in `lines` in this order (not necessarily next to each other). */
+function inOrderLines(lines, want) {
+  let at = -1;
+  for (const w of want) {
+    const next = lines.findIndex((l, i) => i > at && l === w);
+    if (next === -1) return false;
+    at = next;
+  }
+  return true;
+}
+
+test('refused page: one exit, Back and Cancel greyed, Try again on Next, and no skip or later wording', () => {
+  assert.equal(NSI.split('"Set it up in my browser instead"').length - 1, 1);
+  assert.equal(/Set it up later/i.test(NSI_RAW), false);
+  assert.equal(/\bskip\b/i.test(NSI_RAW), false);
+  const show = functionBody(NSI, 'GmRefusedShow');
+  assert.ok(show, 'GmRefusedShow is missing');
+  const lines = show.split('\n').map((l) => l.trim());
+  assert.equal(lines.filter((l) => /^SendMessage \$\d \$\{WM_SETTEXT\} 0 "STR:Try again"$/.test(l)).length, 1);
+  const GREY = ['GetDlgItem $0 $HWNDPARENT 3', 'EnableWindow $0 0', 'GetDlgItem $0 $HWNDPARENT 2', 'EnableWindow $0 0'];
+  assert.equal(inOrderLines(lines, GREY), true);
+  // controls on scratch text
+  assert.equal(inOrderLines(lines.filter((l, i) => !(l === 'EnableWindow $0 0' && i === lines.lastIndexOf('EnableWindow $0 0'))), GREY), false, 'a body missing the Cancel grey-out is reported');
+  assert.equal(inOrderLines(['GetDlgItem $0 $HWNDPARENT 2', 'EnableWindow $0 0', 'GetDlgItem $0 $HWNDPARENT 3', 'EnableWindow $0 0'], GREY), false, 'the wrong order is reported');
+  assert.equal(/Set it up later/i.test('${NSD_CreateButton} 0 0 100u 14u "Set it up later in my browser"'), true);
+  assert.equal(/\bskip\b/i.test('Skip this step'), true);
+  assert.equal(/\bskip\b/i.test('the skipped copy'), false);
+  assert.equal('"Set it up in my browser instead" "Set it up in my browser instead"'.split('"Set it up in my browser instead"').length - 1, 2);
+  // the two refusal labels are not read for an ampersand
+  const styled = lines.filter((l) => /^\$\{NSD_AddStyle\} \$gmLbl(Head|Reason) \$\{SS_NOPREFIX\}$/.test(l));
+  assert.equal(styled.length, 2);
+});
+
+test('guide link: the documentation address is opened once, in stage B, from GmGuideClicked', () => {
+  const hits = findLines(NSI, /^\s*ExecShell\s+"open"\s+"\$\{DOCS_URL\}"\s*$/);
+  assert.equal(hits.length, 1);
+  assert.ok(hits[0].conds.includes('ifndef EXTRACT_UNINSTALLER'));
+  const body = functionBody(NSI, 'GmGuideClicked');
+  assert.ok(body, 'GmGuideClicked is missing');
+  assert.equal(body.split('\n').filter((l) => l.trim() === DOCS_SHELL_LINE).length, 1);
+  // controls: a link opened outside the handler is not in its body
+  const outside = `${NSI}\nFunction GmOther\n  ${DOCS_SHELL_LINE}\nFunctionEnd\n`;
+  assert.equal(findLines(outside, /^\s*ExecShell\s+"open"\s+"\$\{DOCS_URL\}"\s*$/).length, 2);
+});
+
+test('options page: it no longer changes the Next button, because a page always follows it', () => {
+  const body = functionBody(NSI, 'GmOptionsShow');
+  assert.ok(body, 'GmOptionsShow is missing');
+  assert.equal(body.split('\n').filter((l) => /WM_SETTEXT/.test(l)).length, 0);
+  // control: the lines main had are seen by the same check
+  const old = '  GetDlgItem $0 $HWNDPARENT 1\n  SendMessage $0 ${WM_SETTEXT} 0 "STR:Install"\n';
+  assert.equal(old.split('\n').filter((l) => /WM_SETTEXT/.test(l)).length, 1);
+});
+
+test('page skips: each new page shows only when it should, by an Abort behind a guard', () => {
+  const guards = {
+    GmCampaignShow: ['StrCmp $gmHaveSettings 0 +2'],
+    GmDetailsShow: ['StrCmp $gmHaveSettings 0 +2', 'StrCmp $gmAskHere 1 +2'],
+    GmRefusedShow: ['StrCmp $gmAskHere 1 +2', 'StrCmp $gmInitRc 0 0 +2'],
+  };
+  for (const [name, want] of Object.entries(guards)) {
+    const lines = functionBody(NSI, name).split('\n').map((l) => l.trim());
+    for (const g of want) {
+      const at = lines.findIndex((l) => l === g);
+      assert.ok(at >= 0, `${name} lacks ${g}`);
+      assert.equal(lines[at + 1], 'Abort', `${name}: ${g} is not followed by Abort`);
+    }
+  }
+  // control: a guard with no Abort behind it is reported
+  const bad = ['StrCmp $gmAskHere 1 +2', 'nsDialogs::Show'];
+  assert.notEqual(bad[bad.findIndex((l) => l === 'StrCmp $gmAskHere 1 +2') + 1], 'Abort');
 });
