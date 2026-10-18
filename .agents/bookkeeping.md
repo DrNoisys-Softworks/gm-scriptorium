@@ -6,5 +6,5 @@ introduced this file.
 
 | Item | Value | How to measure |
 |---|---|---|
-| Tests (`npm test`) | 6483 total, 6483 pass, 0 skipped (fully unskipped run) | The `tests` and `skipped` lines at the end of `npm test` output. A fully unskipped run needs `PLAYWRIGHT_MODULE` (absolute path to the playwright package folder) and axe-core installed beside it, or `AXE_CORE_PATH` (full path to the `axe.min.js` file) when it is not; see `../docs/DEVELOPING.md#running-the-browser-tests`; without them the real-browser tests skip and the count reads as skipped. |
+| Tests (`npm test`) | 6484 total, 6484 pass, 0 skipped (fully unskipped run) | The `tests` and `skipped` lines at the end of `npm test` output. A fully unskipped run needs `PLAYWRIGHT_MODULE` (absolute path to the playwright package folder) and axe-core installed beside it, or `AXE_CORE_PATH` (full path to the `axe.min.js` file) when it is not; see `../docs/DEVELOPING.md#running-the-browser-tests`; without them the real-browser tests skip and the count reads as skipped. |
 | Assets embedded by `npm run package` | 132 | `node -e "console.log(require('./scripts/pkg-assets.js').expectedAssets().length)"` |
