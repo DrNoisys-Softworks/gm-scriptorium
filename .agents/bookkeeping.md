@@ -6,5 +6,5 @@ introduced this file.
 
 | Item | Value | How to measure |
 |---|---|---|
-| Tests (`npm test`) | 6504 total, main's 6500 plus 4 from the excluded-folder and callout fix. On Linux with the browser tests all pass but 5 host skips: three need makensis, one the cached pkg win-x64 base, one an x64 host | The `tests` and `skipped` lines at the end of `npm test` output. A fully unskipped run needs `PLAYWRIGHT_MODULE` (absolute path to the playwright package folder) and axe-core installed beside it, or `AXE_CORE_PATH` (full path to the `axe.min.js` file) when it is not; see `../docs/DEVELOPING.md#running-the-browser-tests`; without them the real-browser tests skip and the count reads as skipped. |
+| Tests (`npm test`) | 6516 total, 6516 pass, 0 skipped (fully unskipped run) | The `tests` and `skipped` lines at the end of `npm test` output. A fully unskipped run needs `PLAYWRIGHT_MODULE` (absolute path to the playwright package folder) and axe-core installed beside it, or `AXE_CORE_PATH` (full path to the `axe.min.js` file) when it is not; see `../docs/DEVELOPING.md#running-the-browser-tests`; without them the real-browser tests skip and the count reads as skipped. |
 | Assets embedded by `npm run package` | 132 | `node -e "console.log(require('./scripts/pkg-assets.js').expectedAssets().length)"` |
