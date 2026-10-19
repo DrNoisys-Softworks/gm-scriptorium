@@ -733,8 +733,10 @@ Function GmOptionsShow
   Pop $gmHelpAuto
   ${NSD_CreateLabel} 0 62u 100% 16u "You'll need to start ${APP_NAME} from its folder: $INSTDIR"
   Pop $gmLblOff1
+  ${NSD_AddStyle} $gmLblOff1 ${SS_NOPREFIX}
   ${NSD_CreateLabel} 0 44u 100% 16u "You'll need to start ${APP_NAME} from its folder: $INSTDIR"
   Pop $gmLblOff2
+  ${NSD_AddStyle} $gmLblOff2 ${SS_NOPREFIX}
 
   !ifdef WITH_PATH_OPTION
     ${NSD_CreateCheckBox} 0 63u 100% 10u "Add ${APP_NAME} to PATH"
@@ -852,6 +854,7 @@ Function GmSettingsShow
   ${EndIf}
   ${NSD_CreateLabel} 0 0 100% 18u "Settings file: $gmConfigPath"
   Pop $0
+  ${NSD_AddStyle} $0 ${SS_NOPREFIX}
   ${NSD_CreateLabel} 0 26u 100% 10u "To add another campaign, use Campaigns in the panel."
   Pop $0
   GetDlgItem $0 $HWNDPARENT 1
@@ -1533,18 +1536,21 @@ Function un.ConfirmShow
   ${NSD_CreateLabel} 0 0 100% 10u "${APP_NAME} is running. Uninstall will close it first."
   Pop $0
   confirm_not_running:
-  ${NSD_CreateLabel} 0 11u 100% 18u "${APP_NAME} will be removed from$\r$\n$INSTDIR."
+  ${NSD_CreateLabel} 0 11u 100% 27u "${APP_NAME} will be removed from$\r$\n$INSTDIR."
   Pop $0
-  ${NSD_CreateLabel} 0 31u 100% 9u "Removed"
-  Pop $0
-  SendMessage $0 ${WM_SETFONT} $gmBold 0
-  ${NSD_CreateLabel} 8u 40u 100% 42u "The program, its tray helper, and any leftovers from updates$\r$\nThe Start menu and desktop shortcuts, if Setup made them$\r$\nThe start-with-Windows entry$\r$\nThe PATH entry, if Setup added one$\r$\nThe Installed apps entry"
-  Pop $0
-  ${NSD_CreateLabel} 0 85u 100% 9u "Never touched"
+  ${NSD_AddStyle} $0 ${SS_NOPREFIX}
+  ${NSD_AddStyle} $0 ${SS_EDITCONTROL}
+  ${NSD_CreateLabel} 0 40u 100% 9u "Removed"
   Pop $0
   SendMessage $0 ${WM_SETFONT} $gmBold 0
-  ${NSD_CreateLabel} 8u 94u 100% 28u "Your settings and campaign list, in $APPDATA\Scriptorium$\r$\nYour campaign vaults, including their _meta\scriptorium\ folders$\r$\nYour built sites, and anything you have published"
+  ${NSD_CreateLabel} 8u 49u 100% 42u "The program, its tray helper, and any leftovers from updates$\r$\nThe Start menu and desktop shortcuts, if Setup made them$\r$\nThe start-with-Windows entry$\r$\nThe PATH entry, if Setup added one$\r$\nThe Installed apps entry"
   Pop $0
+  ${NSD_CreateLabel} 0 94u 100% 9u "Never touched"
+  Pop $0
+  SendMessage $0 ${WM_SETFONT} $gmBold 0
+  ${NSD_CreateLabel} 8u 103u 100% 28u "Your settings and campaign list, in $APPDATA\Scriptorium$\r$\nYour campaign vaults, including their _meta\scriptorium\ folders$\r$\nYour built sites, and anything you have published"
+  Pop $0
+  ${NSD_AddStyle} $0 ${SS_NOPREFIX}
 
   GetDlgItem $1 $HWNDPARENT 1
   SendMessage $1 ${WM_SETTEXT} 0 "STR:Uninstall"
@@ -1584,7 +1590,74 @@ UninstPage custom un.ConfirmShow un.ConfirmLeave
 !define MUI_FINISHPAGE_RUN_FUNCTION un.LaunchFeedback
 !define MUI_FINISHPAGE_RUN_TEXT "Leave feedback for the developer. All feedback is read."
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW un.GmFinishShow
 !insertmacro MUI_UNPAGE_FINISH
+
+; Runs as the finish page is shown. It reads where Modern UI put its own controls, in the page's
+; real pixels, then gives the text the room down to one Modern UI gap above the feedback box and
+; moves the box down so it sits one gap above the page's bottom. No unit conversion is used, so it
+; holds at any display scale. The box itself, its unticked state and its action stay Modern UI's.
+; Defined after the page macro, which declares the variables used here. If any call fails or the
+; layout is not the expected one, Modern UI's own layout stays.
+Function un.GmFinishShow
+  Push $0
+  Push $1
+  Push $2
+  Push $3
+  Push $4
+  Push $5
+  Push $6
+  Push $7
+  Push $8
+  Push $9
+  ${NSD_AddStyle} $mui.FinishPage.Text ${SS_NOPREFIX}
+  ${NSD_AddStyle} $mui.FinishPage.Text ${SS_EDITCONTROL}
+  System::Call '*(i 0, i 0, i 0, i 0) p .r1'
+  IntCmp $1 0 finish_done
+  System::Call 'user32::ClientToScreen(p $mui.FinishPage, p r1) i .r0'
+  IntCmp $0 0 finish_free
+  System::Call '*$1(i .r8, i .r9)'
+  System::Call 'user32::GetWindowRect(p $mui.FinishPage.Run, p r1) i .r0'
+  IntCmp $0 0 finish_free
+  System::Call '*$1(i .r4, i .r5, i, i .r6)'
+  IntOp $4 $4 - $8
+  IntOp $5 $5 - $9
+  IntOp $6 $6 - $9
+  System::Call 'user32::GetWindowRect(p $mui.FinishPage.Text, p r1) i .r0'
+  IntCmp $0 0 finish_free
+  System::Call '*$1(i .r8, i .r2, i .r0, i .r3)'
+  IntOp $8 $0 - $8
+  IntOp $2 $2 - $9
+  IntOp $3 $3 - $9
+  System::Call 'user32::GetClientRect(p $mui.FinishPage, p r1) i .r0'
+  IntCmp $0 0 finish_free
+  System::Call '*$1(i, i, i, i .r7)'
+  finish_free:
+  System::Free $1
+  IntCmp $0 0 finish_done
+  IntOp $0 $5 - $3
+  IntOp $6 $6 - $5
+  IntCmp $0 0 finish_done finish_done
+  IntCmp $6 0 finish_done finish_done
+  IntOp $7 $7 - $0
+  IntOp $7 $7 - $6
+  IntCmp $7 $5 finish_done finish_done
+  IntOp $3 $7 - $0
+  IntOp $3 $3 - $2
+  System::Call 'user32::SetWindowPos(p $mui.FinishPage.Text, p 0, i 0, i 0, i r8, i r3, i 0x16)'
+  System::Call 'user32::SetWindowPos(p $mui.FinishPage.Run, p 0, i r4, i r7, i 0, i 0, i 0x15)'
+  finish_done:
+  Pop $9
+  Pop $8
+  Pop $7
+  Pop $6
+  Pop $5
+  Pop $4
+  Pop $3
+  Pop $2
+  Pop $1
+  Pop $0
+FunctionEnd
 
 !insertmacro MUI_LANGUAGE "English"
 

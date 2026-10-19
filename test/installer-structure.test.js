@@ -723,6 +723,21 @@ test('settings: the settings path is only looked for with IfFileExists and shown
 });
 
 const PLUGIN_CALLS = ['System::Alloc', 'System::Call', 'System::Free', 'nsDialogs::Create', 'nsDialogs::SelectFolderDialog', 'nsDialogs::Show', 'nsExec::ExecToLog', 'nsExec::ExecToStack'];
+// The twelve System lines of un.GmFinishShow (stage A). Named so no test indexes SYSTEM_LINES by position.
+const UNFIN_LINES = {
+  alloc: `System::Call '*(i 0, i 0, i 0, i 0) p .r1'`,
+  origin: `System::Call 'user32::ClientToScreen(p $mui.FinishPage, p r1) i .r0'`,
+  originRead: `System::Call '*$1(i .r8, i .r9)'`,
+  runRect: `System::Call 'user32::GetWindowRect(p $mui.FinishPage.Run, p r1) i .r0'`,
+  runRead: `System::Call '*$1(i .r4, i .r5, i, i .r6)'`,
+  textRect: `System::Call 'user32::GetWindowRect(p $mui.FinishPage.Text, p r1) i .r0'`,
+  textRead: `System::Call '*$1(i .r8, i .r2, i .r0, i .r3)'`,
+  clientRect: `System::Call 'user32::GetClientRect(p $mui.FinishPage, p r1) i .r0'`,
+  clientRead: `System::Call '*$1(i, i, i, i .r7)'`,
+  free: 'System::Free $1',
+  moveText: `System::Call 'user32::SetWindowPos(p $mui.FinishPage.Text, p 0, i 0, i 0, i r8, i r3, i 0x16)'`,
+  moveBox: `System::Call 'user32::SetWindowPos(p $mui.FinishPage.Run, p 0, i r4, i r7, i 0, i 0, i 0x15)'`,
+};
 const SYSTEM_LINES = [
   PATH_CALL_LINE,
   PATH_WCHAR_LINE,
@@ -730,6 +745,8 @@ const SYSTEM_LINES = [
   `System::Call '*$2(&i1 .r3)'`,
   'System::Alloc 64',
   'System::Free $2',
+  // The uninstaller finish page callback (un.GmFinishShow), stage A only. Named, never indexed.
+  ...Object.values(UNFIN_LINES),
 ];
 
 /** Plug-in calls (a word, two colons, a word at the start of a trimmed line) that are not allowed. */
@@ -1023,6 +1040,193 @@ test('copy: every user-facing string in the copy table is in installer.nsi exact
 });
 
 // ---------------------------------------------------------------------------------------------
+// Path labels keep an ampersand as typed (SS_NOPREFIX), and the uninstaller finish page layout.
+// These are shape tests over the source. They prove nothing about how Windows wraps or draws the
+// text; that is the Windows check C213 on the real installer and uninstaller.
+// ---------------------------------------------------------------------------------------------
+
+const PATH_LABEL_RE = /^\s*\$\{NSD_CreateLabel\}\s.*\$(?:INSTDIR|APPDATA|gmConfigPath)/;
+
+/**
+ * The trimmed label lines whose text shows a user-controlled path and that are not followed by
+ * `Pop $X` and then `${NSD_AddStyle} $X ${SS_NOPREFIX}` on the next two lines.
+ */
+function unstyledPathLabels(text) {
+  const lines = text.split('\n').map((l) => l.trim());
+  const bad = [];
+  lines.forEach((l, i) => {
+    if (!PATH_LABEL_RE.test(l)) return;
+    const pop = /^Pop (\$\w+)$/.exec(lines[i + 1] || '');
+    const ok = pop && lines[i + 2] === `\${NSD_AddStyle} ${pop[1]} \${SS_NOPREFIX}`;
+    if (!ok) bad.push(l);
+  });
+  return bad;
+}
+
+test('labels: every label that shows the install folder, the settings folder or the settings file carries SS_NOPREFIX', () => {
+  const labels = NSI.split('\n').filter((l) => PATH_LABEL_RE.test(l));
+  assert.equal(labels.length, 5, 'the five path labels are all found');
+  assert.deepEqual(unstyledPathLabels(NSI), []);
+  // controls
+  const good = ['${NSD_CreateLabel} 0 0 100% 9u "in $INSTDIR"', 'Pop $0', '${NSD_AddStyle} $0 ${SS_NOPREFIX}'];
+  assert.deepEqual(unstyledPathLabels(good.join('\n')), []);
+  assert.equal(unstyledPathLabels(good.slice(0, 2).join('\n')).length, 1, 'no AddStyle line');
+  assert.equal(unstyledPathLabels([good[0], good[1], '${NSD_AddStyle} $1 ${SS_NOPREFIX}'].join('\n')).length, 1, 'wrong variable');
+  assert.equal(unstyledPathLabels(good[0].replace('$INSTDIR', '$APPDATA\\x')).length, 1, 'APPDATA label, nothing after');
+  assert.equal(unstyledPathLabels('${NSD_CreateLabel} 0 0 100% 9u "Settings file: $gmConfigPath"').length, 1);
+  assert.equal(unstyledPathLabels('${NSD_CreateLabel} 0 0 100% 9u "Removed"').length, 0, 'a label with no path is not in scope');
+});
+
+test('labels: the two options-page folder labels are styled right behind their Pop', () => {
+  const lines = NSI.split('\n').map((l) => l.trim());
+  for (const v of ['$gmLblOff1', '$gmLblOff2']) {
+    const i = lines.indexOf(`Pop ${v}`);
+    assert.ok(i > 0, `${v} is popped`);
+    assert.equal(lines[i + 1], `\${NSD_AddStyle} ${v} \${SS_NOPREFIX}`);
+  }
+});
+
+test('finish page: the SHOW hook sits between the feedback box defines and the page macro, in stage A', () => {
+  const hits = findLines(NSI, /^\s*!define\s+MUI_PAGE_CUSTOMFUNCTION_SHOW\s+un\.GmFinishShow\s*$/);
+  assert.equal(hits.length, 1);
+  assert.deepEqual(hits[0].conds, ['ifdef EXTRACT_UNINSTALLER']);
+  const lines = NSI.split('\n').map((l) => l.trim());
+  const notchecked = lines.indexOf('!define MUI_FINISHPAGE_RUN_NOTCHECKED');
+  const show = lines.indexOf('!define MUI_PAGE_CUSTOMFUNCTION_SHOW un.GmFinishShow');
+  const insert = lines.indexOf('!insertmacro MUI_UNPAGE_FINISH');
+  assert.ok(notchecked > 0 && notchecked < show && show < insert);
+  // the feedback box stays MUI's
+  for (const l of ['!define MUI_FINISHPAGE_RUN', '!define MUI_FINISHPAGE_RUN_FUNCTION un.LaunchFeedback', '!define MUI_FINISHPAGE_TEXT_LARGE']) {
+    assert.ok(lines.includes(l), l);
+  }
+  // the function is defined after the page macro, because MUI declares its variables there
+  assert.ok(lines.indexOf('Function un.GmFinishShow') > insert, 'un.GmFinishShow comes after the page macro');
+});
+
+const UNFIN_ARITH_BOX = ['IntOp $4 $4 - $8', 'IntOp $5 $5 - $9', 'IntOp $6 $6 - $9'];
+const UNFIN_ARITH_TEXT = ['IntOp $8 $0 - $8', 'IntOp $2 $2 - $9', 'IntOp $3 $3 - $9'];
+const UNFIN_ARITH_MOVE = [
+  'IntOp $0 $5 - $3',
+  'IntOp $6 $6 - $5',
+  'IntCmp $0 0 finish_done finish_done',
+  'IntCmp $6 0 finish_done finish_done',
+  'IntOp $7 $7 - $0',
+  'IntOp $7 $7 - $6',
+  'IntCmp $7 $5 finish_done finish_done',
+  'IntOp $3 $7 - $0',
+  'IntOp $3 $3 - $2',
+];
+const UNFIN_STYLE_LINE = '${NSD_AddStyle} $mui.FinishPage.Text ${SS_NOPREFIX}';
+const UNFIN_WRAP_LINE = '${NSD_AddStyle} $mui.FinishPage.Text ${SS_EDITCONTROL}';
+
+function unfinBody() {
+  const body = functionBody(NSI, 'un.GmFinishShow');
+  assert.ok(body, 'un.GmFinishShow exists');
+  return body.split('\n').map((l) => l.trim()).filter(Boolean);
+}
+
+test('finish page: un.GmFinishShow reads Modern UI\'s own layout in pixels and moves only with the allowed calls, in order', () => {
+  const lines = unfinBody();
+  const U = UNFIN_LINES;
+  const order = [UNFIN_STYLE_LINE, UNFIN_WRAP_LINE, U.alloc, U.origin, U.originRead, U.runRect, U.runRead, U.textRect, U.textRead, U.clientRect, U.clientRead, U.free, U.moveText, U.moveBox];
+  const at = order.map((l) => {
+    assert.equal(lines.filter((x) => x === l).length, 1, `exactly once in the body: ${l}`);
+    return lines.indexOf(l);
+  });
+  assert.deepEqual(at, at.slice().sort((a, b) => a - b), 'in order');
+  // each System line appears once in the whole file, in stage A only
+  for (const l of Object.values(U)) {
+    const hits = findLines(NSI, new RegExp(`^\\s*${l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`));
+    assert.equal(hits.length, 1, `once in the file: ${l}`);
+    assert.deepEqual(hits[0].conds, ['ifdef EXTRACT_UNINSTALLER'], l);
+  }
+  // user32 names, in order; no dialog-unit conversion anywhere
+  const names = lines.filter((l) => /^System::Call 'user32::/.test(l)).map((l) => /user32::(\w+)/.exec(l)[1]);
+  assert.deepEqual(names, ['ClientToScreen', 'GetWindowRect', 'GetWindowRect', 'GetClientRect', 'SetWindowPos', 'SetWindowPos']);
+  assert.equal(/MapDialogRect/.test(NSI), false);
+  assert.equal(/GM_UNFIN_/.test(NSI), false);
+  // controls
+  assert.equal(strayPluginLines(`System::Call 'user32::MapDialogRect(p $mui.FinishPage, p r1) i .r0'`).length, 1);
+  for (const l of Object.values(U)) assert.equal(strayPluginLines(l).length, 0, l);
+});
+
+test('finish page: un.GmFinishShow checks every call and frees the buffer on every path after the allocation', () => {
+  const lines = unfinBody();
+  const U = UNFIN_LINES;
+  const next = (l) => lines[lines.indexOf(l) + 1];
+  assert.equal(next(U.alloc), 'IntCmp $1 0 finish_done');
+  for (const l of [U.origin, U.runRect, U.textRect, U.clientRect]) assert.equal(next(l), 'IntCmp $0 0 finish_free', l);
+  assert.equal(lines[lines.indexOf(U.free) - 1], 'finish_free:');
+  assert.equal(next(U.free), 'IntCmp $0 0 finish_done');
+  const done = lines.indexOf('finish_done:');
+  assert.ok(done > lines.indexOf(U.moveBox) && lines[done + 1] === 'Pop $9', 'finish_done sits between the second SetWindowPos and Pop $9');
+  assert.equal(lines.filter((l) => l === 'finish_done:').length, 1);
+  assert.equal(lines.filter((l) => l === 'finish_free:').length, 1);
+});
+
+test('finish page: the pixel arithmetic is the reviewed listing, in its three places', () => {
+  const lines = unfinBody();
+  const U = UNFIN_LINES;
+  const run = (from, n) => lines.slice(lines.indexOf(from) + 1, lines.indexOf(from) + 1 + n);
+  // after the box read, after the text read (a guard comes first there), after the guard that follows the free
+  assert.deepEqual(run(U.runRead, 3), UNFIN_ARITH_BOX);
+  assert.deepEqual(run(U.textRead, 3), UNFIN_ARITH_TEXT);
+  const afterFree = lines.indexOf(U.free) + 2;
+  assert.deepEqual(lines.slice(afterFree, afterFree + UNFIN_ARITH_MOVE.length), UNFIN_ARITH_MOVE);
+  // the move block is straight before the two SetWindowPos lines
+  assert.equal(lines[afterFree + UNFIN_ARITH_MOVE.length], U.moveText);
+});
+
+test('finish page: un.GmFinishShow keeps $0 to $9 for its caller', () => {
+  const lines = unfinBody();
+  const seq = (re) => lines.filter((l) => re.test(l));
+  assert.deepEqual(seq(/^Push \$\d$/), ['Push $0', 'Push $1', 'Push $2', 'Push $3', 'Push $4', 'Push $5', 'Push $6', 'Push $7', 'Push $8', 'Push $9']);
+  assert.deepEqual(seq(/^Pop \$\d$/), ['Pop $9', 'Pop $8', 'Pop $7', 'Pop $6', 'Pop $5', 'Pop $4', 'Pop $3', 'Pop $2', 'Pop $1', 'Pop $0']);
+});
+
+// The uninstaller confirm page (un.ConfirmShow). The path label grows so a path too long for one line
+// can break across lines (SS_EDITCONTROL), and the four labels under it move down to make room.
+const CONFIRM_LINES = {
+  path: '${NSD_CreateLabel} 0 11u 100% 27u "${APP_NAME} will be removed from$\\r$\\n$INSTDIR."',
+  removed: '${NSD_CreateLabel} 0 40u 100% 9u "Removed"',
+  removedList: '${NSD_CreateLabel} 8u 49u 100% 42u "The program, its tray helper, and any leftovers from updates$\\r$\\nThe Start menu and desktop shortcuts, if Setup made them$\\r$\\nThe start-with-Windows entry$\\r$\\nThe PATH entry, if Setup added one$\\r$\\nThe Installed apps entry"',
+  never: '${NSD_CreateLabel} 0 94u 100% 9u "Never touched"',
+  keptList: '${NSD_CreateLabel} 8u 103u 100% 28u "Your settings and campaign list, in $APPDATA\\Scriptorium$\\r$\\nYour campaign vaults, including their _meta\\scriptorium\\ folders$\\r$\\nYour built sites, and anything you have published"',
+};
+
+test('confirm page: the five labels sit at their pinned positions and the path label is styled for wrapping', () => {
+  const lines = functionBody(NSI, 'un.ConfirmShow').split('\n').map((l) => l.trim());
+  for (const [k, l] of Object.entries(CONFIRM_LINES)) assert.equal(lines.filter((x) => x === l).length, 1, `exactly once: ${k}`);
+  const i = lines.indexOf(CONFIRM_LINES.path);
+  assert.deepEqual(lines.slice(i + 1, i + 4), ['Pop $0', '${NSD_AddStyle} $0 ${SS_NOPREFIX}', '${NSD_AddStyle} $0 ${SS_EDITCONTROL}']);
+  // order on the page
+  const at = Object.values(CONFIRM_LINES).map((l) => lines.indexOf(l));
+  assert.deepEqual(at, at.slice().sort((a, b) => a - b));
+});
+
+test('confirm page: no label overlaps the next, and the last one ends inside the page', () => {
+  // The inner page height is not in any local source. 131u is the bottom the layout was designed to
+  // (about 140u is recalled, so 9u spare); the Windows check C213 confirms the last line shows.
+  const BOTTOM = 131;
+  const geo = (l) => {
+    const m = /NSD_CreateLabel\}\s+(?:0|(\d+)u)\s+(\d+)u\s+100%\s+(\d+)u/.exec(l);
+    return { top: Number(m[2]), height: Number(m[3]) };
+  };
+  const g = Object.fromEntries(Object.entries(CONFIRM_LINES).map(([k, l]) => [k, geo(l)]));
+  const lines = functionBody(NSI, 'un.ConfirmShow').split('\n').map((l) => l.trim());
+  const keys = { path: 'will be removed from', removed: '"Removed"', removedList: 'The program, its tray helper', never: '"Never touched"', keptList: 'Your settings and campaign list' };
+  const real = Object.fromEntries(Object.entries(keys).map(([k, t]) => [k, geo(lines.find((x) => x.startsWith('${NSD_CreateLabel}') && x.includes(t)))]));
+  assert.deepEqual(real, g, 'the source matches the pinned geometry');
+  assert.ok(g.path.top + g.path.height <= g.removed.top, '38 <= 40');
+  assert.ok(g.removed.top + g.removed.height <= g.removedList.top, '49 <= 49');
+  assert.ok(g.removedList.top + g.removedList.height <= g.never.top, '91 <= 94');
+  assert.ok(g.never.top + g.never.height <= g.keptList.top, '103 <= 103');
+  assert.ok(g.keptList.top + g.keptList.height <= BOTTOM, 'ends by 131');
+  // controls: the old layout overlaps
+  assert.equal(11 + 18 <= 31 && 31 + 9 <= 40 && 85 + 9 <= 94, true, 'sanity: old layout was tight but valid');
+  assert.equal(11 + 27 <= 31, false, 'a 27u path label at the old Removed position would overlap');
+});
+
 // The first campaign: game systems, the one init writer, silent installs, the one exit and the link
 // (ADR 0058 section 2)
 // ---------------------------------------------------------------------------------------------

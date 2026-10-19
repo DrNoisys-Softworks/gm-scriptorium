@@ -2518,6 +2518,19 @@ Limit used below: the default install folder, `%LOCALAPPDATA%\Programs\GM-Script
 
 Record the Start with Windows read (the `StartupApproved\Run` byte) as checked: the same diagnostic run showed it reads binary values and the absent value correctly, so it is not changed here.
 
+### C213: the uninstaller's finish page fits its text, and folder and settings labels show an ampersand as typed, in the real installer and uninstaller
+
+Issue #118. **Mark this OPEN: structure tests pin the source and makensis compiles both stages, but nothing on Linux draws a page or wraps a line. Every step below comes only from VM 201.** Use a scratch build, a standard (non-administrator) user, and a scratch `SCRIPTORIUM_CONFIG` set in the launching PowerShell before `Start-Process`. Never the real config. Run steps 1 to 5 at 100% and again at 150% display scaling (restore it afterwards), and screenshot every page.
+
+1. Uninstall with `keep-me.txt` left in the install folder and `SCRIPTORIUM_CONFIG` set. On the finish page every sentence is readable, including the whole folder path and "...not GM-Scriptorium's.", and the whole feedback box and its label sit inside the page, below the text with a visible gap and no overlap. The box is unticked. Tick it and press Finish: the browser opens `https://tally.so/r/eq19jQ`.
+2. The same with an install folder of 65 or more characters, and again with a 105 character folder name. The whole path shows, broken across lines if needed, and "...not GM-Scriptorium's." is complete. Check the uninstaller confirm page too: the whole path shows and the "Never touched" list is complete with space below it.
+3. A clean uninstall (nothing left in the folder): the finish page is complete and the box sits below the text.
+4. With `SCRIPTORIUM_CONFIG=C:\work\R&D\config.toml` and that file existing, the "Your Campaigns" page shows `R&D` with no underline. Uninstall with the same variable set: the finish page shows `R&D` with no underline.
+5. Install into a folder whose name contains `&`. The options page line "You'll need to start GM-Scriptorium from its folder" shows the ampersand as typed, with Advanced closed and with it open (Start menu, Desktop and Start with Windows all unticked). The uninstaller confirm page and the finish folder note show it too.
+6. C198 step 1: every installer page at both scales, with Advanced open and closed, nothing clipped.
+
+Also re-run C145 step 3. C151 step 2 stays with the owner.
+
 ### C214: the ports card stays below the Updates card
 
 [ADR 0057](../docs/decisions/0057-windows-desktop-app.md) section 8, "The ports card".
