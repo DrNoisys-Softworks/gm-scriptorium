@@ -34,6 +34,7 @@ const RUNNERS = {
   'link/ambiguous-target': link.runAmbiguousTarget,
   'relationship/missing-required': relationship.runMissingRequired,
   'relationship/unknown-predicate': relationship.runUnknownPredicate,
+  'relationship/gm-only-value': relationship.runGmOnlyValue,
   'vault/unmapped-directory': unmapped.runUnmappedDirectory,
   'config/exclude-sections-divergence': configdiv.runExcludeSectionsDivergence,
   'config/exclude-dirs-divergence': configdiv.runExcludeDirsDivergence,

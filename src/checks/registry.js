@@ -164,6 +164,16 @@ const CHECKS = Object.freeze([
       'A relationship uses a word that is not in the vault\'s own _meta/relationship-types.md (its "Types" table and bold "Symmetric" line, read by src/vault/relationshiptypes.js). The generator still shows the relationship, but its word-matched features (a faction\'s member list, landing-page NPC roles) only recognise exact words. Suggests the listed word for a case, space or hyphen slip. One INFO instead, checking nothing, when the file, its frontmatter, or its Types table is missing or empty.',
   },
   {
+    id: 'relationship/gm-only-value',
+    category: 'frontmatter',
+    defaultSeverity: 'error',
+    dynamicSeverity: true,
+    defaultEnabled: true,
+    requiresFlag: null,
+    description:
+      'A relationship edge sets gm_only to something other than true or false (yes, on, "True", 1, an empty value). The pinned generator hides an edge only when gm_only is exactly true or the string "true" (lib/processor.js:1085-1087), so any other value publishes it. ERROR when the edge survives the pin\'s own publishedFrontmatter on a published page, with the same exclude_fields and per-file overrides (lib/processor.js:1099-1134); WARN otherwise.',
+  },
+  {
     id: 'vault/unmapped-directory',
     category: 'frontmatter',
     defaultSeverity: 'warn',

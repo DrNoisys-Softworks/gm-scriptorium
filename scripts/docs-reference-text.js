@@ -1068,6 +1068,10 @@ module.exports = deepFreeze({
       what: 'A relationship uses a word that is not in `_meta/relationship-types.md`. The site still shows it, but features that match exact words, such as a faction\'s member list, will not recognise it. It reports a single INFO line instead if the word list cannot be read.',
       action: 'Use the word the message suggests, or add your word to the Types table in `_meta/relationship-types.md`.',
     },
+    'relationship/gm-only-value': {
+      what: 'A relationship has `gm_only` set to something other than `true` or `false`, such as `yes`, `on`, `"True"` or `1`. Only `gm_only: true` hides a relationship, so any other value publishes it. It is an ERROR when the relationship really appears on a published page, and a WARN when it does not.',
+      action: 'Write `gm_only: true` to hide the relationship, or remove `gm_only` to show it.',
+    },
     'vault/unmapped-directory': {
       what: 'A folder has no entry in `folderMap` in `vault.config.json`, so the generator drops every note in it without saying so.',
       action: 'Add the folder to `folderMap` if its notes belong on the site. If not, list it in `excludeDirs`.',

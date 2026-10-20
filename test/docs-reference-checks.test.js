@@ -46,6 +46,7 @@ const IDS = [
   'link/ambiguous-target',
   'relationship/missing-required',
   'relationship/unknown-predicate',
+  'relationship/gm-only-value',
   'vault/unmapped-directory',
   'config/exclude-sections-divergence',
   'config/exclude-dirs-divergence',
@@ -73,8 +74,8 @@ const IDS = [
 
 // ---- literal facts the page shows ----
 
-test('the thirty-seven finding ids, as a literal list, registry first and then the build', () => {
-  assert.equal(IDS.length, 37);
+test('the thirty-eight finding ids, as a literal list, registry first and then the build', () => {
+  assert.equal(IDS.length, 38);
   assert.deepEqual(facts.map((f) => f.key), IDS);
 });
 
