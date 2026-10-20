@@ -14,6 +14,7 @@ const {
   LIST_FILE_NAMES,
   NAMED_FONT_RESIDUAL,
   NAMED_IMAGE_RESIDUAL,
+  NAMED_KNOWN_PUBLIC_IDENTITY,
   deriveVendorEntry,
   VENDOR_PIN_DIR,
   parsePushLines,
@@ -107,7 +108,7 @@ function baseEnv(overrides = {}) {
   return { ...ISOLATED_ENV_BASE, ...overrides };
 }
 
-function runGuard(argv, { cwd, env = baseEnv(), stdin, publicRoot, scanRun, fontResidual, imageResidual } = {}) {
+function runGuard(argv, { cwd, env = baseEnv(), stdin, publicRoot, scanRun, fontResidual, imageResidual, knownPublicIdentity } = {}) {
   const stdout = makeSink();
   const stderr = makeSink();
   const opts = { cwd, env, stdout, stderr };
@@ -116,6 +117,7 @@ function runGuard(argv, { cwd, env = baseEnv(), stdin, publicRoot, scanRun, font
   if (scanRun !== undefined) opts.scanRun = scanRun;
   if (fontResidual !== undefined) opts.fontResidual = fontResidual;
   if (imageResidual !== undefined) opts.imageResidual = imageResidual;
+  if (knownPublicIdentity !== undefined) opts.knownPublicIdentity = knownPublicIdentity;
   const code = run(argv, opts);
   return { code, stdout: stdout.text(), stderr: stderr.text() };
 }
@@ -1878,4 +1880,221 @@ test('T-PP9: a zero-oid push to a glob-named remote also excludes nothing from a
   });
   assert.equal(result.code, 1);
   assert.match(result.stdout, /^VERDICT block$/m);
+});
+
+// ---------------------------------------------------------------------------
+// known-public identity, T-K1 to T-K11
+//
+// What proves nothing on its own: on main (before this class existed) the exit-code and UNCLASSED
+// assertions of T-K3 and T-K5 to T-K7 already hold, because main blocks every identity row in a
+// public history. Only their `known-public-identity` line assertions are red on main, and their
+// real evidence is the mutations that remove the shape check (T-K5 to T-K7) and the membership
+// check (T-K3). T-K1, T-K2, T-K4 and T-K8 to T-K11 are red on main for their own reasons.
+// Everything below is synthetic; the one real-repository check (T-K11) prints no commit text.
+// ---------------------------------------------------------------------------
+
+/** Root commit "base" (excluded from the range), then one further commit made by `makeCommit`.
+ * Returns the repo, the base and the head. */
+function setupOneCommit(t, makeCommit) {
+  const dir = initRepo(t);
+  configureLists(dir, writeLists(t));
+  commitIdentity(dir, 'base');
+  const base = revParse(dir, 'HEAD');
+  makeCommit(dir);
+  const head = revParse(dir, 'HEAD');
+  return { dir, base, head };
+}
+
+function scanKnown(dir, base, head, knownPublicIdentity, extra = {}) {
+  return runGuard(['scan', 'commits', `${base}..${head}`], { cwd: dir, publicRoot: base, knownPublicIdentity, ...extra });
+}
+
+test('T-K1: both commits pinned in a public history are accepted on their own line, the identity line unchanged', (t) => {
+  const { dir, base, head } = setupTwoCleanCommits(t);
+  const first = revParse(dir, `${head}~1`);
+  const r = scanKnown(dir, base, head, [first, head]);
+  assert.equal(r.code, 0);
+  assert.match(r.stdout, /^RESIDUAL identity=8 commits=2 history=public$/m);
+  assert.match(r.stdout, /^RESIDUAL known-public-identity=8 commits=2$/m);
+  assert.match(r.stdout, /^UNCLASSED 0$/m);
+  assert.match(r.stdout, /^VERDICT pass$/m);
+});
+
+test('T-K2: a commit whose full sha is not in the table still blocks', (t) => {
+  const { dir, base, head } = setupTwoCleanCommits(t);
+  const r = scanKnown(dir, base, head, [head]);
+  assert.equal(r.code, 1);
+  assert.match(r.stdout, /^RESIDUAL known-public-identity=4 commits=1$/m);
+  assert.match(r.stdout, /^UNCLASSED 1$/m);
+});
+
+test('T-K3: an empty table classifies nothing and is valid', (t) => {
+  const { dir, base, head } = setupTwoCleanCommits(t);
+  const r = scanKnown(dir, base, head, []);
+  assert.equal(r.code, 1);
+  assert.match(r.stdout, /^RESIDUAL known-public-identity=0 commits=0$/m);
+  assert.match(r.stdout, /^UNCLASSED 2$/m);
+});
+
+test('T-K4: membership is the full sha: 39 right characters and a wrong last one match nothing', (t) => {
+  const { dir, base, head } = setupTwoCleanCommits(t);
+  const first = revParse(dir, `${head}~1`);
+  const wrong = [first, head].map((s) => s.slice(0, 39) + (s[39] === '0' ? '1' : '0'));
+  const r = scanKnown(dir, base, head, wrong);
+  assert.equal(r.code, 1);
+  assert.match(r.stdout, /^UNCLASSED 2$/m);
+  assert.match(r.stdout, /^RESIDUAL known-public-identity=0 commits=0$/m);
+});
+
+test('T-K5: a listed name in the message body breaks the identity-only shape, so a pinned commit still blocks', (t) => {
+  const { dir, base, head } = setupOneCommit(t, (d) => commitIdentity(d, `mentions ${IDENTITY_NAME} right here in the body`));
+  const r = scanKnown(dir, base, head, [head]);
+  assert.equal(r.code, 1);
+  assert.match(r.stdout, /^HIT 5 [0-9a-f]{12}:message email=2,name=3$/m);
+  assert.match(r.stdout, /^RESIDUAL known-public-identity=0 commits=0$/m);
+  assert.match(r.stdout, /^UNCLASSED 1$/m);
+});
+
+test('T-K6: a listed identity in a Co-authored-by trailer breaks the shape, so a pinned commit still blocks', (t) => {
+  const { dir, base, head } = setupOneCommit(t, (d) =>
+    commitPlain(d, `plain subject\n\nCo-authored-by: ${IDENTITY_NAME} <${IDENTITY_EMAIL}>`),
+  );
+  const r = scanKnown(dir, base, head, [head]);
+  assert.equal(r.code, 1);
+  assert.match(r.stdout, /^HIT 2 [0-9a-f]{12}:message email=1,name=1$/m);
+  assert.match(r.stdout, /^RESIDUAL known-public-identity=0 commits=0$/m);
+  assert.match(r.stdout, /^UNCLASSED 1$/m);
+});
+
+test('T-K7: a pinned commit that also carries another listed term still blocks', (t) => {
+  const { dir, base, head } = setupOneCommit(t, (d) => commitIdentity(d, `mentions ${TERM_ZORBLAX} in the message`));
+  const r = scanKnown(dir, base, head, [head]);
+  assert.equal(r.code, 1);
+  assert.match(r.stdout, /^UNCLASSED 1$/m);
+  assert.match(r.stdout, /^RESIDUAL known-public-identity=0 commits=0$/m);
+});
+
+test('T-K8: in a private history the class classifies nothing and the ordinary identity rule is unchanged', (t) => {
+  const { dir, base, head } = setupTwoCleanCommits(t);
+  const first = revParse(dir, `${head}~1`);
+  const r = runGuard(['scan', 'commits', `${base}..${head}`], { cwd: dir, knownPublicIdentity: [first, head] });
+  assert.equal(r.code, 0);
+  assert.match(r.stdout, /^RESIDUAL identity=8 commits=2 history=private$/m);
+  assert.match(r.stdout, /^RESIDUAL known-public-identity=0 commits=0$/m);
+  assert.match(r.stdout, /^UNCLASSED 0$/m);
+  assert.match(r.stdout, /^VERDICT pass$/m);
+});
+
+{
+  const VALID = 'b'.repeat(40);
+  const sentinel = 'ZorblaxIdentitySentinel';
+  const badEntries = [
+    ['39 hex characters', 'a'.repeat(39)],
+    ['41 hex characters', 'a'.repeat(41)],
+    ['uppercase', 'A'.repeat(40)],
+    ['a sha12', 'a'.repeat(12)],
+    ['a non-string', 12345],
+    ['a duplicate', VALID],
+    ['a string holding a sentinel', sentinel + 'a'.repeat(40 - sentinel.length)],
+  ];
+  for (const [label, bad] of badEntries) {
+    test(`T-K9: a malformed table (${label}) stops scan, release and pre-push with exit 2, an index and no output`, (t) => {
+      const { dir, base, head } = setupTwoCleanCommits(t);
+      const table = [VALID, bad];
+      const legs = [
+        [['scan', 'commits', `${base}..${head}`], {}],
+        [['release', base, head], {}],
+        [['pre-push', 'origin', 'https://example.invalid/repo.git'], { stdin: '' }],
+      ];
+      for (const [argv, extra] of legs) {
+        const r = runGuard(argv, { cwd: dir, publicRoot: base, knownPublicIdentity: table, ...extra });
+        assert.equal(r.code, 2, argv[0]);
+        assert.match(r.stderr, /^ERROR bad-residual kind=identity index=1$/m, argv[0]);
+        assert.equal(r.stdout, '', argv[0]);
+        assert.ok(!(r.stdout + r.stderr).toLowerCase().includes(sentinel.toLowerCase()), argv[0]);
+      }
+    });
+  }
+}
+
+function setupReleaseIdentityFixture(t) {
+  const dir = initRepo(t);
+  seedHygiene(dir);
+  configureLists(dir, writeLists(t));
+  commitPlain(dir, 'root');
+  const root = revParse(dir, 'HEAD');
+  commitIdentity(dir, 'first identity commit');
+  const first = revParse(dir, 'HEAD');
+  commitIdentity(dir, 'second identity commit');
+  const head = revParse(dir, 'HEAD');
+  return { dir, root, first, head };
+}
+
+test('T-K10: release and pre-push print the known-public line and pass only when both commits are pinned', (t) => {
+  const { dir, root, first, head } = setupReleaseIdentityFixture(t);
+
+  const a = runGuard(['release', root, head], { cwd: dir, publicRoot: root, knownPublicIdentity: [first, head] });
+  assert.equal(a.code, 0);
+  assert.match(a.stdout, /^RESIDUAL identity=8 commits=2 history=public$/m);
+  assert.match(a.stdout, /^RESIDUAL known-public-identity=8 commits=2$/m);
+  assert.match(a.stdout, /^PRIVATE commits unclassed=0$/m);
+  assert.match(a.stdout, /^PRIVATE tree unclassed=0$/m);
+  assert.match(a.stdout, /^VERDICT pass$/m);
+
+  const b = runGuard(['release', root, head], { cwd: dir, publicRoot: root, knownPublicIdentity: [] });
+  assert.equal(b.code, 1);
+  assert.match(b.stdout, /^RESIDUAL known-public-identity=0 commits=0$/m);
+  assert.match(b.stdout, /^PRIVATE commits unclassed=2$/m);
+  assert.match(b.stdout, /^VERDICT block$/m);
+
+  const c = runGuard(['pre-push', 'origin', 'https://example.invalid/repo.git'], {
+    cwd: dir,
+    stdin: pushLine(head, root),
+    publicRoot: root,
+    knownPublicIdentity: [first, head],
+  });
+  assert.equal(c.code, 0);
+  assert.match(c.stdout, /^RESIDUAL known-public-identity=8 commits=2$/m);
+  assert.match(c.stdout, /^VERDICT pass$/m);
+});
+
+// The real table. The sha12 list is copied from a source-guard log, never from the code.
+const KNOWN_PUBLIC_SHA12 = [
+  '1e1dadc730d1',
+  '2f2f724df918',
+  '41cb8e7eff27',
+  '53cddd8d9531',
+  '78c2863a9b1b',
+  '984e2513a2b7',
+  'b6e299b0492a',
+  'd76df9310ce6',
+  'e62987f118ea',
+  'e6d751e5efa9',
+];
+
+test('T-K11a: the real known-public table is frozen, has ten unique sorted full shas, and matches the logged sha12 list', () => {
+  const table = NAMED_KNOWN_PUBLIC_IDENTITY;
+  assert.ok(Array.isArray(table));
+  assert.equal(Object.isFrozen(table), true);
+  assert.equal(table.length, 10);
+  for (const s of table) assert.match(s, /^[0-9a-f]{40}$/);
+  assert.equal(new Set(table).size, 10);
+  assert.deepEqual([...table], [...table].sort());
+  assert.deepEqual(table.map((s) => s.slice(0, 12)).sort(), KNOWN_PUBLIC_SHA12);
+});
+
+test('T-K11b: each real known-public commit is reachable from HEAD and was committed by GitHub', (t) => {
+  const repoRoot = path.join(__dirname, '..');
+  const g = (args) => execFileSync('git', args, { cwd: repoRoot, stdio: 'pipe' }).toString('utf8').trim();
+  if (g(['rev-parse', '--is-shallow-repository']) === 'true') {
+    t.skip('shallow clone: commit objects unavailable');
+    return;
+  }
+  for (const s of NAMED_KNOWN_PUBLIC_IDENTITY) {
+    const tag = s.slice(0, 12);
+    assert.doesNotThrow(() => g(['cat-file', '-e', `${s}^{commit}`]), `commit object present: ${tag}`);
+    assert.doesNotThrow(() => g(['merge-base', '--is-ancestor', s, 'HEAD']), `reachable from HEAD: ${tag}`);
+    assert.ok(g(['log', '-1', '--format=%cn', s]) === 'GitHub', `committer name is not GitHub: ${tag}`);
+    assert.ok(g(['log', '-1', '--format=%ce', s]) === 'noreply@github.com', `committer email is not GitHub: ${tag}`);
+  }
 });

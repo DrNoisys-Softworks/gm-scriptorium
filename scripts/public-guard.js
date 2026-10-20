@@ -37,7 +37,13 @@
  * the WHOLE row -- a name hit anywhere else (e.g. the message body, T-S7) breaks the shape.
  * This residual is only ever ACCEPTED (excluded from UNCLASSED) when the repository's history
  * does not contain PUBLIC_ROOT (`history=private`); in a history that does contain it
- * (`history=public`) the same rows stay in UNCLASSED and block (T-S8). `font-binary` (Amendment
+ * (`history=public`) the same rows stay in UNCLASSED and block (T-S8), with one pinned exception.
+ * `known-public-identity` (NAMED_KNOWN_PUBLIC_IDENTITY / classifyKnownPublicIdentity) accepts an
+ * identity-shaped row in `history=public` only when its commit's full 40-hex sha is in that frozen
+ * table. It is counted on its own RESIDUAL line, while the identity line still counts every
+ * identity-shaped row. It is validated before any scan (`bad-residual kind=identity`), and the
+ * table grows only by an owner decision recorded at a release, never by a general rule for
+ * commits GitHub creates (ADR 0031, "Amendment: ten commits that are already public"). `font-binary` (Amendment
  * F, option (b), the owner's current default) is a second, independent residual class: see
  * NAMED_FONT_RESIDUAL below.
  *
@@ -153,6 +159,25 @@ const NAMED_IMAGE_RESIDUAL = Object.freeze([
 // against: "examplesX/" is not under "examples/" even though it shares the string prefix --
 // T-I3's examplesX/ case, mutation Ib3).
 const IMAGE_RESIDUAL_ROOTS = Object.freeze(['examples', 'docs/images']);
+
+// Commits GitHub created when merging pull requests. They are already public, and the author or
+// committer line of each carries an identity the private lists flag. A `<sha12>:message` row is
+// accepted here only in history=public, only when the commit's full sha is in this table, and only
+// with the identity-only shape (isIdentityOnly). The table grows only by an owner decision
+// recorded at a release, never by a general rule. See docs/decisions/0031-public-repo-privacy-guard.md,
+// "Amendment: ten commits that are already public".
+const NAMED_KNOWN_PUBLIC_IDENTITY = Object.freeze([
+  '1e1dadc730d12ef6b22cd8e80663dec6caeee7c1',
+  '2f2f724df918e12c8bf2fd699f42215d26969733',
+  '41cb8e7eff27f2dcf953cdfce88130cf463b70d0',
+  '53cddd8d953105a72c7a7d31137c9b4bc9c8f545',
+  '78c2863a9b1b4984bfda1f160b445e06311cca73',
+  '984e2513a2b74e8d1bcb66d55c243c16c7af362f',
+  'b6e299b0492a617c4ab86b33755b9fb2f491995e',
+  'd76df9310ce69e1b3b8e0498e8d546a7b5ba7390',
+  'e62987f118eabace167fec488055b1e3bde665ec',
+  'e6d751e5efa9a31c40ca8a38f8fec60af52930ac',
+]);
 
 // Amendment V, V.1 (SD-V2): the vendored generator release tarball's directory. Unlike
 // NAMED_FONT_RESIDUAL/NAMED_IMAGE_RESIDUAL there is no literal path-to-sha256 table here: the
@@ -613,6 +638,26 @@ function firstInvalidImageResidualIndex(table) {
 }
 
 /**
+ * The known-public identity table is valid when it is an array of unique, lowercase, 40-hex
+ * strings. Returns the first bad index or -1. Never returns or logs an entry.
+ */
+function firstInvalidKnownPublicIdentityIndex(table) {
+  if (!Array.isArray(table)) return 0;
+  const seen = new Set();
+  for (let i = 0; i < table.length; i++) {
+    const s = table[i];
+    if (typeof s !== 'string' || !/^[0-9a-f]{40}$/.test(s) || seen.has(s)) return i;
+    seen.add(s);
+  }
+  return -1;
+}
+
+function assertKnownPublicIdentityValid(table) {
+  const bad = firstInvalidKnownPublicIdentityIndex(table);
+  if (bad !== -1) throw new GuardError('bad-residual', { kind: 'identity', index: bad });
+}
+
+/**
  * A.3's classifier, sharing `classifyPinnedBlobs` with the font class (same table-to-Map, same
  * exact-path/exact-sha gate, same tree/commits-only scope) plus one thing font-binary doesn't
  * need: `accept` is a magic-byte signature check (OF-6 option (ii)'s whole point: a pinned
@@ -715,6 +760,33 @@ function classifyIdentity({ mode, hitRows, classified, cwd, env, matcher, histor
     hits += row.count;
     commits += 1;
     if (history === 'private') classified.add(idx);
+  });
+  return { hits, commits };
+}
+
+/**
+ * The pinned exception to the history=public identity rule: accepts an identity-shaped message
+ * row only when the commit's full sha is in `knownPublicIdentity` and the commit passes
+ * isIdentityOnly. Membership is on all 40 characters, never a prefix. An empty table classifies
+ * nothing, with no early return needed.
+ */
+function classifyKnownPublicIdentity({ mode, hitRows, classified, cwd, env, matcher, history, shaMap, knownPublicIdentity }) {
+  if (mode !== 'commits' || history !== 'public' || !shaMap) return { hits: 0, commits: 0 };
+  const table = new Set(knownPublicIdentity || []);
+  let hits = 0;
+  let commits = 0;
+  hitRows.forEach((row, idx) => {
+    if (classified.has(idx)) return;
+    const m = /^([0-9a-f]{12}):message$/.exec(row.label);
+    if (!m) return;
+    const fullSha = shaMap.get(m[1]);
+    if (!fullSha || !table.has(fullSha)) return;
+    const res = git(['cat-file', 'commit', fullSha], cwd, env);
+    if (res.status !== 0) return;
+    if (!isIdentityOnly(res.stdout.toString('utf8'), row.byCategory, matcher)) return;
+    hits += row.count;
+    commits += 1;
+    classified.add(idx);
   });
   return { hits, commits };
 }
@@ -834,9 +906,9 @@ function runStructuralChecks({ cwd, env, rev, publicRoot, stdout, stderr, scanRu
  * `--baseline` out of every guard mode). Shared by `pre-push` (one call per non-deleted pushed
  * ref) and `release` (one call, `<from-rev>..<to-rev>` plus `<to-rev>`'s tree).
  */
-function runPrivateRange({ cwd, env, lists, scanRun, publicRoot, fontResidual, imageResidual, commitsRest, treeRev, stdout, stderr }) {
+function runPrivateRange({ cwd, env, lists, scanRun, publicRoot, fontResidual, imageResidual, knownPublicIdentity, commitsRest, treeRev, stdout, stderr }) {
   const strippedEnv = stripDenylistEnv(env);
-  const scanOpts = { cwd, env, strippedEnv, match: 'word', lines: false, lists, scanRun, publicRoot, fontResidual, imageResidual };
+  const scanOpts = { cwd, env, strippedEnv, match: 'word', lines: false, lists, scanRun, publicRoot, fontResidual, imageResidual, knownPublicIdentity };
 
   const commitsResult = runOneScan({ ...scanOpts, mode: 'commits', rest: commitsRest });
   stdout.write(commitsResult.scannerStdout.text());
@@ -845,6 +917,7 @@ function runPrivateRange({ cwd, env, lists, scanRun, publicRoot, fontResidual, i
   stdout.write(
     `RESIDUAL identity=${commitsResult.identityResult.hits} commits=${commitsResult.identityResult.commits} history=${commitsResult.history}\n`,
   );
+  stdout.write(`RESIDUAL known-public-identity=${commitsResult.knownPublicResult.hits} commits=${commitsResult.knownPublicResult.commits}\n`);
   stdout.write(`RESIDUAL font-binary=${commitsResult.fontResult.hits} files=${commitsResult.fontResult.files}\n`);
   stdout.write(`RESIDUAL image-binary=${commitsResult.imageResult.hits} files=${commitsResult.imageResult.files}\n`);
   stdout.write(`RESIDUAL vendor-binary=${commitsResult.vendorResult.hits} files=${commitsResult.vendorResult.files}\n`);
@@ -901,9 +974,10 @@ function prePushRangeState(cwd, env, commitsRest) {
  * need no private list at all, which is the whole point of Run B; only check (e) (Run A) is
  * gated on lists being configured.
  */
-function runPrePush(rest, { cwd, env, stdin, stdout, stderr, publicRoot, scanRun, fontResidual, imageResidual }) {
+function runPrePush(rest, { cwd, env, stdin, stdout, stderr, publicRoot, scanRun, fontResidual, imageResidual, knownPublicIdentity }) {
   const remote = rest[0];
   if (!remote) throw new GuardError('usage');
+  assertKnownPublicIdentityValid(knownPublicIdentity);
 
   let lists = null;
   let skipped = false;
@@ -945,7 +1019,7 @@ function runPrePush(rest, { cwd, env, stdin, stdout, stderr, publicRoot, scanRun
         nothingNew = true; // everything this ref points at is already on the remote.
         continue;
       }
-      const priv = runPrivateRange({ cwd, env, lists, scanRun, publicRoot, fontResidual, imageResidual, commitsRest, treeRev: localOid, stdout, stderr });
+      const priv = runPrivateRange({ cwd, env, lists, scanRun, publicRoot, fontResidual, imageResidual, knownPublicIdentity, commitsRest, treeRev: localOid, stdout, stderr });
       if (priv.blocked) {
         blocked = true;
         break;
@@ -978,8 +1052,9 @@ function runCi(rest, { cwd, env, stdout, stderr, publicRoot, scanRun, fontResidu
  * unconditionally (never keyed to `requireLists`, unlike `pre-push`) and exits 2 `no-lists`
  * without them (SD-4's own words: "requires them and exits 2 without").
  */
-function runRelease(rest, { cwd, env, stdout, stderr, publicRoot, scanRun, fontResidual, imageResidual }) {
+function runRelease(rest, { cwd, env, stdout, stderr, publicRoot, scanRun, fontResidual, imageResidual, knownPublicIdentity }) {
   if (rest.length < 1 || rest.length > 2) throw new GuardError('usage');
+  assertKnownPublicIdentityValid(knownPublicIdentity);
   const fromRev = rest[0];
   const toRev = rest[1] || 'HEAD';
 
@@ -1008,6 +1083,7 @@ function runRelease(rest, { cwd, env, stdout, stderr, publicRoot, scanRun, fontR
     publicRoot,
     fontResidual,
     imageResidual,
+    knownPublicIdentity,
     commitsRest: [`${fromRev}..${toRev}`],
     treeRev: toRev,
     stdout,
@@ -1043,7 +1119,7 @@ function buildTreeRest(revArg, pathspecArgs) {
  * scanner/RESIDUAL/UNCLASSED detail is never printed -- SD-V3: "without printing that scanner
  * output" -- only its `unclassed` count surfaces, on the `BASELINE` line).
  */
-function runOneScan({ cwd, env, strippedEnv, mode, rest, match, lines, lists, listPaths, matcherEntries, scanRun, publicRoot, fontResidual, imageResidual }) {
+function runOneScan({ cwd, env, strippedEnv, mode, rest, match, lines, lists, listPaths, matcherEntries, scanRun, publicRoot, fontResidual, imageResidual, knownPublicIdentity }) {
   let shas = null;
   let shaMap = null;
   if (mode === 'commits') {
@@ -1093,9 +1169,11 @@ function runOneScan({ cwd, env, strippedEnv, mode, rest, match, lines, lists, li
 
   let history = null;
   let identityResult = { hits: 0, commits: 0 };
+  let knownPublicResult = { hits: 0, commits: 0 };
   if (mode === 'commits') {
     history = computeHistory(cwd, env, publicRoot);
     identityResult = classifyIdentity({ mode, hitRows, classified, cwd, env, matcher, history, shaMap });
+    knownPublicResult = classifyKnownPublicIdentity({ mode, hitRows, classified, cwd, env, matcher, history, shaMap, knownPublicIdentity });
   }
 
   const fontResult = classifyFontBinary({ mode, hitRows, classified, cwd, env, rest, shaMap, fontResidual });
@@ -1110,6 +1188,7 @@ function runOneScan({ cwd, env, strippedEnv, mode, rest, match, lines, lists, li
     scannerStderr,
     history,
     identityResult,
+    knownPublicResult,
     fontResult,
     imageResult,
     vendorResult,
@@ -1118,7 +1197,7 @@ function runOneScan({ cwd, env, strippedEnv, mode, rest, match, lines, lists, li
   };
 }
 
-function runScanMode(argvRest, { cwd, env, stdout, stderr, publicRoot, scanRun, fontResidual, imageResidual }) {
+function runScanMode(argvRest, { cwd, env, stdout, stderr, publicRoot, scanRun, fontResidual, imageResidual, knownPublicIdentity }) {
   if (argvRest.includes('--terms') || argvRest.includes('--patterns') || argvRest.includes('--allow')) {
     throw new GuardError('usage');
   }
@@ -1129,6 +1208,7 @@ function runScanMode(argvRest, { cwd, env, stdout, stderr, publicRoot, scanRun, 
     const badIndex = firstInvalidImageResidualIndex(imageResidual);
     if (badIndex !== -1) throw new GuardError('bad-residual', { kind: 'image', index: badIndex });
   }
+  assertKnownPublicIdentityValid(knownPublicIdentity);
 
   let i = 0;
   let match = 'word';
@@ -1174,7 +1254,7 @@ function runScanMode(argvRest, { cwd, env, stdout, stderr, publicRoot, scanRun, 
   // SD-V3: "The lists are loaded once. The same lists, match mode and pathspec are used for
   // both revs" -- `scanOpts` is the one options object both `runOneScan` calls below share;
   // only `rest` (which carries the rev) differs between them.
-  const scanOpts = { cwd, env, strippedEnv, match, lines, lists, scanRun, publicRoot, fontResidual, imageResidual };
+  const scanOpts = { cwd, env, strippedEnv, match, lines, lists, scanRun, publicRoot, fontResidual, imageResidual, knownPublicIdentity };
 
   let baselineResult = null;
   if (baseline !== undefined) {
@@ -1193,10 +1273,11 @@ function runScanMode(argvRest, { cwd, env, stdout, stderr, publicRoot, scanRun, 
 
   if (candidateResult.scanExit === 2) return 2;
 
-  const { history, identityResult, fontResult, imageResult, vendorResult, unclassedCount } = candidateResult;
+  const { history, identityResult, knownPublicResult, fontResult, imageResult, vendorResult, unclassedCount } = candidateResult;
 
   if (mode === 'commits') {
     stdout.write(`RESIDUAL identity=${identityResult.hits} commits=${identityResult.commits} history=${history}\n`);
+    stdout.write(`RESIDUAL known-public-identity=${knownPublicResult.hits} commits=${knownPublicResult.commits}\n`);
   }
   if (mode === 'tree' || mode === 'commits') {
     stdout.write(`RESIDUAL font-binary=${fontResult.hits} files=${fontResult.files}\n`);
@@ -1241,7 +1322,7 @@ function runScanMode(argvRest, { cwd, env, stdout, stderr, publicRoot, scanRun, 
 
 /**
  * @param {string[]} argv
- * @param {{ cwd: string, env: object, stdin?: string, stdout: {write:Function}, stderr: {write:Function}, publicRoot?: string, scanRun?: Function, fontResidual?: object[], imageResidual?: object[] }} opts
+ * @param {{ cwd: string, env: object, stdin?: string, stdout: {write:Function}, stderr: {write:Function}, publicRoot?: string, scanRun?: Function, fontResidual?: object[], imageResidual?: object[], knownPublicIdentity?: string[] }} opts
  * @returns {number}
  */
 function run(
@@ -1256,15 +1337,16 @@ function run(
     scanRun = denylistScan.run,
     fontResidual = NAMED_FONT_RESIDUAL,
     imageResidual = NAMED_IMAGE_RESIDUAL,
+    knownPublicIdentity = NAMED_KNOWN_PUBLIC_IDENTITY,
   },
 ) {
   try {
     const mode = argv[0];
     if (mode === 'check-allow') return runCheckAllow(argv.slice(1), { cwd, env, stdout, stderr });
-    if (mode === 'pre-push') return runPrePush(argv.slice(1), { cwd, env, stdin, stdout, stderr, publicRoot, scanRun, fontResidual, imageResidual });
+    if (mode === 'pre-push') return runPrePush(argv.slice(1), { cwd, env, stdin, stdout, stderr, publicRoot, scanRun, fontResidual, imageResidual, knownPublicIdentity });
     if (mode === 'ci') return runCi(argv.slice(1), { cwd, env, stdout, stderr, publicRoot, scanRun, fontResidual, imageResidual });
-    if (mode === 'release') return runRelease(argv.slice(1), { cwd, env, stdout, stderr, publicRoot, scanRun, fontResidual, imageResidual });
-    if (mode === 'scan') return runScanMode(argv.slice(1), { cwd, env, stdout, stderr, publicRoot, scanRun, fontResidual, imageResidual });
+    if (mode === 'release') return runRelease(argv.slice(1), { cwd, env, stdout, stderr, publicRoot, scanRun, fontResidual, imageResidual, knownPublicIdentity });
+    if (mode === 'scan') return runScanMode(argv.slice(1), { cwd, env, stdout, stderr, publicRoot, scanRun, fontResidual, imageResidual, knownPublicIdentity });
     throw new GuardError('usage');
   } catch (err) {
     return emitError(err, stderr);
@@ -1298,6 +1380,7 @@ module.exports = {
   LIST_FILE_NAMES,
   NAMED_FONT_RESIDUAL,
   NAMED_IMAGE_RESIDUAL,
+  NAMED_KNOWN_PUBLIC_IDENTITY,
   IMAGE_RESIDUAL_ROOTS,
   VENDOR_PIN_DIR,
   deriveVendorEntry,
