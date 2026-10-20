@@ -44,7 +44,7 @@ To hide a field on one page only, list it in that page's `publish_exclude_fields
 
 ## Hide a relationship
 
-A relationship between two pages is an entry under `relationships:` in the page's frontmatter. Add `gm_only: true` to an entry and it is left out of the built site, while the page itself still publishes. The sample's Ottoline Pardew page uses this on every relationship.
+A relationship between two pages is an entry under `relationships:` in the page's frontmatter. Add `gm_only: true` to an entry and it is left out of the built site, while the page itself still publishes. The sample's Ottoline Pardew page uses this on every relationship. Write it exactly as `gm_only: true`: any other value, such as `yes`, `on` or `"True"`, leaves the relationship on the site, and `check` reports it.
 
 ## Keep a name from appearing anywhere
 
