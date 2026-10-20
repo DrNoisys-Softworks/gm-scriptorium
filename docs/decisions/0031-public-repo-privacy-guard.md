@@ -82,7 +82,8 @@ a release never use that shortcut: those always check everything, every time.
 ## Will catch
 
 - A maintainer's own name or email address appearing in a commit's author or committer line,
-  anywhere in this repository's history.
+  anywhere in this repository's history. The one exception is the ten already-public commits in
+  "Amendment: ten commits that are already public".
 - A path under a private planning folder, or a maintainer's personal settings file, in any pushed
   change.
 - A personal home-directory path, a private network address, or a personal email address, in any
@@ -217,3 +218,22 @@ this way.
 
 **Rejected alternative.** Skipping the scan when the branch has any upstream. That would also skip
 commits that really are new.
+
+## Amendment: ten commits that are already public
+
+**What changed.** Ten earlier commits that GitHub created when merging pull requests carry an identity the private lists flag, in their author line. The guard now accepts that one kind of hit on those ten commits only, each named in the guard by its full commit hash. It reports them on their own line, `RESIDUAL known-public-identity=<hits> commits=<n>`, next to the identity line, which still counts every identity hit.
+
+**Why.** These commits are already public, and rewriting published history would break every existing clone and fork. GitHub creates a merge commit on its own servers, so no pre-push hook ever sees it, and continuous integration has no private lists. The release check is the only place these commits are seen. Without this exception, every release whose range includes them would block on hits nobody can now fix.
+
+**The limits.**
+
+- A commit is accepted only when its full 40-character hash is in the list. A short hash or a prefix never matches.
+- Only name and email hits on the author and committer lines are accepted. A name in the message body or in a trailer such as `Co-authored-by:`, or any other private word anywhere in the commit, still blocks.
+- It applies only in this repository's public history. A private history uses the ordinary identity rule, as before.
+- The list grows only by a maintainer decision made at a release and written down with it. A new commit with the same problem blocks the release, exactly as before.
+- A malformed entry (not 40 lowercase hex characters, or a repeat) stops the guard with `ERROR bad-residual kind=identity` and the entry's position, never its value, before anything is scanned.
+
+**Rejected alternatives.**
+
+- Allowing the flagged identity through everywhere. That would hide it in every file and every commit from then on, not only in these ten.
+- A general rule accepting identity-only hits on any commit GitHub creates. Those are exactly the commits no hook sees, so the rule would hide the first thing this guard is meant to catch, on every future merge.
