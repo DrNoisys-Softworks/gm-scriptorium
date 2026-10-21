@@ -2584,6 +2584,18 @@ Also re-run C145 step 3. C151 step 2 stays with the owner.
 3. Change the update channel to Beta and back to Stable. The cards stay where they are.
 4. Choose Check for updates from the tray. It lands as in C207, and "This PC's addresses" is below the card.
 
+### C215: keyboard focus is never hidden under the narrow window's bars, in a real Windows browser
+
+Issue #178, [ADR 0070](../docs/decisions/0070-focus-not-hidden-by-bars.md). **Mark this OPEN: Linux tests drive the panel in real Chromium and Firefox at fixed window sizes; only a real Windows browser, a real narrow window, real 200% zoom and the real fonts can be checked here.** The rules in "C190 to C205: rules that hold for every desktop-app criterion" apply: a scratch `SCRIPTORIUM_CONFIG` set with `setx`, then sign out and in. Never the real config, never `N:`.
+
+1. Open the panel from the tray in Edge and make the window about 400 pixels wide and 600 high. On Title, press Tab from the top of the page until "Site title" has focus. Some of the box is on screen between the top bar and the unsaved-changes strip.
+2. Keep pressing Tab to the end of Title, then do the same on Vocabulary and Images. No focused control is ever entirely under the top bar, the unsaved-changes strip or the bottom bar.
+3. On Overview, press Shift+Tab from the bottom of the page up to "Edit title and tagline". No focused control is ever entirely under the top bar.
+4. Set the window to 1280 wide and Edge's zoom to 200%. Repeat steps 1 to 3.
+5. At 100% zoom and a wide window, Tab through Title. The page scrolls as it did before this change.
+
+Also re-run C207 steps 1 and 2.
+
 ### C170: a bare `--force` is refused with one line, in the real win-x64 exe
 
 Issue #15, [ADR 0055](../docs/decisions/0055-force-split.md). **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match. Use a scratch copy of the-long-lease example vault, registered as campaign `c170` with an output folder `S\out` that does not exist.
