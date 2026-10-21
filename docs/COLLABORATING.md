@@ -462,6 +462,7 @@ generic test failure:
 - `test/update-module-graph.test.js`, unrelated to the generator pin (it guards `src/update/*`
   against acquiring a network call or a build-tree dependency); listed here only so it isn't
   mistaken for one when scanning `test/*module-graph*`.
+- `test/dataview-withheld.test.js`, a real build of a copy of the sample campaign with dataview blocks: no query text reaches the search index, "Mentioned in", the recaps or any other file, and pages are unchanged. At `publish-v1.14.0` the generator's search, backlink and recap text keeps dataview blocks, so the build's read shim removes them (ADR 0044, addendum on dataview blocks). From `publish-v1.16.0` the generator removes them itself, and this test shows whether the shim entry can go.
 
 ## Compatibility hotspots
 

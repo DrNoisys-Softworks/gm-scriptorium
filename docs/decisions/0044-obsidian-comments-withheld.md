@@ -103,3 +103,48 @@ timeline and connections pages carry. Those islands are now searched, and an isl
 parsed is an error. This replaces the "outside `<script>`" scope for JSON islands only; other
 `<script>` and `<style>` content is still left out. See
 [ADR 0045](0045-leak-checks-read-rendered-headings-and-data-islands.md).
+
+## Addendum: dataview blocks (issue 202)
+
+Status: accepted.
+
+What changed for a GM. A Dataview query in a published page was already hidden on the page. But
+the words in it were still written into `search-index.json`, which anyone can download from a
+player site, and a `[[link]]` inside a query added a "Mentioned in" entry. A query in a session
+recap could also show up as a code block on the landing page. The build now removes dataview blocks
+(`dataview` and `dataviewjs`) before the generator reads a note, so none of that happens, and no
+page changes.
+
+The decision. At the pinned generator (publish-v1.14.0) the text it uses for search, "Mentioned in",
+recency and the recaps keeps dataview blocks, while the page render strips them. The build's read
+shim (section 3) gets a second transform, `stripDataviewBlocks` in `src/vault/dataview.js`, after
+the comment strip. `check` already strips in this same sequence. The new transform calls the pin's own `stripDataview`,
+so there is no pattern of our own to drift. Two rules keep it narrow:
+
+- A note's frontmatter is returned byte for byte. It is found with the same rule the comment strip
+  uses (section 4) and split by character offset, so line endings come back exact.
+- `_meta/publish-manifest.md` is left alone. The generator reads the manifest line by line, so
+  removing a fence that holds an `## Excluded` heading would move the entries below it into
+  Publishing for the build but not for `check`. To tell the manifest apart, the shim now hands each
+  transform the file path as a second argument. The comment strip ignores it.
+
+Rejected alternatives:
+
+- Wait for the repin. From publish-v1.16.0 the generator strips dataview first in that text. The
+  real-build test (`test/dataview-withheld.test.js`) is what will say whether the shim entry can go.
+- A `check` notice only. It would tell the GM but still publish the words.
+- Post-processing `search-index.json`. It would leave "Mentioned in" and the recaps as they are.
+- A hand-copied pattern. It would drift from the pin.
+- An output-gate scan for query text. It cannot tell which query words are secret, and the
+  real-build test catches a regression at a repin.
+- Stripping the manifest too. The build's published set would differ from `check`'s, which is a
+  leak path we would cause ourselves.
+
+Residuals:
+
+- The strip does not keep line counts, so a generator warning's line number after a block can shift.
+- A frontmatter block closed by `...` is accepted by the frontmatter rule used here, and gray-matter
+  may not accept it.
+- A nested `_meta/publish-manifest.md` is also skipped.
+- A `%%` in the manifest is still removed by the comment strip, as before.
+- Nothing here is proven on win-x64.
