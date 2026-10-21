@@ -85,6 +85,14 @@ Each of the three affected steps below says to compare "normalised."
 | 3 | VAULT_UNREACHABLE | Vault path missing, or reachable but not a vault |
 | 4 | UPDATE_PREREQUISITE | `gh` absent/unauthenticated, or a 404 from the release lookup indistinguishable from "no release" |
 
+*Changed 2026-10-21: the `gh` wording in row 4 applies to exes older than 0.5.0. From 0.5.0, code 4 means GitHub could not be reached, rate limited the request or answered in a way `update` will not follow, or the release lookup got a 404 that cannot be told apart from "no such release" (`src/util/exitcodes.js`).*
+
+*Changed 2026-10-21: how to read an exit code on Windows. This applies wherever a step reads `%ERRORLEVEL%`, for example C133, C134, C154 and C197.*
+
+- In cmd, read `%ERRORLEVEL%` in its own command, after the exe has finished. On the same line as the exe, cmd expands it before the exe runs, so it shows the code from before.
+- In a cmd script, start cmd with `cmd /v:on` and read `!ERRORLEVEL!`, which is expanded when the line runs.
+- In PowerShell, `$LASTEXITCODE` right after running the exe directly gives its code. `Start-Process -PassThru -NoNewWindow` reports no `ExitCode` unless `$p.Handle` is read right after the start, for example `$p = Start-Process <exe> -ArgumentList <args> -PassThru -NoNewWindow; $null = $p.Handle; $p.WaitForExit(); $p.ExitCode`.
+
 ## Criteria to verify
 
 ### C1: the .exe runs on a machine with no Node installed
@@ -229,16 +237,36 @@ GitHub account. Releases `v0.1.0` and `v0.1.1` exist (published by the
 orchestrator) specifically for this test flow: install the `v0.1.0` exe from its release, then run
 `update --check` and `update` against it to confirm it offers and applies the upgrade to `v0.1.1`.
 
+*Changed 2026-10-21: v0.1.0 and v0.1.1 above were the first test pair and are not the releases to use now. Install the previous release's exe and update it to the release under test.*
+
+*Changed 2026-10-21: what the machine needs depends on the exe that runs `update`, not the release it updates to. An exe older than 0.5.0 still calls `gh`: it needs `gh` on PATH, and either `gh` signed in or `SCRIPTORIUM_GITHUB_TOKEN` set. A token alone is not enough, because the old exe hands the token to `gh` (ADR 0004; ADR 0030, addendum "`update` no longer uses `gh`"). A 0.5.0 or later exe needs neither (C148). The same applies to C46 and C65.*
+
 - **C22**: `update --check` against a newer release reports the upgrade (old version, new tag, release
   notes URL) and changes nothing (confirm no file under the exe's directory changed, hash before/after).
 - **C23**: `update` (no `--check`) actually upgrades. Confirm `--version` afterwards reports the new
   version, and confirm the rename-then-swap left a `scriptorium.exe.old-<oldversion>` file
   (`src/update/replace.js`), and that the **next** `update` invocation swept it away
   (`sweepOldExecutables`, called at the top of `runUpdateCommand` on every invocation).
+  *Changed 2026-10-21: when an exe older than 0.5.0 runs the update, it replaces `gm-scriptorium.exe` only, never the tray helper, even on an installed copy. Tray replacement is checked in C201.*
 - **C24**: deliberately corrupt a downloaded asset (truncate it, or swap in a different file with the
   same name before the checksum check runs) and confirm `update` fails cleanly, exit code 1, with the
   original binary intact and still runnable. Never confirm success without checking the OLD binary
   still executes correctly, not just that a new file did not appear.
+  *Changed 2026-10-21: a repeatable way to corrupt the download, and how to record a lost race. Run `update` from a portable copy of the older exe in a scratch folder with no `gm-scriptorium-tray.exe` beside it, so only one asset is downloaded, and keep a spare copy of that exe and of any notices file beside it. In the console that will run `update`, set `TEMP` and `TMP` to an empty scratch folder T (in cmd, `set TEMP=T` and `set TMP=T`). The download folder is then made as `T\scriptorium-update-*`, and the orphan check below looks in T, not `%TEMP%`. In a second window start this PowerShell loop, with `$t` set to T, then run `update` in the first window. The loop truncates the downloaded asset once it holds any bytes:*
+
+  ```
+  $t = 'T'
+  :poll while ($true) {
+    foreach ($a in Get-ChildItem "$t\scriptorium-update-*\*.exe" -ErrorAction SilentlyContinue) {
+      if ($a.Length -gt 0) {
+        try { $f = [IO.File]::Open($a.FullName, 'Open', 'ReadWrite', 'ReadWrite'); $f.SetLength(0); $f.Close(); "truncated $($a.Name)"; break poll } catch { }
+      }
+    }
+    Start-Sleep -Milliseconds 5
+  }
+  ```
+
+  *A hit is the loop printing `truncated` and `update` exiting 1 with a message containing `checksum mismatch for <asset>`. Then do the old-binary checks above and the orphan and notices checks below. Try at most 5 times. A try is lost when the loop prints nothing, or `update` succeeds or fails some other way. After a lost try that replaced the exe, put the spare copies back before the next try. If no try hits, record C24 as "not provoked", with the number of tries and what each lost try did. That is not a FAIL, and C24 stays OPEN.*
   - **Issue #24 orphan check, class 1 and 2 (`src/update/replace.js`'s `sweepStaleUpdateDirs` /
     `sweepStaleStagedExecutables`, called from `runUpdateCommand` alongside `sweepOldExecutables`):**
     after the corrupted-asset failure above, confirm **no** directory matching
@@ -285,6 +313,7 @@ orchestrator) specifically for this test flow: install the `v0.1.0` exe from its
     location); unverified whether Windows Explorer or antivirus holding a handle on the notices file
     behaves the same as the simulated `EBUSY` AC-26-06 exercises.
     *Changed 2026-10-12: once the `--version` notices change lands (issue #49), `--version` no longer writes `THIRD-PARTY-NOTICES.txt`, so "run `scriptorium --version` once and confirm the file reappears" no longer describes the program. After `update` the file stays gone; the way to get the text is `--notices`. This step and AC-26-08 below are checked through C156 instead.*
+    *Changed 2026-10-21: an exe older than 0.5.0 names `--version` in its success message, as written above; accept that. A 0.5.0 or later exe names `--notices`, and only when it cleared a notices file.*
   - **AC-26-08 `[WINDOWS-ONLY, OPEN]`, not attempted:** the same sequence above (old stamp -> gone after
     `update` -> new stamp after the next `--version`) run end-to-end on the real install, not a scratch
     directory, as the final confirmation that the mechanism holds outside the test harness.
@@ -888,6 +917,7 @@ Setup as in C40, with campaign `c42` and output `S\out`.
    never reaches the staged tree -- pinning this exact fixture assumption so it cannot silently drift back.
 
    *Note (2026-10-12, ADR 0055): from this version `--force` exits 1 with a one-line message, so step 6 runs `build c42 --force-out --force-check` (both flags, to show that neither overrides the refusal). The expected exit 2, the `build/gm-link-marker` lines and the unchanged hashes are as written.*
+   *Changed 2026-10-21: use the `S\panel vault` copy of `vocab-vault` from the C40 setup, as above. On another vault, such as the-long-lease, the appended line can land in a section that does not publish, and the step gives a false pass. `test/gm-link-gate.test.js` pins that `Episodes\Episode-01.md` in `vocab-vault` publishes its body.*
 
 ### C43: `assertSafeOutputDir`'s containment (prefix) checks catch a case-different or symlinked output dir on real Windows, not just a `process.platform`-forced Linux test
 
@@ -1009,6 +1039,7 @@ Isolate config throughout: `SCRIPTORIUM_CONFIG` set to a scratch TOML, and the s
    point at `--pre`, and contain neither "update available" nor the word "updated".
 2. Same exe, same comparison, now `update --config <scratch>` (no `--check`): same refusal wording,
    exit 0, and re-hash the exe afterward -- it must be byte-identical to step 1's hash (nothing written).
+   *Changed 2026-10-21: while no stable release is published at all (only prereleases), steps 1 and 2 exit 4, not 0. From 0.5.0 the message is exactly ``No stable release yet. The newest prerelease is <tag>; run `gm-scriptorium update --pre` to get prereleases.`` From an exe older than 0.5.0, which uses `gh`, expect exit 4 with the `gh` 404 message that names the public repository's releases page (see the prerequisites note under C22-C25). In both cases the output contains neither "update available" nor the word "updated", and the exe's hash is unchanged from step 1. Once a stable release exists, the exit 0 wording above applies. The program is right here (issue #51).*
 3. Same exe, `update --pre --config <scratch>`. If nothing published (stable or prerelease) beats the
    running version, the message must say so without suggesting `--pre` again (already used), exit 0,
    hash unchanged from step 1.
@@ -1518,6 +1549,8 @@ Linux-verified only.**
 
 Note: the `gh` wording in this criterion applies to old binaries only. From 0.5.0, `update` needs no `gh` and no token (see C148).
 
+*Changed 2026-10-21: for what an exe older than 0.5.0 needs on the machine (`gh` on PATH, plus `gh` signed in or a token), see the prerequisites note under C22-C25.*
+
 `docs/decisions/0030-public-repo-and-update-source.md`: GM-Scriptorium's `update` source is now
 the public repository, the release assets are `gm-scriptorium-win-x64.exe` and
 `gm-scriptorium-linux-x64`, the CLI's help and user-facing hints say "gm-scriptorium", and a built
@@ -1958,6 +1991,7 @@ ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux pac
 3. Parity. In folder T, make the same copy and run `init --yes --name lease --vault T\vault --config T\config.toml`. `certutil -hashfile` of `pack.toml` and `vault.config.json` gives the same value in both folders. The two `config.toml` files differ only in the vault and output paths.
 4. Network share. Share a folder holding a fresh copy, or use `\\localhost\scratch\...`. Typing the path shows nothing until you leave the box. Then the network-share warning shows with the two git commands. Continue works, and the review shows the network share pill.
    *Changed 2026-10-12: `\\localhost\scratch\...` replaces `\\localhost\C$\...`, which a standard user cannot open. Share the scratch folder as `scratch` first, as in C137 step 4.*
+   *Changed 2026-10-21: make the `scratch` share with the command in C137 step 4's 2026-10-21 note, so the standard user can write to it.*
 5. Map `Z:` to a share, disconnect it, and type `Z:\vault`: "Can't find that folder" shows, with the mapped-drive hint in the grey rule line. Type `\\no-such-host-scriptorium\share\vault` and leave the box. The panel keeps answering (switch screens), and the field reports that it can't reach the folder within a few seconds.
 6. An output folder inside the vault (`S\vault\site`) is refused with `refusing to build inside the vault: ...`, and Continue stays off.
 7. Ctrl-C: `stopped.`, exit 0, and no `scriptorium-preview-*` folder left in `%TEMP%`. Run the same command again: the campaign panel opens, not setup. `/setup` redirects to the Overview. The welcome shows until dismissed; dismiss it, restart, and it's gone.
@@ -1967,13 +2001,15 @@ ADR 0045. **Mark this OPEN: verified on Linux from source and from the Linux pac
 
 `docs/decisions/0048-new-campaign-vault.md`, sections 1, 2 and 5. **Mark this OPEN: verified on Linux from source and from the Linux packaged binary only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 6; the two must match. Work in a local scratch folder S.
 
-1. Run `init --yes --name fresh --new-vault "S\Fresh Campaign" --system none --config S\cfg\config.toml`. It exits 0. The vault has `Factions & Organizations` and `Items & Artifacts`, and `_meta\NOTICE.txt`. Hash `_meta\entity-types.md` with `certutil`; it must match the value recorded in the pull request. Then run `build fresh` and `serve fresh`: the landing page shows the title and the welcome page. Run it again with `--name second --new-vault "S\Games\Fantasy\Second"`: the two folders above it are created level by level, and the output lists them.
+1. Run `init --yes --name fresh --new-vault "S\Fresh Campaign" --system none --config S\cfg\config.toml`. It exits 0. The vault has `Factions & Organizations` and `Items & Artifacts`, and `_meta\NOTICE.txt`. Hash `_meta\entity-types.md` with `certutil`; it must match, ignoring case, the `sha256` that `assets/vault-template/manifest.json` records for `_meta/entity-types.md` in its `parity` entries for system `none`. Then run `build fresh` and `serve fresh`: the landing page shows the title and the welcome page. Run it again with `--name second --new-vault "S\Games\Fantasy\Second"`: the two folders above it are created level by level, and the output lists them.
    *Changed 2026-10-11: the config is now in its own folder `S\cfg`, not beside the new vault. The program refuses a vault inside its own settings folder (exit 3), so the old path could never pass; the program was right.*
+   *Changed 2026-10-21: the expected hash now comes from the starter manifest, not a pull request, so the step survives a starter pin bump. At this release it is `51f521f8b0770b8b0bf71905f90d795204ff92d7ac157b4b2cffec0161450164`. The file has no placeholders, so every entry for it carries the same value.*
 2. Run `serve --admin --config S2cfg\config.toml` with no config. Choose "Start a new campaign here". Enter `S2\New Vault`, which is missing: the check goes green and the system list shows. Go through review, then Build my first preview: the ready screen appears, and the preview shows the landing page and the welcome page.
    *Changed 2026-10-12: the config is now in its own folder `S2cfg`, not in `S2` beside the new vault `S2\New Vault`. The program refuses a vault inside its own settings folder (exit 3), the same fault as step 1.*
 3. In an empty folder under `%OneDrive%`: the info note shows and creation succeeds. If `desktop.ini` appears, its hash is unchanged before and after. Record any OneDrive conflict copies.
 4. Use `\\localhost\scratch\...\UNCVault`, which is missing. Nothing is checked until you leave the box. Then the network-share warning shows with the git note. Creation and the preview both work.
    *Changed 2026-10-11: `\\localhost\scratch\...` replaces `\\localhost\C$\...`. A standard user cannot open the `C$` administrative share. Share S as `scratch` first (for example `net share scratch=S` from an elevated prompt).*
+   *Changed 2026-10-21: make the share with `net share scratch=S /grant:<standard user>,FULL` from an elevated prompt, where `<standard user>` is the account running the test. A plain `net share scratch=S` gives Everyone read access only, so a standard user cannot create the vault on it. This is how Windows shares work, not the program.*
 5. A folder you made with `git init` and nothing else is accepted, and the hash of `.git\HEAD` is the same before and after. Refusals, each leaving the folder unchanged (exit 3 in `init`): a non-empty folder; a junction (`mklink /J`); `C:\`; a folder inside `S\Fresh Campaign`.
 6. Deny write on an empty folder (`icacls <dir> /deny %USERNAME%:(WD,AD)`). Creation stops with a plain message listing what was created, and nothing is removed. Remove the deny afterwards. Re-hash the real config.
    *Changed 2026-10-11: the deny is now `(WD,AD)`. On Windows `(WD)` alone does not stop a folder being created; with `(WD,AD)` the program gives the expected plain refusal.*
@@ -1986,6 +2022,7 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
 2. Disconnect the mapped drive and press Refresh. It shows "not responding" within a few seconds while the others list, and the panel keeps answering (switch screens).
 3. Type `\\localhost\scratch\` plus a scratch path in the location box. Nothing is requested until Enter or Go, then it lists.
    *Changed 2026-10-11: `\\localhost\scratch\` replaces `\\localhost\C$\`, which a standard user cannot open. Use the `scratch` share made in C137 step 4.*
+   *Changed 2026-10-21: make the `scratch` share with the command in C137 step 4's 2026-10-21 note, so the standard user can write to it.*
 4. A `mklink /J` junction in S is marked as a link and can't be entered or chosen.
 5. A OneDrive folder lists and opens as an ordinary folder.
 6. At `C:\`, `$Recycle.Bin` and `System Volume Information` are hidden until Show hidden folders is ticked.
@@ -2062,7 +2099,8 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
 2. The folder page defaults to `%LOCALAPPDATA%\Programs\GM-Scriptorium`, and Browse works. Type `C:\Program Files\GM-Scriptorium` and press Next. A box says Setup can't save files there and the page stays put. The page's header strip is dark with the Lantern, and the side panel shows the Lantern and the wordmark (compare with the approved mock).
 3. The options page offers a Start menu shortcut (ticked, greyed), a desktop shortcut (unticked) and "Add GM-Scriptorium to PATH" (unticked). Install with the desktop shortcut ticked.
 4. Settings > Apps > Installed apps lists GM-Scriptorium with publisher `DrNoisys Softworks`, the Lantern icon, the install folder and a size. It shows no version. In the registry, `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\GM-Scriptorium` holds the listed values, with no `DisplayVersion`, and nothing was written under `HKLM`.
-5. The Start menu entry and the desktop shortcut exist, and start the exe with no arguments. The folder holds `gm-scriptorium.exe`, `THIRD-PARTY-NOTICES.txt` and `Uninstall GM-Scriptorium.exe`, and no `.tmp` file.
+5. The Start menu entry and the desktop shortcut exist, and start `gm-scriptorium-tray.exe` with no arguments. The folder holds `gm-scriptorium.exe`, `gm-scriptorium-tray.exe`, `THIRD-PARTY-NOTICES.txt` and `Uninstall GM-Scriptorium.exe`, and no `.tmp` file.
+   *Changed 2026-10-21: from 0.5.0 both shortcuts start the tray app, and Setup installs it beside the exe, so the folder holds four files, not three. The program was right.*
 6. PATH: in a scratch user account whose `Path` value is longer than 1024 characters, run Setup with the PATH box ticked. Setup says PATH was too long to change safely, finishes the install, and the `Path` value is byte for byte as before (export it with `reg export HKCU\Environment` before and after and compare). On a normal PATH, tick the box: the folder is appended at the end, nothing is reordered, the value keeps its type (REG_EXPAND_SZ stays REG_EXPAND_SZ), a new terminal finds `gm-scriptorium`, and `PathAdded` is `1` under the uninstall key. Run Setup again: the folder is not added a second time.
 7. Properties > Details on both the installer and `Uninstall GM-Scriptorium.exe` shows the product `GM-Scriptorium`, the company `DrNoisys Softworks` and the matching description (Setup or Uninstall).
 
@@ -2070,8 +2108,9 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
 
 `docs/decisions/0053-windows-installer.md`. **Mark this OPEN: only the VM can show how the installed exe starts from each entry point.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG`, never the real config.
 
-1. On the finish page, leave "Open GM-Scriptorium now" ticked and press Finish. The exe opens exactly as a double-click does (C130): the browser opens on the panel. The launch window's current folder is not inside the install folder.
-2. Close it. Start it from the Start menu entry, then from the desktop shortcut. Both open the same way.
+1. On the finish page, leave "Start GM-Scriptorium now" ticked and press Finish. The tray app starts as in C190 step 1, and the browser opens on the panel. The current folder of `gm-scriptorium.exe` (Process Explorer shows it on the Image tab) is not inside the install folder.
+2. Quit it from the tray. Start it from the Start menu entry, then from the desktop shortcut. Both start the tray app the same way.
+   *Changed 2026-10-21: from 0.5.0 the finish box reads "Start GM-Scriptorium now", and Finish, the Start menu and the desktop shortcut start the tray app (C190 step 1), not the console launch of C130. "Launch mode" in this criterion's title now means that start.*
 
 ### C145: the uninstaller removes only the named files and never settings, in the real uninstaller
 
@@ -2080,7 +2119,8 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
 1. After an install with the desktop shortcut and PATH ticked, put these beside the exe: `gm-scriptorium.exe.old-0.0.1`, `gm-scriptorium.exe-update-1234-5.tmp`, and a file named `keep-me.txt`. Replace the notices file by one whose first 40 lines do not hold the notices title, and keep a copy.
 2. Run the uninstaller. The confirm page lists what is removed and what is never touched. Press Uninstall.
 3. The finish page names `%APPDATA%\Scriptorium` (and the folder of `SCRIPTORIUM_CONFIG`) as kept, and says the install folder was left because it holds other files. Its feedback box is unticked.
-4. The folder now holds only `keep-me.txt` and the replaced notices file (it is not Scriptorium's, so it stays). The exe, the uninstaller, the `.old-` and `.tmp` leftovers, both shortcuts and the Installed apps entry are gone, and so is the PATH entry (the other PATH entries are untouched and in order).
+4. The folder now holds only `keep-me.txt` and the replaced notices file (it is not Scriptorium's, so it stays). The exe, the tray app `gm-scriptorium-tray.exe`, the uninstaller, the `.old-` and `.tmp` leftovers, both shortcuts and the Installed apps entry are gone, and so is the PATH entry (the other PATH entries are untouched and in order).
+   *Changed 2026-10-21: the uninstaller also removes `gm-scriptorium-tray.exe`, which Setup installs from 0.5.0.*
 5. Install again, and uninstall again with nothing else in the folder. The folder is gone. The notices file written by Setup is removed because its first lines match.
 6. Repeat step 5 with the feedback box ticked and press Finish: the default browser opens `https://tally.so/r/eq19jQ` and nothing else is sent. Re-hash the scratch config, vault and site files.
 
@@ -2090,6 +2130,7 @@ ADR 0049, `src/setup/folders.js` and `src/admin/foldercreate.js`. **Mark this OP
 
 1. Install, then run the same installer again over it. It succeeds, the shortcuts and the Installed apps entry are not duplicated, and no `gm-scriptorium.exe-setup.tmp` is left behind.
 2. Start the installed exe (it stays running) and run the installer again, pressing Install. A box says GM-Scriptorium is open, with Retry as the default button. With the exe still running, press Retry: the box returns. Press Cancel: Setup stops, and the exe and the folder are unchanged (compare hashes). Close the exe, run the installer, and it succeeds.
+   *Changed 2026-10-21: from 0.5.0, the installed exe started with no arguments hands off to the tray app, and Setup then shows C200 step 1's running-app page instead of this box. For this step, quit the tray app if it is running, then start a console launch copy from a terminal with `"<install>\gm-scriptorium.exe" --config <scratch config>` (the hand-off never applies with `--config`), as in C200 step 2. The Retry box then behaves as written.*
 3. Install a scratch build whose version is `0.4.0-rc.99` (above the build under test). Run the build under test over it. On Install, a box says a newer version is installed here (`0.4.0-rc.99`) and Cancel is the default button. Cancel leaves the install unchanged; OK replaces it. Repeat with an installed copy of the same version (no box) and one older (no box). A stable `0.4.0` installed over `0.4.0-rc.99` counts as newer and warns the other way round.
 4. Put an exe that prints nothing parseable for `--version` at `gm-scriptorium.exe` in the folder and run Setup. A box says Setup can't tell which version is installed, and Cancel is the default.
 5. With an rc.1 portable copy and its config in use, run the installer. The portable copy is untouched; the installed copy reads the same config and shows the same campaigns.
@@ -2502,7 +2543,8 @@ Issue #171. **Mark this OPEN: Linux tests prove the logic only; a mapped drive a
 2. `M:\mixed`: copy `vault-config.md` to `vault-config.yaml`, keeping both; register as `c208x`. As step 1, and the message also says `Its _meta/vault-config.md is a leftover that gm-apprentice ignores.`
 3. `init --yes --name c208n --new-vault M:\moved\newcamp --system none --config "S\config.toml"` exits 3 with `refusing to create a vault in M:\moved\newcamp: it is inside the vault at` and the moved copy (as `M:\moved` or its share path); `M:\moved\newcamp` does not exist.
 4. Create `M:\moved\cfg\config.toml` holding only the line `config_version = 1`, so that no registered campaign names `M:\moved` (otherwise the registered-vault check refuses first and this step would pass without testing the settings-file detection). Pipe a passphrase into `remote password --config M:\moved\cfg\config.toml` with `SCRIPTORIUM_CONFIG` set to the same path: exit 3, `remote access keeps its files beside the config, never inside a vault, but`, then `is inside the vault at` and the moved copy, and no `M:\moved\cfg\panel` exists.
-5. `M:\pick` holds only a moved copy `camp`. Start `serve --admin` with a fresh empty scratch config (setup mode), type `M:\pick` as the vault: setup offers `camp` one folder down. Choose it: the screen shows the step 1 message, and `dir /s /b M:\pick` lists the same files as before (no `_meta\scriptorium`).
+5. `M:\pick` holds only a moved copy `camp`. Start `serve --admin` with a fresh empty scratch config (setup mode), type `M:\pick` as the vault: setup offers `camp` one folder down. Choose it: the screen shows the step 1 message, and `dir /s /b M:\pick` lists the same files as before (setup wrote nothing).
+   *Changed 2026-10-21: the-long-lease already ships `_meta\scriptorium`, so its presence is expected. What matters is that the listing is unchanged.*
 
 ### C212: the PATH option reads the whole stored value: a REG_SZ PATH, no PATH, the size limit, uninstall and an embedded NUL, in the real installer
 
@@ -2589,6 +2631,7 @@ Issue #46, ADR 0056. **Mark this OPEN: Linux tests prove the command text and th
 1. With the rc.3 exe, run `remote password` in `C:\scriptorium-scratch\c181` and record the broad list on `panel` and `panel\accounts.json`.
 2. Run rc.4 `remote account list`; the list is unchanged (it is read-only).
 3. Run rc.4 `serve --admin` (local mode), then stop it. The folder and every existing file in it show only the owner, SYSTEM and Administrators. Re-hash the real config.
+   *Changed 2026-10-21: "the rc.3 exe" means any older build whose `remote password` leaves the broad list that step 1 records, and "rc.4" means the build under test.*
 
 ### C182: when the list cannot be set, in the real win-x64 exe
 
