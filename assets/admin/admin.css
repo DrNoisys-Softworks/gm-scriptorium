@@ -1181,6 +1181,17 @@ h1[tabindex="-1"]:focus {
   [data-role="sheet"][hidden] {
     display: none !important;
   }
+
+  /* Issue 178, ADR 0070: keep a focused control out from under the bars. The top bar is 75px tall (measured), the bottom bar is
+     var(--bar-h), and the unsaved-changes strip, 95.7px tall when it shows, is allowed 96px. */
+  html {
+    scroll-padding-top: 75px;
+    scroll-padding-bottom: calc(var(--bar-h) + env(safe-area-inset-bottom, 0px));
+  }
+
+  html:has([data-screen]:not([hidden]) .a1-pending:not([hidden])) {
+    scroll-padding-bottom: calc(var(--bar-h) + env(safe-area-inset-bottom, 0px) + 96px);
+  }
 }
 
 /* -- Legacy write-screen classes (S3/S4/S5): colours retokenised, structure kept ------------- */
@@ -9295,9 +9306,8 @@ dialog.cs-dialog::backdrop {
 .upd-priv{margin:0;max-width:70ch}
 /* In the approved mock the card is a direct child of main, where the 1180px content cap outranks the 760px above, so it fills the column. Here it sits one level deeper, so say so. */
 .upd-card{max-width:none}
-/* Room above the card for the landing's scroll: 16px, so its top edge never sits on the window's edge, and 91px below 700px, the 75px top bar that sticks to the top of the window plus 16px. */
+/* Room above the card for the landing's scroll: 16px, so its top edge never sits on the window's edge. Below 700px the page's scroll padding (ADR 0070) adds the 75px top bar, so the card's top lands 16px below it. */
 .upd-card{scroll-margin-top:16px}
-@media (max-width:699px){.upd-card{scroll-margin-top:91px}}
 .upd-chan{border:0;margin:0;padding:0;display:grid;gap:8px}
 .upd-chan legend{padding:0;margin:0 0 4px;font:500 15px var(--font-body);color:var(--text)}
 .upd-opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}

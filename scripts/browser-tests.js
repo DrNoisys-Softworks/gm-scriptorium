@@ -38,6 +38,7 @@ const BROWSER_TEST_FILES = Object.freeze([
   'test/campaigns-ui.dom.test.js',
   'test/desktop-card-ui.dom.test.js',
   'test/desktop-panel-ui.dom.test.js',
+  'test/focus-not-obscured.dom.test.js',
   'test/launch-ui.dom.test.js',
   'test/preview-strip.dom.test.js',
   'test/remote-accounts-screen.dom.test.js',

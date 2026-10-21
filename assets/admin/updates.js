@@ -102,9 +102,12 @@
   function focusCard() {
     var card = document.getElementById('updates');
     if (!card) return;
-    // The card keeps room above it (scroll-margin-top in admin.css), so the top edge never sits on the window's edge or under
-    // the narrow top bar. A card that cannot be centred with that room is shown from its top, and focus() never scrolls it away again.
-    card.scrollIntoView({ block: card.getBoundingClientRect().height + (parseFloat(window.getComputedStyle(card).scrollMarginTop) || 0) > window.innerHeight ? 'start' : 'center' });
+    // The card keeps room above it (scroll-margin-top in admin.css) and the page keeps the narrow bars out of the area it scrolls
+    // into (scroll-padding on the page, ADR 0070). A card that cannot be centred in the space between them is shown from its top,
+    // and focus() never scrolls it away again.
+    var root = window.getComputedStyle(document.documentElement);
+    var room = window.innerHeight - (parseFloat(root.scrollPaddingTop) || 0) - (parseFloat(root.scrollPaddingBottom) || 0);
+    card.scrollIntoView({ block: card.getBoundingClientRect().height + (parseFloat(window.getComputedStyle(card).scrollMarginTop) || 0) > room ? 'start' : 'center' });
     var sw = card.querySelector('[data-ctl="switch"]');
     if (sw) sw.focus({ preventScroll: true });
   }
