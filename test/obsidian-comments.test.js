@@ -112,8 +112,9 @@ test('the build shim strips comments and leaves a table-cell escaped pipe to the
   assert.equal(fs.readFileSync, orig);
 });
 
-test('the build installs exactly one transform, the comment strip (the escaped-pipe rewrite is retired, ADR 0043 addendum)', () => {
-  assert.deepEqual(bootstrap.READ_TRANSFORMS_FOR_BUILD, [stripObsidianComments]);
+test('the build installs exactly two transforms, the comment strip then the dataview strip (the escaped-pipe rewrite is retired, ADR 0043 addendum)', () => {
+  const { stripDataviewBlocks } = require('../src/vault/dataview');
+  assert.deepEqual(bootstrap.READ_TRANSFORMS_FOR_BUILD, [stripObsidianComments, stripDataviewBlocks]);
   assert.equal(bootstrap.installEscapedPipeReadShim, undefined);
 });
 

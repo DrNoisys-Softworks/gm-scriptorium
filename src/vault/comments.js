@@ -121,4 +121,4 @@ function stripObsidianComments(markdown) {
   return scanObsidianComments(markdown).text;
 }
 
-module.exports = { scanObsidianComments, stripObsidianComments };
+module.exports = { scanObsidianComments, stripObsidianComments, frontmatterLineCount };

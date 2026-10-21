@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { stripObsidianComments } = require('../vault/comments');
+const { stripDataviewBlocks } = require('../vault/dataview');
 const { installSegmenterShim } = require('./intl-shim');
 const { applyRedactions, redactionReport } = require('./redactions');
 // FR-19/SD-19: install at module load too, alongside src/generator/pinned.js's own install --
@@ -84,8 +85,9 @@ function installCopyFileShim() {
 
 /**
  * ADR 0044 builds on ADR 0043's shim. The read shim is one generic mechanism with an ordered list of
- * text transforms; each transform is independent. The build installs READ_TRANSFORMS_FOR_BUILD,
- * which is now only the Obsidian comment strip (a leak guard).
+ * text transforms; each transform is independent and is called as `(text, file)`. The build installs
+ * READ_TRANSFORMS_FOR_BUILD: the Obsidian comment strip, then the dataview strip (issue 202, ADR 0044
+ * addendum on dataview blocks). Both are leak guards.
  *
  * The escaped-pipe rewrite (ADR 0043, issue #48) that used to ride along is retired at publish-v1.14.0:
  * the pin has read a table-cell `[[T\|L]]` itself since publish-v1.12.3 (`lib/wikilink.js`), so the
@@ -97,7 +99,7 @@ function installCopyFileShim() {
  * rules, applying each function in `transforms` in order to what the build reads.
  *
  * @param {string|null} vaultRoot
- * @param {Array<(text: string) => string>} transforms
+ * @param {Array<(text: string, file: string) => string>} transforms
  * @returns {() => void} restore
  */
 function installVaultReadShim(vaultRoot, transforms) {
@@ -127,7 +129,7 @@ function installVaultReadShim(vaultRoot, transforms) {
     const result = original.apply(fs, arguments);
     const enc = typeof options === 'string' ? options : options && options.encoding;
     if (typeof result === 'string' && enc && typeof file === 'string' && file.endsWith('.md') && inVault(file)) {
-      return transforms.reduce((text, fn) => fn(text), result);
+      return transforms.reduce((text, fn) => fn(text, file), result);
     }
     return result;
   };
@@ -136,8 +138,8 @@ function installVaultReadShim(vaultRoot, transforms) {
   };
 }
 
-/** (Not frozen on purpose: test/obsidian-comments.test.js empties it in a child process to prove the output gate refuses a leak.) Order matters: comments go first so nothing inside a comment is ever rewritten or parsed. */
-const READ_TRANSFORMS_FOR_BUILD = [stripObsidianComments];
+/** (Not frozen on purpose: test/obsidian-comments.test.js empties it in a child process to prove the output gate refuses a leak.) Order matters, and matches `renderChain` in src/checks/leak/textmodel.js: comments go first so nothing inside a comment is ever rewritten or parsed, then dataview blocks. */
+const READ_TRANSFORMS_FOR_BUILD = [stripObsidianComments, stripDataviewBlocks];
 
 /** The vault root the staged config points at (src/build/stage.js writes it absolute), or null. */
 function stagedVaultRoot(configPath) {

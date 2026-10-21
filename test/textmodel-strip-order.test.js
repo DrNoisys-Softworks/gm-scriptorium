@@ -12,11 +12,13 @@
  * in the change that added this file: moving the `%%` strip after stripHtmlComments in renderChain
  * (M1) and deleting it (M2) both turn this file red.
  *
- * P4b below also passes today and proves only the current generator's behaviour (a known leak, issue #202).
+ * P4b pins the fix for issue #202: the build's read shim also strips dataview blocks (src/vault/dataview.js), so no
+ * dataview fence word reaches search-index.json. It is red without that shim entry.
  *
  * TRIPWIRE: this file is expected to go red when the build's read shim is removed along with the
  * 1.16+ generator (#192), which strips `%%` after gm-only, spoiler and HTML comments. Do NOT
- * update the literals until the check-side order decision lands with that change.
+ * update the literals until the check-side order decision lands with that change. Case I (a `%%` that
+ * opens just after an inline dataview opener) is expected to go red with the rest when the shim goes (#192).
  *
  * Visibility is judged over the whole site, not per path:
  *   build-visible(S) = some built .html file has htmltext.textOf(html) containing S
@@ -60,6 +62,7 @@ const CASES = {
   H: { lines: ['ZQXH0 lead.', '', `${FENCE}dataview`, 'TABLE ZQXH1 %% ZQXH2 %%', FENCE, '', 'ZQXH3 %% ZQXH4 %% ZQXH5'], visible: ['ZQXH0', 'ZQXH3', 'ZQXH5'], hidden: ['ZQXH1', 'ZQXH2', 'ZQXH4'] },
   U: { lines: ['ZQXU0 lead.', '', '<!-- gm-only -->', 'ZQXU1 %% ZQXU2', '<!-- /gm-only -->', 'ZQXU3'], visible: ['ZQXU0'], hidden: ['ZQXU1', 'ZQXU2', 'ZQXU3'] },
   V: { lines: ['ZQXV0 lead.', '', '%% ZQXV1 <!-- ZQXV2 %% ZQXV3', 'ZQXV4'], visible: ['ZQXV0', 'ZQXV3', 'ZQXV4'], hidden: ['ZQXV1', 'ZQXV2'] },
+  I: { lines: ['ZQXI0 lead.', '', `ZQXI1 ${FENCE}dataview %% ZQXI2`, `ZQXI3 ${FENCE} ZQXI4 %% ZQXI5`], visible: ['ZQXI0', 'ZQXI1', 'ZQXI5'], hidden: ['ZQXI2', 'ZQXI3', 'ZQXI4'] },
   W: { lines: ['ZQXW0 lead.', '', 'ZQXW1 %% ZQXW2', 'ZQXW3'], visible: ['ZQXW0', 'ZQXW1'], hidden: ['ZQXW2', 'ZQXW3'] },
 };
 
@@ -159,7 +162,7 @@ test('P1 precondition: the build exits 0, exclude_callouts is on, all case notes
   assert.equal(ctx.build.status, 0, ctx.build.stderr + ctx.build.stdout);
   assert.equal(ctx.set.publishConfig.exclude_callouts, true);
   const rels = new Set(ctx.set.publishedPages.map((p) => p.rel));
-  assert.equal(Object.keys(CASES).length, 11);
+  assert.equal(Object.keys(CASES).length, 12);
   for (const letter of Object.keys(CASES)) {
     assert.ok(rels.has(`Characters/NPCs/Zqx Case ${letter}.md`), `case ${letter} is not published`);
   }
@@ -189,14 +192,12 @@ test('P3 equivalence: check-visible equals build-visible for every sentinel (the
   }
 });
 
-// P4a, safety. The one exception is ZQXH1 and ZQXH2 in search-index.json (see P4b).
-const INDEX_EXCEPTION = new Set(['ZQXH1', 'ZQXH2']);
-test('P4a safety: a sentinel that check hides appears in no output file, as written or lowercased (except the known search-index leak)', () => {
+// P4a, safety.
+test('P4a safety: a sentinel that check hides appears in no output file, as written or lowercased', () => {
   assert.ok(ctx.files.length > 0, 'the build wrote no output');
   for (const s of SENTINELS) {
     if (ctx.checkVisible(s)) continue;
     for (const [rel, bytes] of ctx.files) {
-      if (INDEX_EXCEPTION.has(s) && rel === 'search-index.json') continue;
       const text = bytes.toString('utf8');
       assert.ok(!ctx.re(s).test(text), `${rel} carries ${s}`);
       assert.ok(!ctx.re(s.toLowerCase()).test(text), `${rel} carries lowercased ${s}`);
@@ -204,14 +205,13 @@ test('P4a safety: a sentinel that check hides appears in no output file, as writ
   }
 });
 
-// Known leak at the 1.14.0 generator, issue #202: the search index is built from a published view
-// that keeps dataview blocks. This literal pins today's behaviour. When a fix or a repin removes the
-// leak, P4b goes red: flip it to absent and remove the exception from P4a in that change.
-test('P4b known 1.14.0 leak: search-index.json carries the dataview fence words, not the %% pair outside the fence', () => {
+// Issue #202. At the 1.14.0 generator the search index is built from a published view that keeps
+// dataview blocks, so the build's read shim removes them first. This pins the fix.
+test('P4b issue #202: search-index.json carries no dataview fence words, and not the %% pair outside the fence', () => {
   const idx = ctx.files.find(([rel]) => rel === 'search-index.json');
   assert.ok(idx, 'search-index.json was not written');
   const text = idx[1].toString('utf8');
-  assert.ok(ctx.re('zqxh1').test(text), 'zqxh1 should be in the index at 1.14.0');
-  assert.ok(ctx.re('zqxh2').test(text), 'zqxh2 should be in the index at 1.14.0');
+  assert.ok(!ctx.re('zqxh1').test(text), 'zqxh1 must not be in the index');
+  assert.ok(!ctx.re('zqxh2').test(text), 'zqxh2 must not be in the index');
   assert.ok(!ctx.re('zqxh4').test(text), 'zqxh4 must not be in the index');
 });
