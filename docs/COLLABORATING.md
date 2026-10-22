@@ -76,7 +76,7 @@ what `leak/l5-gm-heading-survives` reads headings with, `docs/decisions/0045-lea
 (`lib/session-hub.js`), `isWrapUp`, `WRAP_UP_TYPES` (also `lib/session-hub.js`),
 `resolveGenrePreset` (`lib/theme.js`), `canonicalNfc`,
 `truncateGraphemes` (`lib/unicode.js`), `metadataBadgesFor`, `TYPE_BADGE_FIELDS`, `DIR_LABELS`
-(`lib/templates/base.js`), and `normalizeEntry`, `sourceFolderFor`, `isSvg`, `BANNER_EXTS` (`lib/banners.js`; the last five are how `leak/l2-excluded-dir-in-output` works out which banner the build copies, `docs/decisions/0061-banner-and-cover-sources.md`). It also re-exports `lunr` and `lunr/package.json`'s version, required
+(`lib/templates/base.js`), and `normalizeEntry`, `sourceFolderFor`, `isSvg`, `BANNER_EXTS` (`lib/banners.js`; the last five are how `leak/l2-excluded-dir-in-output` works out which banner the build copies, `docs/decisions/0061-banner-and-cover-sources.md`), plus `wikilinkRe`, `parseWikilink` (`lib/wikilink.js`; how `check` finds and splits wikilinks, `docs/decisions/0043-escaped-pipe-read-shim.md`, addendum on issue 194). It also re-exports `lunr` and `lunr/package.json`'s version, required
 here rather than added as a Scriptorium dependency, so the leak scan's own lunr pipeline reproduction
 (below) runs against the exact same resolved copy the generator indexed with. At `publish-v1.11.40`
 lunr is a **bundled** dependency, no longer hoisted to a top-level `node_modules/lunr`, the facade
@@ -518,7 +518,7 @@ easier to catch or avoid:
    separate vendoring step.
 6. **A renamed or removed export** from any of the modules the facade re-exports
    (`lib/processor.js`, `lib/publish-decision.js`, `lib/manifest.js`, `lib/config.js`,
-   `lib/scanner.js`, `lib/theme.js`, `lib/unicode.js`, `lib/templates/base.js`, `lib/banners.js`) is the highest-blast-radius
+   `lib/scanner.js`, `lib/theme.js`, `lib/unicode.js`, `lib/templates/base.js`, `lib/banners.js`, `lib/wikilink.js`) is the highest-blast-radius
    single change, because every current and future Scriptorium consumer of that function goes
    through the one facade file.
 

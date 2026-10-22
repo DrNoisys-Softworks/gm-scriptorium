@@ -99,3 +99,30 @@ Not retired, on purpose: `tablepipes.js`, which the brief listed, because `check
 `src/vault/links.js`; removing it would break `check`'s agreement with the build. The "Will not catch"
 residual about a different reader added by a future generator version now points the other way: a future
 pin that stops reading table-cell escaped pipes shows up in the CLI test above, by name.
+
+## Addendum: check reads links with the generator's own reader (issue 194)
+
+Status: accepted.
+
+`check` now finds and splits wikilinks with the pin's own `wikilinkRe` and `parseWikilink`
+(`lib/wikilink.js`), through `src/generator/pinned.js`, so it agrees with the build on a `^block`
+fragment, a trailing `.md`, a `\|` alias anywhere (not only in a table row), `[[|x]]` (not a link) and a
+link that spans lines. Before, it used its own pattern and split, and the two could disagree: a
+false "does not resolve" error for `[[Note^block]]` or `[[Note.md]]`, and a missed
+`leak/l3-unpublished-link` for a page that printed an unpublished name.
+
+- The check-side rewrite of a table row's `\|` (`rewriteEscapedPipeLinksOutsideCode`) is no longer
+  called. It stays in `src/vault/links.js` with `src/util/tablepipes.js`, unused. ADR 0044 section 1's
+  sentence that it "stays, as check's own reader" is superseded.
+- A link whose target runs across lines is reported at the line of its opening `[[`, as one line: the
+  span is joined with single spaces, capped at 60 characters, and followed by "(the [[ on line N is
+  not closed until line M)". The build shows such a span as plain text, so a stray `[[` that swallows
+  a real link now shows up as an error, where it used to pass.
+- Rejected: keeping the hand-written pattern and adding the missing cases to it, because two grammars
+  drift. Also rejected: a check-side exception where the generator's reading looks wrong. Check follows
+  the build, and a case where the build is wrong is raised upstream.
+- Residuals. Whitespace, case and path resolution (`[[Folder/Note]]`) are unchanged and left for a
+  follow-up. The build tries the literal target, fragment included, before the name, which check does
+  not. `[[^block]]` with no page name resolves silently, like `[[#Heading]]`. And
+  `leak/l3-unpublished-link` could print a multi-line target only through an alias that itself holds a
+  line break.
