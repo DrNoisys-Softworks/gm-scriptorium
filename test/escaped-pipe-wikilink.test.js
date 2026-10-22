@@ -36,9 +36,10 @@ test('extractWikiLinks: an unescaped pipe in a table row is untouched', () => {
   assert.equal(l.alias, 'The Square');
 });
 
-test('extractWikiLinks: outside a table, a backslash-pipe is not rewritten', () => {
+test('extractWikiLinks: outside a table, an escaped pipe is an alias too, as the generator reads it (#194)', () => {
   const [l] = extractWikiLinks('Prose [[Town Square\\|x]] here');
-  assert.equal(l.target, 'Town Square\\');
+  assert.equal(l.target, 'Town Square');
+  assert.equal(l.alias, 'x');
 });
 
 test('extractWikiLinks: escaped pipe inside inline code in a table row is not a link (ignoreCode)', () => {

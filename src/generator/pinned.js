@@ -195,6 +195,9 @@ const { metadataBadgesFor, TYPE_BADGE_FIELDS, DIR_LABELS } = require('gm-apprent
 // file I/O is ported there instead, through src/vault/read.js.
 const { normalizeEntry, sourceFolderFor, isSvg, BANNER_EXTS } = require('gm-apprentice-publish/lib/banners');
 
+// lib/wikilink.js:87 (module.exports). #194: check finds wikilinks with the pin's own pattern (wikilinkRe, lib/wikilink.js:22-24) and splits them with its parser (parseWikilink, lib/wikilink.js:40-60), never a hand copy.
+const { wikilinkRe, parseWikilink } = require('gm-apprentice-publish/lib/wikilink');
+
 // Not a gm-apprentice-publish internal; see the module doc block above. FR-17/SD-17 (v1.11.40
 // bundles its own gray-matter/lunr/markdown-it, so lunr is no longer hoisted to a top-level
 // node_modules/lunr -- it installs inside the package): require it from the exact bundled copy
@@ -311,6 +314,8 @@ module.exports = {
   sourceFolderFor,
   isSvg,
   BANNER_EXTS,
+  wikilinkRe,
+  parseWikilink,
   lunr,
   LUNR_VERSION,
   PIN_COMMIT,

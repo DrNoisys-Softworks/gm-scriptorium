@@ -1,10 +1,12 @@
 'use strict';
 
 /*
- * Wiki-link extraction, mirroring the syntax gm-apprentice-publish's
- * resolveWikiLinks() (lib/processor.js) understands: [[target]],
- * [[target|alias]], [[target#heading]], [[target#heading|alias]], and the
- * embed form ![[target]] / ![[target|alt]].
+ * Wiki-link extraction, with the grammar of gm-apprentice-publish's own reader (#194): which spans
+ * are links is decided by the pin's wikilinkRe (lib/wikilink.js:22-24), and target, heading and
+ * alias come from its parseWikilink (lib/wikilink.js:40-60), both through src/generator/pinned.js.
+ * So [[target]], [[target|alias]], [[target#heading]], [[target^block]], [[target.md]], an
+ * escaped pipe [[target\|alias]] anywhere, a link that runs across lines, and the embed form
+ * ![[target]] / ![[target|alt]] read here as the build reads them.
  *
  * `opts.ignoreCode` (#77): resolveWikiLinks() itself does NOT special-case
  * backticks — confirmed empirically against the pin (lib/processor.js +
@@ -37,29 +39,11 @@
  */
 
 const { rewriteTableRowSegment, isTableRow } = require('../util/tablepipes');
-
-const WIKI_LINK_RE = /(!?)\[\[([^\]]+)\]\]/g;
+const pinned = require('../generator/pinned');
 
 // CommonMark-shaped fence rule: 0-3 leading spaces, then a run of 3+ of the
 // same fence character (backtick or tilde; the two never mix in one fence).
 const FENCE_OPEN_RE = /^ {0,3}(`{3,}|~{3,})/;
-
-function parseInner(inner) {
-  let rest = inner;
-  let alias = null;
-  const pipeIdx = rest.indexOf('|');
-  if (pipeIdx !== -1) {
-    alias = rest.slice(pipeIdx + 1).trim();
-    rest = rest.slice(0, pipeIdx);
-  }
-  let heading = null;
-  const hashIdx = rest.indexOf('#');
-  if (hashIdx !== -1) {
-    heading = rest.slice(hashIdx + 1).trim();
-    rest = rest.slice(0, hashIdx);
-  }
-  return { target: rest.trim(), alias, heading };
-}
 
 /**
  * Which lines are entirely inside (or are) a fenced code block, matching on
@@ -223,6 +207,7 @@ function maskProseForLinks(markdown) {
   return lines.map((line, i) => (inFence[i] ? line : maskInlineProse(line))).join('\n');
 }
 
+// check no longer calls this since #194 (it reads links with the pin's own pattern and parser).
 /**
  * Issue #48 (ADR 0043). In table rows that are not inside a fenced block, rewrites `[[T\\|L]]` to
  * `[[T|L]]`, leaving inline code spans untouched. Shared by check and the build's read shim so the
@@ -262,23 +247,36 @@ function rewriteEscapedPipeLinksOutsideCode(markdown) {
  *          1-based line numbers.
  */
 function extractWikiLinks(markdown, opts = {}) {
-  // #48: a table-row `[[T\|L]]` outside code means alias L, exactly as the build reads it.
-  let scanText = rewriteEscapedPipeLinksOutsideCode(markdown);
+  let scanText = markdown;
   if (opts.onlyCode) scanText = maskProseForLinks(scanText);
   else if (opts.ignoreCode) scanText = maskCodeForLinks(scanText);
-  const lines = scanText.split('\n');
   const results = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    WIKI_LINK_RE.lastIndex = 0;
-    let m;
-    while ((m = WIKI_LINK_RE.exec(line))) {
-      const isEmbed = m[1] === '!';
-      const { target, alias, heading } = parseInner(m[2]);
-      results.push({ raw: m[0], target, alias, heading, isEmbed, line: i + 1 });
-    }
+  const re = pinned.wikilinkRe('g', true);
+  let m;
+  let line = 1;
+  let scanned = 0;
+  while ((m = re.exec(scanText))) {
+    const p = pinned.parseWikilink(m[1]);
+    for (let i = scanText.indexOf('\n', scanned); i !== -1 && i < m.index; i = scanText.indexOf('\n', i + 1)) { line++; scanned = i + 1; }
+    results.push({
+      raw: m[0],
+      target: p.name.trim(),
+      alias: p.display.trim() || null,
+      heading: p.heading.trim() || null,
+      isEmbed: m[0].startsWith('!'),
+      line,
+    });
   }
   return results;
+}
+
+// #194: how a finding shows a link span that runs across lines. Text with no line break comes back unchanged, so single-line messages stay byte-identical. Otherwise each line break, with the whitespace around it, becomes one space, and a result over 60 characters (code points) keeps its first 28 and last 28 with " ... " between.
+function showLinkSpan(text) {
+  if (!text.includes('\n')) return text;
+  const flat = text.replace(/\s*\n\s*/g, ' ');
+  const cps = Array.from(flat);
+  if (cps.length <= 60) return flat;
+  return cps.slice(0, 28).join('') + ' ... ' + cps.slice(-28).join('');
 }
 
 /** Strip [[ ]] wrapper from a raw frontmatter relationship-target string, e.g. relationships[].target. */
@@ -286,4 +284,4 @@ function stripBrackets(value) {
   return String(value == null ? '' : value).replace(/\[\[|\]\]/g, '').trim();
 }
 
-module.exports = { extractWikiLinks, stripBrackets, rewriteEscapedPipeLinksOutsideCode, findInlineCodeSpans, FENCE_OPEN_RE };
+module.exports = { extractWikiLinks, showLinkSpan, stripBrackets, rewriteEscapedPipeLinksOutsideCode, findInlineCodeSpans, FENCE_OPEN_RE };

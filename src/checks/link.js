@@ -1,7 +1,15 @@
 'use strict';
 
 const { createFinding } = require('../report/finding');
-const { extractWikiLinks } = require('../vault/links');
+const { extractWikiLinks, showLinkSpan } = require('../vault/links');
+
+// #194: a link can run across lines, but a Finding message is one line (src/report/finding.js), so the
+// target and the raw text are shown through showLinkSpan, and a target that crosses a line says where.
+function openClause(link) {
+  if (!link.target.includes('\n')) return '';
+  const endLine = link.line + (link.raw.split('\n').length - 1);
+  return ` (the [[ on line ${link.line} is not closed until line ${endLine})`;
+}
 
 /**
  * link/unresolved: every [[target]]/[[target|alias]]/[[target#heading]]
@@ -33,8 +41,8 @@ function runUnresolved(ctx) {
           campaign: ctx.campaign,
           path: f.relPath,
           line: link.line,
-          message: `${f.relPath}:${link.line}: [[${link.target}]] does not resolve`,
-          detail: link.raw,
+          message: `${f.relPath}:${link.line}: [[${showLinkSpan(link.target)}]] does not resolve${openClause(link)}`,
+          detail: showLinkSpan(link.raw),
         }),
       );
     }
@@ -72,8 +80,8 @@ function runInCode(ctx) {
           campaign: ctx.campaign,
           path: f.relPath,
           line: link.line,
-          message: `${f.relPath}:${link.line}: [[${link.target}]] does not resolve, and inside code it would not render as a link either way`,
-          detail: link.raw,
+          message: `${f.relPath}:${link.line}: [[${showLinkSpan(link.target)}]] does not resolve${openClause(link)}, and inside code it would not render as a link either way`,
+          detail: showLinkSpan(link.raw),
         }),
       );
     }
