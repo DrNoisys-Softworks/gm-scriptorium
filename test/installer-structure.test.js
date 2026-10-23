@@ -738,6 +738,29 @@ const UNFIN_LINES = {
   moveText: `System::Call 'user32::SetWindowPos(p $mui.FinishPage.Text, p 0, i 0, i 0, i r8, i r3, i 0x16)'`,
   moveBox: `System::Call 'user32::SetWindowPos(p $mui.FinishPage.Run, p 0, i r4, i r7, i 0, i 0, i 0x15)'`,
 };
+// The System lines of GmNextFit and GmNextRestore (issue 213), stage B. Each is textually unique in the
+// file, because UNFIN_LINES must be unique and System::Free $2 already appears twice.
+const NEXT_FIT_LINES = {
+  alloc: `System::Call '*(i 0, i 0, i 0, i 0) p .r4'`,
+  getDc: `System::Call 'user32::GetDC(p r0) p .r2'`,
+  select: `System::Call 'gdi32::SelectObject(p r2, p r1) p .r3'`,
+  extent: `System::Call 'gdi32::GetTextExtentPoint32W(p r2, w "Close and continue", i 18, p r4) i .r5'`,
+  reselect: `System::Call 'gdi32::SelectObject(p r2, p r3) p .r6'`,
+  release: `System::Call 'user32::ReleaseDC(p r0, p r2) i .r6'`,
+  sizeRead: `System::Call '*$4(i .r7)'`,
+  zero: `System::Call '*$4(i 0, i 0)'`,
+  origin: `System::Call 'user32::ClientToScreen(p $HWNDPARENT, p r4) i .r5'`,
+  originRead: `System::Call '*$4(i .r5, i .r6)'`,
+  nextRect: `System::Call 'user32::GetWindowRect(p r0, p r4) i .r8'`,
+  nextRead: `System::Call '*$4(i .r8, i .r9, i .r2, i .r3)'`,
+  backRect: `System::Call 'user32::GetWindowRect(p r9, p r4) i .r8'`,
+  backRead: `System::Call '*$4(i .r8, i .r2)'`,
+  moveNext: `System::Call 'user32::SetWindowPos(p r0, p 0, i r1, i $gmNextY, i r3, i $gmNextH, i 0x14) i .r8'`,
+  moveBack: `System::Call 'user32::SetWindowPos(p r9, p 0, i r2, i $gmBackY, i 0, i 0, i 0x15) i .r8'`,
+  free: 'System::Free $4',
+  putNext: `System::Call 'user32::SetWindowPos(p r0, p 0, i $gmNextX, i $gmNextY, i $gmNextW, i $gmNextH, i 0x14) i .r2'`,
+  putBack: `System::Call 'user32::SetWindowPos(p r1, p 0, i $gmBackX, i $gmBackY, i 0, i 0, i 0x15) i .r2'`,
+};
 const SYSTEM_LINES = [
   PATH_CALL_LINE,
   PATH_WCHAR_LINE,
@@ -747,6 +770,7 @@ const SYSTEM_LINES = [
   'System::Free $2',
   // The uninstaller finish page callback (un.GmFinishShow), stage A only. Named, never indexed.
   ...Object.values(UNFIN_LINES),
+  ...Object.values(NEXT_FIT_LINES),
 ];
 
 /** Plug-in calls (a word, two colons, a word at the start of a trimmed line) that are not allowed. */
@@ -913,7 +937,11 @@ test('tray close: the window class equals the tray app\'s, and the close, the wa
   };
   assert.equal(inOrder(body), true);
   assert.equal(inOrder(body.split('\n').filter((l) => l.trim() !== 'Sleep 250').join('\n')), false, 'control: a body without the pause is reported');
-  assert.equal(functionBody(NSI, 'GmRunningLeave').trim(), 'Call GmCloseTray');
+  assert.deepEqual(
+    functionBody(NSI, 'GmRunningLeave').split('\n').map((l) => l.trim()).filter(Boolean),
+    ['Call GmNextRestore', 'Call GmCloseTray'],
+    'Leave puts the buttons back, then closes the tray app, and does nothing else (#213)',
+  );
 });
 
 const PAGE_RE = /^(?:!insertmacro\s+MUI_PAGE_\w+|Page\s+custom\b)/;
@@ -1393,4 +1421,107 @@ test('page skips: each new page shows only when it should, by an Abort behind a 
   // control: a guard with no Abort behind it is reported
   const bad = ['StrCmp $gmAskHere 1 +2', 'nsDialogs::Show'];
   assert.notEqual(bad[bad.findIndex((l) => l === 'StrCmp $gmAskHere 1 +2') + 1], 'Abort');
+});
+
+// ---------------------------------------------------------------------------------------------
+// Issues 213 and 214: the running page's button and the program's refusal line (ADR 0058, addendum)
+// ---------------------------------------------------------------------------------------------
+// Shape tests only. They pin the source and prove nothing about how Windows draws a button or how
+// nsExec decodes a line; that is C217 and C199 step 7 (OPEN on the VM).
+
+function bodyLines(name) {
+  const body = functionBody(NSI, name);
+  assert.ok(body, `Function ${name} exists`);
+  return body.split('\n').map((l) => l.trim()).filter(Boolean);
+}
+
+const countInFile = (line) => NSI.split('\n').filter((l) => l.trim() === line).length;
+
+/** Indexes of `needles` in `lines`, each searched after the one before; -1 stops the chain. */
+function inOrder(lines, needles) {
+  const at = [];
+  let from = 0;
+  for (const n of needles) {
+    const i = lines.indexOf(n, from);
+    if (i === -1) return null;
+    at.push(i);
+    from = i + 1;
+  }
+  return at;
+}
+
+test('I1: the running page widens the button after relabelling it, and puts it back on Back', () => {
+  const lines = bodyLines('GmRunningShow');
+  const order = [
+    'nsDialogs::Create 1018',
+    '${NSD_OnBack} GmNextRestore',
+    'SendMessage $0 ${WM_SETTEXT} 0 "STR:Close and continue"',
+    'Call GmNextFit',
+    'nsDialogs::Show',
+  ];
+  assert.ok(inOrder(lines, order), 'the five lines appear in this order');
+  // control: the same lines out of order are not accepted
+  assert.equal(inOrder([order[0], order[3], order[2], order[1], order[4]], order), null);
+});
+
+test('I2: GmRunningLeave restores first; GmNextFit measures the label, checks each call and frees on every path', () => {
+  const leave = bodyLines('GmRunningLeave');
+  assert.equal(leave[0], 'Call GmNextRestore');
+  assert.equal(leave[1], 'Call GmCloseTray');
+  assert.equal(countInFile('Call GmNextFit'), 1);
+  assert.equal(countInFile('Call GmNextRestore'), 1);
+
+  const lines = bodyLines('GmNextFit');
+  const N = NEXT_FIT_LINES;
+  // the label is the owner's text and is eighteen characters; the test types the 18 itself
+  assert.equal('Close and continue'.length, 18);
+  assert.equal(lines.filter((l) => l.includes('w "Close and continue", i 18,')).length, 1);
+  for (const key of Object.keys(N)) {
+    if (['putNext', 'putBack'].includes(key)) continue;
+    assert.equal(lines.filter((l) => l === N[key]).length, 1, `once in GmNextFit: ${key}`);
+    assert.equal(countInFile(N[key]), 1, `once in the file: ${key}`);
+  }
+  for (const key of ['putNext', 'putBack']) {
+    assert.equal(bodyLines('GmNextRestore').filter((l) => l === N[key]).length, 1, key);
+    assert.equal(countInFile(N[key]), 1, key);
+  }
+  // the two move flags: no resize flag on Next, no resize on Back
+  assert.ok(N.moveNext.endsWith('i 0x14) i .r8\''));
+  assert.ok(N.moveBack.endsWith('i 0x15) i .r8\''));
+  // the label is measured first, then the buttons are placed
+  assert.ok(inOrder(lines, [N.alloc, N.getDc, N.select, N.extent, N.reselect, N.release, N.sizeRead, N.zero, N.origin, N.originRead, N.nextRect, N.nextRead, N.backRect, N.backRead, N.moveBack, N.moveNext, N.free]));
+  // every call's result is looked at
+  const next = (l) => lines[lines.indexOf(l) + 1];
+  assert.equal(next(N.alloc), 'IntCmp $4 0 fit_done');
+  assert.equal(next(N.getDc), 'IntCmp $2 0 fit_free');
+  assert.equal(lines[lines.indexOf(N.select) + 2], 'IntCmp $3 0 fit_release');
+  assert.equal(lines[lines.indexOf(N.release) + 1], 'IntCmp $5 0 fit_free', 'the measure result is checked after the device context is given back');
+  assert.equal(next(N.origin), 'IntCmp $5 0 fit_free');
+  assert.equal(next(N.nextRect), 'IntCmp $8 0 fit_free');
+  assert.equal(next(N.backRect), 'IntCmp $8 0 fit_free');
+  assert.equal(next(N.moveNext), 'IntCmp $8 0 fit_free');
+  // Back moves first and the flag is set at once, so Restore always has something to undo and Next never overlaps an unmoved Back
+  assert.ok(inOrder(lines, ['IntOp $gmNextX $8 - $5', 'IntOp $gmNextW $2 - $8', 'IntOp $gmBackX $8 - $5', 'IntOp $gmBackY $2 - $6', 'StrCpy $gmNextMoved 1', N.moveBack, 'IntCmp $8 0 fit_free', N.moveNext]), 'originals saved, flag set, Back (0x15), then Next (0x14)');
+  assert.equal(countInFile('${NSD_OnBack} GmNextRestore'), 1);
+  assert.equal(lines.filter((l) => l === 'StrCpy $gmNextMoved 1').length, 1);
+  // the buffer is freed on every path after it exists: the only jump to fit_done is before the allocation is used
+  const freeAt = lines.indexOf('fit_free:');
+  assert.equal(lines[freeAt + 1], N.free);
+  const allocAt = lines.indexOf(N.alloc);
+  lines.forEach((l, i) => {
+    if (/\bfit_done\b/.test(l) && !/^fit_done:$/.test(l)) assert.ok(i <= allocAt + 1, `a jump to fit_done after the allocation: ${l}`);
+  });
+  // registers
+  const seq = (re) => lines.filter((l) => re.test(l));
+  assert.deepEqual(seq(/^Push \$\d$/), ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((n) => `Push $${n}`));
+  assert.deepEqual(seq(/^Pop \$\d$/), ['9', '8', '7', '6', '5', '4', '3', '2', '1', '0'].map((n) => `Pop $${n}`));
+  assert.equal(/MapDialogRect/.test(NSI), false);
+});
+
+test('I2: GmNextRestore puts both buttons back only when they were moved, and keeps its registers', () => {
+  const lines = bodyLines('GmNextRestore');
+  const N = NEXT_FIT_LINES;
+  assert.ok(inOrder(lines, ['StrCmp $gmNextMoved 1 +1 restore_done', 'StrCpy $gmNextMoved 0', N.putNext, N.putBack, 'restore_done:']));
+  assert.deepEqual(lines.filter((l) => /^Push \$\d$/.test(l)), ['Push $0', 'Push $1', 'Push $2']);
+  assert.deepEqual(lines.filter((l) => /^Pop \$\d$/.test(l)), ['Pop $2', 'Pop $1', 'Pop $0']);
 });

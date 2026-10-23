@@ -327,6 +327,13 @@ Var gmDlSystem
 Var gmLblHead
 Var gmLblReason
 Var gmBtnInstead
+Var gmNextMoved
+Var gmNextX
+Var gmNextY
+Var gmNextW
+Var gmNextH
+Var gmBackX
+Var gmBackY
 !ifdef WITH_PATH_OPTION
   Var gmWantPath
   Var gmCkPath
@@ -822,6 +829,105 @@ Function GmOptionsLeave
   leave_done:
 FunctionEnd
 
+; The running page relabels the shared Next button "Close and continue", which is wider than its
+; "Next >" box, so the label is clipped. GmNextFit measures the label with the button's own font, in
+; real pixels, and if it does not fit widens the button leftward (its right edge stays) and moves Back
+; left by the same amount. The buttons belong to the window and outlive the page, so the originals are
+; kept in $gmNextX to $gmBackY and GmNextRestore puts them back when the page is left or Back is
+; pressed. If a call fails before the first move the layout is left alone. Both originals are saved and
+; the flag is set before the first move, and Back moves first, so a failure part-way leaves a gap,
+; never an overlap, and Restore (which sets both buttons to the saved places) still undoes it.
+; $0 Next, $1 font then new Next left, $2 device context then Back top, $3 old font then Next width,
+; $4 buffer, $5 result then the page origin x, $6 origin y, $7 text width then the extra needed,
+; $8 and $9 scratch, then Back.
+Function GmNextRestore
+  Push $0
+  Push $1
+  Push $2
+  StrCmp $gmNextMoved 1 +1 restore_done
+  StrCpy $gmNextMoved 0
+  GetDlgItem $0 $HWNDPARENT 1
+  GetDlgItem $1 $HWNDPARENT 3
+  System::Call 'user32::SetWindowPos(p r0, p 0, i $gmNextX, i $gmNextY, i $gmNextW, i $gmNextH, i 0x14) i .r2'
+  System::Call 'user32::SetWindowPos(p r1, p 0, i $gmBackX, i $gmBackY, i 0, i 0, i 0x15) i .r2'
+  restore_done:
+  Pop $2
+  Pop $1
+  Pop $0
+FunctionEnd
+
+Function GmNextFit
+  Push $0
+  Push $1
+  Push $2
+  Push $3
+  Push $4
+  Push $5
+  Push $6
+  Push $7
+  Push $8
+  Push $9
+  GetDlgItem $0 $HWNDPARENT 1
+  IntCmp $0 0 fit_done
+  SendMessage $0 ${WM_GETFONT} 0 0 $1
+  IntCmp $1 0 fit_done
+  System::Call '*(i 0, i 0, i 0, i 0) p .r4'
+  IntCmp $4 0 fit_done
+  System::Call 'user32::GetDC(p r0) p .r2'
+  IntCmp $2 0 fit_free
+  System::Call 'gdi32::SelectObject(p r2, p r1) p .r3'
+  StrCpy $5 0
+  IntCmp $3 0 fit_release
+  System::Call 'gdi32::GetTextExtentPoint32W(p r2, w "Close and continue", i 18, p r4) i .r5'
+  System::Call 'gdi32::SelectObject(p r2, p r3) p .r6'
+  fit_release:
+  System::Call 'user32::ReleaseDC(p r0, p r2) i .r6'
+  IntCmp $5 0 fit_free
+  System::Call '*$4(i .r7)'
+  System::Call '*$4(i 0, i 0)'
+  System::Call 'user32::ClientToScreen(p $HWNDPARENT, p r4) i .r5'
+  IntCmp $5 0 fit_free
+  System::Call '*$4(i .r5, i .r6)'
+  System::Call 'user32::GetWindowRect(p r0, p r4) i .r8'
+  IntCmp $8 0 fit_free
+  System::Call '*$4(i .r8, i .r9, i .r2, i .r3)'
+  IntOp $gmNextX $8 - $5
+  IntOp $gmNextY $9 - $6
+  IntOp $gmNextW $2 - $8
+  IntOp $gmNextH $3 - $9
+  IntOp $7 $7 + $gmNextH
+  IntOp $7 $7 - $gmNextW
+  IntCmp $7 0 fit_free fit_free
+  GetDlgItem $9 $HWNDPARENT 3
+  IntCmp $9 0 fit_free
+  System::Call 'user32::GetWindowRect(p r9, p r4) i .r8'
+  IntCmp $8 0 fit_free
+  System::Call '*$4(i .r8, i .r2)'
+  IntOp $gmBackX $8 - $5
+  IntOp $gmBackY $2 - $6
+  IntOp $1 $gmNextX - $7
+  IntOp $3 $gmNextW + $7
+  IntOp $2 $gmBackX - $7
+  StrCpy $gmNextMoved 1
+  System::Call 'user32::SetWindowPos(p r9, p 0, i r2, i $gmBackY, i 0, i 0, i 0x15) i .r8'
+  IntCmp $8 0 fit_free
+  System::Call 'user32::SetWindowPos(p r0, p 0, i r1, i $gmNextY, i r3, i $gmNextH, i 0x14) i .r8'
+  IntCmp $8 0 fit_free
+  fit_free:
+  System::Free $4
+  fit_done:
+  Pop $9
+  Pop $8
+  Pop $7
+  Pop $6
+  Pop $5
+  Pop $4
+  Pop $3
+  Pop $2
+  Pop $1
+  Pop $0
+FunctionEnd
+
 Function GmRunningShow
   FindWindow $0 "${TRAY_WINDOW_CLASS}"
   StrCmp $0 0 0 +2
@@ -832,14 +938,17 @@ Function GmRunningShow
   ${If} $0 == error
     Abort
   ${EndIf}
+  ${NSD_OnBack} GmNextRestore
   ${NSD_CreateLabel} 0 0 100% 24u "Everything you saved is on disk. If you tick $\"Start ${APP_NAME} now$\" at the end, it starts again."
   Pop $0
   GetDlgItem $0 $HWNDPARENT 1
   SendMessage $0 ${WM_SETTEXT} 0 "STR:Close and continue"
+  Call GmNextFit
   nsDialogs::Show
 FunctionEnd
 
 Function GmRunningLeave
+  Call GmNextRestore
   Call GmCloseTray
 FunctionEnd
 
