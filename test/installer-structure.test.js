@@ -1573,3 +1573,88 @@ test('I4: the refusal line is converted once, after the last line is chosen and 
   assert.equal(lines[at + 1], 'Pop $gmInitLine');
   assert.ok(lines.lastIndexOf('StrCpy $gmInitLine $2') < at, 'after the last StrCpy of the line');
 });
+
+// Issue 214, second pass. The first fix put the conversion where only a line with no newline after it
+// arrives, and the program ends every line with one, so on Windows the conversion never ran. These
+// tests run the real GmRunInit text from `init_ran:` to `init_done:` in a small interpreter of the few
+// NSIS instructions it uses, with GmFromUtf8 replaced by a stub that marks what it was given. They
+// prove the call is reached for the shapes of output the program produces. They do not prove the
+// conversion itself (C199 step 7, OPEN on the VM).
+
+/** Runs the scan part of GmRunInit. @returns {{ line: string, converted: string[] }} */
+function runInitScan(rc, output) {
+  const body = bodyLines('GmRunInit');
+  const from = body.indexOf('init_ran:');
+  const to = body.indexOf('init_done:');
+  assert.ok(from >= 0 && to > from);
+  const prog = body.slice(from + 1, to + 1);
+  const labels = {};
+  const ins = [];
+  for (const l of prog) {
+    if (/^[A-Za-z_]\w*:$/.test(l)) labels[l.slice(0, -1)] = ins.length;
+    else ins.push(l);
+  }
+  const vars = { gmInitRc: '', gmInitLine: '' };
+  const st = [output, String(rc)]; // push order: output first, rc on top
+  const converted = [];
+  const val = (t) => {
+    const s = t.replace(/^"|"$/g, '').replace(/\$\\r/g, '\r').replace(/\$\\n/g, '\n').replace(/\$\{NSIS_MAX_STRLEN\}/g, '1024');
+    return s.replace(/\$(\w+)/g, (m, n) => (vars[n] === undefined ? '' : String(vars[n])));
+  };
+  const toks = (l) => l.match(/"[^"]*"|\S+/g);
+  const set = (name, v) => { vars[name.slice(1)] = v; };
+  let pc = 0;
+  let steps = 0;
+  const jump = (label, at) => { pc = /^\+\d+$/.test(label) ? at + Number(label.slice(1)) : labels[label]; assert.notEqual(pc, undefined, label); };
+  while (pc < ins.length) {
+    assert.ok(++steps < 200000, 'the scan loops forever');
+    const at = pc;
+    const t = toks(ins[pc]);
+    pc++;
+    switch (t[0]) {
+      case 'Pop': set(t[1], st.pop()); break;
+      case 'Push': st.push(val(t[1])); break;
+      case 'StrCpy': {
+        if (t.length === 4) { const s = val(t[2]); set(t[1], s.substr(Number(val(t[3])), 1)); break; }
+        if (t.length === 5) { const s = val(t[2]); set(t[1], s.substr(Number(val(t[4])), Number(val(t[3])))); break; }
+        set(t[1], val(t[2]));
+        break;
+      }
+      case 'StrCmp': if (val(t[1]) === val(t[2])) jump(t[3], at); else if (t[4]) jump(t[4], at); break;
+      case 'StrLen': set(t[1], val(t[2]).length); break;
+      case 'IntOp': set(t[1], t[3] === '+' ? Number(val(t[2])) + Number(val(t[4])) : Number(val(t[2])) - Number(val(t[4]))); break;
+      case 'IntCmp': {
+        const a = Number(val(t[1])); const b = Number(val(t[2]));
+        if (a === b) jump(t[3], at); else if (a < b && t[4]) jump(t[4], at); else if (a > b && t[5]) jump(t[5], at);
+        break;
+      }
+      case 'Goto': jump(t[1], at); break;
+      case 'Call': assert.equal(t[1], 'GmFromUtf8'); { const s = st.pop(); converted.push(s); st.push('CONVERTED:' + s); } break;
+      case 'StrCmpS': break;
+      case 'nsExec::ExecToStack': break;
+      default: assert.fail('the interpreter does not know: ' + ins[at]);
+    }
+  }
+  return { line: vars.gmInitLine, converted };
+}
+
+test('I5: the refusal line is converted for output that ends in a newline, a CRLF, or nothing, and only then', () => {
+  const reason = 'refusing to build inside the vault: C:\\v\\D&D Gr\u00c3\u00bcn\\site';
+  for (const tail of ['\n', '\r\n', '']) {
+    const r = runInitScan(3, 'first line\n' + reason + tail);
+    assert.deepEqual(r.converted, [reason], `converted once, tail ${JSON.stringify(tail)}`);
+    assert.equal(r.line, 'CONVERTED:' + reason);
+  }
+  // a blank line after the reason does not lose it
+  assert.equal(runInitScan(3, reason + '\r\n\r\n').line, 'CONVERTED:' + reason);
+  // a success is not converted, and an empty output keeps the general line (converted harmlessly, ASCII)
+  const ok = runInitScan(0, reason + '\n');
+  assert.deepEqual(ok.converted, []);
+  assert.equal(ok.line, '');
+  const empty = runInitScan(3, '');
+  assert.equal(empty.line.replace('CONVERTED:', ''), "Setup couldn't show the reason here.");
+  // control: the interpreter does see a call that never happens (output too long to scan keeps the general line)
+  const long = runInitScan(3, 'x'.repeat(2000));
+  assert.deepEqual(long.converted, []);
+  assert.equal(long.line, "Setup couldn't show the reason here.");
+});

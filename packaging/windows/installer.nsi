@@ -1143,7 +1143,7 @@ Function GmRunInit
     IntOp $3 $3 + 1
     Goto init_char
   init_last:
-    StrCmp $2 "" init_done
+    StrCmp $2 "" +2
     StrCpy $gmInitLine $2
     Push $gmInitLine
     Call GmFromUtf8
