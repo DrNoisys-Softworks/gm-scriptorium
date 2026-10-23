@@ -1055,6 +1055,44 @@ Function GmDetailsRead
   Exch $0
 FunctionEnd
 
+; Takes a string off the stack and leaves one. The program prints UTF-8, and a Setup that reads those
+; bytes as the Windows ANSI code page shows accented letters as two wrong ones. This undoes that:
+; the text goes back to ANSI bytes (no best-fit substitutes, and a set used-default flag means a
+; character did not fit), and the bytes are read as strict UTF-8. If any step fails, or the text is not
+; valid UTF-8 (which also covers text nsExec already decoded correctly), the input is kept as it was.
+; On a double-byte code page the round trip can fail and the line is shown as Windows read it.
+; $0 input, $1 result, $2 used-default flag, $3 buffer, $4 count or result, $5 converted text.
+Function GmFromUtf8
+  Exch $0
+  Push $1
+  Push $2
+  Push $3
+  Push $4
+  Push $5
+  StrCpy $1 $0
+  System::Call 'kernel32::WideCharToMultiByte(i 0, i 0x400, w r0, i -1, p 0, i 0, p 0, p 0) i .r4'
+  IntCmp $4 0 utf8_done
+  System::Alloc $4
+  Pop $3
+  StrCmp $3 0 utf8_done
+  System::Call 'kernel32::WideCharToMultiByte(i 0, i 0x400, w r0, i -1, p r3, i r4, p 0, *i 0 r2) i .r4'
+  IntCmp $4 0 utf8_free
+  IntCmp $2 0 +1 utf8_free utf8_free
+  System::Call 'kernel32::MultiByteToWideChar(i 65001, i 8, p r3, i -1, w .r5, i ${NSIS_MAX_STRLEN}) i .r4'
+  IntCmp $4 0 utf8_free
+  StrCpy $1 $5
+  utf8_free:
+  System::Free $3
+  utf8_done:
+  StrCpy $0 $1
+  Pop $5
+  Pop $4
+  Pop $3
+  Pop $2
+  Pop $1
+  Exch $0
+FunctionEnd
+
 ; The one place the program's init runs. The three typed values go through GmArgSafe first; the game
 ; system comes only from the read-only list. nsExec starts the program directly with no shell, so a
 ; percent sign, an ampersand or a caret in an answer is only text. $gmInitRc is the exit code, or
@@ -1107,6 +1145,9 @@ Function GmRunInit
   init_last:
     StrCmp $2 "" init_done
     StrCpy $gmInitLine $2
+    Push $gmInitLine
+    Call GmFromUtf8
+    Pop $gmInitLine
   init_done:
   Pop $4
   Pop $3

@@ -761,6 +761,14 @@ const NEXT_FIT_LINES = {
   putNext: `System::Call 'user32::SetWindowPos(p r0, p 0, i $gmNextX, i $gmNextY, i $gmNextW, i $gmNextH, i 0x14) i .r2'`,
   putBack: `System::Call 'user32::SetWindowPos(p r1, p 0, i $gmBackX, i $gmBackY, i 0, i 0, i 0x15) i .r2'`,
 };
+// The System lines of GmFromUtf8 (issue 214), stage B.
+const UTF8_LINES = {
+  size: `System::Call 'kernel32::WideCharToMultiByte(i 0, i 0x400, w r0, i -1, p 0, i 0, p 0, p 0) i .r4'`,
+  alloc: 'System::Alloc $4',
+  toAcp: `System::Call 'kernel32::WideCharToMultiByte(i 0, i 0x400, w r0, i -1, p r3, i r4, p 0, *i 0 r2) i .r4'`,
+  toWide: `System::Call 'kernel32::MultiByteToWideChar(i 65001, i 8, p r3, i -1, w .r5, i \${NSIS_MAX_STRLEN}) i .r4'`,
+  free: 'System::Free $3',
+};
 const SYSTEM_LINES = [
   PATH_CALL_LINE,
   PATH_WCHAR_LINE,
@@ -771,6 +779,7 @@ const SYSTEM_LINES = [
   // The uninstaller finish page callback (un.GmFinishShow), stage A only. Named, never indexed.
   ...Object.values(UNFIN_LINES),
   ...Object.values(NEXT_FIT_LINES),
+  ...Object.values(UTF8_LINES),
 ];
 
 /** Plug-in calls (a word, two colons, a word at the start of a trimmed line) that are not allowed. */
@@ -1524,4 +1533,43 @@ test('I2: GmNextRestore puts both buttons back only when they were moved, and ke
   assert.ok(inOrder(lines, ['StrCmp $gmNextMoved 1 +1 restore_done', 'StrCpy $gmNextMoved 0', N.putNext, N.putBack, 'restore_done:']));
   assert.deepEqual(lines.filter((l) => /^Push \$\d$/.test(l)), ['Push $0', 'Push $1', 'Push $2']);
   assert.deepEqual(lines.filter((l) => /^Pop \$\d$/.test(l)), ['Pop $2', 'Pop $1', 'Pop $0']);
+});
+
+test('I3: GmFromUtf8 round-trips through the ANSI page strictly, keeps the input on any failure and frees on every path', () => {
+  const lines = bodyLines('GmFromUtf8');
+  const U = UTF8_LINES;
+  assert.ok(U.size.includes('(i 0, i 0x400,'));
+  assert.ok(U.toAcp.includes('(i 0, i 0x400,'));
+  assert.ok(U.toWide.includes('(i 65001, i 8,'));
+  for (const key of Object.keys(U)) {
+    assert.equal(lines.filter((l) => l === U[key]).length, 1, `once in GmFromUtf8: ${key}`);
+    assert.equal(countInFile(U[key]), 1, `once in the file: ${key}`);
+  }
+  assert.ok(inOrder(lines, [U.size, 'IntCmp $4 0 utf8_done', U.alloc, 'Pop $3', 'StrCmp $3 0 utf8_done', U.toAcp, 'IntCmp $4 0 utf8_free', 'IntCmp $2 0 +1 utf8_free utf8_free', U.toWide, 'IntCmp $4 0 utf8_free', 'StrCpy $1 $5', 'utf8_free:', U.free, 'utf8_done:']));
+  // the input is the default result
+  assert.ok(inOrder(lines, ['StrCpy $1 $0', U.size]));
+  // after the allocation, the only exits go through the free
+  const allocAt = lines.indexOf(U.alloc);
+  lines.forEach((l, i) => {
+    if (i > allocAt + 2 && /\butf8_done\b/.test(l) && !/^utf8_done:$/.test(l)) assert.fail(`a jump to utf8_done after the allocation: ${l}`);
+  });
+  // registers: the caller's $0 is swapped out and back, and $1 to $5 are pushed and popped
+  assert.equal(lines[0], 'Exch $0');
+  assert.equal(lines[lines.length - 1], 'Exch $0');
+  assert.deepEqual(lines.filter((l) => /^Push \$\d$/.test(l)), ['Push $1', 'Push $2', 'Push $3', 'Push $4', 'Push $5']);
+  assert.deepEqual(lines.slice(lines.indexOf('utf8_done:')).filter((l) => /^Pop \$\d$/.test(l)), ['Pop $5', 'Pop $4', 'Pop $3', 'Pop $2', 'Pop $1']);
+});
+
+test('I4: the refusal line is converted once, after the last line is chosen and before the routine ends', () => {
+  assert.equal(countInFile('Call GmFromUtf8'), 1);
+  const lines = bodyLines('GmRunInit');
+  const at = lines.indexOf('Call GmFromUtf8');
+  assert.ok(at > 0, 'inside GmRunInit');
+  const last = lines.indexOf('init_last:');
+  const done = lines.indexOf('init_done:');
+  assert.ok(last >= 0 && done > last);
+  assert.ok(at > last && at < done, 'between init_last: and init_done:');
+  assert.equal(lines[at - 1], 'Push $gmInitLine');
+  assert.equal(lines[at + 1], 'Pop $gmInitLine');
+  assert.ok(lines.lastIndexOf('StrCpy $gmInitLine $2') < at, 'after the last StrCpy of the line');
 });
