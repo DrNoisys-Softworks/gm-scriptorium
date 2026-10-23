@@ -2596,6 +2596,26 @@ Issue #178, [ADR 0070](../docs/decisions/0070-focus-not-hidden-by-bars.md). **Ma
 
 Also re-run C207 steps 1 and 2.
 
+### C216: a tray started from a terminal starts its panel, and passes nothing of the packager's on
+
+Issue #212; ADR 0046 addendum "The packager's PKG_EXECPATH"; ADR 0057 sections 3 and 10. **Mark this OPEN: Linux tests run the packager's own spawn wrapper over a recording spawner and a real stand-in program, and pin the helper's source; only the real win-x64 program and helper show what Windows hands each child.** The rules in "C190 to C205: rules that hold for every desktop-app criterion" apply. Every terminal step runs in a real Windows Terminal cmd tab in the interactive session.
+
+1. Quit the app. Run `gm-scriptorium`: the "Started" lines, `%ERRORLEVEL%` 0. Within 30 seconds a `gm-scriptorium.exe` runs beside the tray, `desktop.log` has a new `host-start` then `panel-running`, the panel port listens, and a signed-in tab opens.
+2. In that tray, choose Open command line (Advanced) and run `set PKG_EXECPATH`: "Environment variable PKG_EXECPATH not defined".
+3. Quit. Hold the panel port with `gm-scriptorium serve --admin --port 7400` in another terminal, then run `gm-scriptorium`. It prints the "Started" lines and `%ERRORLEVEL%` is 0. The tray then shows "Port 7400 is in use by another program" and N05, and `desktop.log` has `host-start` and `panel-error` with `kind="port"`, never "The panel stopped unexpectedly."
+4. Stop the `serve --admin` panel and choose Try again in the same tray: the panel starts on 7400.
+5. Quit, hold 7400 again, start from a terminal again, choose Change ports..., enter 7410 and 7411, and Save and start: the panel opens on 7410, and the scratch config holds `port = 7410` under `[desktop]`.
+6. Quit. Start `gm-scriptorium` in two terminals at the same moment: both exit 0, one icon, exactly one `gm-scriptorium.exe` panel host.
+
+### C217: Setup's "Close and continue" button shows its whole label
+
+Issue #213; ADR 0058 section 5 and addendum "The running page's button and the program's line". **Mark this OPEN: structure tests pin the source and makensis compiles it; nothing on Linux draws a button.** The rules of C200 apply. Run every step at 100% and at 150% display scaling. Sign out and in after changing the scale, so Setup starts at it, and restore it afterwards. Screenshot each page named.
+
+1. With the app running, run Setup past the options page. The running page's main button reads "Close and continue" whole, Back sits to its left without overlapping it, and Cancel is where it always is.
+2. Press Back. The options page's three buttons sit exactly as on a Setup run where the app is not running.
+3. Press Next, then Close and continue. The next page's buttons are in their usual places.
+4. Repeat steps 1 to 3 once in the same Setup run: the button is no wider the second time.
+
 ### C170: a bare `--force` is refused with one line, in the real win-x64 exe
 
 Issue #15, [ADR 0055](../docs/decisions/0055-force-split.md). **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match. Use a scratch copy of the-long-lease example vault, registered as campaign `c170` with an output folder `S\out` that does not exist.

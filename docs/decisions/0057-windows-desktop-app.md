@@ -42,7 +42,7 @@ Rejected:
 
 The helper starts the program as `gm-scriptorium.exe desktop run [--background]`, by full path from its own folder, never by searching `PATH`. It connects the child's standard input and output to pipes and talks to it with the line protocol at the end of this record. There is no network module, no named pipe and no change to the net-structure test, and the helper never calls the panel over HTTP.
 
-- The host is started with `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_UNICODE_ENVIRONMENT`, an inherited environment, and the user's profile folder as the working directory. It has no console at all.
+- The host is started with `DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_UNICODE_ENVIRONMENT`, an inherited environment without `PKG_EXECPATH`, which the helper removes from its own environment before anything else (ADR 0046, addendum "The packager's PKG_EXECPATH"), and the user's profile folder as the working directory. It has no console at all.
 - End of input on the host's standard input means quit. A broken output pipe means quit.
 - The host's standard error is drained by the helper into an 8 KiB ring and discarded, so the pipe can never fill and stall the host. It is never shown, never written to disk and never put in the registry.
 - The helper reads the host's output on its own thread and drops any line the protocol calls malformed, including one over 1024 bytes, which is dropped whole rather than split.
@@ -204,6 +204,7 @@ Will catch:
 - A panel request turning remote access at sign-in on, from another device, through a proxy or through an SSH tunnel. No module the panel loads names the writer except the writer itself, and a sweep of every panel POST in local, proxy and ssh modes, for each kind of request, leaves both keys byte for byte as they were (structure and behaviour tests, each with a positive control).
 - Another program on this PC turning it on through the helper's single-instance message, which accepts only `open` and `handoff`, or by a window message posted to the helper's window, because a menu choice is taken only from the menu's own return value (structure tests).
 - A copied settings folder carrying the setting to another PC, through the computer name.
+- The packager's PKG_EXECPATH variable reaching the host, `desktop set` or the command line window: the helper removes it first and the program hides it in every environment it builds (structure and behaviour tests, and criterion C216).
 
 Will not catch, deliberately:
 
@@ -220,7 +221,7 @@ Will not catch, deliberately:
 
 ## Windows verification
 
-C190 to C207 and C214 in `.agents/windows-verification.md`, added by the slices that build each part, all OPEN until a person confirms them on a real Windows machine against the release candidate.
+C190 to C207, C214 and C216 in `.agents/windows-verification.md`, added by the slices that build each part, all OPEN until a person confirms them on a real Windows machine against the release candidate.
 
 ## Protocol v1
 
