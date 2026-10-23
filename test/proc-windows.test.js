@@ -177,6 +177,22 @@ test('timeout on win32 runs taskkill from SystemRoot with exactly /PID <pid> /T 
   assert.ok(leader.killCalls.length >= 1, 'child.kill() is the fallback after the grace period');
 });
 
+test('timeout on win32: taskkill is handed the built environment, with no credential in it (ADR 0046 addendum "The packager\'s PKG_EXECPATH")', async (t) => {
+  const fb = makeFakeBin(t, { empty: true });
+  const spy = fb.spySpawn((child, call, n) => {
+    if (n !== 1) child.closeNow(0, null);
+  });
+  await fb.run(
+    { command: 'claude', env: winEnv({ ANTHROPIC_API_KEY: 'sk-test-not-real' }), timeoutMs: 40, killGraceMs: 40 },
+    { platform: 'win32', spawn: spy, fileExists: (p) => p === SHIM },
+  );
+  const env = spy.calls[1].options.env;
+  assert.equal(typeof env, 'object');
+  assert.ok(env !== null && !Array.isArray(env), 'a plain object');
+  assert.equal(env.SystemRoot, 'C:\\Windows');
+  assert.equal(Object.keys(env).some((k) => /^anthropic_api_key$/i.test(k)), false);
+});
+
 test('abort on win32 reports cancelled and uses taskkill', async (t) => {
   const fb = makeFakeBin(t, { empty: true });
   const ac = new AbortController();

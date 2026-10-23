@@ -142,12 +142,31 @@ function findKey(env, wanted) {
   return Object.keys(env).find((k) => k.toLowerCase() === lower);
 }
 
+// The packaged program's own spawn adds a variable of this name to the environment it is given, naming
+// the program itself, so a child that is the same program runs as plain Node (see setOptsEnv in the
+// packager's prelude/bootstrap-shared.js, @yao-pkg/pkg 6.22.0). It writes into the object we pass, and
+// it does nothing if the name already holds a value. So the name is given a value that Node's child
+// block never carries: an own entry that is not enumerable. Deleting the name, or passing a fresh
+// object, does not work, because the packager adds it afterwards, inside spawn; freezing the object
+// does not work either, because the packager's assignment would then throw in strict mode.
+const PACKAGER_EXECPATH = 'PKG_EXECPATH';
+
+/** Removes any visible entry of the packager's variable, in any case, and puts the hidden one in its place. */
+function hidePackagerExecPath(env) {
+  for (let key = findKey(env, PACKAGER_EXECPATH); key !== undefined; key = findKey(env, PACKAGER_EXECPATH)) {
+    delete env[key];
+  }
+  Object.defineProperty(env, PACKAGER_EXECPATH, { value: '', enumerable: false, writable: true, configurable: false });
+}
+
 /**
  * Builds the child's environment from scratch.
  *
  * The base list is copied from `sourceEnv`; then `extraEnv`, which cannot set PATH; then a strip
  * that removes the Anthropic credentials and every CLAUDE_CODE_USE_ switch, whatever their case,
- * whatever platform and however they arrived.
+ * whatever platform and however they arrived. Last, the packager's variable is hidden (see
+ * PACKAGER_EXECPATH): the returned object holds one own entry that is not enumerable, which
+ * Object.keys, spreads and deepStrictEqual do not see and a child's environment block does not carry.
  *
  * @param {object} sourceEnv  the caller's environment (never read from the process)
  * @param {object} extraEnv   explicit per-call additions (strings)
@@ -205,6 +224,7 @@ function buildChildEnv(sourceEnv, extraEnv, platform) {
   }
 
   if (win) systemRootOf(out);
+  hidePackagerExecPath(out);
   return out;
 }
 
@@ -507,6 +527,7 @@ async function run(opts, deps = {}) {
               stdio: 'ignore',
               shell: false,
               windowsHide: true,
+              env: childEnv,
             });
             if (killer && typeof killer.on === 'function') killer.on('error', () => {});
           } catch {
