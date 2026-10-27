@@ -110,12 +110,11 @@ new assets, D always wins) holds exactly as written.
 
 `src/build/pageturn.js` inserts the div in the same all-or-nothing pass as the head script, guarded
 by the script's own marker (checked first), no second marker for one line of markup. It goes
-immediately before the first `</main>` after the first `<main class="content">`, the same anchoring
-`src/build/sessions-index.js`'s `MAIN_OPEN`/`MAIN_CLOSE` already uses, and shares that module's own
-residual: a literal `</main>` string inside authored raw HTML in the leaf body would misplace it.
+immediately before the first `</main>` after the first `<main class="content">`.
+A literal `</main>` string inside authored raw HTML in the leaf body would misplace it.
 Inserted only on leaf pages (has `.top-nav`, has no `class="landing-hero"`), the same test the CSS
 scope applies, so it never lands on the landing page or 404.html, and does land on the
-Scriptorium-written sessions index. **Rejected: naming `main.content::after`**, round3.html
+sessions index. **Rejected: naming `main.content::after`**, round3.html
 confirmed this works in Chromium but is unknown in Safari, and a real element is unambiguous in
 both.
 
@@ -236,7 +235,7 @@ and `.tab-panel` stay in the selector unchanged for everywhere the original scop
 ## Residuals
 
 - **No "up" direction on pages without breadcrumbs.** `story.html`, `story/characters/*` and the
-  Scriptorium-written sessions index carry no breadcrumbs, so the head script's `up` detection (a
+  sessions index carry no breadcrumbs, so the head script's `up` detection (a
   breadcrumb link matching the destination) can never fire there; those pages fall back to
   `forward`/`back` only.
 - **Safari 18.2-26.1.** `performance.getEntriesByType('navigation')[0].type === 'back_forward'` is

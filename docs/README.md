@@ -78,7 +78,7 @@ the way.
 - [0003. Config format: TOML, parsed with smol-toml](decisions/0003-config-format.md): Settings live in a hand-editable TOML file.
 - [0004. `update` authenticates via the `gh` CLI subprocess only](decisions/0004-update-credential.md): `update` talks to GitHub only through the `gh` tool.
 - [0005. Generator pin: vendored tarball, per-file manifest integrity](decisions/0005-generator-pin.md): The bundled generator is one exact copy that is checked file by file.
-- [0006. `sessions/index.html` is written by Scriptorium's own post-build pass, not a vault page](decisions/0006-post-build-page-writer.md): The Sessions page of a built site is written after the generator runs.
+- [0006. `sessions/index.html` is written by Scriptorium's own post-build pass, not a vault page](decisions/0006-post-build-page-writer.md): The Sessions page of a built site is written after the generator runs. Retired at publish-v1.21.0: the generator writes the page itself.
 - [0007. Rules-content redaction: two-layer erasure of GURPS reference tables and CoC skill data](decisions/0007-rules-content-redaction.md): Game-rules tables from two game systems are left out of every build.
 - [0008. L4: report every dropped collision, search rendered text with real line numbers](decisions/0008-l4-rendered-text.md): The withheld-name check searches the text a page actually renders.
 - [0009. The output-leak scan: read what the generator actually emitted](decisions/0009-output-leak-scan.md): A scan of the built site catches withheld names in generated views.

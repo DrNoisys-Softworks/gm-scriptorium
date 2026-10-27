@@ -512,15 +512,15 @@ easier to catch or avoid:
    divergence it can't resolve (a symlinked note in the vault) it stops suppressing anything rather
    than guessing, and every real build independently recomputes and compares both sides, naming any
    session where they disagree in a human-only warning.
-3. **Byte-literal markup matches** (`accordions.js`'s `ACCORDION_RE`, `sessionbadges.js`'s re-derived badge string, `pageturn.js`'s `MAIN_OPEN`/`MAIN_CLOSE`,
-   `sessions-index.js`'s donor-page splice) all fail closed (skip, don't error) on a markup change,
+3. **Byte-literal markup matches** (`accordions.js`'s `ACCORDION_RE`, `sessionbadges.js`'s re-derived badge string, `pageturn.js`'s `MAIN_OPEN`/`MAIN_CLOSE`)
+   all fail closed (skip, don't error) on a markup change,
    so a template refactor degrades a specific page feature quietly rather than breaking the build.
    That is deliberate and safe, but it also means these can drift unnoticed without a visual check.
    Stable `class="..."`/`data-*` hooks on nav, accordion and badge markup, rather than exact
    whitespace/attribute-order matches, would make these transforms far less brittle.
-4. **`vault.config.json`'s required, undefaulted `excludeDirs`/`folderMap`** (above): a default (even
-   an empty array/object) at the generator's own `lib/config.js`/`lib/scanner.js` level would remove
-   the need for Scriptorium's own pre-flight shape check entirely.
+4. **`vault.config.json`'s default `folderMap`** (above): the pin now fills in `excludeDirs` and
+   `folderMap` itself, but its default `folderMap` maps nothing, so Scriptorium keeps its own
+   pre-flight shape check. A default that maps the standard folders would remove the need for it.
 5. **No `LICENSE` file inside `tools/publish` itself.** The vendored tarball's own `package.json`
    declares `"license": "MIT"`, but the package directory ships no `LICENSE` text; Scriptorium has to
    separately vendor a copy of the repository root's `LICENSE-CODE` file

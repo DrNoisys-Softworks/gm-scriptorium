@@ -2588,6 +2588,30 @@ Also re-run C145 step 3. C151 step 2 stays with the owner.
 3. Change the update channel to Beta and back to Stable. The cards stay where they are.
 4. Choose Check for updates from the tray. It lands as in C207, and "This PC's addresses" is below the card.
 
+### C209: stub pages withhold by the pin's own rule, in the real win-x64 exe
+
+The publish-v1.17.0 repin, [ADR 0042](../docs/decisions/0042-stub-section-guard.md)'s "Retired" addendum. Scriptorium no longer replaces the pinned generator's `keepOnlySections`; the pin withholds a stub page's excluded sections itself, after the note's strips. C81 described the retired guard, so its step 2 refusal can no longer happen. **Mark this OPEN: Linux and macOS tests prove the logic only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of `test\fixtures\stub-heading-collision-vault` registered as campaign `c209` with its site config, and an output folder `S\out` that does not exist.
+
+1. `build c209 --force-check --config "S\config.toml"` exits 0.
+2. `findstr /s /m "stubleaksentinel stubhushsentinel storyordersentinel" S\out\*` finds nothing, including `S\out\search-index.json`. `S\out\locations\cellar.html` has no "Mentioned In" entry.
+3. `findstr /s /m "publishedappearancesentinel storyappearancesentinel" S\out\*` finds both, so steps 1 and 2 tested a real stub page and a real stub PC story. Re-hash the real config.
+
+### C210: the Connections lane reads the generator's section, in the real win-x64 exe
+
+The publish-v1.21.0 repin, [ADR 0017](../docs/decisions/0017-story-timeline-and-connections-lane.md)'s last addendum. **Mark this OPEN: Linux and macOS tests prove the logic only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of the-long-lease example vault, registered as campaign `c210`.
+
+1. `build c210 --config "S\config.toml"` exits 0.
+2. `findstr /s /m /c:"class=\"cx\"" S\out\*.html` finds nothing, and `findstr /s /m data-scriptorium-connections S\out\*.html` finds 38 pages.
+3. Open `characters\npcs\queen-hesper.html` in Edge: the Connections lane shows a "Named by" group with Emlyn Crewe, Orpiment, Queen Maudry and Wystan Pye, and the Console shows no error. Re-hash the real config.
+
+### C211: no GURPS to-hit calculator script ships, in the real win-x64 exe
+
+The publish-v1.21.0 repin, [ADR 0007](../docs/decisions/0007-rules-content-redaction.md)'s last addendum. **Mark this OPEN: Linux and macOS tests prove the runtime layer only; the packaging layer is checked only on a real executable.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of `test\fixtures\redaction-gurps-vault` registered as campaign `c211` with its site config.
+
+1. `build c211 --force-check --config "S\config.toml"` exits 0 and prints a `rules-content redaction(s) degraded this build` note naming `gurps-tohit-script`.
+2. `S\out\js\gurps-tohit.js` starts with `// Redacted by Scriptorium`, and `findstr /s /m /c:"[[800, 10]" S\out\*` finds nothing.
+3. `findstr /m /c:"[[800, 10]" gm-scriptorium-win-x64.exe` finds nothing. Re-hash the real config.
+
 ### C215: keyboard focus is never hidden under the narrow window's bars, in a real Windows browser
 
 Issue #178, [ADR 0070](../docs/decisions/0070-focus-not-hidden-by-bars.md). **Mark this OPEN: Linux tests drive the panel in real Chromium and Firefox at fixed window sizes; only a real Windows browser, a real narrow window, real 200% zoom and the real fonts can be checked here.** The rules in "C190 to C205: rules that hold for every desktop-app criterion" apply: a scratch `SCRIPTORIUM_CONFIG` set with `setx`, then sign out and in. Never the real config, never `N:`.
@@ -2619,30 +2643,6 @@ Issue #213; ADR 0058 section 5 and addendum "The running page's button and the p
 2. Press Back. The options page's three buttons sit exactly as on a Setup run where the app is not running.
 3. Press Next, then Close and continue. The next page's buttons are in their usual places.
 4. Repeat steps 1 to 3 once in the same Setup run: the button is no wider the second time.
-
-### C209: stub pages withhold by the pin's own rule, in the real win-x64 exe
-
-The publish-v1.17.0 repin, [ADR 0042](../docs/decisions/0042-stub-section-guard.md)'s "Retired" addendum. Scriptorium no longer replaces the pinned generator's `keepOnlySections`; the pin withholds a stub page's excluded sections itself, after the note's strips. C81 described the retired guard, so its step 2 refusal can no longer happen. **Mark this OPEN: Linux and macOS tests prove the logic only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of `test\fixtures\stub-heading-collision-vault` registered as campaign `c209` with its site config, and an output folder `S\out` that does not exist.
-
-1. `build c209 --force-check --config "S\config.toml"` exits 0.
-2. `findstr /s /m "stubleaksentinel stubhushsentinel storyordersentinel" S\out\*` finds nothing, including `S\out\search-index.json`. `S\out\locations\cellar.html` has no "Mentioned In" entry.
-3. `findstr /s /m "publishedappearancesentinel storyappearancesentinel" S\out\*` finds both, so steps 1 and 2 tested a real stub page and a real stub PC story. Re-hash the real config.
-
-### C210: the Connections lane reads the generator's section, in the real win-x64 exe
-
-The publish-v1.21.0 repin, [ADR 0017](../docs/decisions/0017-story-timeline-and-connections-lane.md)'s last addendum. **Mark this OPEN: Linux and macOS tests prove the logic only.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of the-long-lease example vault, registered as campaign `c210`.
-
-1. `build c210 --config "S\config.toml"` exits 0.
-2. `findstr /s /m /c:"class=\"cx\"" S\out\*.html` finds nothing, and `findstr /s /m data-scriptorium-connections S\out\*.html` finds 38 pages.
-3. Open `characters\npcs\queen-hesper.html` in Edge: the Connections lane shows a "Named by" group with Emlyn Crewe, Orpiment, Queen Maudry and Wystan Pye, and the Console shows no error. Re-hash the real config.
-
-### C211: no GURPS to-hit calculator script ships, in the real win-x64 exe
-
-The publish-v1.21.0 repin, [ADR 0007](../docs/decisions/0007-rules-content-redaction.md)'s last addendum. **Mark this OPEN: Linux and macOS tests prove the runtime layer only; the packaging layer is checked only on a real executable.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of `test\fixtures\redaction-gurps-vault` registered as campaign `c211` with its site config.
-
-1. `build c211 --force-check --config "S\config.toml"` exits 0 and prints a `rules-content redaction(s) degraded this build` note naming `gurps-tohit-script`.
-2. `S\out\js\gurps-tohit.js` starts with `// Redacted by Scriptorium`, and `findstr /s /m /c:"[[800, 10]" S\out\*` finds nothing.
-3. `findstr /m /c:"[[800, 10]" gm-scriptorium-win-x64.exe` finds nothing. Re-hash the real config.
 
 ### C218: YAML dates read "D Month YYYY" in badges, event headers, timelines, a session's "In-game:" line and preview cards, in the real win-x64 exe
 

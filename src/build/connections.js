@@ -35,7 +35,7 @@ const CX_SCRIPT_RE = /<script src="[^"]*js\/connections\.js"><\/script>\n?/;
 // How a named item words the two group labels the pin makes up, before this page's name.
 const PIN_LABEL_WORDING = { Family: 'family of', Connected: 'connected to' };
 
-const EXCLUDED_TYPES =new Set(['session', 'campaign_overview', 'roster', 'timeline']);
+const EXCLUDED_TYPES = new Set(['session', 'campaign_overview', 'roster', 'timeline']);
 
 const GROUP_DEFS = [
   { key: 'tie' },

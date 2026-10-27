@@ -154,7 +154,7 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
 
   // SD-2/SD-5 (Engineering Brief, "Scriptorium house stylesheet + desktop redesign",
   // 2026-09-20): writes the embedded product stylesheet to css/scriptorium.css and links it
-  // on every page, after the notice pass (so the cloned sessions index gets the link like any
+  // on every page, after the notice pass (so the sessions index gets the link like any
   // other page) and before the leak scan (so the scanned tree is exactly the tree that swaps).
   const houseStyle = writeHouseStyle(stagingOut);
 
@@ -194,7 +194,7 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
   // Engineering Brief "Book leaves + motion" (2026-09-24), FR-07/FR-08/FR-12/FR-11 (plus
   // AMENDMENT 1 E-3/E-6): session badge field-keying, the #40 date transform, PC accordions
   // open-on-arrival, and the page-turn head script (+ .vt-fx). After writeHouseStyle (so the
-  // cloned sessions index gets patched like any other page) and before the leak scan (so the
+  // sessions index gets patched like any other page) and before the leak scan (so the
   // scanned tree is exactly the tree that swaps). Badges run before dates because they match the
   // raw Date string inside the badge block.
   const sessionBadges = applySessionBadgeFields(stagingOut, { vaultPath, jsonConfig: userJsonConfig });

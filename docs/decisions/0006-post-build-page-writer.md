@@ -1,6 +1,6 @@
 # 0006. `sessions/index.html` is written by Scriptorium's own post-build pass, not a vault page
 
-Status: accepted (Site UI Engineering Brief 2026-09-17, SD-3/SD-4, Chunk A).
+Status: accepted (Site UI Engineering Brief 2026-09-17, SD-3/SD-4, Chunk A); retired at publish-v1.21.0 (see the last addendum).
 
 ## Summary
 
