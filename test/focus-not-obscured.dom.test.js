@@ -79,14 +79,17 @@ for (const browserName of ['chromium', 'firefox']) {
     const base = `http://127.0.0.1:${result.ctx.adminPort}`;
     const browser = await pw[browserName].launch();
     try {
-      /** A signed-in page at `#/<screen>`, reloaded, with the screen drawn and the web fonts in. */
+      /** A signed-in page loaded at `#/<screen>`, with the screen drawn and the web fonts in. */
       const open = async (width, height, screen) => {
         const bctx = await browser.newContext({ viewport: { width, height } });
         const page = await bctx.newPage();
         await page.goto(`${base}/auth?token=${result.token}`, { waitUntil: 'load' });
         await page.waitForSelector('[data-screen="overview"]');
-        await page.goto(`${base}/#/${screen}`, { waitUntil: 'load' });
-        await page.reload({ waitUntil: 'load' });
+        // One real navigation. A hash-only goto from "/" is same-document, and a reload after it can reload the "/" entry in Firefox under load, losing the hash.
+        // The query makes the URL differ from "/" so the load is a full document load; the panel ignores it.
+        await page.goto(`${base}/?s=${screen}#/${screen}`, { waitUntil: 'load' });
+        // A screen may extend its own hash (vocab rewrites it to #/vocab/<tab>), so accept the screen's own sub-paths.
+        await page.waitForFunction((h) => location.hash === h || location.hash.startsWith(h + '/'), `#/${screen}`, { timeout: 5000 });
         await page.waitForSelector(`[data-screen="${screen}"]`);
         await page.waitForFunction(() => document.fonts.status === 'loaded');
         await page.evaluate(() => document.fonts.ready);
