@@ -42,7 +42,7 @@ fmguard.installFrontmatterEngineGuard(pinned.generatorGrayMatter);
  * DEP-a2") and node_modules/@yao-pkg/pkg/prelude/bootstrap-shared.js:380-433
  * for why the Intl.Segmenter shim exists: pkg's small-icu base binaries
  * ship no break-iterator data, and the pinned generator's grapheme
- * counting (lib/unicode.js:75) would otherwise risk pkg's own uncatchable
+ * counting (lib/unicode.js:79) would otherwise risk pkg's own uncatchable
  * SIGSEGV. installSegmenterShim() only patches anything when that risk is
  * actually present (src/generator/intl-shim.js's segmenterDataMissing()
  * gate); in plain node it is a no-op.
@@ -138,7 +138,7 @@ function installVaultReadShim(vaultRoot, transforms) {
   };
 }
 
-/** (Not frozen on purpose: test/obsidian-comments.test.js empties it in a child process to prove the output gate refuses a leak.) Order matters, and matches `renderChain` in src/checks/leak/textmodel.js: comments go first so nothing inside a comment is ever rewritten or parsed, then dataview blocks. */
+/** (Not frozen on purpose: test/obsidian-comments.test.js and test/gm-access-build.test.js replace it in a child process to prove the output gate refuses a leak.) Order matters, and matches `renderChain` in src/checks/leak/textmodel.js: comments go first so nothing inside a comment is ever rewritten or parsed, then dataview blocks. */
 const READ_TRANSFORMS_FOR_BUILD = [stripObsidianComments, stripDataviewBlocks];
 
 /** The vault root the staged config points at (src/build/stage.js writes it absolute), or null. */
@@ -170,7 +170,7 @@ function captureConsole() {
 
 /*
  * FR-DEP-11: the pinned generator emits three render-error shapes
- * (lib/build.js:1035,1045,1066). "roster" is checked before the generic
+ * (lib/build.js:1239,1276,1291). "roster" is checked before the generic
  * "page" pattern, because "ERROR rendering roster <path>:" also matches
  * "ERROR rendering (\S+):" (it would otherwise classify as a page whose
  * outputPath is literally "roster").
@@ -213,7 +213,7 @@ function classifyGeneratorLog(captured) {
  * Up to publish-v1.11.44 it loaded the config with `require(resolvedConfigPath)`, which Node
  * caches; the resolved config path is keyed on a per-build staging directory
  * (docs/decisions/0022-gm-admin-panel.md, "Preview builds"), so each call's require.cache entry
- * was unique. From publish-v1.12.0 it reads the file from disk on every call (lib/build.js:70,
+ * was unique. From publish-v1.12.0 it reads the file from disk on every call (lib/build.js:96,
  * loadVaultConfig), so there is no cache entry at all. Either way this MAY be called more than
  * once per process. Phase 8 slice S2's NFR02 test (test/admin-preview.test.js) is the evidence: a
  * third in-process preview build, with a theme change and a label change made between builds,
@@ -250,21 +250,12 @@ function runGeneratorBuild(configPath) {
     // per build costs nothing (a few parseManifest() probe calls) and catches a hole opened
     // between facade load and this exact build by any in-process code, not just at start-up.
     fmguard.verifyFrontmatterEngineGuard(pinned.parseManifest, pinned.generatorGrayMatter);
-    // Issue #100: refuse to build unless the stub-page section guard is live, and tell it the
-    // effective exclude_sections of THIS build (the same union the generator computes). A failure
-    // to derive them throws into the catch below: fail closed.
-    pinned.assertStubGuardLive();
-    const stagedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    // eslint-disable-next-line global-require
-    const { loadPublishConfig } = require('../vault/publishset');
-    pinned.setStubExcludeSections(loadPublishConfig(stagedConfig.vaultPath, stagedConfig).publishConfig.exclude_sections);
     // eslint-disable-next-line global-require
     const { build } = require('gm-apprentice-publish');
     build({ configPath });
   } catch (err) {
     error = err;
   } finally {
-    pinned.setStubExcludeSections(null);
     consoleCapture.restore();
     restoreReadShim();
     restoreShim();

@@ -6,17 +6,16 @@ const { planBuild } = require('./plan');
 const { writeStagedConfig, mirrorSiteInputs } = require('./stage');
 const { swapIntoPlace, sweepStaleSiblings } = require('./swap');
 const { runGeneratorBuild } = require('../generator/bootstrap');
+const { applyAssetRedactions } = require('../generator/redactions');
 const { writeSiteNotice } = require('./notice');
 const { writeHouseStyle } = require('./housestyle');
 const { writeThemeAssets } = require('./themeassets');
-const { writeSessionsIndex } = require('./sessions-index');
 const { applySessionBadgeFields } = require('./sessionbadges');
 const { applyDateFormat } = require('./dates');
 const { applyAccordionOpen } = require('./accordions');
 const { applyTimeline } = require('./timeline');
 const { applyConnections } = require('./connections');
 const { writeSiteScript } = require('./sitescript');
-const { applyStoryFocus } = require('./storyfocus');
 const { applyPageTurn } = require('./pageturn');
 const { injectGmAccessLink } = require('./gmaccess');
 const { captureWithheldHubs, compareSessionPairs } = require('./sessionmodel');
@@ -105,7 +104,7 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
   mirrorSiteInputs(siteDir, stagingRoot);
 
   const start = process.hrtime.bigint();
-  const { error, renderErrors, detail, redactions } = runGeneratorBuild(configPath);
+  const { error, renderErrors, detail, redactions: moduleRedactions } = runGeneratorBuild(configPath);
   const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
 
   // Treat any captured render error as a build failure even if build()
@@ -121,6 +120,10 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
       stagingRoot,
     };
   }
+
+  // ADR 0007: the pin copies some redacted files straight into the site (publish-v1.21.0's
+  // js/gurps-tohit.js). Replace them before any transform or scan reads the staging tree.
+  const redactions = [...moduleRedactions, ...applyAssetRedactions(stagingOut)];
 
   // ADR 0036, SD-1: which output pages the pin itself withheld-and-replaced for a paired session
   // Wrap-Up (src/build/sessionmodel.js). Read straight off the generator's own raw output, before
@@ -138,10 +141,8 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
   const sessionPairing = sessionpairs.computeSessionPairing({ vaultPath, publishSet: sessionPublishSet });
   const sessionPairDivergence = compareSessionPairs(wrapUpByHub, sessionPairing);
 
-  // UI-01 / issue 214 (docs/decisions/0006-post-build-page-writer.md): the generator never writes
-  // sessions/index.html, so Scriptorium writes it here, before the notice footer pass below picks
-  // it up like any other page.
-  const sessionsIndex = writeSessionsIndex(stagingOut, { siteTitle: userJsonConfig.siteTitle });
+  // Retired: Scriptorium's own sessions/index.html writer. The pin has written that page itself since
+  // publish-v1.11.40 (docs/decisions/0006-post-build-page-writer.md, last addendum).
 
   // The fourth licence-provenance fix (docs/PROVENANCE.md B4): every site
   // gm-apprentice-publish builds redistributes lunr.js and its own CSS/JS
@@ -153,7 +154,7 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
 
   // SD-2/SD-5 (Engineering Brief, "Scriptorium house stylesheet + desktop redesign",
   // 2026-09-20): writes the embedded product stylesheet to css/scriptorium.css and links it
-  // on every page, after the notice pass (so the cloned sessions index gets the link like any
+  // on every page, after the notice pass (so the sessions index gets the link like any
   // other page) and before the leak scan (so the scanned tree is exactly the tree that swaps).
   const houseStyle = writeHouseStyle(stagingOut);
 
@@ -180,9 +181,8 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
   // publish-v1.12.4 renders the grouped Story toggle as a <button> that only opens the menu, with
   // "Story so far" as the menu's first entry. See docs/decisions/0014-story-nav-split-toggle.md's addendum.
 
-  // Downstream shim pending upstream (ADR 0014 final addendum): Escape inside the Story dropdown returns
-  // focus to its toggle. Before the leak scan, so the scanned tree is the tree that swaps.
-  const storyFocus = applyStoryFocus(stagingOut);
+  // Retired: Escape inside the Story dropdown returning focus to its toggle. The pin's js/nav.js has
+  // done it since publish-v1.15.1. See docs/decisions/0014-story-nav-split-toggle.md's last addendum.
 
   // FR-20/SD-20 (docs/agent-runs/repin-v1.11.40-engineering-brief-2026-09-30.md): retired.
   // recap-emphasis.js turned the landing recap's wrapping *...* into <em>...</em> by hand,
@@ -194,11 +194,11 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
   // Engineering Brief "Book leaves + motion" (2026-09-24), FR-07/FR-08/FR-12/FR-11 (plus
   // AMENDMENT 1 E-3/E-6): session badge field-keying, the #40 date transform, PC accordions
   // open-on-arrival, and the page-turn head script (+ .vt-fx). After writeHouseStyle (so the
-  // cloned sessions index gets patched like any other page) and before the leak scan (so the
+  // sessions index gets patched like any other page) and before the leak scan (so the
   // scanned tree is exactly the tree that swaps). Badges run before dates because they match the
   // raw Date string inside the badge block.
   const sessionBadges = applySessionBadgeFields(stagingOut, { vaultPath, jsonConfig: userJsonConfig });
-  const dates = applyDateFormat(stagingOut);
+  const dates = applyDateFormat(stagingOut, { pages: sessionPublishSet.publishedPages });
   const accordions = applyAccordionOpen(stagingOut);
 
   // Engineering Brief "Story timeline + Connections lane" (2026-09-24), Structural decision 2:
@@ -274,7 +274,6 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
     generatorWarnings: generatorWarningLines(detail, { stagingRoot, stagingOut, finalOut }),
     notice,
     houseStyle,
-    storyFocus,
     themeAssets,
     sessionPairs: { wrapUpByHub, unreadable, divergence: sessionPairDivergence },
     sessionBadges,
@@ -284,7 +283,6 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
     connections,
     siteScript,
     pageTurn,
-    sessionsIndex,
     redactions,
     outputScan: { findings: scanFindings, overridden: scanHasError && force },
   };

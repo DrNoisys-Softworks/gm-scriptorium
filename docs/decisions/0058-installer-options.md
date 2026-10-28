@@ -111,7 +111,7 @@ Setup opens one web address: "Read the user guide" on the first-campaign page op
 - The game systems are shown by id, such as `dnd-5e-2024`.
 - Setup's window does not respond while the program checks the answers.
 - The finish page does not name the new campaign.
-- Whether the reason reads correctly for non-ASCII folder names is checked only on Windows.
+- Whether the reason reads correctly for non-ASCII folder names is checked only on Windows. A line that does not survive the round trip described in the addendum "The running page's button and the program's line" is shown as Windows decoded it.
 - Nothing here runs on Linux.
 
 ## Rejected alternatives
@@ -144,4 +144,12 @@ Will not catch, deliberately:
 
 ## Windows verification
 
-C195, C198, C199, C200, C201, C202 and C204 in `.agents/windows-verification.md`, all OPEN until confirmed on a real Windows machine.
+C195, C198, C199, C200, C201, C202, C204 and C217 in `.agents/windows-verification.md`, all OPEN until confirmed on a real Windows machine.
+
+## Addendum: the running page's button and the program's line (issues 213 and 214)
+
+**The button (213).** The running page relabels the shared Next button "Close and continue" but did not resize it, so the label was clipped. Setup now measures the label with the button's own font, in real pixels. If the label does not fit, it widens the button leftward, keeping its right edge, and moves Back left by the same amount. The buttons belong to the window and outlive the page, so the original places are saved first, and they are put back when the page is left and when Back is pressed. Back moves before Next, and the "moved" flag is set before the first move, so a failure part-way leaves a gap, never an overlap, and the restore still works. If a call fails before anything has moved, the layout stays as it was. Rejected: a shorter label (the wording is the owner's), a wider Next on every page (the other pages would drift from the approved look), and asking the button for its ideal size (it needs a newer common-controls version than Setup relies on). Setup does not use dialog-unit conversion, so the fix holds at 100% and 150% display scaling.
+
+**The line (214).** The program prints its refusal reason as UTF-8. Setup shows the last line it printed, and an accented letter appeared as two wrong ones, as if the bytes had been read in the Windows ANSI code page. Setup does not rely on how its process-reading step decodes. It converts the line to ANSI bytes, refusing any best-fit substitute, and reads those bytes as strict UTF-8. If any step fails, or the bytes are not valid UTF-8, the original line is kept. That is correct on a Western code page, a no-op if the line was already decoded correctly, and no worse than before on a double-byte code page, where the round trip can fail. The conversion runs once the whole output has been scanned, whether or not a newline follows the last line, because the program ends every line with one. (The first version sat on the no-newline path only, so on Windows it never ran; a structure test now runs the real scan text against each ending.) Rejected: a new `init` flag that writes the reason to a file (a new command-line surface, a docs-reference change and pinned command lines), and escaping the program's output to ASCII.
+
+Both fixes are OPEN until a person confirms them on Windows: C217 for the button, and step 7 of C199 for the line.

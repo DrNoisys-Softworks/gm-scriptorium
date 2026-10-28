@@ -117,7 +117,10 @@ test('positive control: live_stats on AND a KV store wired loads the live script
     // No shipped script anywhere in js/ names an absolute or protocol-relative URL as code (comments skipped).
     for (const f of walk(path.join(finalOut, 'js')).filter((p) => p.endsWith('.js'))) {
       const code = fs.readFileSync(f, 'utf8').split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
-      assert.doesNotMatch(code, /['"`](https?:)?\/\/[\w.-]+/, `${path.basename(f)} names a cross-origin URL`);
+      // The SVG namespace name (js/connections.js from publish-v1.18.0) is an identifier passed to
+      // createElementNS, never fetched. Only that exact string is let through.
+      const withoutSvgNs = code.split("'http://www.w3.org/2000/svg'").join("''");
+      assert.doesNotMatch(withoutSvgNs, /['"`](https?:)?\/\/[\w.-]+/, `${path.basename(f)} names a cross-origin URL`);
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

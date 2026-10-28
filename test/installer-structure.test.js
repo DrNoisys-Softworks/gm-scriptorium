@@ -738,6 +738,37 @@ const UNFIN_LINES = {
   moveText: `System::Call 'user32::SetWindowPos(p $mui.FinishPage.Text, p 0, i 0, i 0, i r8, i r3, i 0x16)'`,
   moveBox: `System::Call 'user32::SetWindowPos(p $mui.FinishPage.Run, p 0, i r4, i r7, i 0, i 0, i 0x15)'`,
 };
+// The System lines of GmNextFit and GmNextRestore (issue 213), stage B. Each is textually unique in the
+// file, because UNFIN_LINES must be unique and System::Free $2 already appears twice.
+const NEXT_FIT_LINES = {
+  alloc: `System::Call '*(i 0, i 0, i 0, i 0) p .r4'`,
+  getDc: `System::Call 'user32::GetDC(p r0) p .r2'`,
+  select: `System::Call 'gdi32::SelectObject(p r2, p r1) p .r3'`,
+  extent: `System::Call 'gdi32::GetTextExtentPoint32W(p r2, w "Close and continue", i 18, p r4) i .r5'`,
+  reselect: `System::Call 'gdi32::SelectObject(p r2, p r3) p .r6'`,
+  release: `System::Call 'user32::ReleaseDC(p r0, p r2) i .r6'`,
+  sizeRead: `System::Call '*$4(i .r7)'`,
+  zero: `System::Call '*$4(i 0, i 0)'`,
+  origin: `System::Call 'user32::ClientToScreen(p $HWNDPARENT, p r4) i .r5'`,
+  originRead: `System::Call '*$4(i .r5, i .r6)'`,
+  nextRect: `System::Call 'user32::GetWindowRect(p r0, p r4) i .r8'`,
+  nextRead: `System::Call '*$4(i .r8, i .r9, i .r2, i .r3)'`,
+  backRect: `System::Call 'user32::GetWindowRect(p r9, p r4) i .r8'`,
+  backRead: `System::Call '*$4(i .r8, i .r2)'`,
+  moveNext: `System::Call 'user32::SetWindowPos(p r0, p 0, i r1, i $gmNextY, i r3, i $gmNextH, i 0x14) i .r8'`,
+  moveBack: `System::Call 'user32::SetWindowPos(p r9, p 0, i r2, i $gmBackY, i 0, i 0, i 0x15) i .r8'`,
+  free: 'System::Free $4',
+  putNext: `System::Call 'user32::SetWindowPos(p r0, p 0, i $gmNextX, i $gmNextY, i $gmNextW, i $gmNextH, i 0x14) i .r2'`,
+  putBack: `System::Call 'user32::SetWindowPos(p r1, p 0, i $gmBackX, i $gmBackY, i 0, i 0, i 0x15) i .r2'`,
+};
+// The System lines of GmFromUtf8 (issue 214), stage B.
+const UTF8_LINES = {
+  size: `System::Call 'kernel32::WideCharToMultiByte(i 0, i 0x400, w r0, i -1, p 0, i 0, p 0, p 0) i .r4'`,
+  alloc: 'System::Alloc $4',
+  toAcp: `System::Call 'kernel32::WideCharToMultiByte(i 0, i 0x400, w r0, i -1, p r3, i r4, p 0, *i 0 r2) i .r4'`,
+  toWide: `System::Call 'kernel32::MultiByteToWideChar(i 65001, i 8, p r3, i -1, w .r5, i \${NSIS_MAX_STRLEN}) i .r4'`,
+  free: 'System::Free $3',
+};
 const SYSTEM_LINES = [
   PATH_CALL_LINE,
   PATH_WCHAR_LINE,
@@ -747,6 +778,8 @@ const SYSTEM_LINES = [
   'System::Free $2',
   // The uninstaller finish page callback (un.GmFinishShow), stage A only. Named, never indexed.
   ...Object.values(UNFIN_LINES),
+  ...Object.values(NEXT_FIT_LINES),
+  ...Object.values(UTF8_LINES),
 ];
 
 /** Plug-in calls (a word, two colons, a word at the start of a trimmed line) that are not allowed. */
@@ -913,7 +946,11 @@ test('tray close: the window class equals the tray app\'s, and the close, the wa
   };
   assert.equal(inOrder(body), true);
   assert.equal(inOrder(body.split('\n').filter((l) => l.trim() !== 'Sleep 250').join('\n')), false, 'control: a body without the pause is reported');
-  assert.equal(functionBody(NSI, 'GmRunningLeave').trim(), 'Call GmCloseTray');
+  assert.deepEqual(
+    functionBody(NSI, 'GmRunningLeave').split('\n').map((l) => l.trim()).filter(Boolean),
+    ['Call GmNextRestore', 'Call GmCloseTray'],
+    'Leave puts the buttons back, then closes the tray app, and does nothing else (#213)',
+  );
 });
 
 const PAGE_RE = /^(?:!insertmacro\s+MUI_PAGE_\w+|Page\s+custom\b)/;
@@ -1393,4 +1430,231 @@ test('page skips: each new page shows only when it should, by an Abort behind a 
   // control: a guard with no Abort behind it is reported
   const bad = ['StrCmp $gmAskHere 1 +2', 'nsDialogs::Show'];
   assert.notEqual(bad[bad.findIndex((l) => l === 'StrCmp $gmAskHere 1 +2') + 1], 'Abort');
+});
+
+// ---------------------------------------------------------------------------------------------
+// Issues 213 and 214: the running page's button and the program's refusal line (ADR 0058, addendum)
+// ---------------------------------------------------------------------------------------------
+// Shape tests only. They pin the source and prove nothing about how Windows draws a button or how
+// nsExec decodes a line; that is C217 and C199 step 7 (OPEN on the VM).
+
+function bodyLines(name) {
+  const body = functionBody(NSI, name);
+  assert.ok(body, `Function ${name} exists`);
+  return body.split('\n').map((l) => l.trim()).filter(Boolean);
+}
+
+const countInFile = (line) => NSI.split('\n').filter((l) => l.trim() === line).length;
+
+/** Indexes of `needles` in `lines`, each searched after the one before; -1 stops the chain. */
+function inOrder(lines, needles) {
+  const at = [];
+  let from = 0;
+  for (const n of needles) {
+    const i = lines.indexOf(n, from);
+    if (i === -1) return null;
+    at.push(i);
+    from = i + 1;
+  }
+  return at;
+}
+
+test('I1: the running page widens the button after relabelling it, and puts it back on Back', () => {
+  const lines = bodyLines('GmRunningShow');
+  const order = [
+    'nsDialogs::Create 1018',
+    '${NSD_OnBack} GmNextRestore',
+    'SendMessage $0 ${WM_SETTEXT} 0 "STR:Close and continue"',
+    'Call GmNextFit',
+    'nsDialogs::Show',
+  ];
+  assert.ok(inOrder(lines, order), 'the five lines appear in this order');
+  // control: the same lines out of order are not accepted
+  assert.equal(inOrder([order[0], order[3], order[2], order[1], order[4]], order), null);
+});
+
+test('I2: GmRunningLeave restores first; GmNextFit measures the label, checks each call and frees on every path', () => {
+  const leave = bodyLines('GmRunningLeave');
+  assert.equal(leave[0], 'Call GmNextRestore');
+  assert.equal(leave[1], 'Call GmCloseTray');
+  assert.equal(countInFile('Call GmNextFit'), 1);
+  assert.equal(countInFile('Call GmNextRestore'), 1);
+
+  const lines = bodyLines('GmNextFit');
+  const N = NEXT_FIT_LINES;
+  // the label is the owner's text and is eighteen characters; the test types the 18 itself
+  assert.equal('Close and continue'.length, 18);
+  assert.equal(lines.filter((l) => l.includes('w "Close and continue", i 18,')).length, 1);
+  for (const key of Object.keys(N)) {
+    if (['putNext', 'putBack'].includes(key)) continue;
+    assert.equal(lines.filter((l) => l === N[key]).length, 1, `once in GmNextFit: ${key}`);
+    assert.equal(countInFile(N[key]), 1, `once in the file: ${key}`);
+  }
+  for (const key of ['putNext', 'putBack']) {
+    assert.equal(bodyLines('GmNextRestore').filter((l) => l === N[key]).length, 1, key);
+    assert.equal(countInFile(N[key]), 1, key);
+  }
+  // the two move flags: no resize flag on Next, no resize on Back
+  assert.ok(N.moveNext.endsWith('i 0x14) i .r8\''));
+  assert.ok(N.moveBack.endsWith('i 0x15) i .r8\''));
+  // the label is measured first, then the buttons are placed
+  assert.ok(inOrder(lines, [N.alloc, N.getDc, N.select, N.extent, N.reselect, N.release, N.sizeRead, N.zero, N.origin, N.originRead, N.nextRect, N.nextRead, N.backRect, N.backRead, N.moveBack, N.moveNext, N.free]));
+  // every call's result is looked at
+  const next = (l) => lines[lines.indexOf(l) + 1];
+  assert.equal(next(N.alloc), 'IntCmp $4 0 fit_done');
+  assert.equal(next(N.getDc), 'IntCmp $2 0 fit_free');
+  assert.equal(lines[lines.indexOf(N.select) + 2], 'IntCmp $3 0 fit_release');
+  assert.equal(lines[lines.indexOf(N.release) + 1], 'IntCmp $5 0 fit_free', 'the measure result is checked after the device context is given back');
+  assert.equal(next(N.origin), 'IntCmp $5 0 fit_free');
+  assert.equal(next(N.nextRect), 'IntCmp $8 0 fit_free');
+  assert.equal(next(N.backRect), 'IntCmp $8 0 fit_free');
+  assert.equal(next(N.moveNext), 'IntCmp $8 0 fit_free');
+  // Back moves first and the flag is set at once, so Restore always has something to undo and Next never overlaps an unmoved Back
+  assert.ok(inOrder(lines, ['IntOp $gmNextX $8 - $5', 'IntOp $gmNextW $2 - $8', 'IntOp $gmBackX $8 - $5', 'IntOp $gmBackY $2 - $6', 'StrCpy $gmNextMoved 1', N.moveBack, 'IntCmp $8 0 fit_free', N.moveNext]), 'originals saved, flag set, Back (0x15), then Next (0x14)');
+  assert.equal(countInFile('${NSD_OnBack} GmNextRestore'), 1);
+  assert.equal(lines.filter((l) => l === 'StrCpy $gmNextMoved 1').length, 1);
+  // the buffer is freed on every path after it exists: the only jump to fit_done is before the allocation is used
+  const freeAt = lines.indexOf('fit_free:');
+  assert.equal(lines[freeAt + 1], N.free);
+  const allocAt = lines.indexOf(N.alloc);
+  lines.forEach((l, i) => {
+    if (/\bfit_done\b/.test(l) && !/^fit_done:$/.test(l)) assert.ok(i <= allocAt + 1, `a jump to fit_done after the allocation: ${l}`);
+  });
+  // registers
+  const seq = (re) => lines.filter((l) => re.test(l));
+  assert.deepEqual(seq(/^Push \$\d$/), ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((n) => `Push $${n}`));
+  assert.deepEqual(seq(/^Pop \$\d$/), ['9', '8', '7', '6', '5', '4', '3', '2', '1', '0'].map((n) => `Pop $${n}`));
+  assert.equal(/MapDialogRect/.test(NSI), false);
+});
+
+test('I2: GmNextRestore puts both buttons back only when they were moved, and keeps its registers', () => {
+  const lines = bodyLines('GmNextRestore');
+  const N = NEXT_FIT_LINES;
+  assert.ok(inOrder(lines, ['StrCmp $gmNextMoved 1 +1 restore_done', 'StrCpy $gmNextMoved 0', N.putNext, N.putBack, 'restore_done:']));
+  assert.deepEqual(lines.filter((l) => /^Push \$\d$/.test(l)), ['Push $0', 'Push $1', 'Push $2']);
+  assert.deepEqual(lines.filter((l) => /^Pop \$\d$/.test(l)), ['Pop $2', 'Pop $1', 'Pop $0']);
+});
+
+test('I3: GmFromUtf8 round-trips through the ANSI page strictly, keeps the input on any failure and frees on every path', () => {
+  const lines = bodyLines('GmFromUtf8');
+  const U = UTF8_LINES;
+  assert.ok(U.size.includes('(i 0, i 0x400,'));
+  assert.ok(U.toAcp.includes('(i 0, i 0x400,'));
+  assert.ok(U.toWide.includes('(i 65001, i 8,'));
+  for (const key of Object.keys(U)) {
+    assert.equal(lines.filter((l) => l === U[key]).length, 1, `once in GmFromUtf8: ${key}`);
+    assert.equal(countInFile(U[key]), 1, `once in the file: ${key}`);
+  }
+  assert.ok(inOrder(lines, [U.size, 'IntCmp $4 0 utf8_done', U.alloc, 'Pop $3', 'StrCmp $3 0 utf8_done', U.toAcp, 'IntCmp $4 0 utf8_free', 'IntCmp $2 0 +1 utf8_free utf8_free', U.toWide, 'IntCmp $4 0 utf8_free', 'StrCpy $1 $5', 'utf8_free:', U.free, 'utf8_done:']));
+  // the input is the default result
+  assert.ok(inOrder(lines, ['StrCpy $1 $0', U.size]));
+  // after the allocation, the only exits go through the free
+  const allocAt = lines.indexOf(U.alloc);
+  lines.forEach((l, i) => {
+    if (i > allocAt + 2 && /\butf8_done\b/.test(l) && !/^utf8_done:$/.test(l)) assert.fail(`a jump to utf8_done after the allocation: ${l}`);
+  });
+  // registers: the caller's $0 is swapped out and back, and $1 to $5 are pushed and popped
+  assert.equal(lines[0], 'Exch $0');
+  assert.equal(lines[lines.length - 1], 'Exch $0');
+  assert.deepEqual(lines.filter((l) => /^Push \$\d$/.test(l)), ['Push $1', 'Push $2', 'Push $3', 'Push $4', 'Push $5']);
+  assert.deepEqual(lines.slice(lines.indexOf('utf8_done:')).filter((l) => /^Pop \$\d$/.test(l)), ['Pop $5', 'Pop $4', 'Pop $3', 'Pop $2', 'Pop $1']);
+});
+
+test('I4: the refusal line is converted once, after the last line is chosen and before the routine ends', () => {
+  assert.equal(countInFile('Call GmFromUtf8'), 1);
+  const lines = bodyLines('GmRunInit');
+  const at = lines.indexOf('Call GmFromUtf8');
+  assert.ok(at > 0, 'inside GmRunInit');
+  const last = lines.indexOf('init_last:');
+  const done = lines.indexOf('init_done:');
+  assert.ok(last >= 0 && done > last);
+  assert.ok(at > last && at < done, 'between init_last: and init_done:');
+  assert.equal(lines[at - 1], 'Push $gmInitLine');
+  assert.equal(lines[at + 1], 'Pop $gmInitLine');
+  assert.ok(lines.lastIndexOf('StrCpy $gmInitLine $2') < at, 'after the last StrCpy of the line');
+});
+
+// Issue 214, second pass. The first fix put the conversion where only a line with no newline after it
+// arrives, and the program ends every line with one, so on Windows the conversion never ran. These
+// tests run the real GmRunInit text from `init_ran:` to `init_done:` in a small interpreter of the few
+// NSIS instructions it uses, with GmFromUtf8 replaced by a stub that marks what it was given. They
+// prove the call is reached for the shapes of output the program produces. They do not prove the
+// conversion itself (C199 step 7, OPEN on the VM).
+
+/** Runs the scan part of GmRunInit. @returns {{ line: string, converted: string[] }} */
+function runInitScan(rc, output) {
+  const body = bodyLines('GmRunInit');
+  const from = body.indexOf('init_ran:');
+  const to = body.indexOf('init_done:');
+  assert.ok(from >= 0 && to > from);
+  const prog = body.slice(from + 1, to + 1);
+  const labels = {};
+  const ins = [];
+  for (const l of prog) {
+    if (/^[A-Za-z_]\w*:$/.test(l)) labels[l.slice(0, -1)] = ins.length;
+    else ins.push(l);
+  }
+  const vars = { gmInitRc: '', gmInitLine: '' };
+  const st = [output, String(rc)]; // push order: output first, rc on top
+  const converted = [];
+  const val = (t) => {
+    const s = t.replace(/^"|"$/g, '').replace(/\$\\r/g, '\r').replace(/\$\\n/g, '\n').replace(/\$\{NSIS_MAX_STRLEN\}/g, '1024');
+    return s.replace(/\$(\w+)/g, (m, n) => (vars[n] === undefined ? '' : String(vars[n])));
+  };
+  const toks = (l) => l.match(/"[^"]*"|\S+/g);
+  const set = (name, v) => { vars[name.slice(1)] = v; };
+  let pc = 0;
+  let steps = 0;
+  const jump = (label, at) => { pc = /^\+\d+$/.test(label) ? at + Number(label.slice(1)) : labels[label]; assert.notEqual(pc, undefined, label); };
+  while (pc < ins.length) {
+    assert.ok(++steps < 200000, 'the scan loops forever');
+    const at = pc;
+    const t = toks(ins[pc]);
+    pc++;
+    switch (t[0]) {
+      case 'Pop': set(t[1], st.pop()); break;
+      case 'Push': st.push(val(t[1])); break;
+      case 'StrCpy': {
+        if (t.length === 4) { const s = val(t[2]); set(t[1], s.substr(Number(val(t[3])), 1)); break; }
+        if (t.length === 5) { const s = val(t[2]); set(t[1], s.substr(Number(val(t[4])), Number(val(t[3])))); break; }
+        set(t[1], val(t[2]));
+        break;
+      }
+      case 'StrCmp': if (val(t[1]) === val(t[2])) jump(t[3], at); else if (t[4]) jump(t[4], at); break;
+      case 'StrLen': set(t[1], val(t[2]).length); break;
+      case 'IntOp': set(t[1], t[3] === '+' ? Number(val(t[2])) + Number(val(t[4])) : Number(val(t[2])) - Number(val(t[4]))); break;
+      case 'IntCmp': {
+        const a = Number(val(t[1])); const b = Number(val(t[2]));
+        if (a === b) jump(t[3], at); else if (a < b && t[4]) jump(t[4], at); else if (a > b && t[5]) jump(t[5], at);
+        break;
+      }
+      case 'Goto': jump(t[1], at); break;
+      case 'Call': assert.equal(t[1], 'GmFromUtf8'); { const s = st.pop(); converted.push(s); st.push('CONVERTED:' + s); } break;
+      case 'StrCmpS': break;
+      case 'nsExec::ExecToStack': break;
+      default: assert.fail('the interpreter does not know: ' + ins[at]);
+    }
+  }
+  return { line: vars.gmInitLine, converted };
+}
+
+test('I5: the refusal line is converted for output that ends in a newline, a CRLF, or nothing, and only then', () => {
+  const reason = 'refusing to build inside the vault: C:\\v\\D&D Gr\u00c3\u00bcn\\site';
+  for (const tail of ['\n', '\r\n', '']) {
+    const r = runInitScan(3, 'first line\n' + reason + tail);
+    assert.deepEqual(r.converted, [reason], `converted once, tail ${JSON.stringify(tail)}`);
+    assert.equal(r.line, 'CONVERTED:' + reason);
+  }
+  // a blank line after the reason does not lose it
+  assert.equal(runInitScan(3, reason + '\r\n\r\n').line, 'CONVERTED:' + reason);
+  // a success is not converted, and an empty output keeps the general line (converted harmlessly, ASCII)
+  const ok = runInitScan(0, reason + '\n');
+  assert.deepEqual(ok.converted, []);
+  assert.equal(ok.line, '');
+  const empty = runInitScan(3, '');
+  assert.equal(empty.line.replace('CONVERTED:', ''), "Setup couldn't show the reason here.");
+  // control: the interpreter does see a call that never happens (output too long to scan keeps the general line)
+  const long = runInitScan(3, 'x'.repeat(2000));
+  assert.deepEqual(long.converted, []);
+  assert.equal(long.line, "Setup couldn't show the reason here.");
 });

@@ -59,7 +59,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A file has no frontmatter `type`. scanVault silently skips such a file (lib/scanner.js:117); this is how content disappears without a message.',
+      'A file has no frontmatter `type`. scanVault silently skips such a file (lib/scanner.js:135); this is how content disappears without a message.',
   },
   {
     id: 'census/type',
@@ -180,7 +180,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A directory has no folderMap entry and is not the vault root, so scanVault silently drops every file under it (lib/scanner.js:119-129). A third silent-drop path found during the Architect pass.',
+      'A directory has no folderMap entry and is not the vault root, so scanVault silently drops every file under it (lib/scanner.js:137-147). A third silent-drop path found during the Architect pass.',
   },
   {
     id: 'config/exclude-sections-divergence',
@@ -190,7 +190,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A pin default excluded section (lib/config.js:17) is silently dropped because vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them (lib/config.js:192-246, :414-416). ERROR if the heading actually renders in a published page.',
+      'A pin default excluded section (lib/config.js:17) is silently dropped because vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them (lib/config.js:246-300, :441-443). ERROR if the heading actually renders in a published page.',
   },
   {
     id: 'config/exclude-dirs-divergence',
@@ -236,7 +236,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'The pack.toml theme is built for one colour scheme (theme.json "scheme") but the vault palette resolves to the other, by the generator\'s own light/dark rule (lib/theme.js:188) applied after its palette merge (lib/config.js:428-430). Text and surfaces may clash. Never fires for the plain theme, without a pack.toml, or when a genre preset owns the palette.',
+      'The pack.toml theme is built for one colour scheme (theme.json "scheme") but the vault palette resolves to the other, by the generator\'s own light/dark rule (lib/theme.js:188) applied after its palette merge (lib/config.js:485-487). Text and surfaces may clash. Never fires for the plain theme, without a pack.toml, or when a genre preset owns the palette.',
   },
   {
     id: 'leak/l1-no-manifest',
@@ -255,7 +255,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      "A built page or image is sourced from a directory in the union of vault.config.json:excludeDirs and _meta/vault-config.md:publish.exclude_dirs, or under one of the pin's always-excluded directories (_meta, _Templates, _templates, personal; lib/publish-decision.js:46). A file under images/ that is byte-identical to a cover picture or section banner the generator copies there (lib/build.js) is judged by that real source instead of being read back to the attachments folder: WARN when the GM named it in publish.theme.campaign_image or banners, ERROR when the banner was an auto-found _banner.* (ADR 0061). Reads the real built tree when a build exists (INFO when none). Inside build the pre-build check defers it (one INFO) and src/build/outputgate.js's scanStagingOutput runs it against the staging tree before the swap, where the command line cannot override it (ADR 0055).",
+      "A built page or image is sourced from a directory in the union of vault.config.json:excludeDirs and _meta/vault-config.md:publish.exclude_dirs, or under one of the pin's always-excluded directories (_meta, _Templates, _templates, personal; lib/publish-decision.js:45). A file under images/ that is byte-identical to a cover picture or section banner the generator copies there (lib/build.js) is judged by that real source instead of being read back to the attachments folder: WARN when the GM named it in publish.theme.campaign_image or banners, ERROR when the banner was an auto-found _banner.* (ADR 0061). Reads the real built tree when a build exists (INFO when none). Inside build the pre-build check defers it (one INFO) and src/build/outputgate.js's scanStagingOutput runs it against the staging tree before the swap, where the command line cannot override it (ADR 0055).",
   },
   {
     id: 'leak/l3-unpublished-link',
@@ -292,7 +292,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'Track D2: a withheld: true entity\'s hidden name reaches the generator\'s ACTUAL emitted output — a relationship-graph SVG <text> label, an aggregate index card built from a frontmatter field, a recency/landing excerpt, a copied attachment\'s own filename — even though no source-side check (L1-L5) can see it, because these are derived views the pin builds from published data, not renderings of one page\'s own markdown. Reads the real built tree (ctx.outputPath) when a build exists, one INFO when it does not (leak/l2\'s posture, reused verbatim), and the staging tree before the swap during `build` (src/build/outputgate.js). No suppression mechanism of any kind; see docs/decisions/0009-output-leak-scan.md.',
+      'Track D2: a withheld: true entity\'s hidden name reaches the generator\'s ACTUAL emitted output — a page\'s Connections section, an aggregate index card built from a frontmatter field, a recency/landing excerpt, a copied attachment\'s own filename — even though no source-side check (L1-L5) can see it, because these are derived views the pin builds from published data, not renderings of one page\'s own markdown. Reads the real built tree (ctx.outputPath) when a build exists, one INFO when it does not (leak/l2\'s posture, reused verbatim), and the staging tree before the swap during `build` (src/build/outputgate.js). No suppression mechanism of any kind; see docs/decisions/0009-output-leak-scan.md.',
   },
   {
     id: 'leak/l4-index-term',

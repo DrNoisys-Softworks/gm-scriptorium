@@ -6,13 +6,16 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const { REDACTIONS, applyRedactions, redactionReport } = require('../src/generator/redactions');
+const { REDACTIONS, ASSET_REDACTIONS, applyRedactions, applyAssetRedactions, redactionReport } = require('../src/generator/redactions');
 const { MARKERS, PIN_SCAN_BASELINE, scanPinTree, scanBuffer, assertNoRulesContent } = require('../scripts/content-markers');
 const { buildNoticesText } = require('../scripts/generate-notices');
 const { ScriptoriumError } = require('../src/util/errors');
 
 const PIN = require('../vendor/gm-apprentice-publish/PIN.json');
 const GENERATOR_DIR = path.join(__dirname, '..', 'node_modules', 'gm-apprentice-publish');
+
+// Module redactions and asset redactions (publish-v1.21.0's js/gurps-tohit.js) share these bindings.
+const ALL = [...REDACTIONS, ...ASSET_REDACTIONS];
 
 function sha256(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
@@ -21,7 +24,7 @@ function sha256(filePath) {
 // -- AC-R2: registry entries are anchored to the pin and to their markers --
 
 test('every REDACTIONS entry names a pinPath that is a key of PIN.json.files', () => {
-  for (const entry of REDACTIONS) {
+  for (const entry of ALL) {
     assert.ok(
       Object.prototype.hasOwnProperty.call(PIN.files, entry.pinPath),
       `${entry.id}: pinPath "${entry.pinPath}" is not a key of PIN.json.files`,
@@ -30,7 +33,7 @@ test('every REDACTIONS entry names a pinPath that is a key of PIN.json.files', (
 });
 
 test('every REDACTIONS entry\'s expectedSha256 equals PIN.files[pinPath]', () => {
-  for (const entry of REDACTIONS) {
+  for (const entry of ALL) {
     assert.equal(
       entry.expectedSha256,
       PIN.files[entry.pinPath],
@@ -40,14 +43,14 @@ test('every REDACTIONS entry\'s expectedSha256 equals PIN.files[pinPath]', () =>
 });
 
 test('every REDACTIONS entry\'s expectedSha256 matches the file actually installed on disk', () => {
-  for (const entry of REDACTIONS) {
+  for (const entry of ALL) {
     const installed = path.join(GENERATOR_DIR, ...entry.pinPath.split('/'));
     assert.equal(sha256(installed), entry.expectedSha256, `${entry.id}: installed file hash mismatch`);
   }
 });
 
 test('positive control: the installed file for every REDACTIONS entry still contains every one of its markers', () => {
-  for (const entry of REDACTIONS) {
+  for (const entry of ALL) {
     const markerEntry = MARKERS.find((m) => m.id === entry.id);
     assert.ok(markerEntry, `${entry.id}: no matching entry in scripts/content-markers.js MARKERS`);
     assert.equal(markerEntry.pinPath, entry.pinPath, `${entry.id}: MARKERS pinPath does not match REDACTIONS pinPath`);
@@ -81,7 +84,7 @@ test('every REDACTIONS entry\'s stub export key set equals the real module\'s ex
 
 test('buildNoticesText() contains every shipping REDACTIONS entry\'s noticeClaim', () => {
   const text = buildNoticesText();
-  for (const entry of REDACTIONS) {
+  for (const entry of ALL) {
     assert.ok(typeof entry.noticeClaim === 'string' && entry.noticeClaim.length > 0, `${entry.id}: missing noticeClaim`);
     assert.ok(
       text.includes(entry.noticeClaim),
@@ -93,7 +96,7 @@ test('buildNoticesText() contains every shipping REDACTIONS entry\'s noticeClaim
 // -- Structural decision D4: no marker string anywhere in the src/ registry --
 
 test('no REDACTIONS field (reason, noticeClaim, pinPath, specifier, id) contains a marker string', () => {
-  for (const entry of REDACTIONS) {
+  for (const entry of ALL) {
     const haystack = [entry.id, entry.pinPath, entry.specifier, entry.reason, entry.noticeClaim].join('\n');
     for (const markerEntry of MARKERS) {
       for (const marker of markerEntry.strings) {
@@ -194,11 +197,55 @@ test('applyRedactions() throws ScriptoriumError when a specifier cannot resolve'
 
 // -- D6a: the redacted files' sha256 pin in scripts/content-markers.js MARKERS lines up with the pin --
 
-test('MARKERS entries name exactly the same two pinPaths as REDACTIONS, in the same order', () => {
+test('MARKERS entries name exactly the pinPaths of REDACTIONS then ASSET_REDACTIONS, in the same order', () => {
   assert.deepEqual(
     MARKERS.map((m) => m.pinPath),
-    REDACTIONS.map((e) => e.pinPath),
+    ALL.map((e) => e.pinPath),
   );
+});
+
+// -- publish-v1.21.0: a redacted browser script is replaced, in the executable and in every site --
+
+test('every ASSET_REDACTIONS entry is erased in pkg.patches and replaced by exactly its stubSource', () => {
+  // eslint-disable-next-line global-require
+  const patches = require('../package.json').pkg.patches;
+  for (const entry of ASSET_REDACTIONS) {
+    const patch = patches[`node_modules/gm-apprentice-publish/${entry.pinPath}`];
+    assert.ok(Array.isArray(patch), `${entry.id}: no pkg.patches entry`);
+    assert.deepEqual(patch[0], { do: 'erase' });
+    assert.equal(patch[1], entry.stubSource);
+  }
+});
+
+test('no ASSET_REDACTIONS stubSource contains a marker string', () => {
+  for (const entry of ASSET_REDACTIONS) {
+    for (const markerEntry of MARKERS) {
+      for (const marker of markerEntry.strings) assert.ok(!entry.stubSource.includes(marker), `${entry.id}: ${marker}`);
+    }
+  }
+});
+
+test('applyAssetRedactions() replaces each copied script and counts the pages that load it', () => {
+  const os = require('os'); // eslint-disable-line global-require
+  const site = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-asset-redaction-'));
+  try {
+    for (const entry of ASSET_REDACTIONS) {
+      fs.mkdirSync(path.dirname(path.join(site, entry.pinPath)), { recursive: true });
+      fs.copyFileSync(path.join(GENERATOR_DIR, ...entry.pinPath.split('/')), path.join(site, entry.pinPath));
+    }
+    fs.mkdirSync(path.join(site, 'characters'), { recursive: true });
+    fs.writeFileSync(path.join(site, 'characters', 'a.html'), '<div class="wide cat-table tohit" id="tohit-calc"></div><script src="../js/gurps-tohit.js"></script>');
+    fs.writeFileSync(path.join(site, 'characters', 'b.html'), '<p>No calculator here.</p>');
+    const report = applyAssetRedactions(site);
+    assert.deepEqual(report, [{ id: 'gurps-tohit-script', calls: 1 }]);
+    for (const entry of ASSET_REDACTIONS) assert.equal(fs.readFileSync(path.join(site, entry.pinPath), 'utf8'), entry.stubSource);
+    // A site the generator did not copy the script into is left alone.
+    fs.rmSync(path.join(site, 'js'), { recursive: true });
+    assert.deepEqual(applyAssetRedactions(site), [{ id: 'gurps-tohit-script', calls: 1 }]);
+    assert.equal(fs.existsSync(path.join(site, 'js')), false);
+  } finally {
+    fs.rmSync(site, { recursive: true, force: true });
+  }
 });
 
 // -- AC-R8 (unit level): scanBuffer/assertNoRulesContent's own logic, exercised against small
@@ -302,7 +349,7 @@ test('a D&D-only build reports zero calls for every redaction and prints no extr
     assert.doesNotMatch(result.human, /rules-content redaction/, 'a D&D build must print nothing extra');
     assert.deepEqual(
       result.envelope.redactions,
-      REDACTIONS.map((e) => ({ id: e.id, calls: 0 })),
+      ALL.map((e) => ({ id: e.id, calls: 0 })),
       'every redaction must report zero calls on a vault with no GURPS or CoC page',
     );
   } finally {

@@ -168,15 +168,16 @@ test('FR-19 runtime: build+check+preview on a self-host-fonts fixture make zero 
     // pin's own PUBLISH_DEFAULTS.theme, lib/config.js), the same surface exclude_sections/
     // exclude_dirs already use. A non-generic heading family under self-host is exactly the case
     // that would need lib/fonts.js's prefetch if Scriptorium ever called it (OD-1: it never does).
-    // mode: gm sidesteps the manifest-review gate entirely (player mode requires
-    // _meta/publish-manifest.md, orthogonal to what this test is about).
+    // mode: full sidesteps the manifest-review gate entirely (player mode requires
+    // _meta/publish-manifest.md, orthogonal to what this test is about). It said `gm` until
+    // publish-v1.17.0, which reads any mode but player or full as player (lib/config.js:110).
     fs.writeFileSync(
       path.join(vaultDir, '_meta', 'vault-config.md'),
       [
         '---',
         'type: meta',
         'publish:',
-        '  mode: gm',
+        '  mode: full',
         '  theme:',
         '    fonts:',
         '      source: self-host',

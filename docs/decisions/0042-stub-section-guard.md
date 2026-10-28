@@ -4,12 +4,12 @@
 
 A stub page publishes only the sections the GM names. It could also publish a heading that sat
 inside a withheld section, if that heading's text matched a named section, along with its search
-entry and backlinks. Scriptorium now removes the withheld sections first, so the withheld parent
-always wins. The cause is in the upstream generator, so the fix is a guard in Scriptorium's own
-layer, and the build refuses to run if the guard is not in place. Whether this holds inside the
-packaged Windows executable is not yet confirmed.
+entry and backlinks. Until publish-v1.14.0 Scriptorium removed the withheld sections first, with a
+guard in its own layer, so the withheld parent always won. From publish-v1.17.0 the upstream
+generator does this itself, and the guard is retired (see the final addendum). Stub pages change
+in both directions, as full pages already do (see the final addendum). Whether this holds inside the packaged Windows executable is not yet confirmed (C209).
 
-Status: accepted (2026-10-03). Issue 100.
+Status: accepted (2026-10-03); superseded by upstream at publish-v1.17.0, retired 2026-10-17 (see the final addendum). Issue 100.
 
 ## The defect
 
@@ -90,3 +90,41 @@ before `keepOnlySections` in `lib/build.js` at the two stub call sites, or give
 `publish_include_sections: [Appearance]` and `## GM Notes` > `### Appearance`. The leak reaches the
 page HTML, `search-index.json` and backlinks. The mirror-image `keepLevel` re-anchoring noted in
 ADR 0013 is unchanged and still fails closed.
+
+## Retired at publish-v1.17.0 (2026-10-17)
+
+Upstream now withholds a stub page's excluded sections itself, so the guard is gone. The heading
+collision this record was about behaves as before. Two other cases change, because the pin's strips
+now run before the cut, the same sequence full pages already used:
+
+- **Less publishes.** A gm-only block that opens under a withheld heading and closes after a kept one
+  is withheld whole. Kept on this pin, the guard would publish its tail (see below).
+- **More publishes.** When a gm-only block, a hidden callout or a comment holds the withheld heading
+  itself, the strip removes that heading, and the text after the block falls under the heading
+  before it. If that section is kept, the text publishes, although in Obsidian it sits under
+  GM Notes. Raised upstream as
+  [AntTheLimey/gm-apprentice#447](https://github.com/AntTheLimey/gm-apprentice/issues/447).
+
+From publish-v1.17.0 (upstream #320), the pin's `keepOnlySections` and the new `stubCut` take a
+third argument, the build's `withhold` object (`lib/processor.js:474`). They run the note's own
+strips first (gm-only blocks, comments, callouts), then its exclude list, and only then keep the
+named sections. The build passes that object for the page body (`stubCut`, `lib/build.js:593`) and
+for a PC's story companion (`keepOnlySections`, `lib/build.js:601`).
+
+Keeping the guard would have done harm. It ran the exclude list *before* the strips and dropped the
+`withhold` object, so a gm-only block that opened under a withheld `## GM Notes` and closed after a
+kept heading lost its opener and published on a stubbed PC's story page and in the search index.
+`test/stub-heading-collision.test.js` proves that on a real build; putting the old pre-filter back
+turns it red.
+
+What changed in Scriptorium:
+
+- `src/generator/pinned.js` re-exports the pin's `keepOnlySections` unchanged. The live check and
+  the per-build exclude list are gone, and `src/generator/bootstrap.js` no longer calls them.
+- `src/checks/leak/textmodel.js` passes the same `withhold` object the build does, less its `warn`,
+  so `check` reads a stub page the way the build cuts it.
+- `test/stub-section-guard.test.js` became `test/stub-sections.test.js`: the same cases, run against
+  the pin through the facade.
+
+Residual: the pin withholds nothing from a stub when a caller passes no `excludeSections`. Every
+caller in the build and in `check` passes it. A future caller must too.

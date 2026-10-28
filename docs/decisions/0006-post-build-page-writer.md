@@ -1,6 +1,6 @@
 # 0006. `sessions/index.html` is written by Scriptorium's own post-build pass, not a vault page
 
-Status: accepted (Site UI Engineering Brief 2026-09-17, SD-3/SD-4, Chunk A).
+Status: accepted (Site UI Engineering Brief 2026-09-17, SD-3/SD-4, Chunk A); retired at publish-v1.21.0 (see the last addendum).
 
 ## Summary
 
@@ -91,3 +91,18 @@ hatch, the donor-transform assumption change detector) is unchanged and still pa
 mechanism generically. This addendum records the one additional fact worth writing down: the
 mechanism is no longer merely available, it is now the ordinary path every real build with session
 content takes.
+
+## Addendum: the writer is retired (publish-v1.21.0)
+
+The writer had been doing nothing since `publish-v1.11.40`, because the generator writes
+`sessions/index.html` first. Its one remaining job was a safety net in case a later pin stopped
+writing the page. A test does that job better than a fallback that hides the regression, so
+`src/build/sessions-index.js`, its call in `src/build/run.js`, the `sessionsIndex` field of the build
+result and its synthetic tests are deleted. `test/build-sessions-index.test.js` now builds
+`story-vault` and checks that the generator's own page exists, comes from the generator's page shell
+and links every session page, and that no Scriptorium writer runs. Removing the page after the
+generator runs makes that test fail.
+
+Rejected: keeping the writer as a self-retiring fallback, as the design above intended. It costs
+nothing at build time, but a fallback that quietly writes a different page would hide an upstream
+regression from the GM and from the next pin bump. The pin's page is the one GMs see today.

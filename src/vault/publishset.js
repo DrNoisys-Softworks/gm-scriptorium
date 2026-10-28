@@ -25,6 +25,28 @@ function computeLineOffset(raw, content) {
   return count;
 }
 
+/**
+ * uncycle() in lib/frontmatter.js:22-30, ported because the pin does not export it. A YAML alias
+ * can make a value hold itself (`tags: &a [x, *a]`); the pin replaces the repeat with null before
+ * anything walks the values. Works on a clone, since the parse result may be shared with other readers.
+ *
+ * @param {object} data parsed frontmatter
+ * @returns {object} a copy with no cycles
+ */
+function uncycled(data) {
+  const copy = structuredClone(data);
+  (function walk(value, above) {
+    if (!value || typeof value !== 'object' || value instanceof Date) return;
+    above.push(value);
+    for (const key of Object.keys(value)) {
+      if (above.includes(value[key])) value[key] = null;
+      else walk(value[key], above);
+    }
+    above.pop();
+  })(copy, []);
+  return copy;
+}
+
 /*
  * Derives "what would this vault publish" from source, the way the pinned
  * generator's scanVault() + config.js + manifest.js + build.js's verdict
@@ -59,8 +81,8 @@ function computeLineOffset(raw, content) {
  * Union two exclude lists case-insensitively, preserving first-seen
  * casing/order, falling back to `defaults` only when NEITHER source
  * supplies a list. Ported from the pin's (unexported) unionExcludeList as it stood at
- * publish-v1.11.44 (lib/config.js:107-121 there). At publish-v1.12.0 the pin does the same merge in
- * pick() (lib/config.js:192-246) and applies the defaults in list() (:396, :414-416): the vault
+ * publish-v1.11.44 (lib/config.js:161-175 there). At publish-v1.12.0 the pin does the same merge in
+ * pick() (lib/config.js:246-300) and applies the defaults in list() (:423, :441-443): the vault
  * list first, then the site-file entries it lacks. One case differs, and this port is the stricter
  * reader of it: a vault-file key that is set but is not a list now yields the pin defaults plus the
  * site-file entries in the pin, and the site-file list alone here.
@@ -117,7 +139,7 @@ function pickExcludeCallouts(fromVaultRaw, fromSite) {
 /**
  * A single publish.overrides.fields[path] entry is malformed if it is not a
  * map, or has a non-array/non-string-array "include". Ported from the
- * pin's (unexported) overrideEntryProblem, lib/config.js:285-297,
+ * pin's (unexported) overrideEntryProblem, lib/config.js:339-351,
  * unmodified.
  */
 function overrideEntryProblem(value) {
@@ -131,7 +153,7 @@ function overrideEntryProblem(value) {
 /**
  * Canonicalizes publish.overrides.fields keys to NFC and drops malformed
  * entries. Ported from the pin's (unexported) canonicalizeOverrideFieldKeys,
- * lib/config.js:253-279 — minus the console.warn calls, which would write
+ * lib/config.js:307-333 — minus the console.warn calls, which would write
  * to stderr during `check` (rejected in Structural decision 1); a dropped
  * entry is still dropped, just silently from Scriptorium's side.
  */
@@ -147,7 +169,21 @@ function canonicalizeOverrideFieldKeys(fields) {
 }
 
 /**
- * The subset of loadPublishConfig() (lib/config.js:355-477) Scriptorium
+ * publishModeFrom() in lib/config.js:110-116, ported because the pin does not export it: case and
+ * spaces forgiven, anything but "player" or "full" read as "player", only a missing setting left
+ * at the default. The pin also warns about a bad value; check does not print, so this does not.
+ *
+ * @param {unknown} raw publish.mode as written
+ * @returns {'player'|'full'}
+ */
+function publishModeFrom(raw) {
+  if (raw === undefined) return pinned.PUBLISH_DEFAULTS.mode;
+  const mode = typeof raw === 'string' ? raw.trim().toLowerCase() : null;
+  return mode === 'player' || mode === 'full' ? mode : 'player';
+}
+
+/**
+ * The subset of loadPublishConfig() (lib/config.js:409-535) Scriptorium
  * needs: mode, system, exclude_drafts, exclude_callouts, the three unioned
  * exclude lists, and overrides.fields. Also returns `configSources`: the
  * RAW (un-defaulted, un-unioned) list each surface supplied, or undefined —
@@ -171,7 +207,7 @@ function loadPublishConfig(vaultPath, jsonConfig = {}) {
   const asList = (v) => (Array.isArray(v) ? v : undefined);
 
   const publishConfig = {
-    mode: publish.mode || pinned.PUBLISH_DEFAULTS.mode,
+    mode: publishModeFrom(publish.mode),
     system: publish.system || null,
     exclude_drafts: publish.exclude_drafts ?? pinned.PUBLISH_DEFAULTS.exclude_drafts,
     exclude_callouts: pickExcludeCallouts(publish.exclude_callouts, jsonConfig.excludeCallouts) ?? pinned.PUBLISH_DEFAULTS.exclude_callouts,
@@ -238,7 +274,7 @@ function loadManifest(vaultPath) {
 // ---------------------------------------------------------------------------
 
 /**
- * Mirrors the walk's directory-skip test, lib/scanner.js:105
+ * Mirrors the walk's directory-skip test, lib/scanner.js:112
  * (`dirIsExcluded(relPath, excludeDirs) || entry.name.startsWith('.')`). The excludeDirs half is
  * required through the facade's `dirIsExcluded` (the pin's own case-insensitive matcher, lib/
  * scanner.js's matchExcludedDir) rather than hand-re-implemented, so this can never drift from
@@ -250,13 +286,13 @@ function isExcludedDir(relPath, name, excludeDirs) {
 }
 
 /**
- * The walk (lib/scanner.js:76-172, scanVaultReport), ported to route every read
+ * The walk (lib/scanner.js:80-191, scanVaultReport), ported to route every read
  * through src/vault/read.js. Every .md file with a frontmatter `type` in a
  * folderMap-mapped directory (or the vault root) becomes a page. A file
  * whose folder is unmapped is silently dropped by the generator
- * (lib/scanner.js:119-129); this function records those in `unmappedDirectory`
+ * (lib/scanner.js:137-147); this function records those in `unmappedDirectory`
  * instead of dropping them, so vault/unmapped-directory can report them. A
- * file with no `type:` (lib/scanner.js:117) or unparseable frontmatter is
+ * file with no `type:` (lib/scanner.js:135) or unparseable frontmatter is
  * likewise recorded nowhere here — frontmatter/parse-error and
  * frontmatter/missing-type report those separately from ctx.index, not
  * from this module.
@@ -293,7 +329,10 @@ function scanForPublish(vaultPath, jsonConfig) {
 
       const result = read.readFrontmatter(absPath);
       if (!result.ok) continue; // frontmatter/parse-error reports this separately
-      if (!result.data.type) continue; // frontmatter/missing-type reports this separately
+      // The pin's own reading of the values: cycles broken, comments cut, then wrong types shaped or left
+      // unread (lib/scanner.js:126-128), so a `type:` it cannot read publishes nothing here either.
+      const frontmatter = pinned.shapeFrontmatter(pinned.cutValueComments(uncycled(result.data))).frontmatter;
+      if (!frontmatter.type) continue; // frontmatter/missing-type reports this separately
 
       const outputDir = pinned.mapFolder(relDir, folderMap);
       if (!outputDir && relDir !== '') {
@@ -302,11 +341,10 @@ function scanForPublish(vaultPath, jsonConfig) {
       }
 
       const baseName = path.basename(entry.name, '.md');
-      // displayTitle: frontmatter title wins, else the stem with
-      // underscores turned to spaces — lib/scanner.js:134, exactly. The old
-      // mirror took the stem unconditionally (Track DEP-b, "the mirror
-      // code today"), which is the drift this re-port fixes.
-      const displayTitle = result.data.title || baseName.replace(/_/g, ' ');
+      // displayTitle: frontmatter title wins, read as a string with any wikilink
+      // printed by its label, else the stem with underscores turned to spaces —
+      // lib/scanner.js:154, exactly (publish-v1.17.0 added the string and the label).
+      const displayTitle = (frontmatter.title ? pinned.labelsForLinks(String(frontmatter.title)) : '') || baseName.replace(/_/g, ' ');
       const slug = pinned.slugify(baseName);
       const outputPath = outputDir ? `${outputDir}/${slug}.html` : `${slug}.html`;
 
@@ -319,7 +357,7 @@ function scanForPublish(vaultPath, jsonConfig) {
         slug,
         outputPath,
         outputDir: outputDir || '',
-        frontmatter: result.data,
+        frontmatter,
         markdown: result.content,
         bodyLineOffset: computeLineOffset(result.raw, result.content),
         storyMarkdown: undefined,
@@ -356,13 +394,13 @@ function scanAllCandidatePages(vaultPath, jsonConfig) {
 }
 
 /**
- * pairStoryFiles() in lib/scanner.js:343-371, ported to route its reads through
+ * pairStoryFiles() in lib/scanner.js:374-402, ported to route its reads through
  * src/vault/read.js and to operate on this module's page shape. Splices a
  * PC's paired `<Name>_Story.md` out of `pages` (whether or not its own
  * frontmatter is parseable or typed `character-story`, matching the pin
  * exactly) and, when it IS a real character-story file, attaches its body
  * as `pc.storyMarkdown` / `pc.storySourcePath`. From publish-v1.12.3 the pin splices only when
- * the note at that path has a `type:` (isStoryCompanion, lib/scanner.js:339-341). `pages` holds
+ * the note at that path has a `type:` (isStoryCompanion, lib/scanner.js:370-372). `pages` holds
  * typed notes only, here and in the pin, so the result is the same and this port has no gate.
  *
  * Track D3 additions, only set when a real story is attached:
@@ -370,7 +408,7 @@ function scanAllCandidatePages(vaultPath, jsonConfig) {
  * directory — derived from `pc.relPath` rather than `vaultPath`, since
  * this function is never given one), `storyLineOffset` (the story file's
  * own frontmatter offset, `computeLineOffset`), and `storyOutputPath`
- * (`story/characters/<slug>.html`, mirroring `lib/build.js:1254`'s own
+ * (`story/characters/<slug>.html`, mirroring `lib/build.js:1500`'s own
  * `story/characters/${slugify(pc.title)}.html` exactly — required via
  * `pinned.slugify` so this can never drift from what the real build
  * writes).
@@ -407,7 +445,7 @@ function pairStoryFiles(pages) {
 
 // ---------------------------------------------------------------------------
 // build.js's verdict loop (gm-apprentice-publish lib/published-pages.js:10-17, called from
-// lib/build.js:420-422; up to publish-v1.12.2 the loop sat in lib/build.js itself)
+// lib/build.js:469-471; up to publish-v1.12.2 the loop sat in lib/build.js itself)
 // ---------------------------------------------------------------------------
 
 /**

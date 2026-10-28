@@ -375,3 +375,106 @@ test('scanForPublish + manifest: an NFD-typed filename slugifies and matches an 
     assert.equal(published.verdict.code, 'OK');
   });
 });
+
+// From publish-v1.17.0 the pin's scanner reads a title as a string (`title: 1984`) and prints a
+// wikilink in it by its label (lib/scanner.js:154). scanForPublish ports that line by hand, so it is
+// checked here against the pin's own scanner on the same notes, and against values written out.
+test('displayTitle: a numeric title, a wikilink title and no title match the pin\'s own scanner', () => {
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-display-title-'));
+  try {
+    const dir = path.join(vault, 'Characters', 'NPCs');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'Year.md'), '---\ntype: npc\ntitle: 1984\n---\n\nBody.\n');
+    fs.writeFileSync(path.join(dir, 'Mason.md'), '---\ntype: npc\ntitle: "[[Doran_Vale|the Mason]]"\n---\n\nBody.\n');
+    fs.writeFileSync(path.join(dir, 'Old_Ferryman.md'), '---\ntype: npc\n---\n\nBody.\n');
+    const config = { excludeDirs: [], folderMap: { 'Characters/NPCs': 'characters/npcs' } };
+
+    const ours = Object.fromEntries(scanForPublish(vault, config).pages.map((p) => [p.title, p.displayTitle]));
+    assert.deepEqual(ours, { Year: '1984', Mason: 'the Mason', Old_Ferryman: 'Old Ferryman' });
+
+    // eslint-disable-next-line global-require
+    const { scanVaultReport } = require('gm-apprentice-publish/lib/scanner');
+    const theirs = Object.fromEntries(
+      scanVaultReport({ vaultPath: vault, ...config }, { quiet: true }).pages.map((p) => [p.title, p.displayTitle]),
+    );
+    assert.deepEqual(ours, theirs);
+  } finally {
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
+
+// From publish-v1.17.0 the pin's scanner cuts comments out of frontmatter values and puts values of
+// the wrong type into shape, or leaves them unread, before anything reads them (lib/scanner.js:126,
+// :128). A note whose `type:` cannot be read publishes nothing. scanForPublish must agree, page for page.
+test('frontmatter: value comments and wrongly typed values read as the pin\'s own scanner reads them', () => {
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-fm-shape-'));
+  try {
+    const dir = path.join(vault, 'NPCs');
+    fs.mkdirSync(dir, { recursive: true });
+    const notes = {
+      'ListType.md': '---\ntype: [npc]\n---\n\nBody.\n',
+      'MapType.md': '---\ntype: {a: 1}\n---\n\nBody.\n',
+      'CommentTitle.md': '---\ntype: npc\ntitle: Public %%Hidden Name%% Name\naliases: ["Alias <!-- hidden -->"]\n---\n\nBody.\n',
+      'NumAliases.md': '---\ntype: npc\naliases: 42\n---\n\nBody.\n',
+    };
+    for (const [name, text] of Object.entries(notes)) fs.writeFileSync(path.join(dir, name), text);
+    const config = { excludeDirs: [], folderMap: { NPCs: 'npcs' } };
+
+    const view = (pages) => Object.fromEntries(pages.map((p) => [p.title, { displayTitle: p.displayTitle, frontmatter: p.frontmatter }]));
+    const ours = view(scanForPublish(vault, config).pages);
+    assert.deepEqual(ours, {
+      ListType: { displayTitle: 'ListType', frontmatter: { type: 'npc' } },
+      CommentTitle: { displayTitle: 'Public Name', frontmatter: { type: 'npc', title: 'Public Name', aliases: ['Alias'] } },
+      NumAliases: { displayTitle: 'NumAliases', frontmatter: { type: 'npc' } },
+    });
+
+    // eslint-disable-next-line global-require
+    const { scanVaultReport } = require('gm-apprentice-publish/lib/scanner');
+    assert.deepEqual(ours, view(scanVaultReport({ vaultPath: vault, ...config }, { quiet: true }).pages));
+  } finally {
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});
+
+// From publish-v1.17.0 the pin forgives case and spaces in publish.mode and reads anything else as
+// player (lib/config.js:110). leak/l1 runs only when the mode is exactly "player", so a raw
+// "Player" here would skip it on a vault the build publishes as a player site.
+test('publish.mode: case, spaces and unknown values read as the pin reads them', () => {
+  // eslint-disable-next-line global-require
+  const pinConfig = require('gm-apprentice-publish/lib/config');
+  const cases = [['Player', 'player'], [' FULL ', 'full'], ['players', 'player'], ['', 'player'], [undefined, 'player']];
+  for (const [raw, expected] of cases) {
+    const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-mode-'));
+    try {
+      fs.mkdirSync(path.join(vault, '_meta'));
+      const modeLine = raw === undefined ? '' : `  mode: ${JSON.stringify(raw)}\n`;
+      fs.writeFileSync(path.join(vault, '_meta', 'vault-config.md'), `---\ntype: meta\npublish:\n${modeLine}  exclude_sections: []\n---\n`);
+      const ours = loadPublishConfig(vault, {}).publishConfig.mode;
+      assert.equal(ours, expected, `mode ${JSON.stringify(raw)}`);
+      const theirs = pinConfig.loadPublishConfig(vault, {}, () => {});
+      assert.equal(ours, (theirs.publishConfig || theirs).mode, `pin parity for ${JSON.stringify(raw)}`);
+    } finally {
+      fs.rmSync(vault, { recursive: true, force: true });
+    }
+  }
+});
+
+// A YAML alias can make a value hold itself (`tags: &a [x, *a]`). The pin breaks the cycle with
+// null before it cuts value comments (uncycle, lib/frontmatter.js:22); cutting a cyclic value
+// recurses without end. check and build read such a vault before publish-v1.17.0 and must still.
+test('frontmatter: a self-referencing YAML alias reads as the pin reads it, and does not crash', () => {
+  const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-fm-cycle-'));
+  try {
+    const dir = path.join(vault, 'NPCs');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'Loop.md'), '---\ntype: npc\ntags: &a [x, *a]\n---\n\nBody.\n');
+    const config = { excludeDirs: [], folderMap: { NPCs: 'npcs' } };
+    const ours = scanForPublish(vault, config).pages.map((p) => p.frontmatter);
+    assert.deepEqual(ours, [{ type: 'npc', tags: ['x', null] }]);
+    // eslint-disable-next-line global-require
+    const { scanVaultReport } = require('gm-apprentice-publish/lib/scanner');
+    assert.deepEqual(ours, scanVaultReport({ vaultPath: vault, ...config }, { quiet: true }).pages.map((p) => p.frontmatter));
+  } finally {
+    fs.rmSync(vault, { recursive: true, force: true });
+  }
+});

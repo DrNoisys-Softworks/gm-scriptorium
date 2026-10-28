@@ -102,7 +102,7 @@ test('the built grouped Story toggle is a button whose menu starts with "Story s
       assert.equal(m[1], '../'.repeat(depth) + 'story.html', `${rel}: "Story so far" does not point at the Story landing`);
       assert.doesNotMatch(nav, /<a class="nav-group-toggle" href="[^"]*">Story<\/a>/, `${rel}: the pin emits the old link-shaped Story toggle again`);
       assert.ok(!html.includes('data-scriptorium-storynav'), `${rel}: a retired Scriptorium Story transform marker is back`);
-      assert.equal((html.match(/data-scriptorium-storyfocus/g) || []).length, 1, `${rel}: the focus shim is not linked exactly once`);
+      assert.ok(!html.includes('data-scriptorium-storyfocus'), `${rel}: the retired Escape focus script is back (the pin's js/nav.js does it)`);
     }
     assert.ok(checked > 5, `positive control: only ${checked} pages carried a nav`);
     assert.ok(fs.existsSync(path.join(finalOut, 'story.html')), 'positive control: the build wrote no story.html');
@@ -175,8 +175,8 @@ test('real browser: the Story label opens the menu on click and keeps it open, E
     await Promise.all([page.waitForURL('**/story.html'), first.click()]);
     assert.equal(new URL(page.url()).pathname, '/story.html');
 
-    // Escape pressed with focus INSIDE the open dropdown closes it and returns focus to the toggle (the
-    // pin's js/nav.js only closes it; the downstream shim src/build/storyfocus.js does the focus).
+    // Escape pressed with focus INSIDE the open dropdown closes it and returns focus to the toggle. The
+    // pin's js/nav.js does both since publish-v1.15.1; Scriptorium's own focus script is retired.
     await page.goto(`http://127.0.0.1:${PORT}/index.html`, { waitUntil: 'load' });
     await page.focus('.nav-group-toggle:text-is("Story")');
     await page.keyboard.press('Enter');
@@ -191,15 +191,4 @@ test('real browser: the Story label opens the menu on click and keeps it open, E
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(scratch, { recursive: true, force: true });
   }
-});
-
-const { transformStoryFocus, STORYFOCUS_MARKER } = require('../src/build/storyfocus');
-
-test('storyfocus shim: patches only pages with the grouped Story button, once, and skips the standalone link', () => {
-  const grouped = '<nav class="nav-groups"><div class="nav-group"><button class="nav-group-toggle">Story</button>\n<div class="nav-dropdown"><a href="story.html">Story so far</a></div></div></nav></body>';
-  const once = transformStoryFocus(grouped);
-  assert.ok(once && once.includes(STORYFOCUS_MARKER));
-  assert.equal(transformStoryFocus(once), null, 'not idempotent');
-  assert.equal(transformStoryFocus('<div class="nav-group"><a class="nav-group-toggle" href="story.html">Story</a></div></body>'), null);
-  assert.equal(transformStoryFocus('<button class="nav-group-toggle">Characters</button><div class="nav-dropdown"></div></body>'), null);
 });

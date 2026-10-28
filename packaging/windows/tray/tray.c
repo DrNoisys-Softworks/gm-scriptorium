@@ -1323,6 +1323,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
     (void)prev;
     (void)cmdline;
     (void)show;
+    /* A tray started by the packaged program inherits the packager's PKG_EXECPATH, and all four
+     * children started below copy this environment, so the host would run as plain Node. Drop it
+     * before anything else (ADR 0046, addendum "The packager's PKG_EXECPATH"). */
+    SetEnvironmentVariableW(L"PKG_EXECPATH", NULL);
     int argc = 0;
     LPWSTR *argv = CommandLineToArgvW(GetCommandLineW(), &argc);
     if (argv == NULL) return 1;

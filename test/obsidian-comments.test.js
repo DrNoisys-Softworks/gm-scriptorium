@@ -10,6 +10,15 @@ const { scanObsidianComments, stripObsidianComments } = require('../src/vault/co
 const { scanCommentsInOutput, needlesFor } = require('../src/checks/leak/commentscan');
 const bootstrap = require('../src/generator/bootstrap');
 
+// A preload standing in for "every comment strip failed". Emptying our read shim is no longer
+// enough: from publish-v1.17.0 the pin strips `%%` comments itself (lib/processor.js:877). So the
+// shim is swapped for one that deletes the markers and keeps the text, which reaches the build with
+// nothing left for either strip to find. The output gate reads the comments from the vault itself.
+function unwrapCommentsPreload() {
+  const bootstrap = JSON.stringify(path.join(__dirname, '..', 'src', 'generator', 'bootstrap.js'));
+  return `const t = require(${bootstrap}).READ_TRANSFORMS_FOR_BUILD;\nt.length = 0;\nt.push((text) => text.split('%%').join(''));\n`;
+}
+
 /*
  * ADR 0044: Obsidian %%comments%% are withheld. Expected values are written out literally.
  */
@@ -623,7 +632,7 @@ test('CLI: if the read shim failed, the output gate refuses the build and --forc
     const run = cli(root, 'with', vault);
     // A preload that empties the shim's transform list, standing in for "the shim stopped working".
     const breaker = path.join(root, 'break.js');
-    fs.writeFileSync(breaker, `require(${JSON.stringify(path.join(__dirname, '..', 'src', 'generator', 'bootstrap.js'))}).READ_TRANSFORMS_FOR_BUILD.length = 0;\n`);
+    fs.writeFileSync(breaker, unwrapCommentsPreload());
     const cfg = path.join(root, 'cfg.toml');
     const env = { ...process.env, XDG_CONFIG_HOME: path.join(root, 'xdg'), APPDATA: path.join(root, 'ad'), SCRIPTORIUM_CONFIG: cfg, NODE_OPTIONS: `--require ${breaker}` };
     delete env.SCRIPTORIUM_PROFILE;
@@ -654,7 +663,7 @@ test('CLI: a comment that reaches only a timeline data island is refused by the 
     fs.writeFileSync(tl, next);
     const run = cli(root, 'v', vault);
     const breaker = path.join(root, 'break.js');
-    fs.writeFileSync(breaker, `require(${JSON.stringify(path.join(__dirname, '..', 'src', 'generator', 'bootstrap.js'))}).READ_TRANSFORMS_FOR_BUILD.length = 0;\n`);
+    fs.writeFileSync(breaker, unwrapCommentsPreload());
     const cfg = path.join(root, 'cfg.toml');
     const env = { ...process.env, XDG_CONFIG_HOME: path.join(root, 'xdg'), APPDATA: path.join(root, 'ad'), SCRIPTORIUM_CONFIG: cfg, NODE_OPTIONS: `--require ${breaker}` };
     delete env.SCRIPTORIUM_PROFILE;

@@ -480,7 +480,9 @@ function buildNoticesText() {
       'upstream generator Scriptorium is built from carries a static rules-reference appendix ' +
       'reproducing two combat reference tables from GURPS Basic Set 4th Edition; Scriptorium removes ' +
       'that module when it packages the executable and never executes it, so neither this executable ' +
-      'nor any site it builds contains those tables or their page citations. See ' +
+      'nor any site it builds contains those tables or their page citations. The generator\'s GURPS ' +
+      'to-hit calculator script carries rules tables too, and Scriptorium replaces the to-hit calculator ' +
+      'script the same way, so a GURPS Combat tab has no calculator. See ' +
       'docs/decisions/0007-rules-content-redaction.md.',
   );
   out.push('');

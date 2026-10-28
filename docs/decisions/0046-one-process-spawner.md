@@ -160,7 +160,7 @@ Will not catch, and these are residuals:
 
 The Windows half (a `.cmd` shim under no shell, the metacharacter refusals, the extension list, no
 console window, the tree kill, the case-insensitive environment strip and the empty working folder)
-is verified only from the real exe. It is OPEN: `.agents/windows-verification.md` C98 and C128. The
+is verified only from the real exe. It is OPEN: `.agents/windows-verification.md` C98, C128 and C216. The
 Linux tests prove the text of the Windows command line and the shape of the `taskkill` call, not
 how Windows treats them.
 
@@ -202,3 +202,25 @@ Will not catch, deliberately: whether the helper started by `--handoff` survives
 `ALLOWED_COMMANDS` and its pinned test are unchanged. `test/proc-system-commands.test.js` pins the new list. It grows only with a decision record, as the first list does.
 
 `bin` now reaches `run()` through `serve --admin` and `remote` as well as launch mode, where the panel start and the writing `remote` commands set the access list of the `panel` folder.
+
+## Addendum: the packager's PKG_EXECPATH (issue 212)
+
+**What happened to a GM.** On an installed Windows copy, typing `gm-scriptorium` in a terminal left the tray saying "The panel stopped unexpectedly." and no panel. The terminal start hands off to the tray helper, which starts the host as the same program with the argument `desktop`. The host never ran its own code.
+
+**The mechanism.** The packager wraps the packaged program's `spawn`. Before every spawn it adds a variable named PKG_EXECPATH, holding the program's own path, to the environment it is given. It writes into the object the caller passed and does nothing if the name already holds a value. The packaged program deletes the variable from its own environment at start, so the program never has it and every child gets it. A child that is the same program sees the variable, takes it as a request to run as plain Node, and treats `desktop` as a script name. Building the child's environment from scratch did not help, because the packager adds the variable afterwards, inside `spawn`.
+
+**The decision.**
+
+- `buildChildEnv` ends by putting a hidden entry of that name in every environment it builds: an own property holding an empty string that is not enumerable. The packager sees a defined value and leaves it alone. Node builds a child's environment from enumerable names only, so the child never gets it. A visible entry of that name, in any case, is removed first. The entry also covers `run`, `openFile` and `runTrayHandoff`.
+- The `taskkill` spawn used to pass no environment, so it inherited the whole one: credentials, and the packager's variable under the packaged program. It now gets the built environment like every other spawn in the module.
+- The tray removes the variable from its own environment as the first statement of `wWinMain`, so the four programs it starts never copy it, whatever started the tray.
+
+**Rejected.** Deleting the name or passing a fresh object: the packager adds the variable inside `spawn`. Freezing the environment object: the packager's assignment would throw in strict mode and every spawn would fail. A harmless but visible value: it leaks a variable whose meaning belongs to the packager. A fix in `runTrayHandoff` alone: it leaves every other spawn open. A fix in the tray alone: it leaves git, ssh, the browser and `taskkill` open.
+
+Will catch: the packager's variable reaching any child this module starts. The tests lay the packager's own spawn wrapper over a recording spawner and over a real stand-in program, so the variable is added by the real wrapper.
+
+Will not catch, deliberately:
+
+- The older spawner in `src/cli/config.js`, which gives the editor the whole environment by design.
+- A variable a later packager adds under another name. The control test that expects the packager to add this one goes red at a version bump if it stops.
+- What Windows hands each child. Only criterion C216 shows that on a real machine. It is OPEN.

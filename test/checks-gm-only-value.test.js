@@ -24,10 +24,13 @@ const pinned = require('../src/generator/pinned');
  *     considered alone (an absent check also gives no finding). They matter
  *     only next to the rows that do fire.
  *
- * The ERROR literals below are 1.14.0-specific: at the 1.21.0 repin the pin
- * holds such an edge back and they become WARN by design, changing in that
- * PR. T3 (real build, severity iff the word is in the built page) is the
- * proof that holds across pins.
+ * The severities below are pin-specific. From publish-v1.21.0 the pin reads
+ * gm_only as a yes when it is true, the number 1, or the words true, yes, on
+ * or 1 in any capitals (lib/processor.js flagIsYes), and holds such an edge
+ * back, so those findings are WARN; at 1.14.0 they were ERROR. The values it
+ * still publishes (no, "False", 0, empty, ~, [true], {a: 1}) stay ERROR.
+ * T3 (real build, severity iff the word is in the built page) is the proof
+ * that holds across pins.
  */
 
 const ID = 'relationship/gm-only-value';
@@ -70,6 +73,10 @@ function findingsFor(vaultPath, extra) {
 
 const FIX = 'Write gm_only: true to hide it, or remove gm_only to show it.';
 
+// The FLAGGED indexes (below) the pin holds back at publish-v1.21.0: yes, "yes", on, "True", "TRUE"
+// and 1, written out here rather than derived from the pin's own rule.
+const HELD_BACK = [0, 1, 2, 4, 5, 7];
+
 // ---- T1: unit table -------------------------------------------------------
 
 // [yaml text after "gm_only: " or null for absent, expected finding?]
@@ -102,18 +109,23 @@ test('T1: gm_only values that are not true or false are reported, one finding pe
     );
     assert.equal(found.length, 14);
     for (const f of found) {
-      assert.equal(f.severity, 'error');
+      const held = HELD_BACK.includes(f.data.index) || f.data.index === 23; // idx 23 is gm_only: 1
+      assert.equal(f.severity, held ? 'warn' : 'error', `index ${f.data.index}`);
       assert.equal(f.path, 'Probe.md');
-      assert.equal(f.data.published, true);
+      assert.equal(f.data.published, !held, `index ${f.data.index}`);
     }
     const byIndex = new Map(found.map((f) => [f.data.index, f]));
     assert.equal(
       byIndex.get(0).message,
-      `Probe.md: relationship 1 (to "Gate") has gm_only set to "yes", which is not true or false, so the build publishes this relationship. ${FIX}`,
+      `Probe.md: relationship 1 (to "Gate") has gm_only set to "yes", which is not true or false. This relationship is not published today, but only gm_only: true is sure to hide it. ${FIX}`,
+    );
+    assert.equal(
+      byIndex.get(3).message,
+      `Probe.md: relationship 4 (to "Gate") has gm_only set to "no", which is not true or false, so the build publishes this relationship. ${FIX}`,
     );
     assert.equal(
       byIndex.get(23).message,
-      `Probe.md: relationship 24 (no target) has gm_only set to 1, which is not true or false, so the build publishes this relationship. ${FIX}`,
+      `Probe.md: relationship 24 (no target) has gm_only set to 1, which is not true or false. This relationship is not published today, but only gm_only: true is sure to hide it. ${FIX}`,
     );
     assert.ok(byIndex.get(9).message.includes('set to nothing'), byIndex.get(9).message);
     assert.ok(byIndex.get(11).message.includes('set to [true]'), byIndex.get(11).message);
@@ -172,6 +184,15 @@ function allFiles(dir) {
 const NPC_HEAD = (title) =>
   `---\ntype: npc\ntitle: ${title}\ncampaign: "The Long Lease"\nsource: play\nsource_confidence: AUTHORITATIVE\n`;
 
+// One published page per T3 edge. From publish-v1.21.0 the pin's Connections section lists another
+// page once, under its first relationship, so edges that shared one target would hide each other's
+// words whatever gm_only says (publish-v1.46.0 lists each relationship under its own heading).
+const T3_TARGETS = [
+  'Clemency Vare', 'Emlyn Crewe', 'Gammer Tansy Holt', 'Idony Marrable', 'Jory Penwarden', 'Mags Threlkeld',
+  'Orpiment', 'Oswy Hebden', 'Queen Hesper', 'Queen Maudry', 'Sir Ivo Latchford', 'Wystan Pye', 'Summerhythe',
+  'Barrow Chorister', 'Smirch', 'Shedling', 'Marigold Court',
+];
+
 test('T3: on a real build the check says ERROR exactly when the relationship word is on the built page', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-186-'));
   try {
@@ -180,12 +201,12 @@ test('T3: on a real build the check says ERROR exactly when the relationship wor
     const word = (n) => `zqxr${String(n).padStart(2, '0')}`;
     let rels = '';
     FLAGGED.forEach((v, i) => {
-      rels += `  - type: ${word(i + 1)}\n    target: "[[Oswy Hebden]]"\n    gm_only:${v === '' ? '' : ` ${v}`}\n`;
+      rels += `  - type: ${word(i + 1)}\n    target: "[[${T3_TARGETS[i]}]]"\n    gm_only:${v === '' ? '' : ` ${v}`}\n`;
     });
-    rels += `  - type: ${word(14)}\n    target: "[[Oswy Hebden]]"\n    gm_only: true\n`;
-    rels += `  - type: ${word(15)}\n    target: "[[Oswy Hebden]]"\n    gm_only: "true"\n`;
-    rels += `  - type: ${word(16)}\n    target: "[[Oswy Hebden]]"\n    gm_only: false\n`;
-    rels += `  - type: ${word(17)}\n    target: "[[Oswy Hebden]]"\n`;
+    rels += `  - type: ${word(14)}\n    target: "[[${T3_TARGETS[13]}]]"\n    gm_only: true\n`;
+    rels += `  - type: ${word(15)}\n    target: "[[${T3_TARGETS[14]}]]"\n    gm_only: "true"\n`;
+    rels += `  - type: ${word(16)}\n    target: "[[${T3_TARGETS[15]}]]"\n    gm_only: false\n`;
+    rels += `  - type: ${word(17)}\n    target: "[[${T3_TARGETS[16]}]]"\n`;
     writeFile(vault, 'Characters/NPCs/Zqx Edge Probe.md', `${NPC_HEAD('Zqx Edge Probe')}relationships:\n${rels}---\n\nA paragraph about the probe.\n`);
     writeFile(
       vault,
@@ -209,7 +230,10 @@ test('T3: on a real build the check says ERROR exactly when the relationship wor
     const mine = all.filter((f) => f.id === ID);
     const probeFindings = mine.filter((f) => f.path === 'Characters/NPCs/Zqx Edge Probe.md');
     assert.equal(probeFindings.length, 13);
-    assert.ok(probeFindings.every((f) => f.severity === 'error'));
+    assert.deepEqual(
+      probeFindings.filter((f) => f.severity === 'warn').map((f) => f.data.index).sort((a, b) => a - b),
+      HELD_BACK,
+    );
     const fieldFindings = mine.filter((f) => f.path === 'Characters/NPCs/Zqx Edge Field.md');
     assert.equal(fieldFindings.length, 1);
     assert.equal(fieldFindings[0].severity, 'warn');
@@ -238,7 +262,7 @@ test('T3: on a real build the check says ERROR exactly when the relationship wor
       assert.ok(f, `finding for ${word(n)}`);
       seen[word(n)] = html.includes(word(n));
       assert.equal(f.severity === 'error', seen[word(n)], `${word(n)}: severity ${f.severity}, on page ${seen[word(n)]}`);
-      assert.equal(seen[word(n)], true, `${word(n)} must be on the 1.14.0 page`);
+      assert.equal(seen[word(n)], !HELD_BACK.includes(n - 1), `${word(n)}: on the publish-v1.21.0 page only if the pin publishes it`);
     }
 
     // (e) true, "true" and the excluded-field edge: no error finding and the word is in no output file.
@@ -275,7 +299,9 @@ test('T4: an unpublished page with gm_only: yes gives exactly one WARN with the 
 
 // ---- T4b: severity branches ----------------------------------------------
 
-const ONE_EDGE = '  - type: r\n    target: "[[Gate]]"\n    gm_only: yes\n---\nBody.\n';
+// gm_only: no is published by every pin so far (1.14.0 and 1.21.0), so these tests turn on where the
+// page publishes, not on how the pin reads the word.
+const ONE_EDGE = '  - type: r\n    target: "[[Gate]]"\n    gm_only: no\n---\nBody.\n';
 
 function severityOf(found) {
   assert.equal(found.length, 1);

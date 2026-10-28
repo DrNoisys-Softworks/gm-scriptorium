@@ -898,3 +898,66 @@ test('positive controls: a swapped tick source, a wrong signin_item call, a four
   assert.match(runningBranch(stripComments(state)), /g\.signin_confirmed\s*=\s*signin_confirmed\(/);
   assert.doesNotMatch(runningBranch(stripComments(state.replace('signin_confirmed((const', 'keep((const'))), /g\.signin_confirmed\s*=\s*signin_confirmed\(/);
 });
+
+// ---------------------------------------------------------------------------------------------
+// The packager's PKG_EXECPATH (issue 212; ADR 0046 addendum "The packager's PKG_EXECPATH")
+// ---------------------------------------------------------------------------------------------
+// Shape tests: they pin where the one call sits in the source. They prove nothing about what Windows
+// hands each child; that is C216 (OPEN).
+
+const EXECPATH_HEAD = '{ (void)prev; (void)cmdline; (void)show; SetEnvironmentVariableW(L"PKG_EXECPATH", NULL);';
+const EXECPATH_OTHER_WRITERS = /SetEnvironmentVariableA|_wputenv|_putenv|SetEnvironmentStrings/;
+
+/** @returns {string[]} what is wrong with the tray's removal of PKG_EXECPATH in this code (all files joined) */
+function execpathProblems(tray, all) {
+  const problems = [];
+  if (!squash(bodyOf(tray, 'wWinMain')).startsWith(EXECPATH_HEAD)) problems.push('wWinMain does not start with the removal');
+  if (calls(all, 'SetEnvironmentVariableW').length !== 1) problems.push('not exactly one SetEnvironmentVariableW call');
+  if (all.split('PKG_EXECPATH').length - 1 !== 1) problems.push('PKG_EXECPATH is not named exactly once');
+  if (EXECPATH_OTHER_WRITERS.test(all)) problems.push('another way of writing the environment');
+  return problems;
+}
+
+test('the tray removes PKG_EXECPATH as the first statement of wWinMain, once, and by no other route', () => {
+  assert.deepEqual(execpathProblems(CODE['tray.c'], ALL), []);
+});
+
+test('positive controls: a late, misplaced, renamed, missing or doubled removal is seen', () => {
+  const REMOVE = '    SetEnvironmentVariableW(L"PKG_EXECPATH", NULL);\n';
+  const sample = (head, afterArgv, extra = '') =>
+    stripComments(
+      [
+        'static int run_instance(HINSTANCE inst, int background)',
+        '{',
+        '    return 0;',
+        '}',
+        'int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)',
+        '{',
+        '    (void)prev;',
+        '    (void)cmdline;',
+        '    (void)show;',
+        head,
+        '    int argc = 0;',
+        '    LPWSTR *argv = CommandLineToArgvW(GetCommandLineW(), &argc);',
+        afterArgv,
+        '    return 1;',
+        '}',
+        extra,
+        '',
+      ].join('\n'),
+    );
+  const ok = sample(REMOVE, '');
+  assert.deepEqual(execpathProblems(ok, ok), [], 'the right shape is clean');
+  const late = sample('', REMOVE);
+  assert.ok(execpathProblems(late, late).some((p) => /does not start/.test(p)), 'after CommandLineToArgvW');
+  const elsewhere = sample('', '', 'static int other(void)\n{\n' + REMOVE + '    return 0;\n}\n');
+  assert.ok(execpathProblems(elsewhere, elsewhere).some((p) => /does not start/.test(p)), 'in another function');
+  const renamed = sample(REMOVE.replace('PKG_EXECPATH', 'PKG_EXEC'), '');
+  assert.ok(execpathProblems(renamed, renamed).length > 0, 'a renamed literal');
+  const missing = sample('', '');
+  assert.ok(execpathProblems(missing, missing).length > 0, 'a deleted line');
+  const doubled = sample(REMOVE, REMOVE);
+  assert.ok(execpathProblems(doubled, doubled).some((p) => /exactly on/.test(p)), 'a second call');
+  const other = sample(REMOVE, '', 'static void x(void)\n{\n    _wputenv(L"X=1");\n}\n');
+  assert.ok(execpathProblems(other, other).some((p) => /another way/.test(p)), 'another writer');
+});
