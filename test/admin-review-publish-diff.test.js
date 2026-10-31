@@ -19,6 +19,7 @@ const { resolveCampaignContext } = require('../src/cli/args');
 const { resolveVaultSite } = require('../src/cli/check');
 const candidatecheck = require('../src/admin/candidatecheck');
 const publishset = require('../src/vault/publishset');
+const read = require('../src/vault/read');
 const { moveVaultCopy, assertMovedLayout, replaceChecked } = require('./helpers/moved-vault');
 const { scratchRoot, configPathIn, startPanel, post } = require('./helpers/campaigns-panel');
 const vaultconfigedit = require('../src/admin/vaultconfigedit');
@@ -163,4 +164,59 @@ test('legacy, through the panel: mapping a new folder needs the tick and names t
   assert.equal(confirm.status, 422, confirm.text);
   assert.equal(confirm.json.error, 'needs-ack');
   assert.deepEqual(fs.readFileSync(path.join(vault, '_meta', 'vault-config.md')), current);
+});
+
+// Through the panel: a review that could not compare the publish sets fails closed. The scan throws
+// only while the candidate overlay is active, so the injection does not depend on call order; the
+// check scans through its own copy of the function, so the check itself still runs.
+test('legacy, through the panel: no publish comparison counts as the check not having run, and needs the tick', async (t) => {
+  const root = scratchRoot(t);
+  const { vault } = makeCampaign(root, 'legacy');
+  const configPath = configPathIn(root);
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, ['config_version = 1', 'default_campaign = "lease"', '', '[campaigns.lease]', `vault = ${JSON.stringify(vault)}`, `output = ${JSON.stringify(path.join(root, 'out'))}`, ''].join('\n'));
+  const mdPath = path.join(vault, '_meta', 'vault-config.md');
+  const current = fs.readFileSync(mdPath);
+  // A harmless edit, so nothing else asks for the tick.
+  const bytes = Buffer.from(replaceChecked(current.toString('utf8'), '    max_npcs: 8\n', '    max_npcs: 7\n'));
+  const frontmatterText = vaultconfigedit.splitFile(bytes).frontmatterText;
+  const baseSha256 = crypto.createHash('sha256').update(current).digest('hex');
+
+  const originalScan = publishset.computePublishedSet;
+  const originalOverlay = read.withCandidateFile;
+  let underOverlay = false;
+  let injected = 0;
+  read.withCandidateFile = (absPath, b, fn) =>
+    originalOverlay(absPath, b, () => {
+      underOverlay = true;
+      try {
+        return fn();
+      } finally {
+        underOverlay = false;
+      }
+    });
+  publishset.computePublishedSet = (...args) => {
+    if (underOverlay) {
+      injected += 1;
+      throw new Error('injected: the candidate side cannot be read');
+    }
+    return originalScan(...args);
+  };
+  t.after(() => {
+    publishset.computePublishedSet = originalScan;
+    read.withCandidateFile = originalOverlay;
+  });
+
+  const h = await startPanel(t, { config: configPath }, 'lease');
+  const dry = await post(h, '/api/vault-config/text', { frontmatterText, baseSha256, dryRun: true });
+  assert.equal(dry.status, 200, dry.text);
+  assert.ok(injected >= 1, 'the candidate-side scan was reached');
+  assert.equal(dry.json.check.ran, true);
+  assert.deepEqual(dry.json.reasons, ['check-did-not-run']);
+  assert.equal(dry.json.needsAck, true);
+
+  const confirm = await post(h, '/api/vault-config/text', { frontmatterText, baseSha256, dryRun: false, reviewedSha256: dry.json.candidateSha256 });
+  assert.equal(confirm.status, 422, confirm.text);
+  assert.equal(confirm.json.error, 'needs-ack');
+  assert.deepEqual(fs.readFileSync(mdPath), current);
 });

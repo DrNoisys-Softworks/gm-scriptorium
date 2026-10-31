@@ -480,23 +480,6 @@ function otherRule(curData, candData, nameOf, extraChanged) {
   };
 }
 
-/**
- * @param {object} opts
- * @param {object|null} opts.cur Scriptorium-parsed `data` for the CURRENT file (null if unreadable)
- * @param {object} opts.cand Scriptorium-parsed `data` for the CANDIDATE
- * @param {object} opts.curPublish loadPublishConfig's result for the current file
- * @param {object} opts.candPublish loadPublishConfig's result for the candidate
- * @param {object|null} opts.jsonConfig
- * @param {object|null} opts.publishSet the candidate's checkCtx.publishSet, or null (vc2's live
- *   effects route, withCheck:false)
- * @param {Set<string>} opts.fixable the PRIVACY_LIST_PATHS present as a flow/block list in the candidate
- * @param {object|null} [opts.publishDiff] runReview's comparison of the two publish sets, or null
- *   (no review check ran): gives `published-more` and the folder-map lines
- * @param {(dotPath: string) => string} [opts.nameOf] how a setting's path is named to the GM; every
- *   effect's `path` and `fix.path`, and the paths the `other` rule lists, pass through it
- * @param {string[]} [opts.extraChanged] already-named settings the `other` rule lists as changed too
- * @returns {Array<{id, group, level, path, title, detail, fix}>}
- */
 function publishedMoreRule(publishDiff) {
   const pages = publishDiff.newlyPublished;
   if (pages.length === 0) return null;
@@ -530,6 +513,23 @@ function withNames(effect, nameOf) {
   return named;
 }
 
+/**
+ * @param {object} opts
+ * @param {object|null} opts.cur Scriptorium-parsed `data` for the CURRENT file (null if unreadable)
+ * @param {object} opts.cand Scriptorium-parsed `data` for the CANDIDATE
+ * @param {object} opts.curPublish loadPublishConfig's result for the current file
+ * @param {object} opts.candPublish loadPublishConfig's result for the candidate
+ * @param {object|null} opts.jsonConfig
+ * @param {object|null} opts.publishSet the candidate's checkCtx.publishSet, or null (vc2's live
+ *   effects route, withCheck:false)
+ * @param {Set<string>} opts.fixable the PRIVACY_LIST_PATHS present as a flow/block list in the candidate
+ * @param {object|null} [opts.publishDiff] runReview's comparison of the two publish sets, or null
+ *   (no review check ran): gives `published-more` and the folder-map lines
+ * @param {(dotPath: string) => string} [opts.nameOf] how a setting's path is named to the GM; every
+ *   effect's `path` and `fix.path`, and the paths the `other` rule lists, pass through it
+ * @param {string[]} [opts.extraChanged] already-named settings the `other` rule lists as changed too
+ * @returns {Array<{id, group, level, path, title, detail, fix}>}
+ */
 function computeEffects({ cur, cand, curPublish, candPublish, jsonConfig, publishSet, fixable, publishDiff = null, nameOf = (p) => p, extraChanged = [] }) {
   const out = [];
   const curUnreadable = cur === null;
