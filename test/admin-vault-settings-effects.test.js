@@ -305,6 +305,16 @@ test('redact on vault-config.md is unchanged: a settings-fault there is redacted
   assert.equal(candidatecheck.redact({ id: 'config/exclude-fields-divergence', severity: 'warning', path: md, line: 1, message: 'm' }).message, 'm');
 });
 
+test('a review of the yaml redacts a finding about a leftover vault-config.md as the md review does', () => {
+  const md = '_meta/vault-config.md';
+  const body = { id: 'link/unresolved', severity: 'warning', path: md, line: 9, message: 'quoted note text' };
+  assert.equal(candidatecheck.redact(body, YAML_REL).message, 'Check reports this for vault-config.md. Run Check after saving to see the detail.');
+  const fault = { id: 'config/settings-fault', severity: 'error', path: md, line: 1, message: 'm' };
+  assert.equal(candidatecheck.redact(fault, YAML_REL).message, 'Check reports this for vault-config.md. Run Check after saving to see the detail.');
+  const kept = { id: 'frontmatter/parse-error', severity: 'error', path: md, line: 1, message: 'bad yaml at line 1' };
+  assert.equal(candidatecheck.redact(kept, YAML_REL).message, 'bad yaml at line 1');
+});
+
 test('a review of the yaml redacts what the check says about the yaml', (t) => {
   inScratch((root) => {
     const vault = movedSample(root);

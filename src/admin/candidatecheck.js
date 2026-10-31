@@ -62,14 +62,15 @@ class CandidateCheckError extends ScriptoriumError {}
  *   For vault-config.md the message becomes REDACTED_MESSAGE when the finding is about that file
  *   and its id isn't in MESSAGE_KEEP_IDS. For vault-config.yaml it becomes YAML_REDACTED_MESSAGE
  *   when the finding is about that file, unless it is config/settings-fault, the finding that
- *   explains a bad value there.
+ *   explains a bad value there. A finding about a vault-config.md left on a moved vault is redacted
+ *   by the vault-config.md rule in either case, since its body can hold the GM's notes.
  */
 function redact(finding, rel = VAULT_CONFIG_REL) {
-  const redactThis =
-    rel === VAULT_SETTINGS_REL
-      ? finding.path === VAULT_SETTINGS_REL && finding.id !== 'config/settings-fault'
-      : finding.path === VAULT_CONFIG_REL && !MESSAGE_KEEP_IDS.includes(finding.id);
-  const redacted = rel === VAULT_SETTINGS_REL ? YAML_REDACTED_MESSAGE : REDACTED_MESSAGE;
+  const aboutYaml = rel === VAULT_SETTINGS_REL && finding.path === VAULT_SETTINGS_REL;
+  const redactThis = aboutYaml
+    ? finding.id !== 'config/settings-fault'
+    : finding.path === VAULT_CONFIG_REL && !MESSAGE_KEEP_IDS.includes(finding.id);
+  const redacted = aboutYaml ? YAML_REDACTED_MESSAGE : REDACTED_MESSAGE;
   return {
     id: finding.id,
     severity: finding.severity,
