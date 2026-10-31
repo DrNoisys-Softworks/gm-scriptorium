@@ -283,7 +283,24 @@
     return relFn(hero, stateImages);
   }
 
+  /**
+   * The Title & tagline hint on a vault whose settings live in _meta/vault-config.yaml, and whether
+   * its inputs are editable: both from the same rule, so a hint never says "saved" over a field
+   * that cannot be edited.
+   *
+   * @param {{editable:boolean, titleNote:string, reason:(string|null)}} vs the settings view
+   * @param {{writable:boolean, readOnlyReason:(string|null)}} state
+   * @returns {{editable:boolean, text:string}}
+   */
+  function movedTitleHint(vs, state) {
+    var editable = Boolean(vs && vs.editable) && Boolean(state && state.writable);
+    if (editable) return { editable: true, text: vs.titleNote || '' };
+    if (!(state && state.writable)) return { editable: false, text: (state && state.readOnlyReason) || (vs && vs.reason) || '' };
+    return { editable: false, text: (vs && vs.reason) || (vs && vs.titleNote) || '' };
+  }
+
   var PK = {
+    movedTitleHint: movedTitleHint,
     KNOWN_KEYS: KNOWN_KEYS,
     TITLE_SOFT: TITLE_SOFT,
     TAGLINE_SOFT: TAGLINE_SOFT,
@@ -1359,7 +1376,8 @@
     // V1e-1 (SD-7, D-20): the tagline now comes from vault-config.md's publish.theme.tagline,
     // never from the dead vault.config.json landingTagline key.
     var initialTagline = moved ? vs.tagline || '' : vcf.tagline === undefined || vcf.tagline === null ? '' : vcf.tagline;
-    var movedEditable = moved && Boolean(vs.editable) && Boolean(state.writable);
+    var movedHint = PK.movedTitleHint(vs, state);
+    var movedEditable = moved && movedHint.editable;
     var taglineEditable = moved ? movedEditable : Boolean(vcf.editable);
 
     // ---------------------------------------------------------------------------------------
@@ -1396,7 +1414,7 @@
       titleHint.setAttribute('data-part', 'title-note');
       titleHint.id = 'pack-title-note';
       titleInput.setAttribute('aria-describedby', 'pack-title-note');
-      setText(titleHint, vs.editable ? vs.titleNote || '' : vs.reason || vs.titleNote || '');
+      setText(titleHint, movedHint.text);
     } else {
       setText(titleHint, 'In every browser tab, the top bar of every page, and large on the landing page. Short reads best.');
     }
@@ -1556,6 +1574,10 @@
       titleInput.value = initialTitle;
       taglineInput.value = initialTagline;
       store.set({ pending: ScriptoriumAdmin.ST.withPending(store.get().pending, 'title', 0) });
+      if (moved) {
+        refreshDisabledReason();
+        reviewBtn.disabled = titleOwnDisabled || store.isBusy();
+      }
       refreshPendingText();
       refreshCounters();
       refreshLiveViews();

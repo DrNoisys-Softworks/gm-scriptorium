@@ -181,6 +181,33 @@
     return out;
   }
 
+  /**
+   * The Hidden headings hint. On the old layout the site joins this list with vault.config.json's;
+   * on a moved vault the site reads only the yaml's list.
+   *
+   * @param {boolean} yaml
+   * @returns {string}
+   */
+  function sectionsHint(yaml) {
+    if (yaml) return "On this vault the site reads only this list. vault.config.json's list is no longer used.";
+    return "These combine with vault.config.json's list: a heading named in either stays hidden.";
+  }
+
+  /**
+   * One editor gutter row: its file line number, and whether it is the line that will not read.
+   * vault-config.yaml is shown whole, so its first line is 1; vault-config.md's first content line
+   * is 2, after the opening fence.
+   *
+   * @param {number} i the 0-based editor line
+   * @param {boolean} yaml
+   * @param {number|null} badLine the parse error's file line, or null
+   * @returns {{n:number, bad:boolean}}
+   */
+  function gutterMark(i, yaml, badLine) {
+    var n = i + (yaml ? 1 : 2);
+    return { n: n, bad: badLine !== null && badLine === n };
+  }
+
   /** @returns {number[]} file line numbers (frontmatter line n -> file line n + 1) that changed */
   function changedLines(orig, text) {
     var DF = typeof module === 'object' && module.exports ? require('./diff').DF : window.ScriptoriumAdmin.DF;
@@ -476,6 +503,8 @@
     tokens: tokens,
     fileMap: fileMap,
     codeSpans: codeSpans,
+    sectionsHint: sectionsHint,
+    gutterMark: gutterMark,
     changedLines: changedLines,
     reviewEnabled: reviewEnabled,
     effectsSorted: effectsSorted,
@@ -1129,11 +1158,12 @@
         var span = el('span');
         var cls = [];
         if (changed[i]) cls.push('chg');
-        if (badLine !== null && badLine === i + first) cls.push('bad');
+        var mark = VC.gutterMark(i, yaml, badLine);
+        if (mark.bad) cls.push('bad');
         span.className = cls.join(' ');
         // File-relative, matching buildCode's own numbering and the status line's own per-line
         // parse-error wording below: the opening fence is line 1, so the first content line is 2.
-        if (yaml) setText(span, String(i + 1));
+        if (yaml) setText(span, String(mark.n));
         else setText(span, String(i + 2));
         gutter.appendChild(span);
       });
@@ -2474,7 +2504,7 @@
     if (path === 'publish.exclude_sections') {
       var hint = el('p');
       hint.className = 'a1-hint';
-      setText(hint, "These combine with vault.config.json's list: a heading named in either stays hidden.");
+      setText(hint, VC.sectionsHint(moved()));
       wrap.appendChild(hint);
     }
 

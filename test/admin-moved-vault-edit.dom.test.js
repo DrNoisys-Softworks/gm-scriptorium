@@ -160,6 +160,13 @@ for (const browserName of ['chromium', 'firefox']) {
         assert.equal((await texts(page, `${row} [data-part="does"]`)).join('|'), FOLDERS_DOES);
         assert.deepEqual(await texts(page, `${row} [data-part="left-out"] code`), ['_meta', '_Templates']);
         assert.equal(await page.$$eval(`${row} [data-part="left-out"] code`, (els) => els[0].childNodes.length === 1 && els[0].firstChild.nodeType === 3), true, 'the code span holds one text node');
+        assert.ok(
+          (await texts(page, `${vcScreen} .vc3-f[data-path="publish.exclude_sections"] .a1-hint`)).includes(
+            "On this vault the site reads only this list. vault.config.json's list is no longer used.",
+          ),
+          'the Hidden headings hint says only the yaml list is read',
+        );
+        assert.equal((await page.textContent(vcScreen)).includes("These combine with vault.config.json's list"), false);
         const fine = (await texts(page, `${vcScreen} .vc3-grid ~ .a1-fine`))[0];
         assert.ok(!fine.includes('below the frontmatter'), 'the yaml has no notes below a frontmatter');
         assert.ok(!/\bversion\b/.test(fine), 'the format version is not listed as a setting');
@@ -246,6 +253,13 @@ for (const browserName of ['chromium', 'firefox']) {
         assert.deepEqual(await page.$eval('#pack-title-input', (e) => ({ value: e.value, readOnly: e.readOnly })), { value: 'The Long Lease', readOnly: false });
         assert.equal(await page.$eval('#pack-tagline-input', (e) => e.disabled), false);
         assert.equal((await texts(page, `${screen} [data-part="title-note"]`)).join('|'), TITLE_SAVED_NOTE);
+        const review = `${screen} .a1-pending .a1-btn.primary`;
+        assert.equal(await page.isDisabled(review), true, 'Review is off while nothing has changed');
+        await page.fill('#pack-title-input', 'Something else');
+        assert.equal(await page.isDisabled(review), false, 'Review comes on with a change');
+        await page.click(`${screen} .a1-pending .a1-btn.ghost`);
+        assert.equal(await page.inputValue('#pack-title-input'), 'The Long Lease', 'Discard puts the title back');
+        assert.equal(await page.isDisabled(review), true, 'Review goes back off after Discard');
         await page.fill('#pack-title-input', NEW_TITLE);
         await page.fill('#pack-tagline-input', NEW_TAGLINE);
         if (!SKIP_AXE) assert.deepEqual(await axeViolations(page), [], 'axe, Title & tagline with edits');

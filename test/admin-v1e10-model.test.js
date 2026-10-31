@@ -449,3 +449,39 @@ test('SL.buildSlip for the title and tagline of a moved vault: one file, both ro
   assert.deepEqual(titleOnly.effects.map((e) => e.id), ['backup', 'campaign-id']);
   assert.match(titleOnly.effects[1].text, /_meta\/vault-config\.yaml/);
 });
+
+const { PK } = require(path.join(__dirname, '..', 'assets', 'admin', 'pack.js'));
+
+test('sectionsHint: the old layout keeps its combine line; a moved vault says only its own list is read', () => {
+  assert.equal(VC.sectionsHint(false), "These combine with vault.config.json's list: a heading named in either stays hidden.");
+  assert.equal(VC.sectionsHint(true), "On this vault the site reads only this list. vault.config.json's list is no longer used.");
+});
+
+test('gutterMark: vault-config.yaml numbers its first line 1; vault-config.md numbers its first content line 2; the bad line is marked by that number', () => {
+  assert.deepEqual(VC.gutterMark(0, true, null), { n: 1, bad: false });
+  assert.deepEqual(VC.gutterMark(2, true, 3), { n: 3, bad: true });
+  assert.deepEqual(VC.gutterMark(3, true, 3), { n: 4, bad: false });
+  assert.deepEqual(VC.gutterMark(0, false, null), { n: 2, bad: false });
+  assert.deepEqual(VC.gutterMark(1, false, 3), { n: 3, bad: true });
+  assert.deepEqual(VC.gutterMark(2, false, 3), { n: 4, bad: false });
+});
+
+test('movedTitleHint: the hint keys on the same editability as the inputs', () => {
+  const vs = { editable: true, titleNote: "Saved in the vault's settings file, _meta/vault-config.yaml.", reason: null };
+  assert.deepEqual(PK.movedTitleHint(vs, { writable: true, readOnlyReason: null }), {
+    editable: true,
+    text: "Saved in the vault's settings file, _meta/vault-config.yaml.",
+  });
+  assert.deepEqual(PK.movedTitleHint(vs, { writable: false, readOnlyReason: 'This campaign is read-only.' }), {
+    editable: false,
+    text: 'This campaign is read-only.',
+  });
+  assert.deepEqual(
+    PK.movedTitleHint({ editable: false, titleNote: 'note', reason: 'No machine folder.' }, { writable: true, readOnlyReason: null }),
+    { editable: false, text: 'No machine folder.' },
+  );
+  assert.deepEqual(PK.movedTitleHint({ editable: false, titleNote: 'note', reason: null }, { writable: true, readOnlyReason: null }), {
+    editable: false,
+    text: 'note',
+  });
+});
