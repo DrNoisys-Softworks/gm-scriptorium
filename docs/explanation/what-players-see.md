@@ -25,7 +25,7 @@ Separately, the folders named in `excludeDirs` in `vault.config.json` and in `pu
 
 A page that publishes is still trimmed before a player sees it. These are removed:
 
-- Sections under the headings named in `exclude_sections`. The two config files' lists are joined. The generator's own default list applies only when neither file lists any.
+- Sections under the headings named in `exclude_sections`. The two config files' lists are joined. A list in `_meta/vault-config.md` replaces the generator's own default list; a list only in `vault.config.json` is added to it.
 - Blocks wrapped in `<!-- gm-only -->` or `<!-- spoiler -->` comments, and dataview blocks. GM-Scriptorium removes dataview blocks before the generator runs, so the words in a query are not in the site's search, "Mentioned in" links or recaps either ([ADR 0044](../decisions/0044-obsidian-comments-withheld.md)).
 - Callouts of the kinds named in `exclude_callouts`.
 - Frontmatter fields named in `exclude_fields`, and in the page's own `publish_exclude_fields`. A setting under `overrides.fields` can bring back a field named in `exclude_fields`, but never one hidden by `publish_exclude_fields`.

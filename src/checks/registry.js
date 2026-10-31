@@ -59,7 +59,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A file has no frontmatter `type`. scanVault silently skips such a file (lib/scanner.js:135); this is how content disappears without a message.',
+      'A file has no frontmatter `type`. scanVault silently skips such a file (lib/scanner.js:136); this is how content disappears without a message.',
   },
   {
     id: 'census/type',
@@ -171,7 +171,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A relationship edge sets gm_only to something other than true or false (yes, on, "True", 1, an empty value). The pinned generator hides an edge only when gm_only is exactly true or the string "true" (lib/processor.js:1085-1087), so any other value publishes it. ERROR when the edge survives the pin\'s own publishedFrontmatter on a published page, with the same exclude_fields and per-file overrides (lib/processor.js:1099-1134); WARN otherwise.',
+      'A relationship edge sets gm_only to something other than true or false (yes, on, "True", 1, an empty value). The pinned generator hides an edge only when gm_only is exactly true or the string "true" (lib/processor.js:1430-1432), so any other value publishes it. ERROR when the edge survives the pin\'s own publishedFrontmatter on a published page, with the same exclude_fields and per-file overrides (lib/processor.js:1452-1487); WARN otherwise.',
   },
   {
     id: 'vault/unmapped-directory',
@@ -180,7 +180,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A directory has no folderMap entry and is not the vault root, so scanVault silently drops every file under it (lib/scanner.js:137-147). A third silent-drop path found during the Architect pass.',
+      'A directory has no folderMap entry and is not the vault root, so scanVault silently drops every file under it (lib/scanner.js:138-148). A third silent-drop path found during the Architect pass.',
   },
   {
     id: 'config/exclude-sections-divergence',
@@ -190,7 +190,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A pin default excluded section (lib/config.js:17) is silently dropped because vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them (lib/config.js:246-300, :441-443). ERROR if the heading actually renders in a published page.',
+      'A pin default excluded section (lib/settings/registry.js, player_site.hide.sections) is silently dropped because _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them. A list only in vault.config.json adds to the defaults (lib/settings/legacy.js pick, from publish-v1.26.0). ERROR if the heading actually renders in a published page.',
   },
   {
     id: 'config/exclude-dirs-divergence',
@@ -209,7 +209,25 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'A list from either config surface replaces the pin\'s default exclude_fields (lib/config.js:18: secrets, current_plan, plan_progress, gm_notes, prep_notes, reliability) instead of extending it, so an un-renamed default is no longer filtered.',
+      'A list in _meta/vault-config.md replaces the pin\'s default exclude_fields (secrets, current_plan, plan_progress, gm_notes, prep_notes, reliability) instead of extending it, so an un-renamed default is no longer filtered. A list only in vault.config.json adds to the defaults (lib/settings/legacy.js pick, from publish-v1.26.0).',
+  },
+  {
+    id: 'config/settings-fault',
+    category: 'config',
+    defaultSeverity: 'error',
+    defaultEnabled: true,
+    requiresFlag: null,
+    description:
+      'A setting the pinned generator cannot read stops its build (lib/config.js assertNoStops): one that hides something (publish.mode, an exclude_ list or switch, overrides.fields, or the site file\'s excludeSections, excludeFields, excludeDirs or excludeCallouts), or one that says where the site is built or what it keeps (the output folder, or preserveDirs in the site file). A name that looks like one of these but is misspelt or misplaced counts too. The message is the generator\'s own.',
+  },
+  {
+    id: 'config/switch-word-now-off',
+    category: 'config',
+    defaultSeverity: 'warn',
+    defaultEnabled: true,
+    requiresFlag: null,
+    description:
+      'publish.exclude_drafts or publish.exclude_callouts in _meta/vault-config.md is written as text the pinned generator now reads as off (no, off or "false"). Up to GM-Scriptorium 0.5.0 (publish-v1.21.0) any text counted as on, so these hid draft pages or callouts; from publish-v1.26.0 they are published.',
   },
   {
     id: 'config/site-vault-path-mismatch',
@@ -236,7 +254,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      'The pack.toml theme is built for one colour scheme (theme.json "scheme") but the vault palette resolves to the other, by the generator\'s own light/dark rule (lib/theme.js:188) applied after its palette merge (lib/config.js:485-487). Text and surfaces may clash. Never fires for the plain theme, without a pack.toml, or when a genre preset owns the palette.',
+      'The pack.toml theme is built for one colour scheme (theme.json "scheme") but the vault palette resolves to the other, by the generator\'s own light/dark rule (lib/theme.js:182) applied after its palette merge (lib/config.js:130-156). Text and surfaces may clash. Never fires for the plain theme, without a pack.toml, or when a genre preset owns the palette.',
   },
   {
     id: 'leak/l1-no-manifest',
@@ -255,7 +273,7 @@ const CHECKS = Object.freeze([
     defaultEnabled: true,
     requiresFlag: null,
     description:
-      "A built page or image is sourced from a directory in the union of vault.config.json:excludeDirs and _meta/vault-config.md:publish.exclude_dirs, or under one of the pin's always-excluded directories (_meta, _Templates, _templates, personal; lib/publish-decision.js:45). A file under images/ that is byte-identical to a cover picture or section banner the generator copies there (lib/build.js) is judged by that real source instead of being read back to the attachments folder: WARN when the GM named it in publish.theme.campaign_image or banners, ERROR when the banner was an auto-found _banner.* (ADR 0061). Reads the real built tree when a build exists (INFO when none). Inside build the pre-build check defers it (one INFO) and src/build/outputgate.js's scanStagingOutput runs it against the staging tree before the swap, where the command line cannot override it (ADR 0055).",
+      "A built page or image is sourced from a directory in the union of vault.config.json:excludeDirs and _meta/vault-config.md:publish.exclude_dirs, or under one of the pin's always-excluded directories (_meta, _Templates, _templates, personal; lib/publish-decision.js:47). A file under images/ that is byte-identical to a cover picture or section banner the generator copies there (lib/build.js) is judged by that real source instead of being read back to the attachments folder: WARN when the GM named it in publish.theme.campaign_image or banners, ERROR when the banner was an auto-found _banner.* (ADR 0061). Reads the real built tree when a build exists (INFO when none). Inside build the pre-build check defers it (one INFO) and src/build/outputgate.js's scanStagingOutput runs it against the staging tree before the swap, where the command line cannot override it (ADR 0055).",
   },
   {
     id: 'leak/l3-unpublished-link',

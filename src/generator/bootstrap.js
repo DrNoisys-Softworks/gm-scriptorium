@@ -170,7 +170,7 @@ function captureConsole() {
 
 /*
  * FR-DEP-11: the pinned generator emits three render-error shapes
- * (lib/build.js:1239,1276,1291). "roster" is checked before the generic
+ * (lib/build.js:1513,1276,1291). "roster" is checked before the generic
  * "page" pattern, because "ERROR rendering roster <path>:" also matches
  * "ERROR rendering (\S+):" (it would otherwise classify as a page whose
  * outputPath is literally "roster").
@@ -213,7 +213,7 @@ function classifyGeneratorLog(captured) {
  * Up to publish-v1.11.44 it loaded the config with `require(resolvedConfigPath)`, which Node
  * caches; the resolved config path is keyed on a per-build staging directory
  * (docs/decisions/0022-gm-admin-panel.md, "Preview builds"), so each call's require.cache entry
- * was unique. From publish-v1.12.0 it reads the file from disk on every call (lib/build.js:96,
+ * was unique. From publish-v1.12.0 it reads the file from disk on every call (lib/build.js:207,
  * loadVaultConfig), so there is no cache entry at all. Either way this MAY be called more than
  * once per process. Phase 8 slice S2's NFR02 test (test/admin-preview.test.js) is the evidence: a
  * third in-process preview build, with a theme change and a label change made between builds,

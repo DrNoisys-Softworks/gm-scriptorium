@@ -9,7 +9,7 @@ vault's own file, `_meta/vault-config.md`, keeps them under a `publish:` heading
 `vault.config.json` keeps older, flat versions of some of them, and a few of its own. The site
 generator reads more keys than these tables list. The ones it reads and GM-Scriptorium does not touch
 are described in
-[the generator's documentation](https://github.com/AntTheLimey/gm-apprentice/tree/publish-v1.21.0).
+[the generator's documentation](https://github.com/AntTheLimey/gm-apprentice/tree/publish-v1.26.0).
 The settings that belong to your computer are in [the settings file](config-toml.md), and the look and
 words of the site are in [the pack file](pack-toml.md).
 
@@ -30,19 +30,24 @@ folder in this order, and uses the first that applies:
 
 Three settings can be given in both files: the hidden fields, the hidden headings and the hidden
 folders. GM-Scriptorium does not choose one file over the other. It takes **both lists together**,
-ignoring capital letters, so an entry in either file hides that field, heading or folder. The built-in
-list applies only when neither file has a list of its own. A fresh build honours both lists of hidden
-folders, as it does the other two.
+ignoring capital letters, so an entry in either file hides that field, heading or folder. A list in
+`_meta/vault-config.md` replaces the built-in list. A list only in `vault.config.json` is added to the
+built-in list. A fresh build honours both lists of hidden folders, as it does the other two.
 
 `check` compares each pair of lists and reports it when they differ (`config/exclude-fields-divergence`,
 `config/exclude-sections-divergence` and `config/exclude-dirs-divergence`).
 
 The other settings are read like this:
 
-- **`publish.mode`** is `player` when the key is absent or empty.
+- **`publish.mode`** is `player` when the key is absent or empty. Any value other than `player` or
+  `full` stops the build.
 - **`publish.exclude_callouts`** and `excludeCallouts` in `vault.config.json`: when both are set,
   the stricter one is used. `true` beats a list, a list beats `false`, and two lists are joined. When
-  neither is set, the built-in value is used.
+  neither is set, the built-in value is used. `yes` and `on` mean `true`; `no` and `off` mean `false`.
+- **A setting the generator cannot read stops the build**, and `check` reports it as
+  `config/settings-fault`. That covers a setting that hides something or one that says where the
+  site is built or what it keeps: a misspelt name such as `exclude_sectoins`, a list written as
+  one word, a folder to keep written with a slash, and a switch set to a word other than the six above.
 - **`publish.overrides.fields`** is read from the vault file only.
 - **The campaign's title** is `siteTitle` in `vault.config.json`. When a new campaign is made, its
   title comes from the `campaign:` line at the top of `_meta/vault-config.md`, and from the campaign's
@@ -75,8 +80,8 @@ table: `max_npcs:` under `landing:`.
 | `exclude_fields` | list of text | secrets, current_plan, plan_progress, gm_notes, prep_notes, reliability | Hidden fields (edit) | Frontmatter fields that are never published, on any page. Joined with `excludeFields` in `vault.config.json`; see how the two files combine, above. |
 | `exclude_sections` | list of text | GM Notes, DM Notes, Player Notes, Source References, Reconciliation Context, Handoff to Reconcile | Hidden headings (edit) | Headings whose section is removed from every page, at any heading level. Joined with `excludeSections` in `vault.config.json`. |
 | `exclude_dirs` | list of text | _meta, _Templates | Hidden folders (edit) | Vault folders that are skipped completely. Joined with `excludeDirs` in `vault.config.json`. A trailing slash, a leading `./` and backslashes make no difference. `check` compares the two lists and says if they differ. |
-| `exclude_drafts` | true or false | false | - | Whether pages with `canon_status: DRAFT` are left out of the site. |
-| `exclude_callouts` | true or false, or a list of text | false | - | Whether callout blocks are removed from pages. When `excludeCallouts` in `vault.config.json` is also set, the stricter of the two is used. |
+| `exclude_drafts` | on or off | false | - | Whether pages with `canon_status: DRAFT` are left out of the site. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. Any other value stops the build (`config/settings-fault`). |
+| `exclude_callouts` | on or off, or a list of text | false | - | Whether callout blocks are removed from pages. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. When `excludeCallouts` in `vault.config.json` is also set, the stricter of the two is used. |
 | `overrides` | table | No overrides | - | Per-page exceptions to the hidden fields, under `overrides.fields`. An entry the generator cannot read is dropped. |
 | `theme.palette` | table of colours | The built-in colours | Colours (shown) | The four site colours: `primary`, `accent`, `background` and `text`. The panel shows them but has no field to change them. |
 | `theme.fonts` | table | The system font | Fonts (shown) | The heading and body fonts, and where font files come from. |
@@ -93,7 +98,7 @@ table: `max_npcs:` under `landing:`.
 <!-- END GENERATED vault-publish -->
 
 For the other keys of the file, see
-[the generator's documentation](https://github.com/AntTheLimey/gm-apprentice/tree/publish-v1.21.0).
+[the generator's documentation](https://github.com/AntTheLimey/gm-apprentice/tree/publish-v1.26.0).
 
 This is the `publish:` block of the sample campaign, with the long explore text left out. The hidden
 lists are in full, so copying the block loses none of the built-in ones.
@@ -128,22 +133,21 @@ get" is what `init` writes. *Since 0.5.0.* The panel's first-run setup writes th
 |---|---|---|---|---|---|
 | `siteTitle` | text | no | - | The site's name, shown in the navigation bar and as the page title. New campaigns get the title you gave `init`, or the one in `campaign:` in `_meta/vault-config.md`. | The Title & tagline screen in the admin panel, `init`, or by hand |
 | `landingTagline` | text | no | - | An older home of the tagline. The site no longer reads it; use `publish.theme.tagline`. The panel shows a value left here but never writes one. | `init` writes it empty. By hand |
-| `host` | text | no | github-pages | Where the generator is told the site will be hosted: `github-pages`, or `cloudflare-pages`. It affects only the generator's deploy step. GM-Scriptorium does not read it. | `init`, or by hand |
 | `attachmentsDir` | text | no | _attachments | The folder inside the vault that holds images. | `init`, or by hand |
 | `folderMap` | table | yes | - | Which vault folder becomes which folder on the site. A map with no entries is allowed; the key must be there. New campaigns get the standard folders, and the generator's README lists them. | `init`, or by hand |
-| `excludeDirs` | list of text | yes | _meta, _Templates, _resources | Vault folders skipped completely. Joined with `publish.exclude_dirs`. A trailing slash, a leading `./` and backslashes make no difference. | `init`, or by hand |
-| `excludeSections` | list of text | no | GM Notes, DM Notes, Player Notes, Source References, Reconciliation Context, Handoff to Reconcile | Headings whose section is removed from every page. Joined with `publish.exclude_sections`. | `init`, or by hand |
-| `excludeCallouts` | true or false, or a list of text | no | true | Whether callout blocks are removed. When `publish.exclude_callouts` is also set, the stricter of the two is used. | `init`, or by hand |
+| `excludeDirs` | list of text | yes | _meta, _Templates, _resources | Vault folders skipped completely. Joined with `publish.exclude_dirs`; when that is not set, added to the built-in folders. A trailing slash, a leading `./` and backslashes make no difference. | `init`, or by hand |
+| `excludeSections` | list of text | no | GM Notes, DM Notes, Player Notes, Source References, Reconciliation Context, Handoff to Reconcile | Headings whose section is removed from every page. Joined with `publish.exclude_sections`; when that is not set, added to the built-in headings. | `init`, or by hand |
+| `excludeCallouts` | on or off, or a list of text | no | true | Whether callout blocks are removed. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. When `publish.exclude_callouts` is also set, the stricter of the two is used. | `init`, or by hand |
 | `backend` | table | no | - | Switches for the generator's optional site features: `statusBar` and `inbox`. New campaigns get both off. | `init`, or by hand |
 | `banners` | table | no | - | An older home of the section banners. The generator still uses an entry here for a section that `publish.banners` in `_meta/vault-config.md` does not mention. GM-Scriptorium reads it to tell a copied banner from an attachment. | By hand |
-| `excludeFields` | list of text | no | - | Frontmatter fields that are never published. Joined with `publish.exclude_fields`. A new campaign has none here, and relies on the defaults. | By hand |
+| `excludeFields` | list of text | no | - | Frontmatter fields that are never published. Joined with `publish.exclude_fields`; when that is not set, added to the built-in fields. A new campaign has none here, and relies on the defaults. | By hand |
 | `outputDir` | text | no | - | Where the generator would write if you ran it alone. GM-Scriptorium takes the output folder from the settings file instead, and `build` stops if this names the same folder. *Since 0.5.0.* `--force-out` builds into it anyway. Versions before 0.5.0 use `--force` for this. New campaigns do not get one. | By hand |
 | `searchEnabled` | true or false | no | - | Set to `false` to build without the site search. Absent or anything else means search is on. | By hand |
 | `vaultPath` | text | no | - | Where the generator would look for the vault if you ran it alone. GM-Scriptorium uses the vault from the settings file instead, and `check` says if this names a different folder. New campaigns do not get one. | By hand |
 <!-- END GENERATED vault-json -->
 
 The generator's own reference for this file is
-[its README](https://github.com/AntTheLimey/gm-apprentice/blob/publish-v1.21.0/tools/publish/README.md).
+[its README](https://github.com/AntTheLimey/gm-apprentice/blob/publish-v1.26.0/tools/publish/README.md).
 
 This is the sample campaign's file, with the optional keys the sample does not need left out.
 A real `folderMap` needs an entry for every folder you want published.

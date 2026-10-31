@@ -96,7 +96,6 @@ function treeManifest(root, skipRel) {
 const L_VCJ = `{
   "siteTitle": "Fixture Chronicle",
   "landingTagline": "",
-  "host": "github-pages",
   "attachmentsDir": "_attachments",
   "folderMap": {
     "Characters/PCs": "characters/pcs",

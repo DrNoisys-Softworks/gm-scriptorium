@@ -406,7 +406,40 @@ test('L6 sections: the divergence message reads exactly as written (wording, #14
   const hit = runExcludeSectionsDivergence(ctx).find((f) => f.data.section === 'DM Notes');
   assert.equal(
     hit.message,
-    '"## DM Notes" is one of the default excluded sections, but vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them, so it is no longer excluded and the heading renders in published output',
+    '"## DM Notes" is one of the default excluded sections, but _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them, so it is no longer excluded and the heading renders in published output',
+  );
+});
+
+// From publish-v1.26.0 (upstream #371) a list in vault.config.json, with none in the vault file, adds
+// to the built-in list instead of replacing it, so it drops no default and nothing is reported.
+function withSiteOnlyLists(fn) {
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-371-'));
+  try {
+    const vaultCopy = path.join(scratch, 'vault');
+    fs.cpSync(PIN_VAULT, vaultCopy, { recursive: true });
+    fs.writeFileSync(path.join(vaultCopy, '_meta', 'vault-config.md'), '---\ntype: meta\npublish:\n  mode: player\n---\n\nScratch.\n');
+    return fn(buildCheckContext({
+      campaign: 'pin-vault',
+      vaultPath: vaultCopy,
+      jsonConfig: { ...PIN_SITE_CONFIG, vaultPath: vaultCopy, excludeSections: ['Secrets'], excludeFields: ['secrets'] },
+    }));
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
+test('L6 sections and fields: a list only in vault.config.json adds to the defaults, so no default is reported missing (#371)', () => {
+  withSiteOnlyLists((ctx) => {
+    assert.deepEqual(runExcludeSectionsDivergence(ctx), []);
+    assert.deepEqual(runExcludeFieldsDivergence(ctx), []);
+  });
+});
+
+test('L6 fields: the divergence message names the vault file, the only list that replaces the defaults', () => {
+  const hit = runExcludeFieldsDivergence(pinContext()).find((f) => f.data.field === 'gm_notes');
+  assert.equal(
+    hit.message,
+    'default excluded field "gm_notes" is no longer filtered; the _meta/vault-config.md exclude_fields list replaced the default list instead of extending it',
   );
 });
 

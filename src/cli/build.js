@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const { resolveCampaignContext, FORCE_SPLIT_MESSAGE } = require('./args');
 const { resolveVaultContext, runCheckForContext, asPackProblem } = require('./check');
@@ -14,6 +15,9 @@ const { suggestedSlug } = require('../setup/foldermap');
 const { EXIT_CODES } = require('../util/exitcodes');
 const { SCHEMA_VERSION } = require('../report/json');
 const pkg = require('../../package.json');
+
+/** The pin's assertNoStops message for the build command: "build stopped: the settings have a fault ...". */
+const SETTINGS_STOP_RE = /^build stopped: the settings have a fault/;
 
 /**
  * Issue #104: a campaign registered without an output folder used to reach path.resolve(undefined)
@@ -77,20 +81,29 @@ function withoutReportedUnmapped(generatorWarnings, reportedDirs) {
  * have moved, naming a tool (migrate.py) Scriptorium users do not have. Those lines are noise
  * about Scriptorium's own scaffold, so drop exactly them and nothing else:
  *  - the two backend "old name" lines, only when that backend key is false (the scaffold value);
+ *  - the landingTagline "old name" line, new at publish-v1.26.0. The scaffold writes the key, the
+ *    site no longer reads it and Scriptorium's reference page already says so
+ *    (docs/reference/vault-config.md), and up to 1.21.0 no build printed it;
  *  - the legacy-settings line, only when every listed key is a scaffold key and no entry "..." is
  *    still applied clause is present.
+ * The old-name texts are the pin's (lib/settings/faults.js formatFault, "<name> is an old name; use
+ * <setting>."), with the "WARNING: " the build puts before every warning; they changed at
+ * publish-v1.26.0, which is why each is matched whole.
  * The "is not a list" and "cannot be moved" lines never match. Anything else stays visible.
  */
 const SCAFFOLD_KEY_RE = /^(siteTitle|landingTagline|attachmentsDir|folderMap|excludeDirs|excludeSections|excludeCallouts|backend)( \(ignored; the vault file sets it\))?$/;
 const LEGACY_PREFIX = 'WARNING: vault.config.json still holds campaign settings: ';
 const LEGACY_SUFFIX = '. Settings left in vault.config.json are planned to stop being read in plugin 1.11.0. Run `migrate.py <vault>` to move them.';
-const STATUS_BAR_OLD_NAME_PREFIX = 'WARNING: vault.config.json backend.statusBar is an old name; set ';
-const INBOX_OLD_NAME = 'WARNING: vault.config.json backend.inbox is an old name; set publish.inbox';
+// Matched up to the setting's name, which Scriptorium never writes (test/live-stats-off.test.js).
+const STATUS_BAR_OLD_NAME_PREFIX = 'WARNING: backend.statusBar is an old name; use publish.';
+const INBOX_OLD_NAME = 'WARNING: backend.inbox is an old name; use publish.inbox.';
+const LANDING_TAGLINE_OLD_NAME = 'WARNING: landingTagline is an old name; use publish.theme.tagline.';
 function withoutScaffoldNoise(generatorWarnings, siteConfig) {
   const backend = (siteConfig && siteConfig.backend) || {};
   return generatorWarnings.filter((line) => {
     if (line.startsWith(STATUS_BAR_OLD_NAME_PREFIX) && backend.statusBar === false) return false;
     if (line === INBOX_OLD_NAME && backend.inbox === false) return false;
+    if (line === LANDING_TAGLINE_OLD_NAME) return false;
     if (line.startsWith(LEGACY_PREFIX) && line.endsWith(LEGACY_SUFFIX)) {
       const middle = line.slice(LEGACY_PREFIX.length, line.length - LEGACY_SUFFIX.length);
       if (middle.split(', ').every((item) => SCAFFOLD_KEY_RE.test(item))) return false;
@@ -361,6 +374,23 @@ function runBuildForContext(ctxInfo, flags) {
   }
 
   if (!result.ok) {
+    // The generator refuses to build when a setting cannot be read, whether it hides
+    // something or says where to build or what to keep (lib/config.js
+    // assertNoStops, thrown from build()). Plain `build` stops earlier, at the check step (exit 2);
+    // with --force-check or --no-check it reaches here. It is a settings mistake, not a Scriptorium
+    // bug, so exit 3 through the existing class (DEVELOPING.md, "Exit codes for user errors").
+    if (SETTINGS_STOP_RE.test(result.error.message)) {
+      try {
+        fs.rmSync(result.stagingRoot, { recursive: true, force: true });
+      } catch {
+        /* best-effort: a cleanup failure must never change the code the user sees */
+      }
+      throw new VaultUnreachableError(result.error.message, {
+        path: vaultPath,
+        campaign: ctxInfo.campaign,
+        reason: 'settings-fault',
+      });
+    }
     lines.push(`build failed: ${result.error.message}`);
     for (const re of result.renderErrors) lines.push(`  ${renderErrorLine(re)}`);
     lines.push(`staging tree kept for inspection at: ${result.stagingRoot}`);

@@ -51,6 +51,8 @@ const IDS = [
   'config/exclude-sections-divergence',
   'config/exclude-dirs-divergence',
   'config/exclude-fields-divergence',
+  'config/settings-fault',
+  'config/switch-word-now-off',
   'config/site-vault-path-mismatch',
   'config/pack-shadowed',
   'config/theme-scheme-mismatch',
@@ -74,8 +76,8 @@ const IDS = [
 
 // ---- literal facts the page shows ----
 
-test('the thirty-eight finding ids, as a literal list, registry first and then the build', () => {
-  assert.equal(IDS.length, 38);
+test('the forty finding ids, as a literal list, registry first and then the build', () => {
+  assert.equal(IDS.length, 40);
   assert.deepEqual(facts.map((f) => f.key), IDS);
 });
 

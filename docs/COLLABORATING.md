@@ -30,8 +30,8 @@ changed upstream.
 ### The pin and its verification
 
 - `vendor/gm-apprentice-publish/PIN.json` is the integrity anchor: repository, `tools/publish`
-  path, the 40-character commit SHA (`9def97ea6586009019b35d77ba480738a936c457`, tag
-  `publish-v1.21.0`, package version `1.21.0`), the vendored release tarball's filename and
+  path, the 40-character commit SHA (`228fa161932d9119408d28e11628e22dd9b2ed76`, tag
+  `publish-v1.26.0`, package version `1.26.0`), the vendored release tarball's filename and
   sha256, the vendored `SHA256SUMS` filename, a `crossCheck` record (method, npm version,
   `treeSha256` of a reproducible-build cross-check tree), every shipped file's sha256 keyed by
   package-relative POSIX path (584 files, bundled dependencies included), and one `treeSha256` over
@@ -71,10 +71,11 @@ unmodified (the stub-page guard on `keepOnlySections` is retired at publish-v1.1
 `stripCallouts`, `filterSections`, `keepOnlySections`, `publishedFrontmatter`, `publishMode`,
 `findHeadings`, `renderInline`, `resolveWikiLinks` (all from `lib/processor.js`; the last three are
 what `leak/l5-gm-heading-survives` reads headings with, `docs/decisions/0045-leak-checks-read-rendered-headings-and-data-islands.md`), `decidePage`, `publishesPage`, `ALWAYS_EXCLUDE_DIRS` (`lib/publish-decision.js`),
-`parseManifest` (`lib/manifest.js`), `PUBLISH_DEFAULTS`, `vaultRelPath`, `scanConfigFor`
-(`lib/config.js`), `slugify`, `mapFolder`, `dirIsExcluded` (`lib/scanner.js`), `pairHubs`
+`parseManifest` (`lib/manifest.js`), `vaultRelPath`, `scanConfigFor`
+(`lib/config.js`), `normalizeExcludeDir` and `readSwitch` (`lib/settings/`, from publish-v1.26.0),
+`slugify`, `mapFolder`, `dirIsExcluded` (`lib/scanner.js`), `pairHubs`
 (`lib/session-hub.js`), `isWrapUp`, `WRAP_UP_TYPES` (also `lib/session-hub.js`),
-`resolveGenrePreset` (`lib/theme.js`), `labelsForLinks` (`lib/wikilink.js`, from publish-v1.17.0;
+`labelsForLinks` (`lib/wikilink.js`, from publish-v1.17.0;
 `src/vault/publishset.js` prints a wikilink in a title by its label, as the scanner does),
 `linkText`, `wikilinkRe`, `parseWikilink` (also `lib/wikilink.js`) and `buildLinkMap` (`lib/scanner.js`, these four
 from publish-v1.21.0; the Connections lane resolves a relationship's target as the pin does, and `check` finds and
@@ -95,6 +96,16 @@ matching (which folds case, deliberately, the scanned filesystem may or may not 
 case-sensitive), and `src/vault/sessionpairs.js` (`docs/decisions/0036-session-wrap-up-support.md`)
 calls `pairHubs` directly, fed by a faithful port of the generator's own note walk, rather than
 re-implementing the hub/Wrap-Up pairing rule.
+
+From publish-v1.26.0 the pin no longer exports `PUBLISH_DEFAULTS` or `resolveGenrePreset`. The facade
+rebuilds `PUBLISH_DEFAULTS` from the settings registry (`lib/settings/registry.js`) by each key's old
+name, and `resolveGenrePreset` as its one line over the pin's `GENRE_ALIASES` (`lib/theme.js`), and it
+adds `DEFAULT_WITHHELD_WORDS` from the same registry. It also adds `readPublishSettings`, the pin's
+own `loadPublishConfig` with the settings file's text supplied by the caller, which
+`src/vault/publishset.js` now uses instead of its hand-ported config merge (ADR 0005's publish-v1.26.0
+addendum, "How `check` reads the hiding settings now"). The facade seeds the rules-content redactions
+when it loads, before its first pin require, because the pin's settings registry loads every
+character-sheet template.
 
 Any change to one of these exported functions' name, signature, or return shape is a break. A
 rename or removed export is the single most disruptive kind of upstream change from Scriptorium's
@@ -306,20 +317,23 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   matching the build.
 - **`src/cli/check.js`'s shape check** (`assertScanKeysPresent`, described above) is the
   Scriptorium-side gate on this contract.
-- **`src/vault/publishset.js`** is a **hand-ported re-implementation** of the generator's own
-  `lib/config.js` merge logic (`unionExcludeList`, the `PUBLISH_DEFAULTS` precedence chain) and its
-  `lib/scanner.js`/`lib/build.js` verdict loop, not a call into the generator. It exists because the
+- **`src/vault/publishset.js`** reads a vault's settings with the generator's own `loadPublishConfig`
+  (from publish-v1.26.0, through the facade's `readPublishSettings`, which hands it the settings file
+  read through `src/vault/read.js`). Up to publish-v1.21.0 it hand-ported that merge
+  (`unionExcludeList`, the `PUBLISH_DEFAULTS` precedence chain). The rest of the file is a
+  **hand-ported re-implementation** of the generator's `lib/scanner.js`/`lib/build.js` verdict loop,
+  not a call into the generator. It exists because the
   generator's own file-reading entry points (`loadPublishConfig`, `loadManifest`, `scanVaultReport`)
   bypass Scriptorium's read-only, abort-on-EIO chokepoint and write straight to stderr, which
   `check` cannot allow. Only the *pure* functions (`decidePage`, `publishesPage`, `slugify`,
   `mapFolder`, `dirIsExcluded`, `vaultRelPath`, `scanConfigFor`, `canonicalNfc`, `parseManifest`,
-  `normalizeExcludeDir`, `stricterCallouts`, `PUBLISH_DEFAULTS`) are required through the facade and
-  called directly. The last two were added after the port missed them: a folder written as
+  `normalizeExcludeDir`, `readSwitch`, `PUBLISH_DEFAULTS`) are required through the facade and
+  called directly. `normalizeExcludeDir` and `PUBLISH_DEFAULTS` were added after the port missed them: a folder written as
   `NPCs/` was left out of the build but still counted by `check`. Everything else in this
   file is logic someone re-typed
-  from `lib/config.js` by hand and has to be re-checked, not re-verified automatically, on every pin
+  from `lib/scanner.js` by hand and has to be re-checked, not re-verified automatically, on every pin
   move. **This is the single largest place a silent, undetected drift could happen**: an upstream
-  change to the merge precedence in `lib/config.js` that isn't one of the exported pure functions
+  change to the scan or the verdict loop that isn't one of the exported pure functions
   will not fail `npm run verify-generator` (the pin's bytes still match); it will only surface if
   someone reads the diff by hand, or if `scripts/equivalence-check.js` (below) is run against a real
   build and catches the mismatch in output.

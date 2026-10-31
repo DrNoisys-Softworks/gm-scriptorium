@@ -48,6 +48,10 @@
         { "do": "erase" },
         "// Redacted at packaging time by Scriptorium. See docs/decisions/0007-rules-content-redaction.md.\nmodule.exports = { REGENCY_SKILLS: [], BASE_SKILLS: [] };\n"
       ],
+      "node_modules/gm-apprentice-publish/lib/templates/gurps/tohit-data.js": [
+        { "do": "erase" },
+        "// Redacted at packaging time by Scriptorium. See docs/decisions/0007-rules-content-redaction.md.\nmodule.exports = { buildTohitData: () => null, tohitDataScript: () => '', tohitMarkup: () => '' };\n"
+      ],
       "node_modules/gm-apprentice-publish/js/gurps-tohit.js": [
         { "do": "erase" },
         "// Redacted by Scriptorium: the upstream to-hit calculator carries rules tables.\n// See docs/decisions/0007-rules-content-redaction.md.\n(function () {\n  function drop() { var el = document.getElementById('tohit-calc'); if (el) el.remove(); }\n  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', drop); else drop();\n})();\n"
@@ -55,7 +59,7 @@
     }
   },
   "dependencies": {
-    "gm-apprentice-publish": "file:vendor/gm-apprentice-publish/gm-apprentice-publish-1.21.0.tgz",
+    "gm-apprentice-publish": "file:vendor/gm-apprentice-publish/gm-apprentice-publish-1.26.0.tgz",
     "gray-matter": "4.0.3",
     "smol-toml": "1.9.0"
   },

@@ -34,7 +34,7 @@ const THEMES = Object.freeze({
   gloam: Object.freeze({ name: 'gloam', dir: path.join(THEMES_ROOT, 'gloam') }),
 });
 
-// Mirrors the pin's own image allowlist (gm-apprentice-publish/lib/scanner.js:319), and
+// Mirrors the pin's own image allowlist (gm-apprentice-publish/lib/scanner.js:323), and
 // src/build/themeassets.js's exported IMAGE_EXT_RE of the same value. Kept as a separate,
 // private literal here (rather than importing from themeassets.js) to avoid a require cycle:
 // themeassets.js requires this module's loadTheme.

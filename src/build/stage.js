@@ -6,9 +6,9 @@ const path = require('path');
 /*
  * FR-DEP-10: the pinned generator reads some inputs relative to its config
  * file's directory (configDir), not just vaultPath/outputDir:
- *   - css/overrides.css (pub/lib/build.js:220-231)
+ *   - css/overrides.css (pub/lib/build.js:397-408)
  *   - backend detection: wrangler.toml, functions/api/request.js,
- *     functions/api/loadout.js (pub/lib/build.js:116, :1339-1340, pub/lib/backend-flags.js:12-29)
+ *     functions/api/loadout.js (pub/lib/build.js:279, :1339-1340, pub/lib/backend-flags.js:12-29)
  * Scriptorium's staged config lives in a staging root that is NOT the
  * user's site dir (src/build/stage.js's writeStagedConfig, unchanged), so
  * without mirroring these, the pin's copyOverridesCSS and its

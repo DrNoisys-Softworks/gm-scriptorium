@@ -257,3 +257,32 @@ The data module itself, `lib/templates/gurps/tohit-data.js`, is not redacted, on
 source holds names only (aiming aids, hit locations) and one number, the Dual-Weapon Attack default of
 skill-4. Its table rows come from `reference.js`, whose stub is already empty. The registry redacts a
 module because of the rules text it carries, and this one carries none.
+
+## Addendum: the to-hit data module is redacted too (publish-v1.26.0, 2026-10-27)
+
+The addendum above left `lib/templates/gurps/tohit-data.js` in place because its source held names and
+one number. At publish-v1.26.0 the module grew by 362 lines (the calculator's rework: arms and legs as
+separate hit locations, techniques, and more checks of a character sheet). Read by hand, it now holds
+more than names:
+
+- rules facts with page citations in its comments: how Dual-Weapon Attack and Off-Hand Weapon
+  Training buy off a -4 a point a level, which hit locations a crouching target protects, and that an
+  untrained fighter rolls against DX;
+- a perk's bonus as a number, which it writes into the data block of a GURPS page when the character
+  has that perk;
+- warnings for the GM that state the same rules.
+
+It holds no table, and its own rows still come from the redacted `reference.js`. It now carries rules
+content, though, and the test this record set for it was "names only". So it joins the registry as a
+third module redaction (`gurps-tohit-data`): the build seeds a stub, and `pkg.patches` erases the file
+in the executable. The stub's `buildTohitData` returns nothing, so a GURPS page has no calculator box
+and no data block, and the build reports nothing about the calculator, which no GURPS page on a
+Scriptorium site has anyway. Each GURPS page the module was asked for counts as degraded in the build's
+report. The script redaction stays, and now finds no page that loads the script.
+
+Rejected: keeping the module and redacting only its data block. The module is in the executable either
+way, and the bonus it writes is only one of the facts it carries.
+
+From publish-v1.26.0 the redactions are also seeded when `src/generator/pinned.js` loads, not only
+before a build: the pin's settings registry loads every character-sheet template, so the facade itself
+now reaches the redacted files.

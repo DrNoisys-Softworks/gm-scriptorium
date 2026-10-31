@@ -9,8 +9,8 @@ const { createFinding } = require('../report/finding');
 /*
  * ADR 0023, Structural decision 6: config/theme-scheme-mismatch.
  *
- * Reproduces the pin's palette merge (lib/config.js:485-487) and its light/dark rule
- * (lib/theme.js:185-190, applied after that merge) purely from _meta/vault-config.md's `publish`
+ * Reproduces the pin's palette merge (lib/config.js:130-156; a genre written with no palette leaves it unset) and its light/dark rule
+ * (lib/theme.js:179-184, applied after that merge) purely from _meta/vault-config.md's `publish`
  * block, through src/vault/read.js's own read-only, abort-on-EIO chokepoint (the same one
  * src/vault/publishset.js's loadPublishConfig uses, at :128-129) -- never the pin's own
  * loadPublishConfig() (bypasses that chokepoint) and never generateThemeCSS() itself (parsing
@@ -18,7 +18,7 @@ const { createFinding } = require('../report/finding');
  * Brief alongside a hardcoded '#1a1f25' default, which would leave this check silent for a
  * vault with no palette at all -- the most likely mismatch).
  *
- * parseHex/luminance below are a verbatim port of gm-apprentice-publish/lib/theme.js:113-128
+ * parseHex/luminance below are a verbatim port of gm-apprentice-publish/lib/theme.js:107-122
  * (cited there; neither is exported by the pin's own module.exports). Kept honest by
  * test/theme-scheme.test.js's parity matrix, which deep-requires the pin's real lib/config.js
  * and lib/theme.js and compares this module's output against generateThemeCSS()'s own.

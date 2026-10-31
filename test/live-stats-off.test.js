@@ -41,7 +41,7 @@ function build({ liveStats, kv }) {
   fs.mkdirSync(path.join(vault, 'Characters', 'PCs'), { recursive: true });
   fs.writeFileSync(
     path.join(vault, '_meta', 'vault-config.md'),
-    `---\ntype: meta\npublish:\n  system: dnd-5e-2024\n  mode: gm\n${liveStats ? '  live_stats: true\n' : ''}---\n# Config\n`
+    `---\ntype: meta\npublish:\n  system: dnd-5e-2024\n  mode: player\n${liveStats ? '  live_stats: true\n' : ''}---\n# Config\n`
   );
   fs.writeFileSync(
     path.join(vault, 'Characters', 'PCs', 'Tamsin.md'),

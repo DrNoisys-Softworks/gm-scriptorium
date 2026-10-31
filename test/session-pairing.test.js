@@ -89,7 +89,11 @@ test('change detector: lib/scanner.js still carries the exact SESSION_TYPE_LINE 
   assert.ok(
     src.includes('const SESSION_TYPE_LINE = /^type:\\s*["\']?(session|session_wrap|session-wrap-up|session-wrapup)["\']?\\s*$/m;'),
   );
-  assert.ok(src.includes('if (/^(?:(?:gm_)?aliases|withheld):/m.test(text) || SESSION_TYPE_LINE.test(text)) frontmatter = parseNote(text).data || {};'));
+  // publish-v1.26.0 widened the gate: every note whose first path segment is _meta (any depth), a `title:` or `publish:` line,
+  // and a meta or template type line (lib/scanner.js:412, :434-435).
+  assert.ok(src.includes("const HOUSEKEEPING_TYPE_LINE = /^type:\\s*[\"']?(meta|template)[\"']?\\s*$/m;"));
+  assert.ok(src.includes("const inMeta = path.relative(vaultPath, full).split(path.sep)[0] === '_meta';"));
+  assert.ok(src.includes('if (inMeta || /^(?:(?:gm_)?aliases|withheld|title|publish):/m.test(text) || HOUSEKEEPING_TYPE_LINE.test(text) || SESSION_TYPE_LINE.test(text)) frontmatter = parseNote(text).data || {};'));
 });
 
 test('the pin\'s SESSION_TYPE_LINE alternation equals {session} union WRAP_UP_TYPES', () => {
@@ -131,6 +135,17 @@ test('port parity: scanAllNotesForPairing matches the pin\'s own scanAllNotes ac
     writeFile(path.join(scratch, 'JsonFence.md'), '---json\n{"aliases": ["Foo"]}\n---\n');
     // From publish-v1.21.0 a `withheld:` line also gates the frontmatter read.
     writeFile(path.join(scratch, 'Withheld.md'), '---\ntype: npc\nwithheld: yes\n---\n');
+    // From publish-v1.26.0: a note anywhere under _meta (the first path segment is tested, so
+    // a deeper one counts too), a `title:` or `publish:` line, and a meta or template type line gate it
+    // too.
+    fs.mkdirSync(path.join(scratch, '_meta', 'deeper'), { recursive: true });
+    writeFile(path.join(scratch, '_meta', 'index.md'), '---\ntype: index\n---\n');
+    writeFile(path.join(scratch, '_meta', 'deeper', 'Note.md'), '---\ntype: npc\n---\n');
+    writeFile(path.join(scratch, 'Titled.md'), '---\ntype: npc\ntitle: The Titled One\n---\n');
+    writeFile(path.join(scratch, 'Unlisted.md'), '---\ntype: npc\npublish: false\n---\n');
+    writeFile(path.join(scratch, 'MetaTyped.md'), '---\ntype: meta\n---\n');
+    writeFile(path.join(scratch, 'Template.md'), '---\ntype: "template"\n---\n');
+    writeFile(path.join(scratch, 'Plain.md'), '---\ntype: npc\nstatus: alive\n---\n');
 
     const realFile = path.join(scratch, 'Real.md');
     writeFile(realFile, '---\ntype: npc\n---\n');
@@ -205,7 +220,7 @@ function pairingViaPort(vaultDir, siteConfig) {
 function pairingViaVaultPath(vaultDir, siteConfig) {
   const publishSet = computePublishedSet(vaultDir, { ...siteConfig, vaultPath: vaultDir });
   const { corpus, published } = adaptOnce(publishSet);
-  const pairs = pinned.pairHubs(corpus, published, { vaultPath: vaultDir, apply: false });
+  const pairs = pinned.pairHubs(corpus, published, { vaultPath: vaultDir, apply: false, withheldWords: { person: 'someone', place: 'somewhere', thing: 'something' } });
   return {
     relSet: new Set([...pairs.entries()].map(([h, w]) => `${h.relPath}=>${w.relPath}`)),
     linked: new Set([...pairs.linked].map((w) => w.relPath)),

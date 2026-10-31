@@ -2652,6 +2652,23 @@ The publish-v1.17.0 repin, [ADR 0016](../docs/decisions/0016-book-leaves-and-pag
 2. The session pages' date badges read "11 July 2026", "25 July 2026" and "8 August 2026". `S\out\events\the-choristers-verse.html` has a "Date" header line reading "12 February 2031", and `S\out\locations\maudrys-barrow.html`'s timeline shows "12 February 2031" beside that event. `S\out\sessions\session-01-a-dragon-at-the-fair.html` reads "In-game: 12 February 2031 – 16 June 2031".
 3. `findstr /s /m "2031-02-12 2031-06-16" S\out\*.html S\out\previews.json` finds no file. Re-hash the real config.
 
+### C219: a hiding setting the generator cannot read stops check and build, in the real win-x64 exe
+
+The publish-v1.26.0 repin, [ADR 0005](../docs/decisions/0005-generator-pin.md)'s last addendum. `check` reads a vault's hiding settings with the pin's own reader, which loads the bundled `yaml` package, and serves it the settings file for that one call. **Mark this OPEN: Linux and macOS tests prove the logic only; only the real executable shows that the packaged reader loads and that the served file is found by a Windows path.** Isolate config as in C135, and re-hash the real config before step 1 and after step 4. Use a scratch copy of the-long-lease example vault, registered as campaign `c219` with an output folder `S\out` that does not exist.
+
+1. `check c219 --config "S\config.toml"` exits 0 or 2 with no `config/settings-fault` finding.
+2. In the copy's `_meta\vault-config.md`, rename `exclude_sections:` under `publish:` to `exclude_sectoins:`. `check c219 --config "S\config.toml"` exits 2 with one `config/settings-fault` ERROR reading `publish.exclude_sectoins is not a setting. Did you mean publish.exclude_sections? The build will not run until this is fixed.`
+3. `build c219 --config "S\config.toml"` exits 2 with the same finding, and `S\out` does not exist.
+4. Put the name back and add `  exclude_callouts: "no"` under `publish:`. `check c219 --config "S\config.toml"` reports no `config/settings-fault`. Re-hash the real config.
+
+### C220: the GURPS to-hit data module is not in the executable and no page carries its data, in the real win-x64 exe
+
+The publish-v1.26.0 repin, [ADR 0007](../docs/decisions/0007-rules-content-redaction.md)'s last addendum. **Mark this OPEN: Linux and macOS tests prove the runtime layer only; the packaging layer is checked only on a real executable.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of `test\fixtures\redaction-gurps-vault` registered as campaign `c220` with its site config.
+
+1. `build c220 --force-check --config "S\config.toml"` exits 0 and prints a `rules-content redaction(s) degraded this build` note naming `gurps-tohit-data`.
+2. `findstr /s /m /c:"gurps-tohit-data" /c:"tohit-calc" S\out\*.html` finds nothing.
+3. `findstr /m /c:"The Basic Set technique (B232)" gm-scriptorium-win-x64.exe` finds nothing. Re-hash the real config.
+
 ### C170: a bare `--force` is refused with one line, in the real win-x64 exe
 
 Issue #15, [ADR 0055](../docs/decisions/0055-force-split.md). **Mark this OPEN: Linux tests prove the logic only.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config`. Never the real config, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 3; the two must match. Use a scratch copy of the-long-lease example vault, registered as campaign `c170` with an output folder `S\out` that does not exist.

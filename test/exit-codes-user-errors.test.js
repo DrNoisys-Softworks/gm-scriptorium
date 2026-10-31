@@ -53,6 +53,28 @@ function copyMovedVault(root, state) {
   return v;
 }
 
+/** A copy of the sample vault at <root>/v whose publish.mode is one the generator cannot read. */
+function copyBadModeVault(root) {
+  const v = path.join(root, 'v');
+  fs.cpSync(SAMPLE, v, { recursive: true });
+  const md = path.join(v, '_meta', 'vault-config.md');
+  const text = fs.readFileSync(md, 'utf8');
+  assert.match(text, /^\s*mode:\s*player\s*$/m, 'the sample no longer says mode: player; fix this helper');
+  fs.writeFileSync(md, text.replace(/^(\s*mode:\s*)player\s*$/m, '$1gm'));
+  writeCfg(root, `config_version = 1\n[campaigns.t]\nvault = '${v}'\noutput = '${path.join(root, 'site')}'\n`);
+  return v;
+}
+
+/** A copy of the sample vault at <root>/v whose site file asks to keep a folder the generator will not accept. */
+function copyBadKeepVault(root) {
+  const v = copyPackVault(root);
+  const cfgPath = path.join(v, '_meta', 'scriptorium', 'vault.config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.preserveDirs = ['maps/old'];
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+  return v;
+}
+
 // [label, setup(root) -> args | {args, input}, expected code, stderr/stdout pattern]
 const CASES = [
   ['check, no campaigns registered', (r) => (writeCfg(r, 'config_version = 1\n'), ['check']), 3, /no campaigns registered/],
@@ -98,6 +120,14 @@ const CASES = [
     return ['check'];
   }, 3, /is missing required key folderMap/],
 
+  // A hiding setting the generator cannot read (here publish.mode: gm) stops its build. Plain build
+  // stops at the check step (exit 2); with the check skipped or its findings forced, the generator's
+  // own stop is a config mistake, so exit 3, never 1 ("Scriptorium bug").
+  ['build --force-check with an unreadable publish.mode', (r) => (copyBadModeVault(r), ['build', '--force-check']), 3, /build stopped/],
+  ['build --no-check with an unreadable publish.mode', (r) => (copyBadModeVault(r), ['build', '--no-check']), 3, /build stopped/],
+  ['build --force-check with a malformed folders-to-keep list', (r) => (copyBadKeepVault(r), ['build', '--force-check']), 3, /where the site is built or what it keeps/],
+  ['build --no-check with a malformed folders-to-keep list', (r) => (copyBadKeepVault(r), ['build', '--no-check']), 3, /where the site is built or what it keeps/],
+
   ['unknown command', () => ['chek'], 1, /unknown command: chek/],
   ['unknown flag', (r) => (goodCfg(r), ['check', '--prot']), 1, /unknown flag --prot/],
   ['build --force (split)', (r) => (goodCfg(r), ['build', '--force']), 1, /--force has been split/],
@@ -118,6 +148,18 @@ const CASES = [
   ['config add with no name', () => ['config', 'add'], 1, /usage: gm-scriptorium config add/],
   ['unknown config subcommand', () => ['config', 'frob'], 1, /unknown config subcommand: frob/],
 ];
+
+// Plain build never reaches the generator's stop: the check step reports the fault and exits 2. This
+// is the one place 2 is right, so it sits outside the table above, which forbids 2.
+test('#108: build with an unreadable publish.mode stops at the check step with exit 2', () => {
+  withScratch((root) => {
+    copyBadModeVault(root);
+    const res = run(root, ['build']);
+    assert.equal(res.code, 2, res.all);
+    assert.match(res.all, /settings-fault/);
+    assert.doesNotMatch(res.all, /build stopped/);
+  });
+});
 
 for (const [label, setup, expected, pattern] of CASES) {
   test(`#108: ${label} exits ${expected}`, () => {

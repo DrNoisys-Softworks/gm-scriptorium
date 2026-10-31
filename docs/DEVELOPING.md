@@ -40,8 +40,8 @@ a throwaway Linux target to prove the pipeline, and proves nothing about the Win
 **`assets/vault-template/`, by hand.** It is the output of gm-apprentice's vault scaffold, captured and derived by `scripts/vault-template.js`. Change it only by following the starter pin bump procedure in [COLLABORATING.md](COLLABORATING.md); a hand edit breaks byte parity with the scaffold and fails the manifest check.
 
 **`node_modules/gm-apprentice-publish/`, directly.** It is a vendored, integrity-pinned copy of the
-upstream generator's own release tarball. The current pin is `publish-v1.21.0` (commit
-`9def97e`). It is verified against the release's `SHA256SUMS` and, file by file, by sha256 against
+upstream generator's own release tarball. The current pin is `publish-v1.26.0` (commit
+`228fa16`). It is verified against the release's `SHA256SUMS` and, file by file, by sha256 against
 `vendor/gm-apprentice-publish/PIN.json`.
 
 Go through the facade at `src/generator/pinned.js`, which is the only sanctioned way in. Re-run
@@ -137,6 +137,7 @@ prerequisite) for a user mistake. The table-driven test is `test/exit-codes-user
 | bad `SCRIPTORIUM_PROFILE`, or two equally specific profiles | 1 | 3 | `SCRIPTORIUM_PROFILE="x" names a profile that does not exist ...` / `two profiles are equally specific for this machine: a, b` |
 | unusable campaign pack: pack folder missing, no `vault.config.json`, malformed `pack.toml`, unknown theme, missing or oversize image slot file | 1 | 3 | the pack message, e.g. `campaign "x": pack directory does not exist: <path>` |
 | `vault.config.json` missing `excludeDirs` or `folderMap`, or either of the wrong kind | 1 | 3 | `campaign "x": <path> is missing required key folderMap` (and the wrong-kind messages) |
+| `build --force-check` or `build --no-check` on a vault with a setting the generator cannot read (what it hides, where the site is built or what it keeps; for example `publish.mode: gm` or a `preserveDirs` entry with a slash); plain `build` already stops at the check step with 2 | 1 | 3 | `build stopped: the settings have a fault ...` and the generator's fault lines |
 | campaign entry with no `vault` key | 1 | 3 | `campaign "x" has no vault configured. Set one with: gm-scriptorium config add x --vault <vault folder> --out <output folder>` |
 | vault with no `site_config`, no `pack` and no `_meta/scriptorium` (what a plain `config add` makes) | 1 | 3 | `campaign "x" has no site config: ... does not exist. Run "gm-scriptorium init" to create one, or set site_config or pack on the campaign.` |
 | `remote password`, `remote account add`, `change`, `reset`, `remove` or `rename`, `signout-all` or `off` with the config folder inside a vault (registered or not) | 1 | 3 | `remote access keeps its files beside the config, never inside a vault, but <path> is inside the vault at <vault>` |

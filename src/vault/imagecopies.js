@@ -10,8 +10,9 @@ const { toRelativePosix } = require('../util/paths');
  * site's images/ folder, and from which vault file, so leak/l2-excluded-dir-in-output can judge
  * each copy by its real source. The pin's pure helpers come through the facade; the file I/O, the
  * destinations, the slug rule and the two-file config merge are hand-ported (re-check on every pin
- * move: lib/build.js:887-907 and :1112-1175, lib/banners.js:40-60, lib/config.js:246-300, :405,
- * :447, :506-514). test/banner-cover-sources.test.js builds a real site and checks the literal
+ * move: lib/build.js:1135-1155 (the cover image) and :1624-1692 (the section banners),
+ * lib/banners.js:40-65, and the two-file merge in lib/settings/legacy.js:86-139 with
+ * lib/config.js:156-161). test/banner-cover-sources.test.js builds a real site and checks the literal
  * destinations, so a pin that moves them fails it.
  */
 
@@ -24,7 +25,8 @@ function readPublish(vaultRoot) {
   return result.ok && result.data && result.data.publish ? result.data.publish : {};
 }
 
-// lib/config.js:246-300 (pick, for a MERGED_MAPS key) and :447 (asMap).
+// lib/settings/legacy.js:86-139 (pick, for a key merged per sub-key: :78 and :121-128). A value that
+// is not a map reads as unset (lib/settings/types.js, the map type).
 function effectiveBanners(publish, jsonConfig) {
   const fromVault = publish.banners;
   const fromSite = jsonConfig.banners;
@@ -37,13 +39,14 @@ function effectiveBanners(publish, jsonConfig) {
   return isPlainMap(value) ? { ...value } : {};
 }
 
-// lib/config.js:258 and :405 (the vault file wins outright, then asMap), :509-511 (config.folderMap).
+// lib/settings/legacy.js:95 (the vault file wins outright; a value that is not a map reads as the
+// default {}), then lib/config.js:318-322 (config.folderMap).
 function effectiveFolderMap(publish, jsonConfig) {
   const value = publish.folder_map !== undefined ? publish.folder_map : jsonConfig.folderMap;
   return isPlainMap(value) ? value : {};
 }
 
-// lib/build.js:893-897 and :1112-1124: inside the vault (never the root itself) and present.
+// lib/build.js:1141-1145 and :1626-1642 (resolveVaultAsset): inside the vault (never the root itself) and present.
 function vaultFile(vaultRoot, value) {
   const full = path.resolve(vaultRoot, String(value));
   const rel = path.relative(vaultRoot, full);

@@ -72,7 +72,7 @@ function runUnpublishedLink(ctx) {
       checkTarget(page, link.target, link.line);
     }
     // rendered.publishedFrontmatter.relationships is the pin's own
-    // publishedFrontmatter() output (lib/processor.js:1548-1585): gm_only edges
+    // publishedFrontmatter() output (lib/processor.js:1969-2006): gm_only edges
     // are already dropped, so a link only reachable through a gm_only edge
     // is correctly not checked here at all (l4's frontmatter arm is what
     // catches a withheld name leaking through one).

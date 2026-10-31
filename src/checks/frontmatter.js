@@ -63,7 +63,7 @@ function runNonYamlLanguage(ctx) {
   return nonYamlLanguageFindings({ vaultPath: ctx.vaultPath, campaign: ctx.campaign });
 }
 
-/** frontmatter/missing-type: a file has no frontmatter `type` (lib/scanner.js:135 silently skips it). */
+/** frontmatter/missing-type: a file has no frontmatter `type` (lib/scanner.js:136 silently skips it). */
 function runMissingType(ctx) {
   const findings = [];
   for (const f of ctx.index.files) {

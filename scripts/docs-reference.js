@@ -319,7 +319,6 @@ const JSON_READ_KEYS = Object.freeze([
   'attachmentsDir',
   'backend',
   'banners',
-  'excludeCallouts',
   'excludeDirs',
   'excludeFields',
   'excludeSections',

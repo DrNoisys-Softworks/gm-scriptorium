@@ -554,12 +554,12 @@ module.exports = deepFreeze({
       what: 'Vault folders that are skipped completely. Joined with `excludeDirs` in `vault.config.json`. A trailing slash, a leading `./` and backslashes make no difference. `check` compares the two lists and says if they differ.',
     },
     exclude_drafts: {
-      type: 'true or false',
-      what: 'Whether pages with `canon_status: DRAFT` are left out of the site.',
+      type: 'on or off',
+      what: 'Whether pages with `canon_status: DRAFT` are left out of the site. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. Any other value stops the build (`config/settings-fault`).',
     },
     exclude_callouts: {
-      type: 'true or false, or a list of text',
-      what: 'Whether callout blocks are removed from pages. When `excludeCallouts` in `vault.config.json` is also set, the stricter of the two is used.',
+      type: 'on or off, or a list of text',
+      what: 'Whether callout blocks are removed from pages. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. When `excludeCallouts` in `vault.config.json` is also set, the stricter of the two is used.',
     },
     overrides: {
       type: 'table',
@@ -634,11 +634,6 @@ module.exports = deepFreeze({
       what: 'An older home of the tagline. The site no longer reads it; use `publish.theme.tagline`. The panel shows a value left here but never writes one.',
       changedBy: '`init` writes it empty. By hand',
     },
-    host: {
-      type: 'text',
-      what: 'Where the generator is told the site will be hosted: `github-pages`, or `cloudflare-pages`. It affects only the generator\'s deploy step. GM-Scriptorium does not read it.',
-      changedBy: '`init`, or by hand',
-    },
     attachmentsDir: {
       type: 'text',
       what: 'The folder inside the vault that holds images.',
@@ -651,17 +646,17 @@ module.exports = deepFreeze({
     },
     excludeDirs: {
       type: 'list of text',
-      what: 'Vault folders skipped completely. Joined with `publish.exclude_dirs`. A trailing slash, a leading `./` and backslashes make no difference.',
+      what: 'Vault folders skipped completely. Joined with `publish.exclude_dirs`; when that is not set, added to the built-in folders. A trailing slash, a leading `./` and backslashes make no difference.',
       changedBy: '`init`, or by hand',
     },
     excludeSections: {
       type: 'list of text',
-      what: 'Headings whose section is removed from every page. Joined with `publish.exclude_sections`.',
+      what: 'Headings whose section is removed from every page. Joined with `publish.exclude_sections`; when that is not set, added to the built-in headings.',
       changedBy: '`init`, or by hand',
     },
     excludeCallouts: {
-      type: 'true or false, or a list of text',
-      what: 'Whether callout blocks are removed. When `publish.exclude_callouts` is also set, the stricter of the two is used.',
+      type: 'on or off, or a list of text',
+      what: 'Whether callout blocks are removed. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. When `publish.exclude_callouts` is also set, the stricter of the two is used.',
       changedBy: '`init`, or by hand',
     },
     backend: {
@@ -676,7 +671,7 @@ module.exports = deepFreeze({
     },
     excludeFields: {
       type: 'list of text',
-      what: 'Frontmatter fields that are never published. Joined with `publish.exclude_fields`. A new campaign has none here, and relies on the defaults.',
+      what: 'Frontmatter fields that are never published. Joined with `publish.exclude_fields`; when that is not set, added to the built-in fields. A new campaign has none here, and relies on the defaults.',
       changedBy: 'By hand',
     },
     outputDir: {
@@ -707,7 +702,7 @@ module.exports = deepFreeze({
       whatToDo: 'Run `gm-scriptorium check` and fix what it lists. A refused `build` writes nothing.',
     },
     3: {
-      whatToDo: 'Read the message. It names the campaign, config file or folder that cannot be used. `gm-scriptorium config list` shows what is registered.',
+      whatToDo: 'Read the message. It names the campaign, config file or folder that cannot be used. `gm-scriptorium config list` shows what is registered. *Since 0.5.0.* A `build --force-check` or `build --no-check` that stops because a setting in the vault or its site file cannot be read also exits 3; fix the setting the message names.',
     },
     4: {
       whatToDo: 'Check that this computer can reach GitHub, then run `gm-scriptorium update --check` again.',
@@ -1077,7 +1072,7 @@ module.exports = deepFreeze({
       action: 'Add the folder to `folderMap` if its notes belong on the site. If not, list it in `excludeDirs`.',
     },
     'config/exclude-sections-divergence': {
-      what: 'One of the built-in hidden headings (such as GM Notes) is no longer hidden, because one of your config files gives its own `exclude_sections` list. The built-in list applies only when neither file gives a list of its own. It is an ERROR when that heading really appears on a published page, and a WARN when it does not.',
+      what: 'One of the built-in hidden headings (such as GM Notes) is no longer hidden, because `_meta/vault-config.md` gives its own `exclude_sections` list, which replaces the built-in one. A list in `vault.config.json` alone adds to the built-in list instead. It is an ERROR when that heading really appears on a published page, and a WARN when it does not.',
       action: 'Add the heading named in the message to your list if it should still be hidden.',
     },
     'config/exclude-dirs-divergence': {
@@ -1085,8 +1080,16 @@ module.exports = deepFreeze({
       action: 'Add the folder to the list the message says is missing it, so both files agree. This warning never stops a `build`.',
     },
     'config/exclude-fields-divergence': {
-      what: 'One of the built-in hidden fields (such as `gm_notes`) is no longer filtered, because one of your config files gives its own `exclude_fields` list. A list you give replaces the built-in one.',
+      what: 'One of the built-in hidden fields (such as `gm_notes`) is no longer filtered, because `_meta/vault-config.md` gives its own `exclude_fields` list, which replaces the built-in one. A list in `vault.config.json` alone adds to the built-in list instead.',
       action: 'Add the field named in the message to your `exclude_fields` list.',
+    },
+    'config/settings-fault': {
+      what: 'A setting the generator cannot read stops the build. It may be a setting that hides something from players, or one that says where the site is built or what it keeps. A name that looks like one of these but is misspelt or in the wrong place counts too. Examples: `exclude_sectoins:`, `exclude_dirs: Secrets` written as one word instead of a list, `exclude_drafts: maybe`, a `mode:` other than `player` or `full`, or a folder to keep written with a slash. The generator will not build until it is fixed, because its safe guess might not be what you meant. The message is the generator\'s own.',
+      action: 'Fix the setting the message names. `on`, `off`, `yes`, `no`, `true` and `false` all work for a switch, and a list needs one entry per line.',
+    },
+    'config/switch-word-now-off': {
+      what: '`publish.exclude_drafts` or `publish.exclude_callouts` in `_meta/vault-config.md` is written as `no`, `off` or `"false"`. Up to GM-Scriptorium 0.5.0 any text there counted as on, so these hid draft pages or callouts. The generator now reads them as off, so those pages and callouts are published.',
+      action: 'Set the setting to `true` to hide them, or to `false` to keep publishing them and silence this warning. *Since the generator moved to publish-v1.26.0.*',
     },
     'config/site-vault-path-mismatch': {
       what: 'The site config\'s `vaultPath` points at a different folder from the vault GM-Scriptorium is using. The vault from your settings file wins, so this is reported and nothing stops.',

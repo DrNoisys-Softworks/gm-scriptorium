@@ -1,12 +1,9 @@
 ---
 type: meta
-purpose: vault-config
-source_confidence: AUTHORITATIVE
 gm_apprentice_version: "1.7.1"
 campaign: "The Long Lease"
 game_system: "dnd-5e-2024"
 setting_year: "Lease Year 300"
-created: 2026-07-04
 publish:
   system: dnd-5e-2024
   mode: player
@@ -41,7 +38,6 @@ publish:
       creatures: "Things that fall off dragons, crawl out of inkwells, or guard the dead in tune."
       events: "The signing, the landing, the cut page, the verse."
   four_oh_four:
-    style: in-world
     message: "This page has been cut from the ledger. Someone owes us an explanation."
 ---
 

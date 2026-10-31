@@ -107,15 +107,15 @@ test('vault-json: the keys, sorted, and only excludeDirs and folderMap are requi
   const j = byKey('vault-json');
   assert.deepEqual(Object.keys(j).sort(), [
     'attachmentsDir', 'backend', 'banners', 'excludeCallouts', 'excludeDirs', 'excludeFields', 'excludeSections', 'folderMap',
-    'host', 'landingTagline', 'outputDir', 'searchEnabled', 'siteTitle', 'vaultPath',
+    'landingTagline', 'outputDir', 'searchEnabled', 'siteTitle', 'vaultPath',
   ]);
   assert.deepEqual(Object.keys(j).filter((k) => j[k].required === 'yes').sort(), ['excludeDirs', 'folderMap']);
-  assert.deepEqual(Object.keys(j).filter((k) => j[k].required === 'no').length, 12);
+  assert.deepEqual(Object.keys(j).filter((k) => j[k].required === 'no').length, 11);
 });
 
 test('vault-json: what a new campaign gets, as literals', () => {
   const j = byKey('vault-json');
-  assert.equal(j.host.newCampaigns, 'github-pages');
+  assert.equal(j.host, undefined, 'from publish-v1.26.0 a new campaign gets no host');
   assert.equal(j.attachmentsDir.newCampaigns, '_attachments');
   assert.equal(j.excludeDirs.newCampaigns, '_meta, _Templates, _resources');
   assert.equal(j.excludeCallouts.newCampaigns, 'true');
@@ -206,7 +206,7 @@ test('control: the scan finds jsonConfig.fooBar and userJsonConfig.qux, and igno
 test('the keys the source reads from vault.config.json are JSON_READ_KEYS, both ways', () => {
   const scanned = [...scanReadKeys(srcFiles().map((f) => fs.readFileSync(f, 'utf8')))].sort();
   assert.deepEqual(scanned, [...gen.JSON_READ_KEYS].sort(), 'the source reads a vault.config.json key the generator does not list (or the reverse): update JSON_READ_KEYS in scripts/docs-reference.js and add text');
-  assert.equal(gen.JSON_READ_KEYS.length, 11);
+  assert.equal(gen.JSON_READ_KEYS.length, 10);
 });
 
 // ---- the page's upstream links ----
@@ -216,7 +216,7 @@ test('the two upstream links on the page are built from PIN.json', () => {
   const page = read(PAGE);
   assert.ok(page.includes(`(${pin.repository}/blob/${pin.labels.tag}/${pin.path}/README.md)`), 'the vault.config.json README link');
   assert.ok(page.includes(`(${pin.repository}/tree/${pin.labels.tag})`), 'the generator documentation link');
-  assert.equal(`${pin.repository}/blob/${pin.labels.tag}/${pin.path}/README.md`, 'https://github.com/AntTheLimey/gm-apprentice/blob/publish-v1.21.0/tools/publish/README.md');
+  assert.equal(`${pin.repository}/blob/${pin.labels.tag}/${pin.path}/README.md`, 'https://github.com/AntTheLimey/gm-apprentice/blob/publish-v1.26.0/tools/publish/README.md');
 });
 
 // ---- the page's examples are valid ----

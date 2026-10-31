@@ -39,6 +39,8 @@ const RUNNERS = {
   'config/exclude-sections-divergence': configdiv.runExcludeSectionsDivergence,
   'config/exclude-dirs-divergence': configdiv.runExcludeDirsDivergence,
   'config/exclude-fields-divergence': configdiv.runExcludeFieldsDivergence,
+  'config/settings-fault': configdiv.runSettingsFault,
+  'config/switch-word-now-off': configdiv.runSwitchWordNowOff,
   'config/site-vault-path-mismatch': configdiv.runSiteVaultPathMismatch,
   'config/pack-shadowed': configdiv.runPackShadowed,
   'config/theme-scheme-mismatch': themescheme.runThemeSchemeMismatch,

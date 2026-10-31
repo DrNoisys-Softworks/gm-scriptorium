@@ -141,7 +141,7 @@ test('unpaired control: L3/L4/L5 all fire for the unpaired hub; build exits 2; -
 function addDmNotesDivergence(vaultDir) {
   const configPath = path.join(vaultDir, '_meta', 'vault-config.md');
   let cfg = fs.readFileSync(configPath, 'utf8');
-  cfg = cfg.replace('publish:\n  mode: gm\n', 'publish:\n  mode: gm\n  exclude_sections: ["GM Notes"]\n');
+  cfg = cfg.replace('publish:\n  mode: player\n', 'publish:\n  mode: player\n  exclude_sections: ["GM Notes"]\n');
   fs.writeFileSync(configPath, cfg);
 
   const hubPath = path.join(vaultDir, 'Sessions', 'Session 2.md');
