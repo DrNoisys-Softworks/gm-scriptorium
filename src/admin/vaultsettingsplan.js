@@ -51,7 +51,7 @@ const YAML_DISPLAY_PATHS = Object.freeze(
   }),
 );
 
-const REORDER_REFUSAL = (label) => `${label}: this list has comments inside it, and a new order would drop them. Use "Edit as text instead".`;
+const DROPS_COMMENTS = (label, what) => `${label}: this list has comments inside it, and ${what} would drop them. Use "Edit as text instead".`;
 
 /**
  * The generator's changes that turn `current` into `wanted`. Removing and adding entries keeps the
@@ -71,6 +71,9 @@ function listChanges(name, current, wanted, yamlText, label) {
   const once = (list) => list.filter((v, i) => list.indexOf(v) === i);
   current = once(current);
   wanted = once(wanted);
+  if (wanted.length === 0 && current.length > 0 && pinned.settingsCommentsInside(yamlText, name)) {
+    throw new SettingsPlanError('refused', DROPS_COMMENTS(label, 'emptying it'));
+  }
   const removed = current.filter((v) => !wanted.includes(v));
   const added = wanted.filter((v) => !current.includes(v));
   const kept = current.filter((v) => !removed.includes(v));
@@ -83,7 +86,7 @@ function listChanges(name, current, wanted, yamlText, label) {
     return changes;
   }
   if (pinned.settingsCommentsInside(yamlText, name)) {
-    throw new SettingsPlanError('refused', REORDER_REFUSAL(label));
+    throw new SettingsPlanError('refused', DROPS_COMMENTS(label, 'a new order'));
   }
   return [{ op: 'set', name, value: wanted }];
 }

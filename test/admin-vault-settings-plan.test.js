@@ -183,11 +183,16 @@ test('emptying a flow list: what the pin writes', () => {
   assert.deepEqual(pinned.parseSettingsText(vaultPath, out.bytes).data.player_site.hide.fields, []);
 });
 
-test('emptying a block list with comments: what the pin writes', () => {
+test('emptying a list with comments inside is refused', () => {
   const { vaultPath, Y } = fixture(BLOCK);
+  refusedWith(() => plan.planFieldEdits(vaultPath, Y, { [HIDE_FIELDS]: [] }),
+    'Hidden fields: this list has comments inside it, and emptying it would drop them. Use "Edit as text instead".');
+});
+
+test('emptying a block list with no comments writes an empty list', () => {
+  const { vaultPath, Y } = fixture((t) => BLOCK(t).replace('   # the big one', '').replace('      # a note between items\n', ''));
   const out = plan.planFieldEdits(vaultPath, Y, { [HIDE_FIELDS]: [] });
-  const s = out.bytes.toString('utf8');
-  assert.ok(s.includes('\n    fields: []\n'), s);
+  assert.ok(out.bytes.toString('utf8').includes('\n    fields: []\n'));
   assert.deepEqual(pinned.parseSettingsText(vaultPath, out.bytes).data.player_site.hide.fields, []);
 });
 
