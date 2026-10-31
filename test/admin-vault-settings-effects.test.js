@@ -182,6 +182,18 @@ test('turning player_site.hide.drafts off is a bad drafts line under its yaml na
   });
 });
 
+test('the drafts and overrides lines name the yaml settings in their words, not the old keys', () => {
+  inScratch((root) => {
+    const vault = movedSample(root);
+    const off = effectsFor(vault, { player_site: { hide: { drafts: true } } }, { player_site: { hide: { drafts: false } } }).filter((e) => e.id === 'drafts');
+    assert.equal(off[0].detail, 'player_site.hide.drafts is off, so pages marked as drafts are no longer left out.');
+    const on = effectsFor(vault, { player_site: { hide: { drafts: false } } }, { player_site: { hide: { drafts: true } } }).filter((e) => e.id === 'drafts');
+    assert.equal(on[0].detail, 'player_site.hide.drafts is on, so pages marked as drafts are left out.');
+    const overrides = effectsFor(vault, {}, { player_site: { hide: { field_exceptions: { 'Characters/NPCs/Orpiment.md': ['secrets'] } } } }).filter((e) => e.id === 'overrides');
+    assert.equal(overrides[0].detail, 'player_site.hide.field_exceptions can show a hidden field on one page. Check the line-by-line change.');
+  });
+});
+
 test(COVERS.folderMap, () => {
   inScratch((root) => {
     const vault = movedSample(root);

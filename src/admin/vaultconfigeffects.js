@@ -171,7 +171,15 @@ function listRules(listKey, curData, candData, curEff, candEff, curRawVault, can
   return out;
 }
 
-function draftsRule(curEff, candEff) {
+/** A setting named inside a detail: the name `nameOf` gives it, or `own` (the old file's words)
+ * when `nameOf` leaves the path as it is, so the old file's text stays exactly as it was. */
+function shownName(nameOf, dotPath, own) {
+  const named = nameOf(dotPath);
+  return named === dotPath ? own : named;
+}
+
+function draftsRule(curEff, candEff, nameOf) {
+  const key = shownName(nameOf, 'publish.exclude_drafts', 'exclude_drafts');
   if (curEff.exclude_drafts === candEff.exclude_drafts) return null;
   if (curEff.exclude_drafts === true && candEff.exclude_drafts === false) {
     return {
@@ -180,7 +188,7 @@ function draftsRule(curEff, candEff) {
       level: 'bad',
       path: 'publish.exclude_drafts',
       title: 'Draft pages can now be published',
-      detail: 'exclude_drafts is off, so pages marked as drafts are no longer left out.',
+      detail: `${key} is off, so pages marked as drafts are no longer left out.`,
       fix: null,
     };
   }
@@ -190,7 +198,7 @@ function draftsRule(curEff, candEff) {
     level: 'ok',
     path: 'publish.exclude_drafts',
     title: 'Draft pages are now left out',
-    detail: 'exclude_drafts is on, so pages marked as drafts are left out.',
+    detail: `${key} is on, so pages marked as drafts are left out.`,
     fix: null,
   };
 }
@@ -243,7 +251,7 @@ function effectiveOverrideFields(eff) {
 
 /** Bad when the raw publish.overrides differs, or when the overrides the generator applies differ
  * (a change made elsewhere, such as the pack or the defaults, still shows a hidden field). */
-function overridesRule(curData, candData, curEff, candEff) {
+function overridesRule(curData, candData, curEff, candEff, nameOf) {
   const rawSame = isDeepStrictEqual(getAt(curData, 'publish.overrides'), getAt(candData, 'publish.overrides'));
   const effSame = isDeepStrictEqual(effectiveOverrideFields(curEff), effectiveOverrideFields(candEff));
   if (rawSame && effSame) return null;
@@ -253,7 +261,7 @@ function overridesRule(curData, candData, curEff, candEff) {
     level: 'bad',
     path: 'publish.overrides',
     title: 'The per-page field overrides change',
-    detail: 'publish.overrides can show a hidden field on one page. Check the line-by-line change.',
+    detail: `${shownName(nameOf, 'publish.overrides', 'publish.overrides')} can show a hidden field on one page. Check the line-by-line change.`,
     fix: null,
   };
 }
@@ -526,7 +534,8 @@ function withNames(effect, nameOf) {
  * @param {object|null} [opts.publishDiff] runReview's comparison of the two publish sets, or null
  *   (no review check ran): gives `published-more` and the folder-map lines
  * @param {(dotPath: string) => string} [opts.nameOf] how a setting's path is named to the GM; every
- *   effect's `path` and `fix.path`, and the paths the `other` rule lists, pass through it
+ *   effect's `path` and `fix.path`, the paths the `other` rule lists, and the setting names in the
+ *   drafts and overrides details pass through it
  * @param {string[]} [opts.extraChanged] already-named settings the `other` rule lists as changed too
  * @returns {Array<{id, group, level, path, title, detail, fix}>}
  */
@@ -590,13 +599,13 @@ function computeEffects({ cur, cand, curPublish, candPublish, jsonConfig, publis
     out.push(...listRules(listKey, curData, candData, curEff, candEff, curRawVault, candRawVault, publishSet, fixable));
   }
 
-  const drafts = draftsRule(curEff, candEff);
+  const drafts = draftsRule(curEff, candEff, nameOf);
   if (drafts) out.push(drafts);
 
   const callouts = calloutsRule(curEff, candEff);
   if (callouts) out.push(callouts);
 
-  const overrides = overridesRule(curData, candData, curEff, candEff);
+  const overrides = overridesRule(curData, candData, curEff, candEff, nameOf);
   if (overrides) out.push(overrides);
 
   for (const key of ['palette', 'fonts', 'genre', 'campaign_image', 'banners']) {
