@@ -37,6 +37,12 @@ const { spawnSync } = require('node:child_process');
 const { computePublishedSet } = require('../src/vault/publishset');
 const { deriveRenderedText } = require('../src/checks/leak/textmodel');
 const { textOf } = require('../src/build/htmltext');
+const { contextFromSite } = require('../src/cli/check');
+const { moveVaultCopy, assertMovedLayout } = require('./helpers/moved-vault');
+
+// Every case runs on both settings layouts: the old one (the pack holds the hiding settings) and the
+// moved one (the pin's move has folded them into _meta/vault-config.yaml).
+const LAYOUTS = ['legacy', 'new'];
 
 const BIN = path.join(__dirname, '..', 'bin', 'scriptorium.js');
 const LEASE = path.join(__dirname, '..', 'examples', 'the-long-lease');
@@ -92,9 +98,9 @@ function allOutput(dir) {
   return out;
 }
 
-function buildScratch() {
+function buildScratch(layout) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-strip-order-'));
-  const vault = path.join(root, 'v');
+  let vault = path.join(root, 'v');
   fs.cpSync(LEASE, vault, { recursive: true });
 
   for (const [rel, find, make] of EDITS) {
@@ -127,6 +133,12 @@ function buildScratch() {
   assert.notEqual(cfgNext, cfgSrc, 'excludeCallouts edit did not apply');
   fs.writeFileSync(cfgFile, cfgNext);
 
+  if (layout === 'new') {
+    // The pin's move on the edited copy, with the pack in the vault folded into the yaml.
+    vault = moveVaultCopy(vault, path.join(root, 'moved'), { inVaultPack: true }).vaultPath;
+    assertMovedLayout(vault);
+  }
+
   const cfg = path.join(root, 'cfg.toml');
   const env = { ...process.env, XDG_CONFIG_HOME: path.join(root, 'xdg'), APPDATA: path.join(root, 'ad'), SCRIPTORIUM_CONFIG: cfg };
   delete env.SCRIPTORIUM_PROFILE;
@@ -135,8 +147,15 @@ function buildScratch() {
   assert.equal(add.status, 0, add.stderr + add.stdout);
   const build = run(['build', 'v', '--no-check']);
 
-  const jsonConfig = { ...JSON.parse(cfgNext), vaultPath: vault };
-  const set = computePublishedSet(vault, jsonConfig);
+  let set;
+  if (layout === 'new') {
+    const pack = path.join(vault, '_meta', 'scriptorium', 'vault.config.json');
+    const site = { siteSource: 'convention', siteConfigPath: pack, siteDir: path.dirname(pack), packShadowed: null };
+    const info = contextFromSite({ campaign: 'v', vault }, vault, site);
+    set = computePublishedSet(vault, info.jsonConfig, info.rawSiteConfig);
+  } else {
+    set = computePublishedSet(vault, { ...JSON.parse(cfgNext), vaultPath: vault });
+  }
   const rendered = set.publishedPages.map((page) => ({ page, text: deriveRenderedText(page, set.publishConfig) }));
   const checkTexts = rendered.flatMap((r) => [r.text.bodyText, r.text.storyText]).filter(Boolean);
 
@@ -150,68 +169,70 @@ function buildScratch() {
   return { root, build, set, rendered, files, checkVisible, buildVisible, re };
 }
 
-let ctx;
+const ctxs = {};
 test.before(() => {
-  ctx = buildScratch();
+  for (const layout of LAYOUTS) ctxs[layout] = buildScratch(layout);
 });
 test.after(() => {
-  if (ctx) fs.rmSync(ctx.root, { recursive: true, force: true });
+  for (const c of Object.values(ctxs)) fs.rmSync(c.root, { recursive: true, force: true });
 });
 
-test('P1 precondition: the build exits 0, exclude_callouts is on, all case notes are published, every lead sentinel is visible on both sides', () => {
-  assert.equal(ctx.build.status, 0, ctx.build.stderr + ctx.build.stdout);
-  assert.equal(ctx.set.publishConfig.exclude_callouts, true);
-  const rels = new Set(ctx.set.publishedPages.map((p) => p.rel));
-  assert.equal(Object.keys(CASES).length, 12);
-  for (const letter of Object.keys(CASES)) {
-    assert.ok(rels.has(`Characters/NPCs/Zqx Case ${letter}.md`), `case ${letter} is not published`);
-  }
-  for (const letter of Object.keys(CASES)) {
-    const lead = `ZQX${letter}0`;
-    assert.ok(ctx.checkVisible(lead), `check side: ${lead}`);
-    assert.ok(ctx.buildVisible(lead), `build side: ${lead}`);
-  }
-});
-
-test('P2 literal table: each sentinel has its 1.14.0 result on the check side and, separately, on the build side', () => {
-  for (const s of SENTINELS) {
-    assert.equal(ctx.checkVisible(s), LITERALS[s], `check side: ${s} should be ${LITERALS[s] ? 'visible' : 'hidden'}`);
-  }
-  for (const s of SENTINELS) {
-    assert.equal(ctx.buildVisible(s), LITERALS[s], `build side: ${s} should be ${LITERALS[s] ? 'visible' : 'hidden'}`);
-  }
-});
-
-test('P3 equivalence: check-visible equals build-visible for every sentinel (the PC story tokens are one-way)', () => {
-  for (const s of SENTINELS) {
-    if (ONE_WAY.has(s)) {
-      if (ctx.buildVisible(s)) assert.ok(ctx.checkVisible(s), `${s}: build shows it but check hides it`);
-      continue;
+for (const layout of LAYOUTS) {
+  test(`P1 precondition: the build exits 0, exclude_callouts is on, all case notes are published, every lead sentinel is visible on both sides [${layout}]`, () => {
+    assert.equal(ctxs[layout].build.status, 0, ctxs[layout].build.stderr + ctxs[layout].build.stdout);
+    assert.equal(ctxs[layout].set.publishConfig.exclude_callouts, true);
+    const rels = new Set(ctxs[layout].set.publishedPages.map((p) => p.rel));
+    assert.equal(Object.keys(CASES).length, 12);
+    for (const letter of Object.keys(CASES)) {
+      assert.ok(rels.has(`Characters/NPCs/Zqx Case ${letter}.md`), `case ${letter} is not published`);
     }
-    assert.equal(ctx.checkVisible(s), ctx.buildVisible(s), `${s}: check=${ctx.checkVisible(s)} build=${ctx.buildVisible(s)}`);
-  }
-});
-
-// P4a, safety.
-test('P4a safety: a sentinel that check hides appears in no output file, as written or lowercased', () => {
-  assert.ok(ctx.files.length > 0, 'the build wrote no output');
-  for (const s of SENTINELS) {
-    if (ctx.checkVisible(s)) continue;
-    for (const [rel, bytes] of ctx.files) {
-      const text = bytes.toString('utf8');
-      assert.ok(!ctx.re(s).test(text), `${rel} carries ${s}`);
-      assert.ok(!ctx.re(s.toLowerCase()).test(text), `${rel} carries lowercased ${s}`);
+    for (const letter of Object.keys(CASES)) {
+      const lead = `ZQX${letter}0`;
+      assert.ok(ctxs[layout].checkVisible(lead), `check side: ${lead}`);
+      assert.ok(ctxs[layout].buildVisible(lead), `build side: ${lead}`);
     }
-  }
-});
+  });
 
-// Issue #202. At the 1.14.0 generator the search index is built from a published view that keeps
-// dataview blocks, so the build's read shim removes them first. This pins the fix.
-test('P4b issue #202: search-index.json carries no dataview fence words, and not the %% pair outside the fence', () => {
-  const idx = ctx.files.find(([rel]) => rel === 'search-index.json');
-  assert.ok(idx, 'search-index.json was not written');
-  const text = idx[1].toString('utf8');
-  assert.ok(!ctx.re('zqxh1').test(text), 'zqxh1 must not be in the index');
-  assert.ok(!ctx.re('zqxh2').test(text), 'zqxh2 must not be in the index');
-  assert.ok(!ctx.re('zqxh4').test(text), 'zqxh4 must not be in the index');
-});
+  test(`P2 literal table: each sentinel has its 1.14.0 result on the check side and, separately, on the build side [${layout}]`, () => {
+    for (const s of SENTINELS) {
+      assert.equal(ctxs[layout].checkVisible(s), LITERALS[s], `check side: ${s} should be ${LITERALS[s] ? 'visible' : 'hidden'}`);
+    }
+    for (const s of SENTINELS) {
+      assert.equal(ctxs[layout].buildVisible(s), LITERALS[s], `build side: ${s} should be ${LITERALS[s] ? 'visible' : 'hidden'}`);
+    }
+  });
+
+  test(`P3 equivalence: check-visible equals build-visible for every sentinel (the PC story tokens are one-way) [${layout}]`, () => {
+    for (const s of SENTINELS) {
+      if (ONE_WAY.has(s)) {
+        if (ctxs[layout].buildVisible(s)) assert.ok(ctxs[layout].checkVisible(s), `${s}: build shows it but check hides it`);
+        continue;
+      }
+      assert.equal(ctxs[layout].checkVisible(s), ctxs[layout].buildVisible(s), `${s}: check=${ctxs[layout].checkVisible(s)} build=${ctxs[layout].buildVisible(s)}`);
+    }
+  });
+
+  // P4a, safety.
+  test(`P4a safety: a sentinel that check hides appears in no output file, as written or lowercased [${layout}]`, () => {
+    assert.ok(ctxs[layout].files.length > 0, 'the build wrote no output');
+    for (const s of SENTINELS) {
+      if (ctxs[layout].checkVisible(s)) continue;
+      for (const [rel, bytes] of ctxs[layout].files) {
+        const text = bytes.toString('utf8');
+        assert.ok(!ctxs[layout].re(s).test(text), `${rel} carries ${s}`);
+        assert.ok(!ctxs[layout].re(s.toLowerCase()).test(text), `${rel} carries lowercased ${s}`);
+      }
+    }
+  });
+
+  // Issue #202. At the 1.14.0 generator the search index is built from a published view that keeps
+  // dataview blocks, so the build's read shim removes them first. This pins the fix.
+  test(`P4b issue #202: search-index.json carries no dataview fence words, and not the %% pair outside the fence [${layout}]`, () => {
+    const idx = ctxs[layout].files.find(([rel]) => rel === 'search-index.json');
+    assert.ok(idx, 'search-index.json was not written');
+    const text = idx[1].toString('utf8');
+    assert.ok(!ctxs[layout].re('zqxh1').test(text), 'zqxh1 must not be in the index');
+    assert.ok(!ctxs[layout].re('zqxh2').test(text), 'zqxh2 must not be in the index');
+    assert.ok(!ctxs[layout].re('zqxh4').test(text), 'zqxh4 must not be in the index');
+  });
+}

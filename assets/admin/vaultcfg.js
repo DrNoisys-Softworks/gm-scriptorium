@@ -2812,8 +2812,25 @@
   }
 
 
+  /**
+   * Rung 3b: a vault whose settings gm-apprentice moved to _meta/vault-config.yaml. The server refuses
+   * every write to vault-config.md there (src/vault/vaultconfigwrite.js checkTarget), so the screen
+   * shows that refusal and nothing else: no edit switch, no file view, no backups to restore.
+   */
+  function renderMoved() {
+    var note = el('p');
+    note.className = 'a1-hint';
+    note.setAttribute('data-part', 'moved-note');
+    setText(note, editorField().reason || '');
+    mountEl.appendChild(note);
+  }
+
   function render() {
     clear(mountEl);
+    if (state().settingsLayout === 'new' && session === null) {
+      renderMoved();
+      return;
+    }
     if (!ensureSessionKind()) return;
     var view = currentView();
     if (view === 'vc2') renderVc2();

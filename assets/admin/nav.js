@@ -459,6 +459,31 @@
   }
 
   /**
+   * Rung 3b: on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml, the two screens
+   * that edit the old files say where those settings live now. Only these fields change; the id, icon,
+   * group and everything else stay the item's own.
+   */
+  var MOVED_TEXT = {
+    title: {
+      eyebrow: '_meta/vault-config.yaml',
+      lede: 'The name and one-line tagline on your landing page. This vault keeps both in _meta/vault-config.yaml, so they show here read-only. Editing them here arrives in the next update.',
+    },
+    'vault-config': {
+      label: 'vault-config.yaml',
+      short: 'vault-config.yaml',
+      eyebrow: '_meta/vault-config.yaml',
+      lede: "Your vault's own settings file. gm-apprentice and GM-Scriptorium both read it. Editing it here arrives in the next update; change it in that file for now.",
+    },
+  };
+
+  /** item(id), with MOVED_TEXT laid over it when `settingsLayout` is 'new'. */
+  function itemFor(id, settingsLayout) {
+    var base = item(id);
+    if (!base || settingsLayout !== 'new' || !Object.prototype.hasOwnProperty.call(MOVED_TEXT, id)) return base;
+    return Object.assign({}, base, MOVED_TEXT[id]);
+  }
+
+  /**
    * V1e-9 (SD-102, D-5): the Advanced group's guard marker, for the one `item.guarded` nav entry
    * (vault-config.md). A read-only campaign always shows "read-only", regardless of `editing`
    * (which can never become true there in the first place -- D-18).
@@ -484,6 +509,8 @@
     SOON_STATUS: SOON_STATUS,
     ids: ids,
     item: item,
+    // Rung 3b: the moved-vault text of the two settings screens.
+    itemFor: itemFor,
     parseFragment: parseFragment,
     hrefFor: hrefFor,
     // V1e-2 additions (SD-10, SD-11, SD-12).

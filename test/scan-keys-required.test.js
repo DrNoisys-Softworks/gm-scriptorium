@@ -313,7 +313,7 @@ test('#143: runBuildCommand refuses with exit 3 (bad-pack) and writes nothing, f
         shape.label,
       );
       assert.equal(fs.existsSync(outDir), false, 'nothing should be written; the vault context never even resolves');
-      // No leftover staging tree either -- the throw happens before writeStagedConfig ever runs.
+      // No leftover staging tree either -- the throw happens before stageConfig ever runs.
       const leftovers = fs.readdirSync(dir).filter((name) => name.startsWith('.scriptorium-build-'));
       assert.deepEqual(leftovers, []);
     });

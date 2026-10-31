@@ -3,20 +3,35 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const { buildCheckContext } = require('../src/checks/context');
 const { runHiddenName } = require('../src/checks/leak/l4');
+const { onLayout } = require('./helpers/moved-vault');
 
 const PIN_VAULT = path.join(__dirname, 'fixtures', 'pin-vault');
 const PIN_SITE_CONFIG = require(path.join(__dirname, 'fixtures', 'pin-vault-site-config.json'));
 
-function pinContext() {
-  return buildCheckContext({
-    campaign: 'pin-vault',
-    vaultPath: PIN_VAULT,
-    jsonConfig: { ...PIN_SITE_CONFIG, vaultPath: PIN_VAULT },
-  });
+// Every vault-backed case runs on both settings layouts: the old _meta/vault-config.md and the
+// moved _meta/vault-config.yaml. The assertions are the same on both.
+const LAYOUTS = ['legacy', 'new'];
+const scratchRoots = [];
+const onLayoutCache = {};
+function pinOn(layout) {
+  if (!onLayoutCache[layout]) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-l4-rendered-'));
+    scratchRoots.push(root);
+    onLayoutCache[layout] = onLayout(layout, PIN_VAULT, PIN_SITE_CONFIG, root);
+  }
+  return onLayoutCache[layout];
+}
+test.after(() => {
+  for (const r of scratchRoots) fs.rmSync(r, { recursive: true, force: true });
+});
+
+function pinContext(layout) {
+  return buildCheckContext({ campaign: 'pin-vault', ...pinOn(layout) });
 }
 
 /** Read a fixture file and return its 1-based line `n`'s text, trimmed. */
@@ -167,99 +182,101 @@ test('strip-shape 7/7: a name only in a section publish: stub dropped gives no f
   assert.deepEqual(runHiddenName(ctx), []);
 });
 
-// --- Integration: the same seven constructs, against the real pin-vault fixture ---
+for (const layout of LAYOUTS) {
+  // --- Integration: the same seven constructs, against the real pin-vault fixture ---
 
-test('integration: GmNotesOnly.md (excluded section) gives no finding on the real fixture vault', () => {
-  const ctx = pinContext();
-  const findings = runHiddenName(ctx).filter((f) => f.path.includes('GmNotesOnly'));
-  assert.deepEqual(findings, []);
-});
+  test(`integration: GmNotesOnly.md (excluded section) gives no finding on the real fixture vault [${layout}]`, () => {
+    const ctx = pinContext(layout);
+    const findings = runHiddenName(ctx).filter((f) => f.path.includes('GmNotesOnly'));
+    assert.deepEqual(findings, []);
+  });
 
-test('integration: Strip-Shapes.md (gm-only + spoiler + comment + callout + dataview, combined) gives no finding on the real fixture vault', () => {
-  const ctx = pinContext();
-  const findings = runHiddenName(ctx).filter((f) => f.path.includes('Strip-Shapes'));
-  assert.deepEqual(findings, []);
-});
+  test(`integration: Strip-Shapes.md (gm-only + spoiler + comment + callout + dataview, combined) gives no finding on the real fixture vault [${layout}]`, () => {
+    const ctx = pinContext(layout);
+    const findings = runHiddenName(ctx).filter((f) => f.path.includes('Strip-Shapes'));
+    assert.deepEqual(findings, []);
+  });
 
-// --- AC-D3-05: a name inside a fenced code block still gives a finding ---
+  // --- AC-D3-05: a name inside a fenced code block still gives a finding ---
 
-test('AC-D3-05: a withheld name inside a code fence still gives a finding, at the real file line', () => {
-  const ctx = pinContext();
-  const hit = runHiddenName(ctx).find((f) => f.path === 'Characters/NPCs/Fenced-Leak.md');
-  assert.ok(hit, 'a fenced occurrence must still be reported: fences survive the strip chain');
-  assert.equal(hit.data.arm, 'body');
-  assert.equal(hit.data.hiddenName, 'Gus Marzone');
-  assert.ok(hit.line !== null, 'the fenced hit must resolve to a real line');
-  assert.match(fixtureLine('Characters/NPCs/Fenced-Leak.md', hit.line), /Gus Marzone/);
-});
+  test(`AC-D3-05: a withheld name inside a code fence still gives a finding, at the real file line [${layout}]`, () => {
+    const ctx = pinContext(layout);
+    const hit = runHiddenName(ctx).find((f) => f.path === 'Characters/NPCs/Fenced-Leak.md');
+    assert.ok(hit, 'a fenced occurrence must still be reported: fences survive the strip chain');
+    assert.equal(hit.data.arm, 'body');
+    assert.equal(hit.data.hiddenName, 'Gus Marzone');
+    assert.ok(hit.line !== null, 'the fenced hit must resolve to a real line');
+    assert.match(fixtureLine('Characters/NPCs/Fenced-Leak.md', hit.line), /Gus Marzone/);
+  });
 
-// --- AC-D3-04: visible prose + preceding dataview + inline comment on the hit line ---
+  // --- AC-D3-04: visible prose + preceding dataview + inline comment on the hit line ---
 
-test('AC-D3-04: visible prose with a preceding dataview block and an inline comment on the hit line gives the TRUE file line', () => {
-  const ctx = pinContext();
-  const hit = runHiddenName(ctx).find((f) => f.path === 'Characters/NPCs/Visible-Leak.md');
-  assert.ok(hit);
-  assert.equal(hit.data.arm, 'body');
-  assert.ok(hit.line !== null, 'this hit must resolve, not fall back to null');
-  assert.match(fixtureLine('Characters/NPCs/Visible-Leak.md', hit.line), /Gus Marzone/);
-  // frontmatter is included in the offset: the fixture's frontmatter block is 4 lines.
-  assert.ok(hit.line > 4, 'line must already include the frontmatter offset, not just the body-relative index');
-});
+  test(`AC-D3-04: visible prose with a preceding dataview block and an inline comment on the hit line gives the TRUE file line [${layout}]`, () => {
+    const ctx = pinContext(layout);
+    const hit = runHiddenName(ctx).find((f) => f.path === 'Characters/NPCs/Visible-Leak.md');
+    assert.ok(hit);
+    assert.equal(hit.data.arm, 'body');
+    assert.ok(hit.line !== null, 'this hit must resolve, not fall back to null');
+    assert.match(fixtureLine('Characters/NPCs/Visible-Leak.md', hit.line), /Gus Marzone/);
+    // frontmatter is included in the offset: the fixture's frontmatter block is 4 lines.
+    assert.ok(hit.line > 4, 'line must already include the frontmatter offset, not just the body-relative index');
+  });
 
-// --- AC-D3-03: a withheld name in a published PC's _Story.md ---
+  // --- AC-D3-03: a withheld name in a published PC's _Story.md ---
 
-test('AC-D3-03: a withheld name in a published PC\'s _Story.md gives exactly one finding, the story\'s own path, the correct line, and data.renderedAt naming both pages', () => {
-  const ctx = pinContext();
-  const findings = runHiddenName(ctx).filter((f) => f.data.hiddenName === 'Gus Marzone' && f.data.arm === 'story');
-  assert.equal(findings.length, 1);
-  const hit = findings[0];
-  assert.equal(hit.path, 'Characters/PCs/Tamsin_Story.md');
-  assert.ok(hit.line !== null);
-  assert.match(fixtureLine('Characters/PCs/Tamsin_Story.md', hit.line), /Gus Marzone/);
-  assert.equal(hit.outputPath, 'characters/pcs/tamsin.html');
-  assert.deepEqual(hit.data.renderedAt, ['characters/pcs/tamsin.html', 'story/characters/tamsin.html']);
+  test(`AC-D3-03: a withheld name in a published PC's _Story.md gives exactly one finding, the story's own path, the correct line, and data.renderedAt naming both pages [${layout}]`, () => {
+    const ctx = pinContext(layout);
+    const findings = runHiddenName(ctx).filter((f) => f.data.hiddenName === 'Gus Marzone' && f.data.arm === 'story');
+    assert.equal(findings.length, 1);
+    const hit = findings[0];
+    assert.equal(hit.path, 'Characters/PCs/Tamsin_Story.md');
+    assert.ok(hit.line !== null);
+    assert.match(fixtureLine('Characters/PCs/Tamsin_Story.md', hit.line), /Gus Marzone/);
+    assert.equal(hit.outputPath, 'characters/pcs/tamsin.html');
+    assert.deepEqual(hit.data.renderedAt, ['characters/pcs/tamsin.html', 'story/characters/tamsin.html']);
 
-  // No body-arm finding for Tamsin's own page: the name is only in the story.
-  const bodyHit = runHiddenName(ctx).find((f) => f.path === 'Characters/PCs/Tamsin.md');
-  assert.equal(bodyHit, undefined);
-});
+    // No body-arm finding for Tamsin's own page: the name is only in the story.
+    const bodyHit = runHiddenName(ctx).find((f) => f.path === 'Characters/PCs/Tamsin.md');
+    assert.equal(bodyHit, undefined);
+  });
 
-test('Rowan\'s story: a name under the story\'s own "## GM Notes" (publish: stub reduction) gives nothing', () => {
-  const ctx = pinContext();
-  const findings = runHiddenName(ctx).filter((f) => f.path && f.path.includes('Rowan'));
-  assert.deepEqual(findings, [], 'Rowan_Story.md\'s GM Notes section is dropped by the stub reduction before the strip chain even runs');
-});
+  test(`Rowan's story: a name under the story's own "## GM Notes" (publish: stub reduction) gives nothing [${layout}]`, () => {
+    const ctx = pinContext(layout);
+    const findings = runHiddenName(ctx).filter((f) => f.path && f.path.includes('Rowan'));
+    assert.deepEqual(findings, [], 'Rowan_Story.md\'s GM Notes section is dropped by the stub reduction before the strip chain even runs');
+  });
 
-// --- AC-D3-06 (fail-closed): a mapping failure never suppresses a finding ---
+  // --- AC-D3-06 (fail-closed): a mapping failure never suppresses a finding ---
 
-test('AC-D3-06: with alignStrippedToSource forced to return all-null, every finding is still emitted with line: null', () => {
-  const textmodel = require('../src/checks/leak/textmodel');
-  const original = textmodel.alignStrippedToSource;
-  const l4Path = require.resolve('../src/checks/leak/l4');
-  const originalL4Cache = require.cache[l4Path];
+  test(`AC-D3-06: with alignStrippedToSource forced to return all-null, every finding is still emitted with line: null [${layout}]`, () => {
+    const textmodel = require('../src/checks/leak/textmodel');
+    const original = textmodel.alignStrippedToSource;
+    const l4Path = require.resolve('../src/checks/leak/l4');
+    const originalL4Cache = require.cache[l4Path];
 
-  textmodel.alignStrippedToSource = (sourceMarkdown, strippedText) =>
-    String(strippedText == null ? '' : strippedText)
-      .split('\n')
-      .map(() => null);
-  delete require.cache[l4Path];
-
-  try {
-    const freshL4 = require('../src/checks/leak/l4');
-    const ctx = pinContext();
-    const findings = freshL4.runHiddenName(ctx);
-
-    const bodyOrStory = findings.filter((f) => f.data.arm === 'body' || f.data.arm === 'story');
-    assert.ok(bodyOrStory.length > 0, 'the fixture vault must still produce body/story findings to prove this on');
-    for (const f of bodyOrStory) {
-      assert.equal(f.line, null, `${f.path}: a forced alignment failure must still emit the finding, with line: null`);
-    }
-  } finally {
-    textmodel.alignStrippedToSource = original;
+    textmodel.alignStrippedToSource = (sourceMarkdown, strippedText) =>
+      String(strippedText == null ? '' : strippedText)
+        .split('\n')
+        .map(() => null);
     delete require.cache[l4Path];
-    if (originalL4Cache) require.cache[l4Path] = originalL4Cache;
-    else require('../src/checks/leak/l4');
-  }
-});
+
+    try {
+      const freshL4 = require('../src/checks/leak/l4');
+      const ctx = pinContext(layout);
+      const findings = freshL4.runHiddenName(ctx);
+
+      const bodyOrStory = findings.filter((f) => f.data.arm === 'body' || f.data.arm === 'story');
+      assert.ok(bodyOrStory.length > 0, 'the fixture vault must still produce body/story findings to prove this on');
+      for (const f of bodyOrStory) {
+        assert.equal(f.line, null, `${f.path}: a forced alignment failure must still emit the finding, with line: null`);
+      }
+    } finally {
+      textmodel.alignStrippedToSource = original;
+      delete require.cache[l4Path];
+      if (originalL4Cache) require.cache[l4Path] = originalL4Cache;
+      else require('../src/checks/leak/l4');
+    }
+  });
+}
 
 // --- Novelle / Tanmora sanity is verified against the real 91d8a7b export, not this fixture ---

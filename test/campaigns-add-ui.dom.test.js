@@ -227,10 +227,14 @@ for (const browserName of ['chromium', 'firefox']) {
       assert.match(await page.textContent('.a1-hint:has-text("Already registered")'), /Already registered: alpha, beta\./);
 
       await nameOk(page, 'sable-tide');
+      // beta's settings have moved to the yaml: the clash row names the file the vault really has.
+      fs.renameSync(path.join(fx.vaults.beta, '_meta', 'vault-config.md'), path.join(fx.vaults.beta, '_meta', 'vault-config.yaml'));
       await type(page, '#su-vault', fx.vaults.beta);
       await page.waitForFunction(() => document.getElementById('su-vault-st').textContent.includes('already registered'));
       assert.equal(await page.textContent('#su-vault-st .su-rule'), `${fx.vaults.beta} is already registered as campaign "beta"`);
       assert.match(await page.textContent('#su-vault-st'), /That vault is already a campaign\./);
+      assert.match(await page.textContent('#su-vault-st'), /vault-config\.yaml/);
+      assert.doesNotMatch(await page.textContent('#su-vault-st'), /vault-config\.md/);
 
       await chooseByBrowse(page, fx.fresh);
       await page.waitForFunction(() => document.getElementById('su-vault-st').textContent.includes('A gm-apprentice vault'));

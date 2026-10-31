@@ -2,7 +2,7 @@
 
 const { resolveCampaignContext } = require('../cli/args');
 const { resolveVaultSite } = require('../cli/check');
-const { createAdminContext } = require('./context');
+const { createAdminContext, refreshSettingsLayout } = require('./context');
 const { CAMPAIGN_FIELDS } = require('./campaignstate');
 
 /*
@@ -48,7 +48,7 @@ function fence(ctx, method, pathname) {
   return SETUP_MODE_ROUTES.includes(`${method} ${pathname}`) ? 'allow' : 'refuse';
 }
 
-// The eight fields the handover copies are the campaign's resolved fields (src/admin/campaignstate.js).
+// The nine fields the handover copies are the campaign's resolved fields (src/admin/campaignstate.js).
 const HANDOVER_FIELDS = CAMPAIGN_FIELDS.resolved;
 
 /**
@@ -63,7 +63,9 @@ const HANDOVER_FIELDS = CAMPAIGN_FIELDS.resolved;
 function resolveFresh(configPath, name, token) {
   const ctxInfo = resolveCampaignContext({ config: configPath }, name);
   const { vaultPath, site } = resolveVaultSite(ctxInfo);
-  return createAdminContext({ ctxInfo, vaultPath, site, token });
+  const fresh = createAdminContext({ ctxInfo, vaultPath, site, token });
+  refreshSettingsLayout(fresh);
+  return fresh;
 }
 
 /**

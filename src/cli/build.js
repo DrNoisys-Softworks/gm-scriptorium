@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const { resolveCampaignContext, FORCE_SPLIT_MESSAGE } = require('./args');
 const { resolveVaultContext, runCheckForContext, asPackProblem } = require('./check');
@@ -8,12 +9,16 @@ const { NON_YAML_LANGUAGE_ID } = require('../checks/frontmatter');
 const { runAtomicBuild } = require('../build/run');
 const { siteConfigOutputDirCollision } = require('../build/plan');
 const { planThemeAssets } = require('../build/themeassets');
-const { computePublishedSet } = require('../vault/publishset');
+const { computePublishedSet, readSettingsFiles, isYamlParseError } = require('../vault/publishset');
+const { unheldPackSettings, buildBlockers, packNotCarriedMessage, yamlFolderMapProblem } = require('../checks/carry');
 const { VaultUnreachableError, ConfigError } = require('../util/errors');
 const { suggestedSlug } = require('../setup/foldermap');
 const { EXIT_CODES } = require('../util/exitcodes');
 const { SCHEMA_VERSION } = require('../report/json');
 const pkg = require('../../package.json');
+
+/** The pin's assertNoStops message for the build command ("build stopped: the settings have a fault ..."), or its parse error for a vault-config.yaml that is not valid YAML. */
+const SETTINGS_STOP_RE = /^(?:build stopped: the settings have a fault|_meta\/vault-config\.yaml is not valid YAML)/;
 
 /**
  * Issue #104: a campaign registered without an output folder used to reach path.resolve(undefined)
@@ -77,20 +82,29 @@ function withoutReportedUnmapped(generatorWarnings, reportedDirs) {
  * have moved, naming a tool (migrate.py) Scriptorium users do not have. Those lines are noise
  * about Scriptorium's own scaffold, so drop exactly them and nothing else:
  *  - the two backend "old name" lines, only when that backend key is false (the scaffold value);
+ *  - the landingTagline "old name" line, new at publish-v1.26.0. The scaffold writes the key, the
+ *    site no longer reads it and Scriptorium's reference page already says so
+ *    (docs/reference/vault-config.md), and up to 1.21.0 no build printed it;
  *  - the legacy-settings line, only when every listed key is a scaffold key and no entry "..." is
  *    still applied clause is present.
+ * The old-name texts are the pin's (lib/settings/faults.js formatFault, "<name> is an old name; use
+ * <setting>."), with the "WARNING: " the build puts before every warning; they changed at
+ * publish-v1.26.0, which is why each is matched whole.
  * The "is not a list" and "cannot be moved" lines never match. Anything else stays visible.
  */
 const SCAFFOLD_KEY_RE = /^(siteTitle|landingTagline|attachmentsDir|folderMap|excludeDirs|excludeSections|excludeCallouts|backend)( \(ignored; the vault file sets it\))?$/;
 const LEGACY_PREFIX = 'WARNING: vault.config.json still holds campaign settings: ';
 const LEGACY_SUFFIX = '. Settings left in vault.config.json are planned to stop being read in plugin 1.11.0. Run `migrate.py <vault>` to move them.';
-const STATUS_BAR_OLD_NAME_PREFIX = 'WARNING: vault.config.json backend.statusBar is an old name; set ';
-const INBOX_OLD_NAME = 'WARNING: vault.config.json backend.inbox is an old name; set publish.inbox';
+// Matched up to the setting's name, which Scriptorium never writes (test/live-stats-off.test.js).
+const STATUS_BAR_OLD_NAME_PREFIX = 'WARNING: backend.statusBar is an old name; use publish.';
+const INBOX_OLD_NAME = 'WARNING: backend.inbox is an old name; use publish.inbox.';
+const LANDING_TAGLINE_OLD_NAME = 'WARNING: landingTagline is an old name; use publish.theme.tagline.';
 function withoutScaffoldNoise(generatorWarnings, siteConfig) {
   const backend = (siteConfig && siteConfig.backend) || {};
   return generatorWarnings.filter((line) => {
     if (line.startsWith(STATUS_BAR_OLD_NAME_PREFIX) && backend.statusBar === false) return false;
     if (line === INBOX_OLD_NAME && backend.inbox === false) return false;
+    if (line === LANDING_TAGLINE_OLD_NAME) return false;
     if (line.startsWith(LEGACY_PREFIX) && line.endsWith(LEGACY_SUFFIX)) {
       const middle = line.slice(LEGACY_PREFIX.length, line.length - LEGACY_SUFFIX.length);
       if (middle.split(', ').every((item) => SCAFFOLD_KEY_RE.test(item))) return false;
@@ -104,6 +118,44 @@ function renderErrorLine(re) {
   if (re.kind === 'party-manifest') return `ERROR building party manifest: ${re.message}`;
   if (re.kind === 'roster') return `ERROR rendering roster ${re.outputPath}: ${re.message}`;
   return `ERROR rendering ${re.outputPath}: ${re.message}`;
+}
+
+/**
+ * ADR 0071, section 12: on a moved vault the generator no longer reads the pack's hide lists or its
+ * folder map, and Scriptorium does not hand them to it. Until the GM carries them into
+ * _meta/vault-config.yaml, a build would publish what only the pack hid, or a site with no folder
+ * mapped. `check` reports these as errors, but --no-check skips it and --force-check overrides it, so
+ * the build refuses here as well, whatever its flags: exit 3, one line, nothing written. On the old
+ * layout the generator's own settings stop is not forceable either.
+ *
+ * The same holds for the vault's own folder map when it is not set or cannot be read and the pack holds
+ * none (after a carry, say): the build would map no folder (reason 'folder-map-missing').
+ *
+ * A vault-config.yaml the pin cannot parse is left to the generator's own stop, which says so.
+ *
+ * @throws {VaultUnreachableError} reason 'pack-not-carried' or 'folder-map-missing'
+ */
+function refuseUncarriedPack({ vaultPath, rawSiteConfig, packConfigPath, campaign, configPath }) {
+  let unheld;
+  let folderMap;
+  try {
+    ({ unheld, folderMap } = unheldPackSettings(vaultPath, rawSiteConfig, readSettingsFiles(vaultPath)));
+  } catch (err) {
+    if (isYamlParseError(err)) return;
+    throw err;
+  }
+  const blockers = buildBlockers(unheld);
+  if (blockers.length > 0) {
+    throw new VaultUnreachableError(packNotCarriedMessage({ campaign, vaultPath, packConfigPath, blockers }), {
+      path: vaultPath,
+      campaign,
+      reason: 'pack-not-carried',
+    });
+  }
+  const problem = unheld.some((u) => u.fault.name === 'folderMap') ? null : yamlFolderMapProblem(folderMap, { configPath, vaultPath, campaign });
+  if (problem) {
+    throw new VaultUnreachableError(`campaign "${campaign}": ${problem} Nothing was written.`, { path: vaultPath, campaign, reason: 'folder-map-missing' });
+  }
 }
 
 function baseEnvelope(campaign, vaultPath, outputPath, vaultMismatch, generatedAt) {
@@ -154,7 +206,8 @@ function baseEnvelope(campaign, vaultPath, outputPath, vaultMismatch, generatedA
  */
 function runBuildForContext(ctxInfo, flags) {
   const generatedAt = new Date().toISOString();
-  const { vaultPath, jsonConfig, vaultMismatch, siteDir, packShadowed, packToml } = resolveVaultContext(ctxInfo);
+  const { vaultPath, jsonConfig, rawSiteConfig, settingsLayout, packConfigPath, vaultMismatch, siteDir, packShadowed, packToml } =
+    resolveVaultContext(ctxInfo);
   // ADR 0019, Structural decision 4: the asset step's FILE checks (P3a-FR06) run here, before
   // runAtomicBuild, so a refusal writes nothing -- sweepStaleSiblings never runs, and --force
   // never reaches planThemeAssets (only pack.toml's own SYNTAX validation, inside
@@ -282,6 +335,9 @@ function runBuildForContext(ctxInfo, flags) {
     lines.push('--no-check: skipped running check entirely (the staging output scan still ran; see below).');
   }
 
+  // ADR 0071, section 12: independent of --no-check and --force-check (plain build stops at the check first).
+  if (settingsLayout === 'new') refuseUncarriedPack({ vaultPath, rawSiteConfig, packConfigPath, campaign: ctxInfo.campaign, configPath: ctxInfo.configPath || null });
+
   const result = runAtomicBuild({
     vaultPath,
     userJsonConfig: jsonConfig,
@@ -361,6 +417,23 @@ function runBuildForContext(ctxInfo, flags) {
   }
 
   if (!result.ok) {
+    // The generator refuses to build when a setting cannot be read, whether it hides
+    // something or says where to build or what to keep (lib/config.js
+    // assertNoStops, thrown from build()). Plain `build` stops earlier, at the check step (exit 2);
+    // with --force-check or --no-check it reaches here. It is a settings mistake, not a Scriptorium
+    // bug, so exit 3 through the existing class (DEVELOPING.md, "Exit codes for user errors").
+    if (SETTINGS_STOP_RE.test(result.error.message)) {
+      try {
+        fs.rmSync(result.stagingRoot, { recursive: true, force: true });
+      } catch {
+        /* best-effort: a cleanup failure must never change the code the user sees */
+      }
+      throw new VaultUnreachableError(result.error.message, {
+        path: vaultPath,
+        campaign: ctxInfo.campaign,
+        reason: 'settings-fault',
+      });
+    }
     lines.push(`build failed: ${result.error.message}`);
     for (const re of result.renderErrors) lines.push(`  ${renderErrorLine(re)}`);
     lines.push(`staging tree kept for inspection at: ${result.stagingRoot}`);
@@ -390,7 +463,7 @@ function runBuildForContext(ctxInfo, flags) {
   }
 
   lines.push(`built ${result.pagesWritten} file(s) in ${result.elapsedMs.toFixed(1)}ms -> ${result.finalOut}`);
-  const unmappedByDir = unmappedDirectoryCounts(computePublishedSet(vaultPath, jsonConfig).unmappedDirectory);
+  const unmappedByDir = unmappedDirectoryCounts(computePublishedSet(vaultPath, jsonConfig, rawSiteConfig).unmappedDirectory);
   // Issue #30, FR-01: the generator's own warn-level lines, human and JSON alike. Human-only
   // Scriptorium warnings below are unchanged. A zero-warning build prints nothing extra.
   const generatorWarnings = withoutScaffoldNoise(

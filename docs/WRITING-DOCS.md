@@ -65,6 +65,7 @@ disagree.
 | [Troubleshooting](how-to/troubleshooting.md) | How-to guides | Linux (the Windows steps have not been run) |
 | [Keep GM-only notes off the player site](how-to/hide-gm-content.md) | How-to guides | Linux (the Windows steps have not been run) |
 | [Add a Game master link to the player site](how-to/add-a-game-master-link.md) | How-to guides | Linux (the Windows steps have not been run) |
+| [Keep building after gm-apprentice moves your vault's settings](how-to/vault-settings-moved.md) | How-to guides | macOS, command-line steps only (the panel steps and Windows have not been run) |
 | [Image slots](image-slots.md) | Reference | No steps |
 | [The settings file (config.toml)](reference/config-toml.md) | Reference | No steps |
 | [Environment variables](reference/environment-variables.md) | Reference | No steps |

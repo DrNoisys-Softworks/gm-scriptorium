@@ -6,6 +6,7 @@ const fs = require('fs');
 const net = require('net');
 const path = require('path');
 
+const { moveVaultCopy, replaceYamlFolderMap } = require('./helpers/moved-vault');
 const { withScratch, run, SAMPLE } = require('./helpers/b4-cli');
 const { asPackProblem } = require('../src/cli/check');
 const { ConfigError } = require('../src/util/errors');
@@ -53,6 +54,63 @@ function copyMovedVault(root, state) {
   return v;
 }
 
+/** A moved copy of the sample vault whose vault-config.yaml is not valid YAML (an unclosed bracket). */
+function copyBadYamlVault(root) {
+  const { vaultPath } = moveVaultCopy(SAMPLE, root);
+  fs.writeFileSync(path.join(vaultPath, '_meta', 'vault-config.yaml'), 'type: meta\nplayer_site:\n  hide:\n    sections: [unclosed\n');
+  writeCfg(root, `config_version = 1\n[campaigns.t]\nvault = '${vaultPath}'\noutput = '${path.join(root, 'site')}'\n`);
+  return vaultPath;
+}
+
+/** A moved copy of the sample vault whose pack still holds a hide entry its vault-config.yaml lacks (not carried). */
+function copyUncarriedVault(root) {
+  const { vaultPath } = moveVaultCopy(SAMPLE, root);
+  const pack = path.join(vaultPath, '_meta', 'scriptorium', 'vault.config.json');
+  const json = JSON.parse(fs.readFileSync(pack, 'utf8'));
+  json.excludeSections.push('Uncarried Secret');
+  fs.writeFileSync(pack, JSON.stringify(json, null, 2));
+  writeCfg(root, `config_version = 1\n[campaigns.t]\nvault = '${vaultPath}'\noutput = '${path.join(root, 'site')}'\n`);
+  return vaultPath;
+}
+
+/** A moved copy of the sample vault, its pack folded in, whose vault-config.yaml then lost its folder map. */
+function copyNoFolderMapVault(root) {
+  const { vaultPath } = moveVaultCopy(SAMPLE, root, { inVaultPack: true });
+  replaceYamlFolderMap(vaultPath, null);
+  writeCfg(root, `config_version = 1\n[campaigns.t]\nvault = '${vaultPath}'\noutput = '${path.join(root, 'site')}'\n`);
+  return vaultPath;
+}
+
+/** A moved copy of the sample vault whose settings file already sets a site title. */
+function copyTitledMovedVault(root) {
+  const { vaultPath } = moveVaultCopy(SAMPLE, root);
+  const file = path.join(vaultPath, '_meta', 'vault-config.yaml');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('player_site:\n', 'player_site:\n  title: "Typed Title"\n'));
+  return vaultPath;
+}
+
+/** A copy of the sample vault at <root>/v whose publish.mode is one the generator cannot read. */
+function copyBadModeVault(root) {
+  const v = path.join(root, 'v');
+  fs.cpSync(SAMPLE, v, { recursive: true });
+  const md = path.join(v, '_meta', 'vault-config.md');
+  const text = fs.readFileSync(md, 'utf8');
+  assert.match(text, /^\s*mode:\s*player\s*$/m, 'the sample no longer says mode: player; fix this helper');
+  fs.writeFileSync(md, text.replace(/^(\s*mode:\s*)player\s*$/m, '$1gm'));
+  writeCfg(root, `config_version = 1\n[campaigns.t]\nvault = '${v}'\noutput = '${path.join(root, 'site')}'\n`);
+  return v;
+}
+
+/** A copy of the sample vault at <root>/v whose site file asks to keep a folder the generator will not accept. */
+function copyBadKeepVault(root) {
+  const v = copyPackVault(root);
+  const cfgPath = path.join(v, '_meta', 'scriptorium', 'vault.config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.preserveDirs = ['maps/old'];
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+  return v;
+}
+
 // [label, setup(root) -> args | {args, input}, expected code, stderr/stdout pattern]
 const CASES = [
   ['check, no campaigns registered', (r) => (writeCfg(r, 'config_version = 1\n'), ['check']), 3, /no campaigns registered/],
@@ -70,8 +128,6 @@ const CASES = [
   ['config entry points at a missing vault', (r) => (writeCfg(r, `config_version = 1\n[campaigns.t]\nvault = '${r}/nowhere'\noutput = '${r}/site'\n`), ['check']), 3, /nowhere/],
   ['campaign has no output folder (build)', (r) => (writeCfg(r, `config_version = 1\n[campaigns.t]\nvault = '${SAMPLE}'\n`), ['build']), 3, /has no output folder/],
   ['remote password with the config folder inside a vault (an unlisted one, found by its settings page)', (r) => (fs.mkdirSync(path.join(r, '_meta'), { recursive: true }), fs.writeFileSync(path.join(r, '_meta', 'vault-config.md'), '# settings\n'), goodCfg(r), { args: ['remote', 'password'], input: 'a long enough passphrase\n' }), 3, /never inside a vault/],
-  ['check on a vault whose settings moved to vault-config.yaml', (r) => (copyMovedVault(r, 'moved'), ['check']), 3, /keeps its settings in _meta\/vault-config\.yaml, the file the gm-apprentice plugin's update moves a vault's settings to\./],
-  ['check on a vault that holds both vault-config.yaml and a leftover vault-config.md', (r) => (copyMovedVault(r, 'mixed'), ['check']), 3, /Its _meta\/vault-config\.md is a leftover that gm-apprentice ignores\./],
   ['init --new-vault inside a vault whose settings moved', (r) => (fs.mkdirSync(`${r}-nv`, { recursive: true }), copyMovedVault(`${r}-nv`, 'moved'), ['init', '--yes', '--name', 'x', '--new-vault', path.join(`${r}-nv`, 'v', 'zz-new'), '--system', 'none']), 3, /it is inside the vault at /],
   ['remote password with the config folder inside a vault that holds only vault-config.yaml', (r) => (fs.mkdirSync(path.join(r, '_meta'), { recursive: true }), fs.writeFileSync(path.join(r, '_meta', 'vault-config.yaml'), 'type: meta\n'), goodCfg(r), { args: ['remote', 'password'], input: 'a long enough passphrase\n' }), 3, /never inside a vault, but .* is inside the vault at /],
   ['--out inside the vault', (r) => (goodCfg(r), ['build', '--no-check', '--out', path.join(SAMPLE, 'zz-out')]), 3, /refusing to build inside the vault/],
@@ -98,6 +154,20 @@ const CASES = [
     return ['check'];
   }, 3, /is missing required key folderMap/],
 
+  // A hiding setting the generator cannot read (here publish.mode: gm) stops its build. Plain build
+  // stops at the check step (exit 2); with the check skipped or its findings forced, the generator's
+  // own stop is a config mistake, so exit 3, never 1 ("Scriptorium bug").
+  ['build --force-check with an unreadable publish.mode', (r) => (copyBadModeVault(r), ['build', '--force-check']), 3, /build stopped/],
+  ['build --no-check with an unreadable publish.mode', (r) => (copyBadModeVault(r), ['build', '--no-check']), 3, /build stopped/],
+  ['build --force-check with a vault-config.yaml that is not valid YAML', (r) => (copyBadYamlVault(r), ['build', '--force-check']), 3, /^.*_meta\/vault-config\.yaml is not valid YAML/m],
+  ['build --force-check on a moved vault whose pack holds settings the yaml lacks', (r) => (copyUncarriedVault(r), ['build', '--force-check']), 3, /^campaign "t": .* still holds settings that _meta\/vault-config\.yaml does not, and the build no longer reads them there: .*excludeSections \("Uncarried Secret"\)\. Run "gm-scriptorium carry t" to move them into _meta\/vault-config\.yaml\. Nothing was written\.$/m],
+  ['build --no-check on a moved vault whose pack holds settings the yaml lacks', (r) => (copyUncarriedVault(r), ['build', '--no-check']), 3, /^campaign "t": .* still holds settings that _meta\/vault-config\.yaml does not, and the build no longer reads them there: .*excludeSections \("Uncarried Secret"\)\. Run "gm-scriptorium carry t" to move them into _meta\/vault-config\.yaml\. Nothing was written\.$/m],
+  ['build --force-check on a moved vault whose vault-config.yaml sets no folder map', (r) => (copyNoFolderMapVault(r), ['build', '--force-check']), 3, /^campaign "t": _meta\/vault-config\.yaml sets no player_site\.folder_map, so the build would publish none of the vault's folders\. Set player_site\.folder_map in _meta\/vault-config\.yaml\. Nothing was written\.$/m],
+  ['build --no-check on a moved vault whose vault-config.yaml sets no folder map', (r) => (copyNoFolderMapVault(r), ['build', '--no-check']), 3, /^campaign "t": _meta\/vault-config\.yaml sets no player_site\.folder_map, so the build would publish none of the vault's folders\. Set player_site\.folder_map in _meta\/vault-config\.yaml\. Nothing was written\.$/m],
+  ['build --no-check with a vault-config.yaml that is not valid YAML', (r) => (copyBadYamlVault(r), ['build', '--no-check']), 3, /^.*_meta\/vault-config\.yaml is not valid YAML/m],
+  ['build --force-check with a malformed folders-to-keep list', (r) => (copyBadKeepVault(r), ['build', '--force-check']), 3, /where the site is built or what it keeps/],
+  ['build --no-check with a malformed folders-to-keep list', (r) => (copyBadKeepVault(r), ['build', '--no-check']), 3, /where the site is built or what it keeps/],
+
   ['unknown command', () => ['chek'], 1, /unknown command: chek/],
   ['unknown flag', (r) => (goodCfg(r), ['check', '--prot']), 1, /unknown flag --prot/],
   ['build --force (split)', (r) => (goodCfg(r), ['build', '--force']), 1, /--force has been split/],
@@ -113,11 +183,25 @@ const CASES = [
   ['init --new-vault into a folder that is not empty', (r) => (fs.mkdirSync(path.join(`${r}-nv`, 'full'), { recursive: true }), fs.writeFileSync(path.join(`${r}-nv`, 'full', 'a.md'), 'x'), ['init', '--yes', '--name', 'x', '--new-vault', path.join(`${r}-nv`, 'full'), '--system', 'none']), 3, /refusing to create a vault in .*: it is not empty \(it holds a\.md\)/],
   ['init --new-vault into a file', (r) => (fs.writeFileSync(path.join(r, 'afile'), 'x'), ['init', '--yes', '--name', 'x', '--new-vault', path.join(r, 'afile'), '--system', 'none']), 3, /refusing to create a vault in .*afile: it is a file/],
   ['init --new-vault inside an existing vault', (r) => ['init', '--yes', '--name', 'x', '--new-vault', path.join(SAMPLE, 'zz-new'), '--system', 'none'], 3, /it is inside the vault at /],
+  ['init --title that differs from the title in the vault-config.yaml', (r) => ['init', '--yes', '--name', 'x', '--vault', copyTitledMovedVault(r), '--out', path.join(r, 'site'), '--title', 'Other Title'], 1, /^this vault's title is set in _meta\/vault-config\.yaml; change it there$/m],
+  ['init on a vault whose vault-config.yaml is not valid YAML', (r) => ['init', '--yes', '--name', 'x', '--vault', copyBadYamlVault(r), '--out', path.join(r, 'site')], 3, /^campaign "x": .*_meta\/vault-config\.yaml could not be read: /m],
   ['init aborted by closed stdin', (r) => ({ args: ['init', '--name', 'x', '--vault', SAMPLE], input: '' }), 1, /init aborted; nothing written/],
   ['remote show with a malformed config', (r) => (writeCfg(r, 'config_version = [[[\n'), ['remote', 'show']), 3, /config is not valid TOML/],
   ['config add with no name', () => ['config', 'add'], 1, /usage: gm-scriptorium config add/],
   ['unknown config subcommand', () => ['config', 'frob'], 1, /unknown config subcommand: frob/],
 ];
+
+// Plain build never reaches the generator's stop: the check step reports the fault and exits 2. This
+// is the one place 2 is right, so it sits outside the table above, which forbids 2.
+test('#108: build with an unreadable publish.mode stops at the check step with exit 2', () => {
+  withScratch((root) => {
+    copyBadModeVault(root);
+    const res = run(root, ['build']);
+    assert.equal(res.code, 2, res.all);
+    assert.match(res.all, /settings-fault/);
+    assert.doesNotMatch(res.all, /build stopped/);
+  });
+});
 
 for (const [label, setup, expected, pattern] of CASES) {
   test(`#108: ${label} exits ${expected}`, () => {

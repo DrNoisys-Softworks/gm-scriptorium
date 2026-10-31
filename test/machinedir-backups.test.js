@@ -168,6 +168,50 @@ test('writeBackup: creates backups/<segment>/vault-config-<stamp>-<hex6>.md.bak,
   });
 });
 
+test('writeBackup: `file` names the backup after the file (yaml and pack), and the panel list pattern still matches only the md', () => {
+  withScratchDir((root) => {
+    const vaultPath = makeVault(root);
+    const machineDir = path.join(root, 'machine');
+    fs.mkdirSync(machineDir);
+    const now = () => new Date('2026-09-30T01:02:03.456Z').getTime();
+    const yaml = writeBackup({ machineDir, campaign: 'alpha', vaultPath, bytes: Buffer.from('version: 1\n'), now, file: 'vault-config.yaml' });
+    const pack = writeBackup({ machineDir, campaign: 'alpha', vaultPath, bytes: Buffer.from('{}\n'), now, file: 'vault.config.json' });
+    assert.match(path.basename(yaml.path), /^vault-config-20260930T010203456Z-[0-9a-f]{6}\.yaml\.bak$/);
+    assert.match(path.basename(pack.path), /^vault\.config-20260930T010203456Z-[0-9a-f]{6}\.json\.bak$/);
+    assert.equal(BACKUP_NAME_RE.test(path.basename(yaml.path)), false);
+    assert.equal(BACKUP_NAME_RE.test(path.basename(pack.path)), false);
+    assert.deepEqual(fs.readFileSync(yaml.path), Buffer.from('version: 1\n'));
+  });
+});
+
+test('writeBackup: a `label` goes between the file name and the stamp, outside the panel list pattern; anything but lower-case letters is refused', () => {
+  withScratchDir((root) => {
+    const vaultPath = makeVault(root);
+    const machineDir = path.join(root, 'machine');
+    fs.mkdirSync(machineDir);
+    const now = () => new Date('2026-09-30T01:02:03.456Z').getTime();
+    const md = writeBackup({ machineDir, campaign: 'alpha', vaultPath, bytes: Buffer.from('---\n'), now, label: 'leftover' });
+    assert.match(path.basename(md.path), /^vault-config-leftover-20260930T010203456Z-[0-9a-f]{6}\.md\.bak$/);
+    assert.equal(BACKUP_NAME_RE.test(path.basename(md.path)), false);
+    for (const label of ['', 'Leftover', 'left-over', '../x', '20260930']) {
+      assert.throws(() => writeBackup({ machineDir, campaign: 'alpha', vaultPath, bytes: Buffer.from('x'), now, label }), BackupError);
+    }
+    assert.deepEqual(fs.readdirSync(path.dirname(md.path)), [path.basename(md.path)]);
+  });
+});
+
+test('writeBackup: a file that is not one of the three kept is refused, and nothing is written', () => {
+  withScratchDir((root) => {
+    const vaultPath = makeVault(root);
+    const machineDir = path.join(root, 'machine');
+    fs.mkdirSync(machineDir);
+    for (const file of ['pack.toml', '../vault-config.md', 'notes.md']) {
+      assert.throws(() => writeBackup({ machineDir, campaign: 'alpha', vaultPath, bytes: Buffer.from('x'), file }), BackupError);
+    }
+    assert.equal(fs.existsSync(path.join(machineDir, BACKUPS_DIRNAME)), false);
+  });
+});
+
 test('writeBackup: 0700 on the backups dir and segment dir, 0600 on the file (POSIX only)', { skip: isWin32() }, () => {
   withScratchDir((root) => {
     const vaultPath = makeVault(root);

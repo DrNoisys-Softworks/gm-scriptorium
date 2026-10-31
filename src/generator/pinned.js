@@ -20,7 +20,7 @@
  *
  * `lunr` is the one export here that is not a generator internal — it is the
  * search-index library gm-apprentice-publish depends on directly
- * (lib/search-index.js:3, lib/build.js:633). Track D2's index-term leak
+ * (lib/search-index.js:3, lib/build.js:856). Track D2's index-term leak
  * check (src/checks/leak/outputscan.js) has to reproduce the generator's own
  * lunr pipeline (trimmer, stopWordFilter, stemmer) byte-for-byte to decide
  * whether a withheld name is reachable as a stemmed or possessive term in
@@ -73,7 +73,19 @@ installSegmenterShim();
 const { installNetworkGuard } = require('./netguard');
 installNetworkGuard();
 
-// lib/processor.js:1776 (module.exports)
+// ADR 0007: the rules-content redactions must be in require.cache before any pin module loads the
+// character-sheet templates. Up to publish-v1.21.0 only the build reached them (bootstrap.js seeds
+// them just before require('gm-apprentice-publish')). From publish-v1.26.0 nearly every pin module
+// requires lib/settings, whose registry requires lib/templates/pc-registry.js, which loads every
+// system's templates, gurps/blocks/reference.js and coc/skills-data.js among them. So the facade
+// seeds them here, before its first pin require, as it installs the shims above. bootstrap.js still
+// re-seeds before each build (applyRedactions accepts its own earlier seed), and a pin module loaded
+// before this point makes applyRedactions throw, so the process fails closed.
+// eslint-disable-next-line global-require
+const { applyRedactions } = require('./redactions');
+applyRedactions();
+
+// lib/processor.js:2265 (module.exports)
 const {
   stripDataview,
   stripGmOnly,
@@ -85,16 +97,16 @@ const {
   keepOnlySections,
   publishedFrontmatter,
   publishMode,
-  // dateText (publish-v1.17.0 use) is how the pin prints a YAML date (lib/processor.js:17-19), which
+  // dateText (publish-v1.17.0 use) is how the pin prints a YAML date (lib/processor.js:19-21), which
   // src/build/dates.js matches to put the "D Month YYYY" form back.
   dateText,
   // gmAliasRewriter (publish-v1.21.0 use) is how the pin rewrites every GM alias to its owner's title
-  // before anything renders (lib/processor.js:1631, run by pairHubs at lib/build.js:546);
+  // before anything renders (lib/processor.js:2094, run by pairHubs at lib/build.js:754-755);
   // src/build/connections.js applies it before resolving a note's own relationships.
   gmAliasRewriter,
   // L5 (ADR 0045) reads headings as the generator does: findHeadings is the parser reading
-  // (lib/processor.js:204-247), renderInline the build's own inline renderer (lib/processor.js:251-253),
-  // resolveWikiLinks the wikilink-to-display-text step (lib/processor.js:91-115). Re-exported, never re-implemented.
+  // (lib/processor.js:242-285), renderInline the build's own inline renderer (lib/processor.js:289-291),
+  // resolveWikiLinks the wikilink-to-display-text step (lib/processor.js:93-117). Re-exported, never re-implemented.
   findHeadings,
   renderInline,
   resolveWikiLinks,
@@ -104,12 +116,12 @@ const {
  * Issue #100 (ADR 0042) is retired at publish-v1.17.0. Scriptorium used to replace the pin's
  * keepOnlySections with a guard that withheld an excluded parent's sub-headings on a stub page.
  * The pin now does this itself (#320 there): keepOnlySections and stubCut take the build's
- * `withhold` object (lib/processor.js:474) and run a note's strips, then its exclude list, then the
- * cut. Callers must pass that object, as lib/build.js:591 does; without excludeSections nothing is
+ * `withhold` object (lib/processor.js:524) and run a note's strips, then its exclude list, then the
+ * cut. Callers must pass that object, as lib/build.js:799 does; without excludeSections nothing is
  * withheld. The real-build proof is test/stub-heading-collision.test.js.
  */
 
-// lib/publish-decision.js:220-229 (module.exports)
+// lib/publish-decision.js:295-309 (module.exports)
 const {
   decidePage,
   publishesPage,
@@ -119,12 +131,373 @@ const {
 // lib/manifest.js:99 (module.exports)
 const { parseManifest } = require('gm-apprentice-publish/lib/manifest');
 
-// lib/config.js:597 (module.exports). normalizeExcludeDir (lib/config.js:177-194) and stricterCallouts
-// (lib/config.js:219-229) are how the pin's own config merge spells an exclude_dirs entry and picks
-// exclude_callouts; src/vault/publishset.js's port calls them so it cannot drift from either rule.
-const { PUBLISH_DEFAULTS, vaultRelPath, scanConfigFor, normalizeExcludeDir, stricterCallouts } = require('gm-apprentice-publish/lib/config');
+// lib/config.js:379 (module.exports).
+const { vaultRelPath, scanConfigFor } = require('gm-apprentice-publish/lib/config');
 
-// lib/scanner.js:450 (module.exports). buildLinkMap (publish-v1.21.0 use) is the pin's own name-to-page
+// lib/settings/folders.js:104 and lib/settings/types.js:125 (module.exports). At publish-v1.26.0
+// normalizeExcludeDir (lib/settings/folders.js:12-27) moved out of lib/config.js; it is still how the
+// pin spells an exclude_dirs entry. readSwitch (lib/settings/types.js:8-13) is the pin's one reader of
+// a switch word (true, yes, on, false, no, off): true, false, or null for text that is not one, and
+// undefined for a setting that is not set. normalizeExcludeDir's third argument is now a function the pin tells about a
+// dropped entry (it was true, false or a function). Scriptorium passes `false` to mean "quietly",
+// which the pin would now call and throw on, so the wrapper below turns anything that is not a
+// function into a no-op.
+const settingsFolders = require('gm-apprentice-publish/lib/settings/folders');
+const { readSwitch } = require('gm-apprentice-publish/lib/settings/types');
+
+/**
+ * The pin's normalizeExcludeDir, with a non-function `say` read as "say nothing".
+ *
+ * @param {unknown} entry an exclude_dirs entry as written
+ * @param {string} vaultPath
+ * @param {Function|boolean} [say]
+ * @returns {string|null}
+ */
+function normalizeExcludeDir(entry, vaultPath, say) {
+  return settingsFolders.normalizeExcludeDir(entry, vaultPath, typeof say === 'function' ? say : () => {});
+}
+
+// lib/config.js:93-242 (loadPublishConfig) and lib/settings/faults.js:69 (stops): how the build reads a
+// vault's settings, and which of its faults stop the build (lib/config.js:246-255, assertNoStops).
+// lib/settings/layout.js:10-11 names the two settings files.
+const pinConfig = require('gm-apprentice-publish/lib/config');
+const settingsLayout = require('gm-apprentice-publish/lib/settings/layout');
+const pinSettings = require('gm-apprentice-publish/lib/settings');
+const { stops: stopFaults } = require('gm-apprentice-publish/lib/settings/faults');
+
+/**
+ * Runs `fn` with fs.existsSync and fs.readFileSync answering for exactly two paths, the old settings
+ * file (`_meta/vault-config.md`) and the new one (`_meta/vault-config.yaml`), from the text the
+ * caller supplies (null: absent). Every other path goes to the real fs, and both functions are
+ * restored in a `finally`, so nothing outside the call ever sees the change (the pattern of
+ * src/generator/bootstrap.js's vault read shim). The call must be synchronous.
+ *
+ * The pin's reader opens these files itself, with fs (lib/settings/legacy.js:241-243,
+ * lib/settings/layout.js:45-48). `check` reads every vault file through src/vault/read.js, which
+ * aborts on a failing disk and, for the admin panel, serves an edited copy in place of the file
+ * (ADR 0041), so the text is handed in instead of read by the pin.
+ *
+ * @param {string} vaultPath
+ * @param {{ md?: string|null, yaml?: string|null }} files the text of each settings file, or null/absent for none
+ * @param {() => T} fn
+ * @returns {T}
+ * @template T
+ */
+function withServedSettings(vaultPath, files, fn) {
+  const served = new Map([
+    [path.resolve(settingsLayout.at(vaultPath, settingsLayout.OLD_FILE)), files && typeof files.md === 'string' ? files.md : null],
+    [path.resolve(settingsLayout.at(vaultPath, settingsLayout.NEW_FILE)), files && typeof files.yaml === 'string' ? files.yaml : null],
+  ]);
+  const servedFor = (p) => (typeof p === 'string' && served.has(path.resolve(p)) ? served.get(path.resolve(p)) : undefined);
+  const realExists = fs.existsSync;
+  const realRead = fs.readFileSync;
+  fs.existsSync = function servedExistsSync(p) {
+    const text = servedFor(p);
+    return text === undefined ? realExists.apply(fs, arguments) : text !== null;
+  };
+  fs.readFileSync = function servedReadFileSync(p, options) {
+    const text = servedFor(p);
+    if (text === undefined) return realRead.apply(fs, arguments);
+    if (text === null) {
+      const err = new Error(`ENOENT: no such file or directory, open '${p}'`);
+      err.code = 'ENOENT';
+      throw err;
+    }
+    const encoding = typeof options === 'string' ? options : options && options.encoding;
+    return encoding ? text : Buffer.from(text, 'utf8');
+  };
+  try {
+    return fn();
+  } finally {
+    fs.existsSync = realExists;
+    fs.readFileSync = realRead;
+  }
+}
+
+/**
+ * The pin's own reading of a vault's settings (lib/config.js's loadPublishConfig), with the settings
+ * files' text supplied by the caller instead of read from disk by the pin (see withServedSettings).
+ *
+ * The pin prints nothing here: its warn function is a no-op and stops are kept quiet.
+ *
+ * @param {string} vaultPath
+ * @param {object} siteConfig the site's vault.config.json, as the build is given it
+ * @param {{ md: string|null, yaml: string|null }} files the text of _meta/vault-config.md and of
+ *   _meta/vault-config.yaml, each null when there is none
+ * @returns {{ config: object, stops: object[] }} the pin's publishConfig and its stop-level faults
+ * @throws whatever the pin throws for a settings file it cannot parse
+ */
+function readPublishSettings(vaultPath, siteConfig, files) {
+  return withServedSettings(vaultPath, files, () => {
+    const config = pinConfig.loadPublishConfig(vaultPath, siteConfig, () => {}, { quietStops: true });
+    return { config, stops: stopFaults(config.faults || []) };
+  });
+}
+
+/**
+ * The pin's resolveConfig (lib/config.js): the site's config with each moved key overwritten, in its
+ * old JSON spelling, by what the vault's settings resolved. On the new layout a moved key the vault
+ * does not set is deleted. The raw object is not changed. Quiet, like readPublishSettings.
+ *
+ * @param {string} vaultPath
+ * @param {object} rawSiteConfig
+ * @param {{ md: string|null, yaml: string|null }} files
+ * @returns {{ config: object, publishConfig: object }}
+ */
+function resolveSiteConfig(vaultPath, rawSiteConfig, files) {
+  return withServedSettings(vaultPath, files, () => pinConfig.resolveConfig(rawSiteConfig, vaultPath, () => {}, { quietStops: true }));
+}
+
+/**
+ * The faults the pin's settings reader finds (lib/settings/index.js readSettings), each
+ * `{ level, kind, name, setting, source, message, value }`.
+ *
+ * @param {string} vaultPath
+ * @param {object} siteConfig
+ * @param {{ md: string|null, yaml: string|null }} files
+ * @returns {object[]}
+ */
+function settingFaults(vaultPath, siteConfig, files) {
+  return withServedSettings(vaultPath, files, () => pinSettings.readSettings({ vaultPath, siteConfig }).faults);
+}
+
+/**
+ * The settings the pin's reader found, by dotted name (`vault.campaign`, `player_site.title`), and
+ * where each came from ('file', 'default' and so on). Quiet, like readPublishSettings.
+ *
+ * @param {string} vaultPath
+ * @param {object} siteConfig
+ * @param {{ md: string|null, yaml: string|null }} files
+ * @returns {{ values: object, origins: object }}
+ */
+function readSettingValues(vaultPath, siteConfig, files) {
+  return withServedSettings(vaultPath, files, () => {
+    const { values, origins } = pinSettings.readSettings({ vaultPath, siteConfig });
+    return { values, origins };
+  });
+}
+
+/**
+ * The pin's registry entry for a setting, by its dotted name (`player_site.theme.tagline`): the
+ * fields the pin keeps for it, such as `was` (its old names, each with `in` and, when the pin no
+ * longer reads it, `read: false`). Undefined for a name the registry does not list. A rule that
+ * depends on one of these fields reads it here, never from a hard-coded key name.
+ *
+ * @param {string} name
+ * @returns {object|undefined}
+ */
+function settingEntry(name) {
+  return pinSettings.REGISTRY.find((e) => e.name === name);
+}
+
+/**
+ * Which settings layout a vault is on: 'new' (_meta/vault-config.yaml), 'legacy'
+ * (_meta/vault-config.md) or 'none'. Reads the real disk; a caller that needs an edited copy
+ * served instead passes its text to the functions above.
+ *
+ * @param {string} vaultPath
+ * @returns {'new'|'legacy'|'none'}
+ */
+function settingsLayoutOf(vaultPath) {
+  return pinSettings.layoutOf(vaultPath);
+}
+
+// lib/settings/move.js:1306 (module.exports). The pin's own settings move, used here only for the carry:
+// folding a pack's leftover site settings into a vault already on _meta/vault-config.yaml.
+//
+// move.js takes spawnSync out of the child-process module when it loads, for `pinCheck`
+// (lib/settings/move.js:383), which asks "which publish tool does this site folder use?" by running
+// process.execPath on the pin's bin/gm-publish.js. In the packaged executable process.execPath is
+// GM-Scriptorium itself, so that must never run. Every call below therefore passes its own
+// `pinCheck`, which says "nothing to report": the same answer the real command gives a folder with no
+// publish tool installed or pinned ({ spec: null, installedBefore: null }, which holdFrom and
+// stepsHold, lib/settings/move.js:316 and 411, read as "no hold"). A carry's site folder is a scratch
+// folder with only a vault.config.json in it, so that is always the true answer.
+// test/settings-carry-no-spawn.test.js proves no program is started.
+const settingsMove = require('gm-apprentice-publish/lib/settings/move');
+const CARRY_DEPS = Object.freeze({ pinCheck: () => null });
+
+/**
+ * Plans the carry of a site file's settings into the vault's _meta/vault-config.yaml: the pin's
+ * planMove with `foldSiteFile`. The site file must name this vault in its `vaultPath`. Writes
+ * nothing. The returned plan is the pin's: { ok, lines, blockers, files: { write, remove }, carried,
+ * dropped } (blockers when not ok).
+ *
+ * @param {{ vaultPath: string, siteConfigPath: string }} args
+ * @returns {object}
+ */
+function planSettingsCarry({ vaultPath, siteConfigPath }) {
+  return settingsMove.planMove({ vaultPath, siteConfigPath, foldSiteFile: true }, CARRY_DEPS);
+}
+
+/**
+ * Applies a plan from planSettingsCarry: writes the vault's settings file and the site file the plan
+ * names. Throws, having changed nothing, when either file changed since the plan was made.
+ *
+ * @param {object} plan
+ * @returns {{ moved: boolean, lines: string[] }}
+ */
+function applySettingsCarry(plan) {
+  return settingsMove.applyMove(plan, CARRY_DEPS);
+}
+
+// lib/settings/write.js:783 (module.exports). The pin's own settings writer, used by the carry to set the two
+// settings the pin's move removes from the site file without carrying (siteTitle and folderMap). Loads no
+// child-process module.
+const settingsWrite = require('gm-apprentice-publish/lib/settings/write');
+
+/**
+ * Sets settings in the vault's _meta/vault-config.yaml with the pin's writer: `changes` are
+ * { op: 'set', name, value } with the registry's dotted names (`player_site.title`). Writes the file
+ * atomically, or throws having written nothing.
+ *
+ * @param {string} vaultPath
+ * @param {{ op: string, name: string, value?: * }[]} changes
+ * @returns {{ file: string, changed: string[] }}
+ */
+function applySettingsChanges(vaultPath, changes) {
+  return settingsWrite.applyChanges(vaultPath, changes);
+}
+
+/**
+ * A site config with every key the pin has moved into the vault's settings taken out, and the names
+ * of what was taken. The pin's own stripSiteKeys (lib/settings/move.js:177) is not exported, so this
+ * rebuilds its reading from the registry: every name the registry's `was` entries give for the site
+ * file, the dotted ones (backend.statusBar) included. Scriptorium keeps no list of its own. A parent
+ * left empty by a dotted removal is removed too. Like the pin's, a key the registry marks as no
+ * longer read (landingTagline) is taken out as well, and so is whatever else sits under the root of
+ * a dotted name the move carries (a stray fourOhFour.style goes with fourOhFour.message). The input
+ * is not changed.
+ *
+ * `leaveFallback` is the pin's own option of that name: it leaves the five site-folder keys (the
+ * registry entries with `siteFallback`: siteUrl, host, outputDir, cloudflarePagesProject and
+ * preserveDirs) where they are. The move takes them out, because it carries them into the yaml. A
+ * build must keep them, because the generator still reads them from the site file while the yaml
+ * sets none (lib/settings/read.js, siteValueOf). None of the five hides anything.
+ *
+ * @param {object} rawSiteConfig
+ * @param {{ leaveFallback?: boolean }} [opts]
+ * @returns {{ config: object, removed: string[] }}
+ */
+function stripMovedSettings(rawSiteConfig, { leaveFallback = false } = {}) {
+  const names = new Set();
+  const roots = new Set();
+  for (const e of pinSettings.REGISTRY) {
+    for (const w of e.was || []) {
+      if (w.in !== 'site') continue;
+      if (!(leaveFallback && e.siteFallback)) names.add(w.name);
+      if (!e.legacyOnly && (e.siteFallback || w.carryOnly || w.read === false) && w.name.includes('.')) roots.add(w.name.split('.')[0]);
+    }
+  }
+  const config = structuredClone(rawSiteConfig);
+  const removed = [];
+  for (const name of names) {
+    const segs = name.split('.');
+    let parent = config;
+    for (const seg of segs.slice(0, -1)) parent = parent && typeof parent === 'object' ? parent[seg] : undefined;
+    const last = segs[segs.length - 1];
+    if (!parent || typeof parent !== 'object' || !Object.prototype.hasOwnProperty.call(parent, last)) continue;
+    delete parent[last];
+    removed.push(name);
+    if (segs.length > 1 && Object.keys(parent).length === 0) delete config[segs[0]];
+  }
+  for (const root of roots) {
+    if (!Object.prototype.hasOwnProperty.call(config, root)) continue;
+    const rest = config[root];
+    const inside = rest && typeof rest === 'object' && !Array.isArray(rest) ? Object.keys(rest) : [];
+    for (const k of inside.length ? inside : ['']) removed.push(k ? `${root}.${k}` : root);
+    delete config[root];
+  }
+  return { config, removed };
+}
+
+/**
+ * The five site-folder keys (the registry entries with `siteFallback`, from the pin's own
+ * siteFolderKeys in lib/settings/registry.js): each key's site-file name, the setting it became, and
+ * that setting's built-in value (undefined when it has none).
+ *
+ * @returns {{ key: string, name: string, default: * }[]}
+ */
+function siteFolderKeys() {
+  return pinSettings.siteFolderKeys().map(({ key, name }) => ({ key, name, default: (settingEntry(name) || {}).default }));
+}
+
+// lib/settings/legacy.js:455 (module.exports): the stricter of two exclude_callouts values (true beats a
+// list, a list beats off, two lists are unioned), so a carry never makes a callout publish.
+const { stricterCallouts } = require('gm-apprentice-publish/lib/settings/legacy');
+// lib/heading-key.js:170: the one reading (case, marks, spacing) the build gives a name in a hide-sections list.
+// titleNamedIn (:176) builds its wanted set from exactly headingKey(name) per entry, so two names with equal keys hide the same headings.
+const { headingKey } = require('gm-apprentice-publish/lib/heading-key');
+
+// lib/settings/registry.js:685 (module.exports). At publish-v1.26.0 the pin dropped PUBLISH_DEFAULTS:
+// each setting's default now lives on its entry in the settings registry. Scriptorium still reads
+// the old shape (check's config models, the panel, the reference pages), so it is rebuilt here from
+// the registry, one entry per old key, each found by the old name the registry keeps for it
+// (`was`, in the vault file). Against publish-v1.21.0's object two keys differ: landing.max_events
+// is new (the landing page's event count), and four_oh_four.style is gone (the pin retired it).
+// theme.genre and theme.campaign_image have no default in the registry (unset), as before.
+const settingsRegistry = require('gm-apprentice-publish/lib/settings/registry');
+
+const OLD_DEFAULT_KEYS = [
+  'mode', 'exclude_drafts', 'exclude_callouts', 'exclude_sections', 'exclude_fields', 'exclude_dirs',
+  'search', 'attachments_dir', 'folder_map',
+  'landing.recency_window', 'landing.max_npcs', 'landing.max_locations', 'landing.max_events',
+  'landing.featured_npcs', 'landing.featured_locations', 'landing.quick_links',
+  'theme.palette.primary', 'theme.palette.accent', 'theme.palette.background', 'theme.palette.text',
+  'theme.fonts.heading', 'theme.fonts.body', 'theme.fonts.source', 'theme.fonts.files', 'theme.default_mode',
+  'four_oh_four.message',
+  'images.optimize', 'images.format', 'images.max_width', 'images.quality',
+  'overrides.fields', 'section_titles',
+];
+
+function deepFreeze(value) {
+  if (value && typeof value === 'object') {
+    for (const v of Object.values(value)) deepFreeze(v);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+function buildPublishDefaults() {
+  const out = { theme: { genre: null, campaign_image: null } };
+  for (const key of OLD_DEFAULT_KEYS) {
+    const oldName = `publish.${key}`;
+    const e = settingsRegistry.REGISTRY.find((x) => (x.was || []).some((w) => w.in === 'vault' && w.name === oldName));
+    if (!e || e.default === undefined) {
+      throw new ScriptoriumError(`the pinned generator's settings registry has no default for ${oldName}`);
+    }
+    const parts = key.split('.');
+    let at = out;
+    for (const part of parts.slice(0, -1)) at = at[part] || (at[part] = {});
+    at[parts[parts.length - 1]] = structuredClone(e.default);
+  }
+  // Key order as publish-v1.21.0 had it, so anything that lists the keys lists them as before.
+  const { theme, ...rest } = out;
+  const { genre, palette, fonts, campaign_image: campaignImage, default_mode: defaultMode } = theme;
+  const { landing, four_oh_four: notFound, images, overrides, section_titles: sectionTitles, ...head } = rest;
+  return deepFreeze({
+    ...head,
+    landing,
+    theme: { genre, palette, fonts, campaign_image: campaignImage, default_mode: defaultMode },
+    four_oh_four: notFound,
+    images,
+    overrides,
+    section_titles: sectionTitles,
+  });
+}
+
+const PUBLISH_DEFAULTS = buildPublishDefaults();
+
+// The words a withheld name is printed as (lib/settings/registry.js:567-582), the pin's defaults.
+// An old-layout vault cannot set them, so they are what its build uses; publishset's
+// loadPublishConfig carries the build's own reading as publishConfig.withheld_words.
+const DEFAULT_WITHHELD_WORDS = deepFreeze({
+  person: settingsRegistry.entry('player_site.withheld_words.person').default,
+  place: settingsRegistry.entry('player_site.withheld_words.place').default,
+  thing: settingsRegistry.entry('player_site.withheld_words.thing').default,
+});
+
+// lib/scanner.js:457 (module.exports). buildLinkMap (publish-v1.21.0 use) is the pin's own name-to-page
 // table, which src/build/connections.js resolves relationship targets against. dirIsExcluded is FR-16/SD-19's new export: the pin's own
 // case-insensitive excludeDirs matcher (matchExcludedDir), used by src/vault/publishset.js so its
 // hand-ported directory-skip test can never drift from the pin's own casing rule.
@@ -137,8 +510,21 @@ const { slugify, mapFolder, dirIsExcluded, buildLinkMap } = require('gm-apprenti
 // never wiki.js's own second copy (docs/agent-runs corrections, R2) and never a hand copy.
 const { pairHubs, isWrapUp, WRAP_UP_TYPES } = require('gm-apprentice-publish/lib/session-hub');
 
-// lib/theme.js:217 (module.exports)
-const { resolveGenrePreset } = require('gm-apprentice-publish/lib/theme');
+// lib/theme.js:211 (module.exports). resolveGenrePreset is gone at publish-v1.26.0 (the settings
+// reader now turns an unknown genre into null before the theme sees it); its body was one line over
+// GENRE_ALIASES, which the pin still exports, and this is that line.
+const { GENRE_ALIASES } = require('gm-apprentice-publish/lib/theme');
+
+/**
+ * The preset a genre names, or null: publish-v1.21.0's resolveGenrePreset, over the pin's own aliases.
+ *
+ * @param {unknown} genre
+ * @returns {string|null}
+ */
+function resolveGenrePreset(genre) {
+  if (!genre) return null;
+  return GENRE_ALIASES[String(genre).toLowerCase().trim()] || null;
+}
 
 // lib/wikilink.js:197 (module.exports). labelsForLinks is new at publish-v1.17.0: how the pin prints a
 // wikilink inside a title (by its label), which src/vault/publishset.js's display-title port calls.
@@ -150,15 +536,15 @@ const { labelsForLinks, linkText, wikilinkRe, parseWikilink } = require('gm-appr
 
 // lib/frontmatter.js:155 and lib/frontmatter-shape.js:110 (module.exports). New at
 // publish-v1.17.0: the scanner cuts comments out of frontmatter values, then puts wrongly typed values
-// into shape or leaves them unread (lib/scanner.js:126-128); src/vault/publishset.js does the same.
+// into shape or leaves them unread (lib/scanner.js:127-129); src/vault/publishset.js does the same.
 const { cutValueComments } = require('gm-apprentice-publish/lib/frontmatter');
 const { shapeFrontmatter } = require('gm-apprentice-publish/lib/frontmatter-shape');
 
 // lib/unicode.js:93 (module.exports)
 const { canonicalNfc, truncateGraphemes } = require('gm-apprentice-publish/lib/unicode');
 
-// lib/templates/base.js:244-265 (module.exports). DIR_LABELS (ADR 0061): the sections lib/build.js
-// resolves a banner for (lib/build.js:1413), read by src/vault/imagecopies.js.
+// lib/templates/base.js:245-266 (module.exports). DIR_LABELS (ADR 0061): the sections lib/build.js
+// resolves a banner for (lib/build.js:1692), read by src/vault/imagecopies.js.
 const { metadataBadgesFor, TYPE_BADGE_FIELDS, DIR_LABELS } = require('gm-apprentice-publish/lib/templates/base');
 
 // lib/banners.js:109-114 (module.exports). ADR 0061: the pin's own banner-entry reader, folder lookup,
@@ -177,7 +563,7 @@ const lunr = require('gm-apprentice-publish/node_modules/lunr');
 // eslint-disable-next-line global-require
 const LUNR_VERSION = require('gm-apprentice-publish/node_modules/lunr/package.json').version;
 
-const PIN_COMMIT = '9def97ea6586009019b35d77ba480738a936c457';
+const PIN_COMMIT = '228fa161932d9119408d28e11628e22dd9b2ed76';
 
 /*
  * V1e-1 (ADR 0033, SD-5): the generator's OWN gray-matter, as the pin's lib/frontmatter.js:2 itself
@@ -215,7 +601,7 @@ fmguard.verifyFrontmatterEngineGuard(parseManifest, generatorGrayMatter);
 
 /**
  * The pin's scaffold vault.config.json template, raw (ADR 0021). Located
- * the same way the pin's own `init()` locates it (lib/init.js:9), but
+ * the same way the pin's own `init()` locates it (lib/init.js:8), but
  * anchored on `require.resolve('gm-apprentice-publish/lib/processor.js')`
  * rather than `__dirname`: this facade is the one Scriptorium module
  * allowed to deep-require the pin's internals, and processor.js is already
@@ -263,10 +649,24 @@ module.exports = {
   ALWAYS_EXCLUDE_DIRS,
   parseManifest,
   PUBLISH_DEFAULTS,
+  DEFAULT_WITHHELD_WORDS,
+  readPublishSettings,
+  resolveSiteConfig,
+  settingFaults,
+  settingEntry,
+  readSettingValues,
+  settingsLayoutOf,
+  stripMovedSettings,
+  siteFolderKeys,
+  planSettingsCarry,
+  applySettingsCarry,
+  applySettingsChanges,
+  stricterCallouts,
+  headingKey,
   vaultRelPath,
   scanConfigFor,
   normalizeExcludeDir,
-  stricterCallouts,
+  readSwitch,
   slugify,
   mapFolder,
   dirIsExcluded,

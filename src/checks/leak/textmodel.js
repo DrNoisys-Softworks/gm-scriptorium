@@ -17,13 +17,13 @@ const htmltext = require('../../build/htmltext');
  * published page's rendered body/frontmatter would contain).
  *
  * Structural decision 2 (Track DEP-b): playerSafeMarkdown is NOT used here.
- * The body renders through processContent's own order (lib/build.js:969,
- * lib/processor.js:1395-1437), which strips the leading H1 before callouts and
+ * The body renders through processContent's own order (lib/build.js:1237,
+ * lib/processor.js:1802-1858), which strips the leading H1 before callouts and
  * sections; that is the rendered superset for PC pages too (fail-closed),
  * so this is the one chain for every page, not a PC-only alternate path.
  */
 
-/** Strip functions return `string` or `{text, warnings}` (lib/processor.js:625, 693) — normalise to the latter. */
+/** Strip functions return `string` or `{text, warnings}` (lib/processor.js:714, 887) — normalise to the latter. */
 function applyStrip(fn, text) {
   const result = fn(text);
   if (typeof result === 'string') return { text: result, warnings: [] };
@@ -32,7 +32,7 @@ function applyStrip(fn, text) {
 
 /**
  * ADR 0044 first removes Obsidian %% comments (done by the build's read shim, before processContent).
- * processContent's strip order (lib/processor.js:1395-1437), minus the parts that
+ * processContent's strip order (lib/processor.js:1802-1858), minus the parts that
  * need a link/image map (resolveImageEmbeds, resolveWikiLinks, md.render):
  * stripDataview > stripGmOnly > stripSpoiler > stripHtmlComments >
  * stripLeadingH1 > stripCallouts > filterSections. CRLF is normalised
@@ -44,9 +44,9 @@ function applyStrip(fn, text) {
  * @param {{source:string, message:string}[]} warningsOut
  * @param {object} [frontmatter] the page's own frontmatter, for body text only. filterSections
  *   reads its `type`: on a document page the pin withholds the handout's Keeper sections whatever
- *   exclude_sections says (lib/processor.js:125-158), and a real build passes the page's frontmatter
- *   for the body (lib/build.js:664, lib/processor.js:1421). Story text is different: the build
- *   renders it from a page object whose frontmatter is `{}` (lib/build.js:992-996, :1489), so the
+ *   exclude_sections says (lib/processor.js:127-160), and a real build passes the page's frontmatter
+ *   for the body (lib/build.js:898, lib/processor.js:1841). Story text is different: the build
+ *   renders it from a page object whose frontmatter is `{}` (lib/build.js:1260-1264, :1798), so the
  *   rule never applies to it, and the story chain is called without this argument to match.
  */
 function renderChain(markdown, publishConfig, source, warningsOut, frontmatter) {
@@ -87,7 +87,7 @@ function extractHeadings(markdown) {
 
 /**
  * ADR 0045. Every heading in `text` as the pinned generator reads it, one entry per line.
- * Two readings are merged: the parser's (pinned.findHeadings, lib/processor.js:204-247: ATX at any
+ * Two readings are merged: the parser's (pinned.findHeadings, lib/processor.js:242-285: ATX at any
  * indent the parser accepts, closed ATX, setext, headings nested in a blockquote or list) and the
  * margin pattern extractHeadings uses, which the generator also treats as a section start, even
  * inside code. `titles` holds each distinct raw title, parser title first. Unlike
@@ -152,12 +152,12 @@ function displayTextOf(inlineMarkdown) {
  * Structural decision 7 — never the stub-reduced text). A monotone
  * two-pointer walk, not sentinel instrumentation: injecting a per-line
  * marker into the text before stripping would itself change what
- * `filterSections` matches as a heading title (lib/processor.js:204-247),
+ * `filterSections` matches as a heading title (lib/processor.js:242-285),
  * the callout pattern (`:623`), and fence info strings (`:515-530`) —
  * changing what gets stripped, unacceptable in a leak check.
  *
  * Sound because every step in the strip chain either deletes whole lines,
- * collapses a block to one blank line (`lib/processor.js:700`), or
+ * collapses a block to one blank line (`lib/processor.js:894`), or
  * shortens a line in place by removing an inline comment (`:646-696`) —
  * none of them introduce new text, so a surviving stripped line's trimmed
  * text is always exactly, or a substring of, some source line's trimmed
@@ -237,11 +237,11 @@ function frontmatterTextFrom(publishedFm) {
 /**
  * One published page's rendered-text view.
  *
- * Order: publish:stub's keepOnlySections reduction (lib/build.js:580-605)
+ * Order: publish:stub's keepOnlySections reduction (lib/build.js:788-822)
  * first, against the RAW page.markdown/storyMarkdown (page objects stay
  * raw — Structural decision 3), then the strip chain (renderChain) on each
  * of body and story, exactly mirroring build.js's own order of operations.
- * publishedFrontmatter (lib/processor.js:1548-1585) computes the frontmatter
+ * publishedFrontmatter (lib/processor.js:1969-2006) computes the frontmatter
  * view directly, dropping gm_only relationship edges, applying
  * exclude_fields with any per-file override, and stripping control fields —
  * so frontmatterText's relationships are already the visible-only set,
@@ -255,7 +255,7 @@ function frontmatterTextFrom(publishedFm) {
  * function does not align, it only derives what would render.
  *
  * ADR 0036: `bodyWithheld` (default false, byte-identical to before) mirrors what a real build
- * does for a published hub paired with a Wrap-Up (lib/build.js:579, and then the stub reduction
+ * does for a published hub paired with a Wrap-Up (lib/build.js:787, and then the stub reduction
  * at :465): the body source is blanked BEFORE the stub step, never after, so a withheld hub that
  * also happens to be `publish: stub` still ends up with an empty body rather than a stub-reduced
  * one. Story and frontmatter are unaffected, and `page` itself is never mutated.
@@ -278,7 +278,7 @@ function deriveRenderedText(page, publishConfig, { bodyWithheld = false } = {}) 
     const include = Array.isArray(page.frontmatter.publish_include_sections)
       ? page.frontmatter.publish_include_sections
       : [];
-    // The withhold object lib/build.js:591 passes for both, less its warn (check prints nothing).
+    // The withhold object lib/build.js:799 passes for both, less its warn (check prints nothing).
     const withhold = {
       excludeSections: publishConfig.exclude_sections,
       excludeCallouts: publishConfig.exclude_callouts,

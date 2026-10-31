@@ -51,8 +51,16 @@ const IDS = [
   'config/exclude-sections-divergence',
   'config/exclude-dirs-divergence',
   'config/exclude-fields-divergence',
+  'config/settings-fault',
+  'config/switch-word-now-off',
   'config/site-vault-path-mismatch',
   'config/pack-shadowed',
+  'config/pack-hiding-not-carried',
+  'config/pack-setting-not-carried',
+  'config/folder-map-not-carried',
+  'config/folder-map-missing',
+  'config/pack-setting-differs',
+  'config/leftover-settings-file',
   'config/theme-scheme-mismatch',
   'leak/l1-no-manifest',
   'leak/l2-excluded-dir-in-output',
@@ -74,8 +82,8 @@ const IDS = [
 
 // ---- literal facts the page shows ----
 
-test('the thirty-eight finding ids, as a literal list, registry first and then the build', () => {
-  assert.equal(IDS.length, 38);
+test('the forty-six finding ids, as a literal list, registry first and then the build', () => {
+  assert.equal(IDS.length, 46);
   assert.deepEqual(facts.map((f) => f.key), IDS);
 });
 

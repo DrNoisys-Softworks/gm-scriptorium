@@ -248,3 +248,7 @@ chokepoint and only after a backup outside the vault. Nothing above is edited; s
 ## Amended by ADR 0061
 
 The leak check for hidden folders now judges a copied cover picture or section banner by the file it came from. A cover picture or banner the GM names under `_meta` is still published, and `check` reports it as a WARN; a `_banner` picture the build finds by itself in a hidden folder is an ERROR. See [ADR 0061](0061-banner-and-cover-sources.md).
+
+## Amended by ADR 0071
+
+On a vault whose settings moved to `_meta/vault-config.yaml`, the site title, folder map and hide lists belong in that file, not in the pack. The GM-run `carry` command, and the panel's button that runs the same code, rewrite the pack in the vault without the settings they move, through the same replace path the panel uses, after a backup outside the vault. `check` and `build` still never write to the vault or the pack. See [ADR 0071](0071-moved-vault-settings.md).

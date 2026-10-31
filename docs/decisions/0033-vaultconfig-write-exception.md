@@ -468,3 +468,7 @@ fields (about 40 ms for 500 pages and 170 ms for 5000 on the build host); a vaul
 that will feel it. A hidden-field entry typed this session is shown as new, not as unused: only
 the entries the server counted can be flagged unused, and the review is the place that names the
 published pages an entry would affect.
+
+## Amended by ADR 0071
+
+On a vault whose settings moved to `_meta/vault-config.yaml`, the panel no longer writes `_meta/vault-config.md`: the tagline save, the title save and the vault settings editor are read-only there. The vault's settings file gets one more writer, the GM-run carry (from the command line, the panel or `init`), which writes through the generator's own settings code and backs up both files in the same per-machine backups folder first, as `.yaml.bak` and `.json.bak` files. See [ADR 0071](0071-moved-vault-settings.md).

@@ -230,6 +230,33 @@
     return cards;
   }
 
+  /** Rung 3b: what the three layouts say about the other settings on a vault whose settings moved to
+   * _meta/vault-config.yaml. The pack's own copies of them are no longer read, so they are not summarised. */
+  var MOVED_SUMMARY = {
+    rows: [
+      {
+        id: 'moved',
+        icon: 'file',
+        name: 'Site settings',
+        text: "The site's address, the folders that become sections, what's kept off the site and the art folder.",
+        where: 'Set in _meta/vault-config.yaml. Change them in that file by hand.',
+      },
+    ],
+    toggle: 'Other site settings',
+    toggleSmall: 'Read-only here: set in _meta/vault-config.yaml',
+    fine: 'These are set in _meta/vault-config.yaml, not in the campaign pack.',
+    also: 'Also set for your site',
+    alsoSmall: 'read-only, set in _meta/vault-config.yaml',
+    pill: 'read-only',
+  };
+
+  /** The Theme screen's palette note. On a moved vault (rung 3b) the palette is read from
+   * _meta/vault-config.yaml, so the note names that file. */
+  function mismatchText(mismatch, settingsLayout) {
+    var file = settingsLayout === 'new' ? '_meta/vault-config.yaml' : 'vault-config.md';
+    return "Your vault's palette is " + mismatch.paletteScheme + ' (' + mismatch.background + ' in ' + file + ') and ' + mismatch.theme + ' is ' + mismatch.themeScheme + '.';
+  }
+
   var TITLE_SOFT = 40;
   var TAGLINE_SOFT = 140;
 
@@ -262,6 +289,8 @@
     TAGLINE_SOFT: TAGLINE_SOFT,
     summaryRows: summaryRows,
     cardModel: cardModel,
+    MOVED_SUMMARY: MOVED_SUMMARY,
+    mismatchText: mismatchText,
     countState: countState,
     heroArt: heroArt,
   };
@@ -467,18 +496,7 @@
     function updateMismatchNote() {
       var mismatch = ScriptoriumAdmin.SL.schemeMismatch(selected, themes, state.palette);
       if (mismatch) {
-        setText(
-          mismatchP1,
-          "Your vault's palette is " +
-            mismatch.paletteScheme +
-            ' (' +
-            mismatch.background +
-            ' in vault-config.md) and ' +
-            mismatch.theme +
-            ' is ' +
-            mismatch.themeScheme +
-            '.',
-        );
+        setText(mismatchP1, PK.mismatchText(mismatch, state.settingsLayout));
         mismatchNote.hidden = false;
       } else {
         mismatchNote.hidden = true;
@@ -663,7 +681,7 @@
    * PK.summaryRows as a dl, then a second, nested "Show the file" toggle over the raw JSON --
    * marked [data-part="raw-file"] (FR-24: this is the one place tt1 may show a raw key name, and
    * the DOM scan excludes it by design). */
-  function buildTt1More(vcj, summaryRowsList) {
+  function buildTt1More(vcj, summaryRowsList, moved) {
     var section = el('section');
     section.className = 'tt1-more';
 
@@ -675,10 +693,10 @@
     toggle.appendChild(toggleIcon);
     var toggleText = el('span');
     var toggleB = el('b');
-    setText(toggleB, 'Other settings in this file');
+    setText(toggleB, moved ? MOVED_SUMMARY.toggle : 'Other settings in this file');
     toggleText.appendChild(toggleB);
     var toggleSmall = el('small');
-    setText(toggleSmall, "Read-only here: address, sections, what's kept private");
+    setText(toggleSmall, moved ? MOVED_SUMMARY.toggleSmall : "Read-only here: address, sections, what's kept private");
     toggleText.appendChild(toggleSmall);
     toggle.appendChild(toggleText);
     section.appendChild(toggle);
@@ -702,14 +720,27 @@
 
     var fine = el('p');
     fine.className = 'a1-fine';
+    sumWrap.appendChild(fine);
+    section.appendChild(sumWrap);
+    if (moved) {
+      // The pack's file is not where these live any more, so it is not offered as "the file".
+      setText(fine, MOVED_SUMMARY.fine);
+      toggle.addEventListener('click', function () {
+        var expanded = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        sumWrap.hidden = expanded;
+        clear(toggle);
+        toggle.appendChild(icon(expanded ? 'chev' : 'chevd'));
+        toggle.appendChild(toggleText);
+      });
+      return section;
+    }
     setText(fine, 'These live in vault.config.json with the title and tagline. ');
     var showFileBtn = el('button');
     showFileBtn.type = 'button';
     showFileBtn.className = 'a1-link';
     setText(showFileBtn, 'Show the file');
     fine.appendChild(showFileBtn);
-    sumWrap.appendChild(fine);
-    section.appendChild(sumWrap);
 
     var rawWrap = el('div');
     rawWrap.setAttribute('data-part', 'raw-file');
@@ -737,7 +768,7 @@
   /** tt1: a live hero, the persistent fields beside it (a1800px 2-column grid; admin.css collapses
    * it to one column below that, the NV.viewportClass wide breakpoint), then the "Other settings"
    * disclosure. */
-  function buildTt1(vcj, summaryRowsList, heroRel) {
+  function buildTt1(vcj, summaryRowsList, heroRel, moved) {
     var section = el('section');
     section.setAttribute('data-tt', 'tt1');
 
@@ -759,7 +790,7 @@
     var fieldsSlot = el('div');
     fieldsSlot.setAttribute('data-part', 'fields-slot');
     side.appendChild(fieldsSlot);
-    side.appendChild(buildTt1More(vcj, summaryRowsList));
+    side.appendChild(buildTt1More(vcj, summaryRowsList, moved));
     wide.appendChild(side);
 
     section.appendChild(wide);
@@ -777,7 +808,7 @@
    * the landing hero, the not-found tab), with the changed word marked, then "Also in this file"
    * -- the same PK.summaryRows data as tt1's disclosure, always visible rather than collapsed
    * (D-13: pointers, never a promise). */
-  function buildTt2(summaryRowsList, heroRel) {
+  function buildTt2(summaryRowsList, heroRel, moved) {
     var section = el('section');
     section.setAttribute('data-tt', 'tt2');
 
@@ -872,9 +903,9 @@
     also.className = 'tt2-also';
     var alsoH2 = el('h2');
     alsoH2.className = 'a1-rule';
-    setText(alsoH2, 'Also in this file');
+    setText(alsoH2, moved ? MOVED_SUMMARY.also : 'Also in this file');
     var alsoH2Small = el('small');
-    setText(alsoH2Small, 'read-only, and changed elsewhere');
+    setText(alsoH2Small, moved ? MOVED_SUMMARY.alsoSmall : 'read-only, and changed elsewhere');
     alsoH2.appendChild(alsoH2Small);
     also.appendChild(alsoH2);
     var ul = el('ul');
@@ -1065,7 +1096,7 @@
    * the Cards/JSON segmented control, then either the card grid or the read-only JSON view. Only
    * name/tagline are ever editable; every other card is a plain, read-only rendering with a
    * lock note. */
-  function buildTt3(vcj, cardModelList, heroRel) {
+  function buildTt3(vcj, cardModelList, heroRel, moved) {
     var section = el('section');
     section.setAttribute('data-tt', 'tt3');
 
@@ -1084,7 +1115,8 @@
     seg.appendChild(cardsBtn);
     seg.appendChild(jsonBtn);
     toolbar.appendChild(seg);
-    section.appendChild(toolbar);
+    // On a moved vault there is no JSON view: the pack's file is not where these settings live.
+    if (!moved) section.appendChild(toolbar);
 
     var cardsView = el('div');
     cardsView.className = 'tt3-grid';
@@ -1100,7 +1132,7 @@
     mainHeader.appendChild(mainH2);
     var editablePill = el('span');
     editablePill.className = 'a1-pill brass';
-    setText(editablePill, 'editable');
+    setText(editablePill, moved ? MOVED_SUMMARY.pill : 'editable');
     mainHeader.appendChild(editablePill);
     mainCard.appendChild(mainHeader);
     var fieldsSlot = el('div');
@@ -1134,7 +1166,7 @@
     jsonView.appendChild(jsonFine);
 
     section.appendChild(cardsView);
-    section.appendChild(jsonView);
+    if (!moved) section.appendChild(jsonView);
 
     var showJson = false;
     function applyToggle() {
@@ -1162,8 +1194,152 @@
     };
   }
 
+  // -- The carry on a moved vault (rung 3b) ---------------------------------------------------------
+  //
+  // A vault whose settings gm-apprentice moved to _meta/vault-config.yaml no longer reads the pack's
+  // title, folder map or hide lists. When the GM opens Title & tagline the screen asks the server once
+  // what the carry would move (a dry run of POST /api/settings/carry), shows those lines, and offers the
+  // carry. The plan is kept for that visit, so a state reload re-renders it without asking again; leaving
+  // the screen or carrying drops it. The result is kept by campaign, so the re-render after the reload
+  // that follows a carry still shows it.
+
+  var carryResult = null; // { campaign, lines, backups } from the last carry this page ran
+  var carryPlan = null; // { campaign, result } the dry run for this visit to the screen
+  var carryAsked = null; // the campaign whose dry run is in flight
+  var carryEnsure = null; // asks for the plan (when needed) and draws it into the latest carry section
+
+  function onTitleScreen() {
+    var route = store.get().route;
+    return Boolean(route && route.screen === 'title');
+  }
+
+  function linesList(lines, part) {
+    var ul = el('ul');
+    ul.className = 'tt-carry-lines';
+    if (part) ul.setAttribute('data-part', part);
+    lines.forEach(function (line) {
+      var li = el('li');
+      setText(li, line);
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+
+  function buildCarrySection(state) {
+    var section = el('section');
+    section.className = 'tt-carry';
+    section.setAttribute('data-part', 'carry');
+    section.setAttribute('aria-labelledby', 'tt-carry-h');
+    section.hidden = true;
+    var h = el('h2');
+    h.id = 'tt-carry-h';
+    setText(h, 'Settings the pack still holds');
+    section.appendChild(h);
+
+    if (carryResult && carryResult.campaign === state.campaign) {
+      section.hidden = false;
+      var done = el('p');
+      done.setAttribute('role', 'status');
+      setText(done, "The settings were carried into the vault's settings file.");
+      section.appendChild(done);
+      section.appendChild(linesList(carryResult.lines, 'carry-result'));
+      var kept = el('p');
+      kept.className = 'a1-hint';
+      setText(kept, 'Copies of the files as they were:');
+      section.appendChild(kept);
+      var backups = [carryResult.backups.yaml];
+      if (carryResult.backups.pack) backups.push(carryResult.backups.pack);
+      if (carryResult.backups.md) backups.push(carryResult.backups.md);
+      section.appendChild(linesList(backups, 'carry-backups'));
+    }
+
+    var planBox = el('div');
+    section.appendChild(planBox);
+    var outcome = el('p');
+    outcome.setAttribute('role', 'alert');
+    outcome.hidden = true;
+    section.appendChild(outcome);
+
+    function showProblem(result) {
+      section.hidden = false;
+      outcome.hidden = false;
+      var b = result && result.body;
+      var busy = b && b.error === 'busy' ? 'Another job is running in the panel. Open this screen again when it ends.' : null;
+      setText(outcome, busy || (b && b.message) || 'The carry could not run. Reload the panel and try again.');
+    }
+
+    function draw(result) {
+      clear(planBox);
+      if (!result || !result.ok || !result.body) {
+        showProblem(result);
+        return;
+      }
+      var plan = result.body;
+      if (plan.lines.length === 0 && plan.state !== 'ready') return;
+      section.hidden = false;
+      var intro = el('p');
+      setText(
+        intro,
+        plan.state === 'ready'
+          ? 'This vault keeps its settings in _meta/vault-config.yaml, so the site no longer reads these from the pack. Carrying them moves them into that file. Both files are copied outside the vault first.'
+          : 'These stay in the pack:',
+      );
+      planBox.appendChild(intro);
+      planBox.appendChild(linesList(plan.lines, 'carry-lines'));
+      if (plan.state !== 'ready') return;
+      var btn = el('button');
+      btn.type = 'button';
+      btn.className = 'a1-btn primary';
+      setText(btn, 'Carry these settings');
+      btn.addEventListener('click', function () {
+        btn.disabled = true;
+        outcome.hidden = true;
+        api('/api/settings/carry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dryRun: false, baseSha256: plan.baseSha256 }) })
+          .then(function (res) {
+            if (!res.ok || !res.body || res.body.ok !== true) {
+              btn.disabled = false;
+              showProblem(res);
+              return;
+            }
+            carryResult = { campaign: state.campaign, lines: res.body.lines, backups: res.body.backups };
+            carryPlan = null; // what is left to carry is asked again after the reload
+            store.load();
+          })
+          .catch(function () {
+            btn.disabled = false;
+            showProblem(null);
+          });
+      });
+      planBox.appendChild(btn);
+    }
+
+    carryEnsure = function () {
+      if (carryPlan && carryPlan.campaign === state.campaign) {
+        draw(carryPlan.result);
+        return;
+      }
+      if (!onTitleScreen() || carryAsked === state.campaign) return;
+      var campaign = state.campaign;
+      carryAsked = campaign;
+      api('/api/settings/carry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dryRun: true }) })
+        .catch(function () {
+          return null;
+        })
+        .then(function (result) {
+          carryAsked = null;
+          // Kept only while the GM is still on the screen; a plan for a screen they left is dropped.
+          if (!onTitleScreen()) return;
+          carryPlan = { campaign: campaign, result: result };
+          if (carryEnsure) carryEnsure();
+        });
+    };
+    carryEnsure();
+    return section;
+  }
+
   function buildTitleScreen(mount, state) {
     clear(mount);
+    carryEnsure = null;
 
     var vcj = state.vaultConfigJson || {};
     var vcf = state.vaultConfigFile || {};
@@ -1174,11 +1350,15 @@
       mount.appendChild(err);
     }
 
-    var initialTitle = vcj.siteTitle === undefined || vcj.siteTitle === null ? '' : vcj.siteTitle;
+    // Rung 3b: on a vault whose settings moved to _meta/vault-config.yaml, the title and tagline are the
+    // yaml's, shown read-only. A title the yaml does not set shows empty with a note, never the pack's.
+    var moved = state.settingsLayout === 'new';
+    var vs = state.vaultSettings || {};
+    var initialTitle = moved ? vs.title || '' : vcj.siteTitle === undefined || vcj.siteTitle === null ? '' : vcj.siteTitle;
     // V1e-1 (SD-7, D-20): the tagline now comes from vault-config.md's publish.theme.tagline,
     // never from the dead vault.config.json landingTagline key.
-    var initialTagline = vcf.tagline === undefined || vcf.tagline === null ? '' : vcf.tagline;
-    var taglineEditable = Boolean(vcf.editable);
+    var initialTagline = moved ? vs.tagline || '' : vcf.tagline === undefined || vcf.tagline === null ? '' : vcf.tagline;
+    var taglineEditable = Boolean(vcf.editable) && !moved;
 
     // ---------------------------------------------------------------------------------------
     // SD-29: the persistent fields block, built once per render and re-parented (never rebuilt)
@@ -1206,11 +1386,25 @@
     titleInput.type = 'text';
     titleInput.className = 'a1-in tt-big';
     titleInput.value = initialTitle;
+    titleInput.readOnly = moved;
     titleField.appendChild(titleInput);
     var titleHint = el('p');
     titleHint.className = 'a1-hint';
-    setText(titleHint, 'In every browser tab, the top bar of every page, and large on the landing page. Short reads best.');
+    if (moved) {
+      titleHint.setAttribute('data-part', 'title-note');
+      titleHint.id = 'pack-title-note';
+      titleInput.setAttribute('aria-describedby', 'pack-title-note');
+      setText(titleHint, vs.titleNote || '');
+    } else {
+      setText(titleHint, 'In every browser tab, the top bar of every page, and large on the landing page. Short reads best.');
+    }
     titleField.appendChild(titleHint);
+    if (moved && vs.error) {
+      var vsError = el('p');
+      vsError.className = 'pack-error';
+      setText(vsError, vs.error);
+      titleField.appendChild(vsError);
+    }
     var titleWarn = el('p');
     titleWarn.className = 'tt-warn';
     titleWarn.hidden = true;
@@ -1367,7 +1561,7 @@
     reviewBtn.type = 'button';
     reviewBtn.className = 'a1-btn primary';
     setText(reviewBtn, 'Review and save');
-    var disabledReason = Boolean(vcj.error) || !state.writable;
+    var disabledReason = Boolean(vcj.error) || !state.writable || moved;
     titleReviewBtn = reviewBtn;
     titleOwnDisabled = disabledReason;
     reviewBtn.disabled = disabledReason || store.isBusy();
@@ -1444,14 +1638,15 @@
     // ---------------------------------------------------------------------------------------
     // The three surrounds (SD-29).
     // ---------------------------------------------------------------------------------------
-    var summaryRowsList = PK.summaryRows(vcj.raw === undefined || vcj.raw === null ? '' : vcj.raw);
-    var cardModelList = PK.cardModel(vcj.raw === undefined || vcj.raw === null ? '' : vcj.raw);
+    var summaryRowsList = moved ? MOVED_SUMMARY.rows : PK.summaryRows(vcj.raw === undefined || vcj.raw === null ? '' : vcj.raw);
+    var cardModelList = moved ? [] : PK.cardModel(vcj.raw === undefined || vcj.raw === null ? '' : vcj.raw);
     var heroRel = PK.heroArt((state.packToml && state.packToml.images) || {}, state.images || [], ScriptoriumAdmin.IM.slotImageRel);
 
-    var tt1 = buildTt1(vcj, summaryRowsList, heroRel);
-    var tt2 = buildTt2(summaryRowsList, heroRel);
-    var tt3 = buildTt3(vcj, cardModelList, heroRel);
+    var tt1 = buildTt1(vcj, summaryRowsList, heroRel, moved);
+    var tt2 = buildTt2(summaryRowsList, heroRel, moved);
+    var tt3 = buildTt3(vcj, cardModelList, heroRel, moved);
 
+    if (moved) mount.appendChild(buildCarrySection(state));
     mount.appendChild(tt1.section);
     mount.appendChild(tt2.section);
     mount.appendChild(tt3.section);
@@ -1478,6 +1673,7 @@
 
   function render(themeMount, titleMount, state, pending) {
     if (!state.writable) {
+      carryEnsure = null;
       readOnlyNotice(themeMount, state);
       readOnlyNotice(titleMount, state);
       return;
@@ -1515,6 +1711,15 @@
     // current (module-level, reassigned by every buildTitleScreen call) values live.
     store.subscribe(function (next, prev) {
       if (next.prefs !== prev.prefs || next.viewport !== prev.viewport) applyTitleView();
+    });
+
+    // Rung 3b: the carry's plan is asked for once per visit to Title & tagline (see buildCarrySection).
+    store.subscribe(function (next, prev) {
+      if (next.route === prev.route) return;
+      var was = Boolean(prev.route && prev.route.screen === 'title');
+      var is = Boolean(next.route && next.route.screen === 'title');
+      if (was && !is) carryPlan = null;
+      if (is && !was && carryEnsure) carryEnsure();
     });
 
     renderFromStore();

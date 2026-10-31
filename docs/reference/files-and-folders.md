@@ -19,7 +19,7 @@ relative to that folder. None of it is ever written inside a vault.
 | `panel/audit.log` | One line for each remote-access change, with the result. *Since 0.5.0.* Each line also names the account. | No (read it if you like) |
 | `tls/` | Reserved. Nothing writes it in this version. | No |
 | `tls/generated.pem` | Reserved. Nothing writes it in this version. | No |
-| `backups/` | Copies of each campaign's `_meta/vault-config.md`, made before the admin panel saves it, in a `campaign-<name>/` folder each. The newest 20 per campaign are kept. | No (delete old ones if you like) |
+| `backups/` | Copies of each campaign's `_meta/vault-config.md`, made before the admin panel saves it, in a `campaign-<name>/` folder each. The newest 20 per campaign are kept. *Since 0.6.0.* The same folder keeps the copies `carry` and `init` make of `_meta/vault-config.yaml` and the pack's `vault.config.json` before they change them, as `.yaml.bak` and `.json.bak` files, and the copy `carry` makes of a leftover `_meta/vault-config.md` it removes, as `vault-config-leftover-<stamp>-<hex6>.md.bak`. These are not removed. | No (delete old ones if you like) |
 | `panel-prefs.json` | How you set the admin panel up on this computer, such as its views and pane placement. | No (delete it to reset) |
 | `panel/welcome.json` | *Since 0.5.0.* The campaigns whose welcome message on the Overview has not been dismissed yet. | No |
 | `panel/update-check.json` | *Since 0.5.0.* When the panel last asked GitHub about a newer version, and what it found. | No |

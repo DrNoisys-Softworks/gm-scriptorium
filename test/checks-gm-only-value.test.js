@@ -11,6 +11,7 @@ const { buildCheckContext } = require('../src/checks/context');
 const { runChecks } = require('../src/checks/run');
 const read = require('../src/vault/read');
 const pinned = require('../src/generator/pinned');
+const { onLayout } = require('./helpers/moved-vault');
 
 /*
  * Behavioural tests for relationship/gm-only-value (issue 186). Synthetic
@@ -326,25 +327,33 @@ test('T4b: per-file publish_exclude_fields: [relationships] gives WARN', () => {
   });
 });
 
-test('T4b: a global excludeFields containing relationships gives WARN, and a per-file include override restores ERROR', () => {
-  scratch('scriptorium-186-glob-', (dir) => {
-    const vault = path.join(dir, 'vault');
-    writeFile(vault, 'Probe.md', `---\ntype: widget\nrelationships:\n${ONE_EDGE}`);
-    const extra = { excludeFields: ['relationships'] };
-    const ctx = buildCheckContext({ campaign: 'fixture', vaultPath: vault, jsonConfig: jsonConfig(vault, extra) });
-    assert.ok(ctx.publishSet.publishConfig.exclude_fields.includes('relationships'));
-    assert.equal(severityOf(findingsFor(vault, extra)), 'warn');
+// The two cases that depend on the vault's hiding settings run on both layouts: the old
+// _meta/vault-config.md (with the site file's list) and the moved _meta/vault-config.yaml.
+for (const layout of ['legacy', 'new']) {
+  test(`T4b: a global excludeFields containing relationships gives WARN, and a per-file include override restores ERROR [${layout}]`, () => {
+    scratch('scriptorium-186-glob-', (dir) => {
+      const extra = { excludeFields: ['relationships'] };
+      const contextWith = (name, settingsText) => {
+        const src = path.join(dir, name);
+        writeFile(src, 'Probe.md', `---\ntype: widget\nrelationships:\n${ONE_EDGE}`);
+        writeFile(src, '_meta/vault-config.md', settingsText);
+        const ctx = buildCheckContext({ campaign: 'fixture', ...onLayout(layout, src, jsonConfig(src, extra), path.join(dir, `${name}-layout`)) });
+        return { ctx, found: runChecks(ctx).filter((f) => f.id === ID) };
+      };
 
-    writeFile(
-      vault,
-      '_meta/vault-config.md',
-      '---\npublish:\n  overrides:\n    fields:\n      "Probe.md":\n        include: [relationships]\n---\n',
-    );
-    const ctx2 = buildCheckContext({ campaign: 'fixture', vaultPath: vault, jsonConfig: jsonConfig(vault, extra) });
-    assert.deepEqual(ctx2.publishSet.publishConfig.overrides.fields['Probe.md'], { include: ['relationships'] });
-    assert.equal(severityOf(findingsFor(vault, extra)), 'error');
+      const first = contextWith('vault', '---\ntype: meta\n---\n');
+      assert.ok(first.ctx.publishSet.publishConfig.exclude_fields.includes('relationships'));
+      assert.equal(severityOf(first.found), 'warn');
+
+      const second = contextWith(
+        'vault-override',
+        '---\npublish:\n  overrides:\n    fields:\n      "Probe.md":\n        include: [relationships]\n---\n',
+      );
+      assert.deepEqual(second.ctx.publishSet.publishConfig.overrides.fields['Probe.md'], { include: ['relationships'] });
+      assert.equal(severityOf(second.found), 'error');
+    });
   });
-});
+}
 
 // ---- T5: object form ------------------------------------------------------
 

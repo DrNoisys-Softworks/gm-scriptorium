@@ -14,6 +14,9 @@ function runParseError(ctx) {
     // ADR 0034 / SD-6: a refused (non-YAML) fence is reported once, as
     // frontmatter/non-yaml-language, never a second time here.
     if (f.error instanceof FrontmatterLanguageError) continue;
+    // With a vault-config.yaml beside it, the generator does not read vault-config.md (it is left
+    // over, and config/leftover-settings-file says so), so a broken one changes nothing.
+    if (ctx.settingsLayout === 'new' && f.relPath === '_meta/vault-config.md') continue;
     findings.push(
       createFinding({
         id: 'frontmatter/parse-error',
@@ -63,7 +66,7 @@ function runNonYamlLanguage(ctx) {
   return nonYamlLanguageFindings({ vaultPath: ctx.vaultPath, campaign: ctx.campaign });
 }
 
-/** frontmatter/missing-type: a file has no frontmatter `type` (lib/scanner.js:135 silently skips it). */
+/** frontmatter/missing-type: a file has no frontmatter `type` (lib/scanner.js:136 silently skips it). */
 function runMissingType(ctx) {
   const findings = [];
   for (const f of ctx.index.files) {

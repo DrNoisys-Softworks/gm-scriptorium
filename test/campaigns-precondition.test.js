@@ -43,6 +43,7 @@ const BOUND = [
   '/api/update/dismiss',
   '/api/update/setting',
   '/api/desktop/ports',
+  '/api/settings/carry',
 ];
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
@@ -68,7 +69,7 @@ function spyOnRoutes(t) {
   return calls;
 }
 
-test('the campaign-bound routes are exactly the audited POSTs minus the setup commit (a hand-written list of 24)', () => {
+test('the campaign-bound routes are exactly the audited POSTs minus the setup commit (a hand-written list of 25)', () => {
   const derived = ADMIN_ROUTES.filter((r) => campaignstate.isCampaignBound(r)).map((r) => r.path);
   assert.deepEqual(derived, BOUND);
   const audited = ADMIN_ROUTES.filter((r) => r.method === 'POST' && r.audit === true).map((r) => r.path);

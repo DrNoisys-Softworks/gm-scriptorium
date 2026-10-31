@@ -667,7 +667,7 @@
       var clashKids = [cn.p];
       if (cn.acts) clashKids.push(cn.acts);
       clashKids.push(ruleLine(r.rule));
-      status.appendChild(checksList([['ok', 'Folder found', code(r.value)], ['ok', 'A gm-apprentice vault', (function () { var sp = h('span'); add(sp, [code(joinPath(['_meta', 'vault-config.md'])), f.campaignTitle ? ' says “' + f.campaignTitle + '”' : ' is there']); return sp; })()], clashRow(r)]));
+      status.appendChild(checksList([['ok', 'Folder found', code(r.value)], ['ok', 'A gm-apprentice vault', (function () { var sp = h('span'); add(sp, [code(joinPath(['_meta', f.settingsMoved ? 'vault-config.yaml' : 'vault-config.md'])), f.campaignTitle ? ' says “' + f.campaignTitle + '”' : ' is there']); return sp; })()], clashRow(r)]));
       status.appendChild(note('err', 'warn', clashKids));
       return;
     }
@@ -682,7 +682,7 @@
     var rows;
     var extra = [];
     if (r.state === 'ok' || r.state === 'warn') {
-      rows = [['ok', 'Folder found', code(r.value)], ['ok', 'A gm-apprentice vault', (function () { var sp = h('span'); add(sp, [code(joinPath(['_meta', 'vault-config.md'])), f.campaignTitle ? ' says “' + f.campaignTitle + '”' : ' is there']); return sp; })()]];
+      rows = [['ok', 'Folder found', code(r.value)], ['ok', 'A gm-apprentice vault', (function () { var sp = h('span'); add(sp, [code(joinPath(['_meta', f.settingsMoved ? 'vault-config.yaml' : 'vault-config.md'])), f.campaignTitle ? ' says “' + f.campaignTitle + '”' : ' is there']); return sp; })()]];
       if (f.unc) rows.push(['warn', 'On a network share', code(r.value)]);
       rows.push(['info', f.packExists ? 'A campaign pack already exists' : 'No campaign pack yet', f.packExists ? 'Setup leaves every existing pack file as it is' : h('span', null, 'Setup adds ' + joinPath(['_meta', 'scriptorium']) + ' at the end')]);
       if (f.unc) {
@@ -692,14 +692,6 @@
           commandRows(['git add -A', 'git commit -m "Checkpoint before GM-Scriptorium setup"'])
         ]));
       }
-    } else if (f.settingsMoved) {
-      rows = [['ok', 'Folder found', code(r.value)], ['bad', 'Settings this version can’t read', code(joinPath(['_meta', 'vault-config.yaml']))], ['na', 'Where it lives', 'Checked once its settings can be read']];
-      var a4 = h('div', 'a1-actions');
-      a4.classList.add('su-mt8');
-      a4.appendChild(acrossBtn(input));
-      var p4 = h('p');
-      p4.appendChild(h('b', null, 'This version of GM-Scriptorium can’t read this vault’s settings.'));
-      extra.push(note('err', 'warn', [p4, a4, ruleLine(r.rule)]));
     } else if (f.found) {
       rows = [['ok', 'Folder found', code(r.value)], ['bad', 'Not a gm-apprentice vault', 'There is no ' + joinPath(['_meta', 'vault-config.md']) + ' in this folder'], ['na', 'Where it lives', 'Checked once it is a vault']];
       var kids = [h('p'), null];

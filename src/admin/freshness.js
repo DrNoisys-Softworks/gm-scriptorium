@@ -6,21 +6,23 @@ const read = require('../vault/read');
 
 /*
  * V1e-3 (SD-17, D-10, ADR 0035 SS4): the "saved since last build" signal. A stamp is taken at
- * build START (inside the build lock), recording the sha256 of the three files the panel edits
+ * build START (inside the build lock), recording the sha256 of the files the panel edits (and of _meta/vault-config.yaml)
  * plus a per-process panel-save counter, and is committed to ctx only on a successful build (exit
  * 0). Comparing the stamp's shas/counter against the CURRENT ones is what "stale" means. Nothing
  * here hashes vault pages (an owner-accepted residual, cost): an edit to a vault page made
  * outside the panel is never detected by this signal, and the copy that reads it says so.
  */
 
-const TRACKED_FILES = Object.freeze(['pack.toml', 'vault.config.json', 'vault-config.md']);
+// vault-config.yaml (ADR 0071): a vault whose settings gm-apprentice moved keeps them there, and the
+// carry writes it, so a change to it makes a built preview out of date like the other three.
+const TRACKED_FILES = Object.freeze(['pack.toml', 'vault.config.json', 'vault-config.md', 'vault-config.yaml']);
 
 /**
  * Never throws. The sha256 of each of TRACKED_FILES right now, or null when a file is absent, or
  * the literal string 'unreadable' when reading it throws for any other reason.
  *
  * @param {object} ctx an admin context
- * @returns {{ 'pack.toml': string|null, 'vault.config.json': string|null, 'vault-config.md': string|null }}
+ * @returns {{ 'pack.toml': string|null, 'vault.config.json': string|null, 'vault-config.md': string|null, 'vault-config.yaml': string|null }}
  */
 function readTrackedShas(ctx) {
   const shas = {};
@@ -33,11 +35,13 @@ function readTrackedShas(ctx) {
     }
   }
 
-  try {
-    const vaultConfigMdPath = path.join(ctx.vaultPath, '_meta', 'vault-config.md');
-    shas['vault-config.md'] = read.pathExists(vaultConfigMdPath) ? packfiles.sha256Hex(read.readBytes(vaultConfigMdPath)) : null;
-  } catch {
-    shas['vault-config.md'] = 'unreadable';
+  for (const name of ['vault-config.md', 'vault-config.yaml']) {
+    try {
+      const file = path.join(ctx.vaultPath, '_meta', name);
+      shas[name] = read.pathExists(file) ? packfiles.sha256Hex(read.readBytes(file)) : null;
+    } catch {
+      shas[name] = 'unreadable';
+    }
   }
 
   return shas;

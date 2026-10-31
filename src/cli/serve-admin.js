@@ -5,7 +5,7 @@ const { resolveCampaignContext, loadConfig } = require('./args');
 const { resolveVaultSite } = require('./check');
 const { startLocalListener: startLocalListenerImpl, startPanelListener: startPanelListenerImpl } = require('../serve/server');
 const { createToken: createTokenImpl } = require('../admin/session');
-const { createAdminContext } = require('../admin/context');
+const { createAdminContext, refreshSettingsLayout } = require('../admin/context');
 const { createAdminHandler, createPreviewHandler } = require('../admin/router');
 const { removeAllPreviewRoots } = require('../admin/preview');
 const campaignstate = require('../admin/campaignstate');
@@ -203,6 +203,7 @@ async function startAdminPanel(
 
   const token = createToken();
   const ctx = createAdminContext({ ctxInfo, vaultPath, site, token });
+  refreshSettingsLayout(ctx);
 
   // Stores. The audit log is written in every mode, local too; in local mode (which skips the
   // startup folder check above) it still refuses to write if the folder is inside a vault. The

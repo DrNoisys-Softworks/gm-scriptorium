@@ -23,7 +23,7 @@ const { testPort } = require('./helpers/ports');
  */
 
 const PER_CAMPAIGN = ['previewRoot', 'previewDir', 'previewStamp', 'previewPages', 'variants', 'panelSaves', 'vaultArt', 'vaultConfigReview'];
-const RESOLVED = ['campaign', 'ctxInfo', 'vaultPath', 'siteSource', 'siteConfigPath', 'packDir', 'writable', 'readOnlyReason'];
+const RESOLVED = ['campaign', 'ctxInfo', 'vaultPath', 'siteSource', 'siteConfigPath', 'packDir', 'writable', 'readOnlyReason', 'settingsLayout'];
 const CONFIG_CHANGED = 'Your settings changed outside the panel. Reload and try again.';
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');

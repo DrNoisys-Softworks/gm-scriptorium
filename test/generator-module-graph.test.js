@@ -221,8 +221,23 @@ test('no reached generator lib/ file contains fetch(', () => {
   assert.deepEqual(offenders, [], `fetch( found in: ${offenders.join(', ')}`);
 });
 
-test('the generator files requiring child_process are exactly lib/image-optimize.js and lib/run-command.js', () => {
-  const expected = ['lib/image-optimize.js', 'lib/run-command.js'].sort();
+test('the generator files requiring child_process are exactly lib/image-optimize.js, lib/run-command.js, lib/settings/move.js and lib/settings/steps.js', () => {
+  // lib/settings/steps.js (added at publish-v1.26.0) runs a vault's own build steps. It runs only
+  // when a caller passes `options.runSteps === true` to the generator's build (lib/build.js:258).
+  // Scriptorium calls build({ configPath }) and never sets runSteps (grep of src/, bin/ and
+  // scripts/ finds no use), so the file is reachable in the module graph but never executed.
+  // Adding it is a maintainer decision, flagged in the pull request that made it; see
+  // docs/decisions/0005-generator-pin.md (1.26.0 addendum).
+  //
+  // lib/settings/move.js (the settings move, reached since the carry) takes spawnSync out of
+  // the module at load, for its `pinCheck`, which would run process.execPath on the pin's own
+  // bin/gm-publish.js. In the packaged executable process.execPath is GM-Scriptorium itself, so that
+  // must never run. The facade (src/generator/pinned.js, planSettingsCarry and applySettingsCarry)
+  // always injects `deps.pinCheck`, so the spawn never runs; test/settings-carry-no-spawn.test.js
+  // proves it. Upstream issue AntTheLimey/gm-apprentice#535 asks for a lazy require, so this
+  // exception can go once the pin has it. Adding it is a maintainer decision, flagged in the pull request
+  // that made it; see the same addendum.
+  const expected = ['lib/image-optimize.js', 'lib/run-command.js', 'lib/settings/move.js', 'lib/settings/steps.js'].sort();
   const actual = [];
   for (const f of graph.files) {
     if (!f.startsWith(GENERATOR_LIB_DIR + path.sep)) continue;
@@ -385,20 +400,21 @@ test('FR-19/FR-DEP-08: the pin reads its site config from disk, with no non-lite
   // lib/build.js:34 `require(resolvedConfigPath)` and lib/fonts.js:267 `require(resolved)`, and this
   // test recorded both lines. At publish-v1.12.0 both call `loadVaultConfig()` (lib/config.js),
   // which reads the file with fs and JSON.parse (lib/build.js:67 then, :69 from publish-v1.12.3, :70 from publish-v1.14.0,
-  // :96 from publish-v1.17.0). From publish-v1.17.0 that line reads `options.rawConfig` instead when a
-  // caller passes one (the pin's in-memory audit build); Scriptorium never passes it.
+  // :96 from publish-v1.17.0, :207 from publish-v1.26.0). From publish-v1.17.0 that line reads `options.rawConfig`
+  // instead when a caller passes one (the pin's in-memory audit build); Scriptorium never passes it.
+  // At publish-v1.26.0 lib/fonts.js's read moved from :267 to :278.
   // What is recorded now is that the two call sites
   // are still where the config is read, and that no file under lib/ requires a bare identifier.
   const fontsSource = fs.readFileSync(path.join(GENERATOR_DIR, 'lib', 'fonts.js'), 'utf8');
-  const line267 = fontsSource.split('\n')[266];
-  assert.match(line267, /loadVaultConfig\(\s*resolved\s*\)/, `lib/fonts.js:267 no longer reads the config through loadVaultConfig(resolved): "${line267}"`);
+  const line278 = fontsSource.split('\n')[277];
+  assert.match(line278, /loadVaultConfig\(\s*resolved\s*\)/, `lib/fonts.js:278 no longer reads the config through loadVaultConfig(resolved): "${line278}"`);
 
   const buildSource = fs.readFileSync(path.join(GENERATOR_DIR, 'lib', 'build.js'), 'utf8');
-  const line96 = buildSource.split('\n')[95];
+  const line207 = buildSource.split('\n')[206];
   assert.match(
-    line96,
+    line207,
     /loadVaultConfig\(\s*resolvedConfigPath\s*\)/,
-    `lib/build.js:96 no longer reads the config through loadVaultConfig(resolvedConfigPath): "${line96}"`,
+    `lib/build.js:207 no longer reads the config through loadVaultConfig(resolvedConfigPath): "${line207}"`,
   );
 
   const offenders = [];

@@ -554,12 +554,12 @@ module.exports = deepFreeze({
       what: 'Vault folders that are skipped completely. Joined with `excludeDirs` in `vault.config.json`. A trailing slash, a leading `./` and backslashes make no difference. `check` compares the two lists and says if they differ.',
     },
     exclude_drafts: {
-      type: 'true or false',
-      what: 'Whether pages with `canon_status: DRAFT` are left out of the site.',
+      type: 'on or off',
+      what: 'Whether pages with `canon_status: DRAFT` are left out of the site. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. Any other value stops the build (`config/settings-fault`).',
     },
     exclude_callouts: {
-      type: 'true or false, or a list of text',
-      what: 'Whether callout blocks are removed from pages. When `excludeCallouts` in `vault.config.json` is also set, the stricter of the two is used.',
+      type: 'on or off, or a list of text',
+      what: 'Whether callout blocks are removed from pages. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. When `excludeCallouts` in `vault.config.json` is also set, the stricter of the two is used.',
     },
     overrides: {
       type: 'table',
@@ -634,11 +634,6 @@ module.exports = deepFreeze({
       what: 'An older home of the tagline. The site no longer reads it; use `publish.theme.tagline`. The panel shows a value left here but never writes one.',
       changedBy: '`init` writes it empty. By hand',
     },
-    host: {
-      type: 'text',
-      what: 'Where the generator is told the site will be hosted: `github-pages`, or `cloudflare-pages`. It affects only the generator\'s deploy step. GM-Scriptorium does not read it.',
-      changedBy: '`init`, or by hand',
-    },
     attachmentsDir: {
       type: 'text',
       what: 'The folder inside the vault that holds images.',
@@ -651,17 +646,17 @@ module.exports = deepFreeze({
     },
     excludeDirs: {
       type: 'list of text',
-      what: 'Vault folders skipped completely. Joined with `publish.exclude_dirs`. A trailing slash, a leading `./` and backslashes make no difference.',
+      what: 'Vault folders skipped completely. Joined with `publish.exclude_dirs`; when that is not set, added to the built-in folders. A trailing slash, a leading `./` and backslashes make no difference.',
       changedBy: '`init`, or by hand',
     },
     excludeSections: {
       type: 'list of text',
-      what: 'Headings whose section is removed from every page. Joined with `publish.exclude_sections`.',
+      what: 'Headings whose section is removed from every page. Joined with `publish.exclude_sections`; when that is not set, added to the built-in headings.',
       changedBy: '`init`, or by hand',
     },
     excludeCallouts: {
-      type: 'true or false, or a list of text',
-      what: 'Whether callout blocks are removed. When `publish.exclude_callouts` is also set, the stricter of the two is used.',
+      type: 'on or off, or a list of text',
+      what: 'Whether callout blocks are removed. `true`, `yes` and `on` mean on, and `false`, `no` and `off` mean off. When `publish.exclude_callouts` is also set, the stricter of the two is used.',
       changedBy: '`init`, or by hand',
     },
     backend: {
@@ -676,7 +671,7 @@ module.exports = deepFreeze({
     },
     excludeFields: {
       type: 'list of text',
-      what: 'Frontmatter fields that are never published. Joined with `publish.exclude_fields`. A new campaign has none here, and relies on the defaults.',
+      what: 'Frontmatter fields that are never published. Joined with `publish.exclude_fields`; when that is not set, added to the built-in fields. A new campaign has none here, and relies on the defaults.',
       changedBy: 'By hand',
     },
     outputDir: {
@@ -707,7 +702,7 @@ module.exports = deepFreeze({
       whatToDo: 'Run `gm-scriptorium check` and fix what it lists. A refused `build` writes nothing.',
     },
     3: {
-      whatToDo: 'Read the message. It names the campaign, config file or folder that cannot be used. `gm-scriptorium config list` shows what is registered.',
+      whatToDo: 'Read the message. It names the campaign, config file or folder that cannot be used. `gm-scriptorium config list` shows what is registered. *Since 0.5.0.* A `build --force-check` or `build --no-check` that stops because a setting in the vault or its site file cannot be read also exits 3; fix the setting the message names. *Since 0.6.0.* On a vault whose settings moved to `_meta/vault-config.yaml`, a `build --force-check` or `build --no-check` also exits 3 while the campaign pack still holds a hide-list entry or a folder map the yaml lacks, or while the yaml sets no folder map it can read. Run `gm-scriptorium carry <campaign>`, or move them into the yaml yourself when the message says to.',
     },
     4: {
       whatToDo: 'Check that this computer can reach GitHub, then run `gm-scriptorium update --check` again.',
@@ -749,7 +744,7 @@ module.exports = deepFreeze({
       handEdit: 'No',
     },
     'backups/': {
-      what: 'Copies of each campaign\'s `_meta/vault-config.md`, made before the admin panel saves it, in a `campaign-<name>/` folder each. The newest 20 per campaign are kept.',
+      what: 'Copies of each campaign\'s `_meta/vault-config.md`, made before the admin panel saves it, in a `campaign-<name>/` folder each. The newest 20 per campaign are kept. *Since 0.6.0.* The same folder keeps the copies `carry` and `init` make of `_meta/vault-config.yaml` and the pack\'s `vault.config.json` before they change them, as `.yaml.bak` and `.json.bak` files, and the copy `carry` makes of a leftover `_meta/vault-config.md` it removes, as `vault-config-leftover-<stamp>-<hex6>.md.bak`. These are not removed.',
       handEdit: 'No (delete old ones if you like)',
     },
     'panel-prefs.json': {
@@ -794,10 +789,14 @@ module.exports = deepFreeze({
 
   'cli-commands': {
     init: {
-      what: 'Registers a vault and sets up its publish settings. *Since 0.5.0.* It can also create a new vault first. It only adds files under `_meta/scriptorium/` and never touches the rest of the vault.',
+      what: 'Registers a vault and sets up its publish settings. *Since 0.5.0.* It can also create a new vault first. It only adds files under `_meta/scriptorium/` and never touches the rest of the vault. *Since 0.6.0.* The one exception is a vault whose settings gm-apprentice has moved to `_meta/vault-config.yaml`: there init also sets the site title, the folder map and the hide lists in that file, asks first, keeps a copy of the file outside the vault, and changes nothing else: hide lists only gain entries, and a title or folder map the file already sets is kept.',
     },
     check: {
       what: 'Reads the vault and reports anything that would leak GM-only material or break the site. It changes nothing.',
+    },
+    carry: {
+      since: '0.6.0',
+      what: 'For a vault whose settings gm-apprentice has moved to `_meta/vault-config.yaml`: moves the settings your pack still holds into that file. It shows what it will move, asks first, and keeps a copy of both files outside the vault. The hide lists, the site title, the folder map and the site folder\'s settings (such as `host`) move. A title or folder map the vault already sets is kept as it is, and the output says so. Anything else, such as `footer`, `searchEnabled` or a changed `attachmentsDir`, stays in the pack and is named, for you to set in the vault\'s settings. `check` tells you when to run it.',
     },
     build: {
       what: 'Checks the vault, then writes the player-facing website to the output folder. If the check finds errors it refuses and writes nothing.',
@@ -872,16 +871,19 @@ module.exports = deepFreeze({
       what: 'The game system for the new vault, or `none` for no particular system. It is never guessed, and it only works with `--new-vault`.',
       since: '0.5.0',
     },
+    'carry --yes': { since: '0.6.0', what: 'Asks no question and carries what the plan shows.' },
     'check --graph': { what: 'Also runs the optional relationship graph checks.' },
     'build --force-out': {
       what: 'Builds into the site config\'s own `outputDir`.',
       since: '0.5.0',
     },
     'build --force-check': {
-      what: 'Builds even though the check found errors. The output-leak scan still refuses a leak.',
+      what: 'Builds even though the check found errors. The output-leak scan still refuses a leak. *Since 0.6.0.* On a vault whose settings moved to `_meta/vault-config.yaml`, it does not build past a hide-list entry or a folder map that only the campaign pack holds: the build exits 3 until they are carried.',
       since: '0.5.0',
     },
-    'build --no-check': { what: 'Skips the check step.' },
+    'build --no-check': {
+      what: 'Skips the check step. *Since 0.6.0.* On a vault whose settings moved to `_meta/vault-config.yaml`, the build still refuses, with exit 3, while a hide-list entry or a folder map is only in the campaign pack.',
+    },
     'serve --build': { what: 'Builds the site first.' },
     'serve --port': {
       what: 'The port to listen on, 1 to 65535. Plain `serve` also accepts 0 for any free port, and uses the campaign\'s `serve_port` or 8080 when you give none. With `--admin`, leave it out and a free port is chosen for you.',
@@ -1077,7 +1079,7 @@ module.exports = deepFreeze({
       action: 'Add the folder to `folderMap` if its notes belong on the site. If not, list it in `excludeDirs`.',
     },
     'config/exclude-sections-divergence': {
-      what: 'One of the built-in hidden headings (such as GM Notes) is no longer hidden, because one of your config files gives its own `exclude_sections` list. The built-in list applies only when neither file gives a list of its own. It is an ERROR when that heading really appears on a published page, and a WARN when it does not.',
+      what: 'One of the built-in hidden headings (such as GM Notes) is no longer hidden, because the vault\'s settings file (`_meta/vault-config.md`, or `_meta/vault-config.yaml` once the settings have moved) gives its own `exclude_sections` list, which replaces the built-in one. A list in `vault.config.json` alone adds to the built-in list instead. It is an ERROR when that heading really appears on a published page, and a WARN when it does not.',
       action: 'Add the heading named in the message to your list if it should still be hidden.',
     },
     'config/exclude-dirs-divergence': {
@@ -1085,8 +1087,47 @@ module.exports = deepFreeze({
       action: 'Add the folder to the list the message says is missing it, so both files agree. This warning never stops a `build`.',
     },
     'config/exclude-fields-divergence': {
-      what: 'One of the built-in hidden fields (such as `gm_notes`) is no longer filtered, because one of your config files gives its own `exclude_fields` list. A list you give replaces the built-in one.',
+      what: 'One of the built-in hidden fields (such as `gm_notes`) is no longer filtered, because the vault\'s settings file (`_meta/vault-config.md`, or `_meta/vault-config.yaml` once the settings have moved) gives its own `exclude_fields` list, which replaces the built-in one. A list in `vault.config.json` alone adds to the built-in list instead.',
       action: 'Add the field named in the message to your `exclude_fields` list.',
+    },
+    'config/settings-fault': {
+      since: '0.6.0',
+      what: 'A setting the generator cannot read stops the build. It may be a setting that hides something from players, or one that says where the site is built or what it keeps. A name that looks like one of these but is misspelt or in the wrong place counts too. Examples: `exclude_sectoins:`, `exclude_dirs: Secrets` written as one word instead of a list, `exclude_drafts: maybe`, a `mode:` other than `player` or `full`, or a folder to keep written with a slash. The generator will not build until it is fixed, because its safe guess might not be what you meant. A `_meta/vault-config.yaml` that is not valid YAML is reported here too, naming the file. The message is the generator\'s own.',
+      action: 'Fix the setting the message names. `on`, `off`, `yes`, `no`, `true` and `false` all work for a switch, and a list needs one entry per line.',
+    },
+    'config/pack-hiding-not-carried': {
+      since: '0.6.0',
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but the campaign pack\'s `vault.config.json` still hides something the vault\'s own list does not: an `excludeSections`, `excludeFields`, `excludeDirs` or `excludeCallouts` entry. The generator no longer reads those keys from the pack, so the section, field, folder or callout the entry hid would be published. The message names the missing entries. It is an ERROR. A build that skips the check, or overrides it, does not get past it either: the build itself refuses with exit 3 and writes nothing.',
+      action: 'Run `gm-scriptorium carry <campaign>` to move the entries into the vault\'s settings. Or add them to the matching `player_site.hide` list in `_meta/vault-config.yaml` yourself. When the campaign uses a `site_config`, or a pack outside the vault, the carry cannot rewrite that file and the message says to move them by hand.',
+    },
+    'config/pack-setting-not-carried': {
+      since: '0.6.0',
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but the campaign pack\'s `vault.config.json` still sets something the vault\'s settings do not, such as `siteTitle`. The generator ignores the pack\'s value, so the site uses the built-in one. A key the generator no longer reads at all, such as `landingTagline`, is not reported. The site folder\'s own keys are the exception: `siteUrl`, `host`, `cloudflarePagesProject` and `preserveDirs` are still read from the pack for now, while the vault\'s settings do not set them, so the site is right today. The message says so. A value equal to the built-in one is not reported.',
+      action: 'Run `gm-scriptorium carry <campaign>` to move the value into the vault\'s settings, or set it in `_meta/vault-config.yaml` yourself.',
+    },
+    'config/folder-map-not-carried': {
+      since: '0.6.0',
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, but they set no folder map, and the campaign pack\'s `vault.config.json` still has one. The generator does not read the pack\'s folder map, so it would map no folder and publish almost nothing, with no error. It is an ERROR so that a build cannot replace your players\' site with an empty one, and a build that skips the check, or overrides it, refuses too, with exit 3. If the vault\'s settings already hold a folder map, this is not reported; one the generator cannot read is `config/folder-map-missing`.',
+      action: 'Run `gm-scriptorium carry <campaign>` to move the folder map into the vault\'s settings, or set `player_site.folder_map` in `_meta/vault-config.yaml` yourself. When the campaign uses a `site_config`, or a pack outside the vault, the carry cannot rewrite that file and the message says to move it by hand.',
+    },
+    'config/folder-map-missing': {
+      since: '0.6.0',
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, and they set no folder map, or one the generator cannot read. The generator would map no folder and publish almost nothing, with no error, so it is an ERROR, and a build that skips the check, or overrides it, refuses too, with exit 3. It fires when the campaign pack holds no folder map for the carry to bring, for example after a carry, and also for a folder map the generator cannot read whatever the pack holds, because the carry keeps a value the vault\'s settings hold. When a backup that a carry or init kept holds a folder map, the message names that file: a copy of the yaml that holds one, or else the pack\'s copy, where it is under `folderMap`.',
+      action: 'Set or fix `player_site.folder_map` in `_meta/vault-config.yaml`. If the message names a backup, take the folder map from that file.',
+    },
+    'config/pack-setting-differs': {
+      since: '0.6.0',
+      what: 'Your vault\'s settings now live in `_meta/vault-config.yaml`, and both it and the campaign pack\'s `vault.config.json` set the same thing, to different values. The vault\'s value is the one the site uses. The message shows both. That includes the site folder\'s own keys, such as `siteUrl` against `player_site.url`.',
+      action: 'Run `gm-scriptorium carry <campaign>` to settle it, or edit whichever file is wrong.',
+    },
+    'config/leftover-settings-file': {
+      since: '0.6.0',
+      what: 'Your vault\'s settings are in `_meta/vault-config.yaml`, and `_meta/vault-config.md` is still there. gm-apprentice\'s update leaves that old file behind. It is not read. It is a WARN.',
+      action: 'Check that nothing in `_meta/vault-config.md` is missing from `_meta/vault-config.yaml`, then delete the old file.',
+    },
+    'config/switch-word-now-off': {
+      what: '`publish.exclude_drafts` or `publish.exclude_callouts` in `_meta/vault-config.md` is written as `no`, `off` or `"false"`. Up to GM-Scriptorium 0.5.0 any text there counted as on, so these hid draft pages or callouts. The generator now reads them as off, so those pages and callouts are published.',
+      action: 'Set the setting to `true` to hide them, or to `false` to keep publishing them and silence this warning. *Since the generator moved to publish-v1.26.0.*',
     },
     'config/site-vault-path-mismatch': {
       what: 'The site config\'s `vaultPath` points at a different folder from the vault GM-Scriptorium is using. The vault from your settings file wins, so this is reported and nothing stops.',

@@ -66,6 +66,19 @@ function fold(s) {
   return platformFoldsCase() ? s.toLowerCase() : s;
 }
 
+/**
+ * The refusal for a vault whose settings gm-apprentice moved to _meta/vault-config.yaml: where the
+ * setting lives now, and that editing it in the panel comes later (rung 3c).
+ *
+ * @param {'tagline'|'settings'} what
+ */
+function movedRefusal(what) {
+  if (what === 'tagline') {
+    return "This campaign's tagline is set in the vault's settings file (_meta/vault-config.yaml). Editing it here arrives in the next update; change it in that file for now.";
+  }
+  return "This campaign's settings are set in the vault's settings file (_meta/vault-config.yaml). Editing them here arrives in the next update; change them in that file for now.";
+}
+
 /** The fixed target: no request ever supplies a name (FR-01). */
 function targetPathFor(vaultPath) {
   return path.join(vaultPath, '_meta', 'vault-config.md');
@@ -76,14 +89,15 @@ function targetPathFor(vaultPath) {
  * shape never read through a bad target either.
  *
  * @param {string} vaultPath
- * @param {{ campaign?: string|null }} [opts]
+ * @param {{ campaign?: string|null, what?: 'tagline'|'settings' }} [opts] `what` names, in the refusal
+ *   for a vault whose settings moved, what the caller was going to edit (default: the settings)
  * @returns {{ target: string, realMeta: string }}
  * @throws {VaultConfigChangedError} the file does not exist (it is never created here)
  * @throws {ConfigError} a symlinked/escaped/misplaced target or _meta, or a vault that has
  *   _meta/vault-config.yaml (the plugin reads that instead of vault-config.md)
  * @throws {ScriptoriumError} a path could not be resolved at all
  */
-function checkTarget(vaultPath, { campaign = null } = {}) {
+function checkTarget(vaultPath, { campaign = null, what = 'settings' } = {}) {
   const target = targetPathFor(vaultPath);
 
   // 1. realVault = realpath(vaultPath).
@@ -124,10 +138,7 @@ function checkTarget(vaultPath, { campaign = null } = {}) {
     }
   }
   if (yamlPresent) {
-    throw new ConfigError(
-      "refusing to edit vault-config.md: this vault has _meta/vault-config.yaml, which the gm-apprentice plugin reads instead of vault-config.md, so the panel won't change vault-config.md. Nothing was changed.",
-      { path: yamlPath, campaign },
-    );
+    throw new ConfigError(movedRefusal(what), { path: yamlPath, campaign });
   }
 
   // 3. lstat: ENOENT means the file is never created here; not a regular file (including a

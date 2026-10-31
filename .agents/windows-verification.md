@@ -2550,6 +2550,8 @@ Issue #171. **Mark this OPEN: Linux tests prove the logic only; a mapped drive a
 5. `M:\pick` holds only a moved copy `camp`. Start `serve --admin` with a fresh empty scratch config (setup mode), type `M:\pick` as the vault: setup offers `camp` one folder down. Choose it: the screen shows the step 1 message, and `dir /s /b M:\pick` lists the same files as before (setup wrote nothing).
    *Changed 2026-10-21: the-long-lease already ships `_meta\scriptorium`, so its presence is expected. What matters is that the listing is unchanged.*
 
+*Superseded by C221 after 0.5.0: the refusal it checks was removed. Run C208 only on a 0.5.0 exe.*
+
 ### C212: the PATH option reads the whole stored value: a REG_SZ PATH, no PATH, the size limit, uninstall and an embedded NUL, in the real installer
 
 Issue #117, `docs/decisions/0053-windows-installer.md` section 7. **Mark this OPEN: the structure test pins the source shape and the build proves it compiles, but only the VM can show what Windows stores and reports for a PATH value.** Use a scratch build, a standard (non-administrator) user, and a scratch `SCRIPTORIUM_CONFIG`. Never the real config. The PATH box is under Advanced, so tick it in the GUI. Before and after every step, `reg export HKCU\Environment` and record the kind and length of `Path` and the `PathAdded` value. Restore `Path` after each step.
@@ -2651,6 +2653,58 @@ The publish-v1.17.0 repin, [ADR 0016](../docs/decisions/0016-book-leaves-and-pag
 1. `build c218 --config "S\config.toml"` exits 0.
 2. The session pages' date badges read "11 July 2026", "25 July 2026" and "8 August 2026". `S\out\events\the-choristers-verse.html` has a "Date" header line reading "12 February 2031", and `S\out\locations\maudrys-barrow.html`'s timeline shows "12 February 2031" beside that event. `S\out\sessions\session-01-a-dragon-at-the-fair.html` reads "In-game: 12 February 2031 – 16 June 2031".
 3. `findstr /s /m "2031-02-12 2031-06-16" S\out\*.html S\out\previews.json` finds no file. Re-hash the real config.
+
+### C219: a hiding setting the generator cannot read stops check and build, in the real win-x64 exe
+
+The publish-v1.26.0 repin, [ADR 0005](../docs/decisions/0005-generator-pin.md)'s last addendum. `check` reads a vault's hiding settings with the pin's own reader, which loads the bundled `yaml` package, and serves it the settings file for that one call. **Mark this OPEN: Linux and macOS tests prove the logic only; only the real executable shows that the packaged reader loads and that the served file is found by a Windows path.** Isolate config as in C135, and re-hash the real config before step 1 and after step 4. Use a scratch copy of the-long-lease example vault, registered as campaign `c219` with an output folder `S\out` that does not exist.
+
+1. `check c219 --config "S\config.toml"` exits 0 or 2 with no `config/settings-fault` finding.
+2. In the copy's `_meta\vault-config.md`, rename `exclude_sections:` under `publish:` to `exclude_sectoins:`. `check c219 --config "S\config.toml"` exits 2 with one `config/settings-fault` ERROR reading `publish.exclude_sectoins is not a setting. Did you mean publish.exclude_sections? The build will not run until this is fixed.`
+3. `build c219 --config "S\config.toml"` exits 2 with the same finding, and `S\out` does not exist.
+4. Put the name back and add `  exclude_callouts: "no"` under `publish:`. `check c219 --config "S\config.toml"` reports no `config/settings-fault`. Re-hash the real config.
+
+### C220: the GURPS to-hit data module is not in the executable and no page carries its data, in the real win-x64 exe
+
+The publish-v1.26.0 repin, [ADR 0007](../docs/decisions/0007-rules-content-redaction.md)'s last addendum. **Mark this OPEN: Linux and macOS tests prove the runtime layer only; the packaging layer is checked only on a real executable.** Isolate config as in C135, and re-hash the real config before step 1 and after step 3. Use a scratch copy of `test\fixtures\redaction-gurps-vault` registered as campaign `c220` with its site config.
+
+1. `build c220 --force-check --config "S\config.toml"` exits 0 and prints a `rules-content redaction(s) degraded this build` note naming `gurps-tohit-data`.
+2. `findstr /s /m /c:"gurps-tohit-data" /c:"tohit-calc" S\out\*.html` finds nothing.
+3. `findstr /m /c:"The Basic Set technique (B232)" gm-scriptorium-win-x64.exe` finds nothing. Re-hash the real config.
+
+### C221: a moved vault checks, builds and serves, on a mapped drive, in the real win-x64 exe
+
+[ADR 0071](../docs/decisions/0071-moved-vault-settings.md) sections 1 to 3. Replaces the refusal C208 checks. **Mark this OPEN: Linux and macOS tests prove the logic only; a mapped drive, NTFS and the packaged settings reader are checked only here.** Isolate config as in C135: a scratch `SCRIPTORIUM_CONFIG` and the same path as `--config` (`S\config.toml`). Never the real config, never the real vault, never `N:`. Record `certutil -hashfile %APPDATA%\Scriptorium\config.toml SHA256` before step 1 and after step 5; the two must match. Map a scratch share to a free letter (`M:` below) with `net use`.
+
+Make the moved copies on the build machine, in a scratch folder outside the repository, never inside `examples\` or `test\fixtures\`: `node -e "require('./test/helpers/moved-vault').moveVaultCopy('examples/the-long-lease', process.argv[1])" <scratch>` runs the generator's own move on a copy and leaves it at `<scratch>/vault`. Check that `find <scratch> -type l` prints nothing, then copy the folder across as real files. For the carried copy, register a second such copy in a scratch config there and run `carry <name> --yes` on it with the build under test.
+
+Before each step, record `Get-ChildItem -Recurse -File <vault> | Get-FileHash` for the vault it uses; after the step the list must be identical (check and build never write to a vault).
+
+1. `M:\moved` (moved, not carried), registered as `c221m` with output `S\out-m` (absent). `check c221m --config "S\config.toml"` exits 2 with one `config/folder-map-not-carried` ERROR naming `M:\moved\_meta\scriptorium\vault.config.json` and one `config/pack-setting-not-carried` WARN naming `siteTitle`. Nothing in the output contains `keeps its settings in _meta/vault-config.yaml`. `build c221m --config "S\config.toml"` exits 2 and `S\out-m` still does not exist. `build c221m --no-check --config "S\config.toml"` and `build c221m --force-check --config "S\config.toml"` each exit 3 with one line that begins `campaign "c221m": M:\moved\_meta\scriptorium\vault.config.json still holds settings` and names `folderMap` and `carry c221m`, with no stack trace, and `S\out-m` still does not exist (ADR 0071 section 12).
+2. `M:\carried` (moved and carried), registered as `c221c` with output `S\out-c` (absent). `check c221c --config "S\config.toml"` exits 0 with no ERROR or WARN line. `build c221c --config "S\config.toml"` exits 0 and writes 120 files, and `S\out-c\index.html` contains `The Long Lease`.
+3. `serve c221c --config "S\config.toml"` and open the address it prints in Edge: the landing page shows the title The Long Lease, and Characters lists Queen Hesper. Stop it with Ctrl+C.
+4. `M:\mixed`: a copy of `M:\carried` with the original `_meta\vault-config.md` of the-long-lease copied back beside `vault-config.yaml`, registered as `c221x`. `check c221x --config "S\config.toml"` exits 0 with exactly one WARN, `config/leftover-settings-file`. `build c221x --config "S\config.toml"` exits 0 with 120 files, and `fc /b` finds `index.html` identical to `S\out-c\index.html`.
+5. C208 steps 3 and 4 still hold on `M:\moved`: `init --new-vault` inside it and `remote password` with a config folder inside it both exit 3 with the messages C208 gives, and write nothing. Re-hash the real config.
+
+### C222: the carry moves the pack's settings, with backups outside the vault, in the real win-x64 exe
+
+[ADR 0071](../docs/decisions/0071-moved-vault-settings.md) sections 4 to 6 and 9. **Mark this OPEN: Linux and macOS tests prove the logic only; only the real executable shows that the generator's move loads in the packaged program, starts no program, and writes the backups beside the scratch config on Windows.** Isolate config as in C135, and re-hash the real config before step 1 and after step 6. Use a moved, not carried, copy of the-long-lease made as in C221, at `M:\carry`, registered as `c222`. Take copies of `M:\carry\_meta\vault-config.yaml` and `M:\carry\_meta\scriptorium\vault.config.json` before step 1.
+
+1. `carry c222 --config "S\config.toml"` prints the plan, including `` `siteTitle` moves to `player_site.title`. `` and `` `folderMap` moves to `player_site.folder_map`. ``, and asks `Carry these settings into the vault's settings file? [y/N]:`. Answer `n`: it prints `Nothing was written.` and exits 0, and both files are byte-equal to the copies (`fc /b`).
+2. Run it again and answer `y`. It exits 0, prints `` `siteTitle` moved to `player_site.title`. `` and `` `folderMap` moved to `player_site.folder_map`. ``, then `Backups of the files as they were:` and two paths. Both paths are under the backups folder beside `S\config.toml` (`...\backups\campaign-c222\`), neither is inside `M:\carry`, and they are a `vault-config-*.yaml.bak` and a `vault.config-*.json.bak` byte-equal to the copies taken before step 1.
+3. Throughout steps 1 and 2, no new `gm-scriptorium` process appears in Task Manager and no console window opens. The generator's own tool check must never start the program (ADR 0071 section 9).
+4. `M:\carry\_meta\scriptorium\vault.config.json` holds `{}`. `M:\carry\_meta\vault-config.yaml` holds `title: The Long Lease` and a `folder_map:` with nine entries under `player_site:`, and its hide lists still hold every entry they held before.
+5. `carry c222 --yes --config "S\config.toml"` exits 0 with `There is nothing to carry:` and the pack's path. No new file appears in the backups folder, and the vault's hashes are unchanged.
+6. `check c222 --config "S\config.toml"` exits 0 with no ERROR or WARN line, and `build c222 --config "S\config.toml"` exits 0 with 120 files. On a fresh moved copy registered as `c222b`, `carry c222b --config "S\config.toml" < nul` exits 1 with `carry aborted; nothing written`, and that copy's hashes are unchanged. Re-hash the real config.
+
+### C223: the panel shows a moved vault's settings read-only and carries the pack's settings, in the real win-x64 exe
+
+[ADR 0071](../docs/decisions/0071-moved-vault-settings.md) sections 4 and 8. **Mark this OPEN: Linux tests drive the panel in real Chromium and Firefox from source; only the real executable shows the generator's move running inside the packaged panel, and the backups landing beside the scratch config on Windows.** The rules in "C190 to C205: rules that hold for every desktop-app criterion" apply: a scratch `SCRIPTORIUM_CONFIG` set with `setx`, then sign out and in. Never the real config, never `N:`. Use a moved, not carried, copy of the-long-lease made as in C221, in a local scratch folder, registered as `c223` and chosen in the panel.
+
+1. Open **Title & tagline**. The eyebrow names `_meta/vault-config.yaml`. The site title field is read-only and empty, with the note `No site title is set in the vault's settings file (_meta/vault-config.yaml).` The tagline shows the yaml's tagline, read-only.
+2. The section **Settings the pack still holds** lists what will move, including `siteTitle` and `folderMap`, and has a **Carry these settings** button. Open **vault-config.yaml** in the menu: it shows only a note saying where the settings live, with no edit switch.
+3. Press **Carry these settings**. The screen says `The settings were carried into the vault's settings file.` and lists `Copies of both files as they were:` with two paths, both under the backups folder beside the scratch config and neither inside the vault. No new `gm-scriptorium` process appears in Task Manager while it runs.
+4. After the reload, the site title field shows `The Long Lease`, still read-only, with the note that the title is set in `_meta/vault-config.yaml` and that editing it here arrives in the next update.
+5. Leave the screen and open **Title & tagline** again: the **Settings the pack still holds** section does not appear. `check c223` from a terminal exits 0 with no ERROR or WARN line.
 
 ### C170: a bare `--force` is refused with one line, in the real win-x64 exe
 

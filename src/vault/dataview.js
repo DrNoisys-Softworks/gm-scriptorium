@@ -5,7 +5,7 @@
  * removes dataview blocks from every vault note before the generator reads it.
  *
  * Why: at the pinned generator the text it builds the search index, "Mentioned in" links, recency and
- * the recaps from keeps dataview blocks (the page itself does not; lib/processor.js:475-477 is the
+ * the recaps from keeps dataview blocks (the page itself does not; lib/processor.js:525-527 is the
  * one pattern both would use). Removing them here keeps query text out of all of those.
  *
  * Rules:

@@ -18,7 +18,7 @@ const { makeCampaigns, startPanel, get, post, snapshotFields } = require('./help
  * by observing a started panel. The lists below are written out by hand, not read from the module.
  */
 
-const RESOLVED = ['campaign', 'ctxInfo', 'vaultPath', 'siteSource', 'siteConfigPath', 'packDir', 'writable', 'readOnlyReason'];
+const RESOLVED = ['campaign', 'ctxInfo', 'vaultPath', 'siteSource', 'siteConfigPath', 'packDir', 'writable', 'readOnlyReason', 'settingsLayout'];
 const KEPT = ['previewRoot', 'previewDir', 'previewStamp', 'previewPages', 'variants', 'panelSaves'];
 const RESET = ['vaultArt', 'vaultConfigReview'];
 const PROCESS = [
@@ -107,7 +107,7 @@ test('the keys of a fresh createAdminContext are a subset of the classified fiel
 test('a started panel that has served state, vault-art and a preview carries only classified fields', async (t) => {
   const fx = makeCampaigns(t, ['alpha', 'beta']);
   const h = await startPanel(t, { config: fx.configPath }, 'alpha');
-  assert.equal((await get(h, '/api/state?include=vocab,palette,vaultconfig,previewinfo,vaultconfigeditor,variants')).status, 200);
+  assert.equal((await get(h, '/api/state?include=vocab,palette,vaultconfig,previewinfo,vaultconfigeditor,variants,settings')).status, 200);
   assert.equal((await get(h, '/api/vault-art')).status, 200);
   const built = await post(h, '/api/preview', {});
   assert.equal(built.status, 200, built.text);

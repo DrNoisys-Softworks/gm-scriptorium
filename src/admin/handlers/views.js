@@ -23,6 +23,8 @@ const freshness = require('../freshness');
 const pageroles = require('../pageroles');
 const variants = require('../variants');
 const variantHandlers = require('./variants');
+const carryHandlers = require('./carry');
+const { refreshSettingsLayout } = require('../context');
 
 /*
  * Phase 8 slice S2 (docs/agent-runs/admin-s2-engineering-brief-2026-09-28.md, "GET /api/state" /
@@ -169,6 +171,13 @@ function state(req, res, ctx, { query } = {}) {
   // include response stays byte-identical; only a NEW ?include=variants name adds this key.
   if (include.has('variants')) {
     payload.variants = variants.variantsInfo(ctx);
+  }
+  // Rung 3b: appended last, after variants, so every pre-existing include response stays
+  // byte-identical. Which file the vault keeps its settings in is read from the disk again here,
+  // because gm-apprentice can move a vault's settings while the panel runs.
+  if (include.has('settings')) {
+    payload.settingsLayout = refreshSettingsLayout(ctx);
+    payload.vaultSettings = carryHandlers.settingsView(ctx);
   }
   respond.send(res, 200, respond.adminHeaders({ 'Content-Type': 'application/json; charset=utf-8' }), JSON.stringify(payload));
 }

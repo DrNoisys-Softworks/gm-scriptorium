@@ -208,7 +208,7 @@ for (const browserName of ['chromium', 'firefox']) {
       await page.context().close();
     });
 
-    await t.test('a folder whose settings moved to vault-config.yaml shows the refusal under a heading that never says "not a vault" or "not found"', async () => {
+    await t.test('a folder whose settings moved to vault-config.yaml shows as a vault, and names the yaml as where its settings are', async () => {
       // Its own scratch folder, outside fx.work, so the other subtests' folder listings do not change.
       const moved = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-moved-dom-'));
       try {
@@ -217,14 +217,14 @@ for (const browserName of ['chromium', 'firefox']) {
         const page = await open(1280);
         await toVault(page);
         await typeInto(page, '.su-row .a1-in', moved);
-        await page.waitForFunction(() => /Folder found|Folder not found|isn’t a vault|can’t read/.test(document.getElementById('su-vault-st').textContent));
+        await page.waitForFunction(() => /A gm-apprentice vault|Folder not found|isn’t a vault|can’t read/.test(document.getElementById('su-vault-st').textContent));
         const text = await page.textContent('#su-vault-st');
-        assert.ok(text.includes('Settings this version can’t read'), text);
-        assert.ok(text.includes('This version of GM-Scriptorium can’t read this vault’s settings.'), text);
-        assert.ok(text.includes('keeps its settings in _meta/vault-config.yaml'), text);
+        assert.ok(text.includes('A gm-apprentice vault'), text);
+        assert.ok(text.includes('vault-config.yaml'), text);
+        assert.ok(!text.includes('vault-config.md'), text);
+        assert.ok(!text.includes('can’t read'), text);
         assert.ok(!text.includes('isn’t a vault'), text);
         assert.ok(!text.includes('Not a gm-apprentice vault'), text);
-        assert.ok(!text.includes('Can’t find that folder'), text);
         assert.ok(!text.includes('Folder not found'), text);
         await page.context().close();
       } finally {

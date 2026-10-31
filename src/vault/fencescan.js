@@ -9,13 +9,15 @@ const { toRelativePosix } = require('../util/paths');
  * ADR 0034 / FR-FM-04. The guard's own walk, independent of and wider than the census walk
  * (src/vault/index.js), the check's own resolution walk, and every walk publishset.js mirrors:
  * every module.exports.read call below is a proven SUPERSET of the seven generator parse sites
- * this pin's build() can reach (see the ADR's walk-set table, sourced from lib/scanner.js:105-122,
- * lib/scanner.js:374-402, lib/scanner.js:410-448, lib/config.js:409-418, lib/manifest.js:92-96,
- * lib/manifest.js:33-34, and lib/build.js:1598-1599's own repeat of the first three via
+ * this pin's build() can reach (see the ADR's walk-set table, sourced from lib/scanner.js:106-123,
+ * lib/scanner.js:378-406, lib/scanner.js:415-455, lib/settings/legacy.js:241-252 (the settings file,
+ * lib/config.js up to publish-v1.21.0), lib/manifest.js:92-96,
+ * lib/manifest.js:33-34, and lib/build.js:1907-1908's own repeat of the first three via
  * manifest-cli.js). All of it deliberately: node_modules, every excludeDirs entry,
  * _meta/_Templates/_inbox/_publish, and dotfiles are all included, because
- * scanAllNotes (run by every build via pairHubs, lib/build.js:547) ignores excludeDirs and reads any
- * `.md` (any case) carrying an aliases:/gm_aliases: line or a session type: line, and
+ * scanAllNotes (run by every build via pairHubs, lib/build.js:754-755) ignores excludeDirs and reads any
+ * `.md` (any case) whose first path segment is _meta (any depth under it), or carrying an aliases:/gm_aliases:/withheld:/title:/publish:
+ * line, a meta or template type: line or a session type: line (from publish-v1.26.0), and
  * scanVaultReport itself descends into node_modules and reads dotfiles and file symlinks.
  *
  * Only directories whose OWN name starts with "." are skipped (Obsidian's .obsidian, git's .git,

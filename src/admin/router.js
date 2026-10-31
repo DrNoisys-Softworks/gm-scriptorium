@@ -20,6 +20,7 @@ const updateHandlers = require('./handlers/updates');
 const desktopHandlers = require('./handlers/desktop');
 const launchHandlers = require('./handlers/launch');
 const folderHandlers = require('./handlers/folders');
+const carryHandlers = require('./handlers/carry');
 const setupmode = require('./setupmode');
 const campaignstate = require('./campaignstate');
 const { ADMIN_COOKIE, PREVIEW_COOKIE } = require('../remote/sessions');
@@ -116,6 +117,8 @@ const ADMIN_ROUTES = Object.freeze([
   // ADR 0057 section 8: the desktop app's ports card. The state, and the save (which restarts the panel on the new ports).
   { method: 'GET', path: '/api/desktop', auth: true, handler: desktopHandlers.state },
   { method: 'POST', path: '/api/desktop/ports', auth: true, audit: true, handler: desktopHandlers.savePorts },
+  // Rung 3b: carry a pack's leftover settings into a moved vault's _meta/vault-config.yaml (the panel's `carry`).
+  { method: 'POST', path: '/api/settings/carry', auth: true, audit: true, handler: carryHandlers.carry },
 ]);
 
 /**

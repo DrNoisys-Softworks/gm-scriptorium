@@ -170,7 +170,7 @@ function captureConsole() {
 
 /*
  * FR-DEP-11: the pinned generator emits three render-error shapes
- * (lib/build.js:1239,1276,1291). "roster" is checked before the generic
+ * (lib/build.js:1513,1276,1291). "roster" is checked before the generic
  * "page" pattern, because "ERROR rendering roster <path>:" also matches
  * "ERROR rendering (\S+):" (it would otherwise classify as a page whose
  * outputPath is literally "roster").
@@ -205,7 +205,8 @@ function classifyGeneratorLog(captured) {
 }
 
 /**
- * Calls gm-apprentice-publish's build({configPath}) with the copyFileSync
+ * Calls gm-apprentice-publish's build({configPath}) (plus outputDirOverride when the staged file
+ * has no outputDir: a vault on _meta/vault-config.yaml, ADR 0071) with the copyFileSync
  * shim and a scoped console capture installed only for the duration of
  * this call, restored in a finally either way.
  *
@@ -213,7 +214,7 @@ function classifyGeneratorLog(captured) {
  * Up to publish-v1.11.44 it loaded the config with `require(resolvedConfigPath)`, which Node
  * caches; the resolved config path is keyed on a per-build staging directory
  * (docs/decisions/0022-gm-admin-panel.md, "Preview builds"), so each call's require.cache entry
- * was unique. From publish-v1.12.0 it reads the file from disk on every call (lib/build.js:96,
+ * was unique. From publish-v1.12.0 it reads the file from disk on every call (lib/build.js:207,
  * loadVaultConfig), so there is no cache entry at all. Either way this MAY be called more than
  * once per process. Phase 8 slice S2's NFR02 test (test/admin-preview.test.js) is the evidence: a
  * third in-process preview build, with a theme change and a label change made between builds,
@@ -236,7 +237,7 @@ function classifyGeneratorLog(captured) {
  * the inner level, closing #228/#236 upstream. See docs/COLLABORATING.md
  * and the ADR 0013 addendum.
  */
-function runGeneratorBuild(configPath) {
+function runGeneratorBuild(configPath, { outputDirOverride = null } = {}) {
   const restoreShim = installCopyFileShim();
   const restoreReadShim = installVaultReadShim(stagedVaultRoot(configPath), READ_TRANSFORMS_FOR_BUILD);
   const restoreSegmenterShim = installSegmenterShim();
@@ -252,7 +253,8 @@ function runGeneratorBuild(configPath) {
     fmguard.verifyFrontmatterEngineGuard(pinned.parseManifest, pinned.generatorGrayMatter);
     // eslint-disable-next-line global-require
     const { build } = require('gm-apprentice-publish');
-    build({ configPath });
+    // ADR 0071: on a moved vault the output folder is not in the staged file (src/build/stage.js stageConfig).
+    build(outputDirOverride ? { configPath, outputDirOverride } : { configPath });
   } catch (err) {
     error = err;
   } finally {

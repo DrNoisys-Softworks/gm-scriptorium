@@ -14,30 +14,19 @@ const { createAdminContext } = require('../src/admin/context');
 const preview = require('../src/admin/preview');
 const { runServeCommand } = require('../src/cli/serve');
 const { startLocalListener } = require('../src/serve/server');
+const { moveVaultCopy } = require('./helpers/moved-vault');
 const { makeCampaigns, startPanel, post } = require('./helpers/campaigns-panel');
 
 /*
  * Issue #171, the panel. A vault can be moved while the panel is running, so each of these opens
  * the panel (or builds a context) on an OLD vault first, then plants or renames the settings file.
- *   (i) the preview and the check refuse after a .yaml appears, and the preview folder is untouched;
- *   (j) the tagline save refuses in the mixed state, writing no backup and no temp file;
- *   (k) switching to a campaign whose vault is moved answers with the refusal and changes nothing.
+ *   (i) the preview and the check exit 0 on a vault the pin's move has run on;
+ *   (j) the tagline save refuses in the mixed state, writing no backup and no temp file
+ *       (editing a moved vault comes in a later task);
+ *   (k) switching to a campaign whose vault is moved succeeds.
  * Expected messages are literals. The socket helpers are copied from
  * test/admin-vault-config-http.test.js (house rule: no requiring across test files).
  */
-
-const ISSUE = 'https://github.com/DrNoisys-Softworks/gm-scriptorium/issues/171';
-
-function refusalText(campaign, vault, { leftover }) {
-  return (
-    `campaign "${campaign}": ${vault} keeps its settings in _meta/vault-config.yaml, the file the gm-apprentice plugin's update moves a vault's settings to. ` +
-    (leftover ? 'Its _meta/vault-config.md is a leftover that gm-apprentice ignores. ' : '') +
-    'This version of GM-Scriptorium reads only _meta/vault-config.md, so it won\'t check, build or serve this campaign. ' +
-    'Nothing in the vault was read or changed. ' +
-    'Don\'t create, copy or edit a vault-config.md to get round this. ' +
-    `Support comes in a later GM-Scriptorium release; to follow it, see ${ISSUE}`
-  );
-}
 
 // === (i) preview and check after a plant, in process ========================================
 
@@ -63,48 +52,35 @@ function assertTreesByteIdentical(dirA, dirB) {
   }
 }
 
-test('(i) after a vault-config.yaml appears, the preview build and the check both refuse, and the preview folder stays byte-identical', () => {
+test('(i) on a vault the move has run on, the preview build and the check exit 0, and the preview holds the yaml\'s title', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-moved-panel-'));
   let ctx = null;
-  let snap = null;
   try {
-    const vaultPath = path.join(root, 'vocab-vault');
-    fs.cpSync(path.join(__dirname, 'fixtures', 'vocab-vault'), vaultPath, { recursive: true });
+    const pack = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'vocab-vault', '_meta', 'scriptorium', 'vault.config.json'), 'utf8'));
+    pack.siteTitle = 'Moved Panel Title';
+    // The pin's own move, folding the site file in: the title and folder map now live in the yaml.
+    const moved = moveVaultCopy(path.join(__dirname, 'fixtures', 'vocab-vault'), root, { siteConfig: pack });
+    const vaultPath = moved.vaultPath;
+    fs.rmSync(path.join(vaultPath, '_meta', 'scriptorium'), { recursive: true, force: true });
+    assert.equal(fs.existsSync(path.join(vaultPath, '_meta', 'vault-config.yaml')), true);
+    assert.equal(fs.existsSync(path.join(vaultPath, '_meta', 'vault-config.md')), false);
+    const siteFile = path.join(root, 'site-left.json');
+    fs.writeFileSync(siteFile, JSON.stringify(moved.siteConfig, null, 2));
     const configPath = path.join(root, 'config.toml');
-    fs.writeFileSync(configPath, ['config_version = 1', 'default_campaign = "vocab"', '', '[campaigns.vocab]', `vault = '${vaultPath}'`, `output = '${root}/out'`, ''].join('\n'));
+    fs.writeFileSync(configPath, ['config_version = 1', 'default_campaign = "vocab"', '', '[campaigns.vocab]', `vault = '${vaultPath}'`, `site_config = '${siteFile}'`, `output = '${root}/out'`, ''].join('\n'));
     const ctxInfo = resolveCampaignContext({ config: configPath }, 'vocab');
     const { vaultPath: resolved, site } = resolveVaultSite(ctxInfo);
     ctx = createAdminContext({ ctxInfo, vaultPath: resolved, site, token: 'TOK' });
     preview.ensurePreviewRoot(ctx);
 
-    const good = preview.runPreviewBuild(ctx);
-    assert.equal(good.exitCode, 0, good.human);
-    snap = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-moved-panel-snap-'));
-    fs.cpSync(ctx.previewDir, snap, { recursive: true });
+    const built = preview.runPreviewBuild(ctx);
+    assert.equal(built.exitCode, 0, built.human);
+    assert.match(fs.readFileSync(path.join(ctx.previewDir, 'index.html'), 'utf8'), /<title>[^<]*Moved Panel Title/);
 
-    fs.copyFileSync(path.join(vaultPath, '_meta', 'vault-config.md'), path.join(vaultPath, '_meta', 'vault-config.yaml'));
-    const expected = refusalText('vocab', vaultPath, { leftover: true });
-
-    assert.throws(
-      () => preview.runPreviewBuild(ctx),
-      (err) => {
-        assert.equal(err.reason, 'settings-moved');
-        assert.equal(err.message, expected);
-        return true;
-      },
-    );
-    assert.throws(
-      () => runCheckForContextWithContext(ctx.ctxInfo, {}, {}),
-      (err) => {
-        assert.equal(err.reason, 'settings-moved');
-        assert.equal(err.message, expected);
-        return true;
-      },
-    );
-    assertTreesByteIdentical(ctx.previewDir, snap);
+    const checked = runCheckForContextWithContext(ctx.ctxInfo, {}, {});
+    assert.equal(checked.exitCode, 0, checked.human);
   } finally {
     if (ctx) preview.removePreviewRoot(ctx);
-    if (snap) fs.rmSync(snap, { recursive: true, force: true });
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
@@ -209,7 +185,7 @@ test('(j) a tagline save in the mixed state answers 422 unsupported, with the fi
     assert.deepEqual(JSON.parse(res.body.toString('utf8')), {
       error: 'unsupported',
       message:
-        'refusing to edit vault-config.md: this vault has _meta/vault-config.yaml, which the gm-apprentice plugin reads instead of vault-config.md, so the panel won\'t change vault-config.md. Nothing was changed.',
+        "This campaign's tagline is set in the vault's settings file (_meta/vault-config.yaml). Editing it here arrives in the next update; change it in that file for now.",
     });
     assert.equal(fs.readFileSync(path.join(vaultPath, '_meta', 'vault-config.md'), 'utf8'), MD_TEXT);
     assert.ok(!fs.existsSync(backupDir) || fs.readdirSync(backupDir).length === 0, 'no backup was written');
@@ -222,12 +198,11 @@ test('(j) a tagline save in the mixed state answers 422 unsupported, with the fi
 
 // === (k) the campaign switch ================================================================
 
-test('(k) switching to a campaign whose vault moved answers 422 with the refusal and leaves the panel on the first campaign', async (t) => {
+test('(k) switching to a campaign whose vault moved answers 200 and puts the panel on that campaign', async (t) => {
   const fx = makeCampaigns(t, ['alpha', 'beta']);
   fs.renameSync(path.join(fx.vaults.beta, '_meta', 'vault-config.md'), path.join(fx.vaults.beta, '_meta', 'vault-config.yaml'));
   const h = await startPanel(t, { config: fx.configPath }, 'alpha');
   const res = await post(h, '/api/campaigns/switch', { name: 'beta' }, { campaign: 'alpha' });
-  assert.equal(res.status, 422);
-  assert.equal(res.json.message, refusalText('beta', fx.vaults.beta, { leftover: false }));
-  assert.equal(h.ctx.campaign, 'alpha');
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  assert.equal(h.ctx.campaign, 'beta');
 });

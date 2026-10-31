@@ -118,6 +118,7 @@
     if (item.soon) a.classList.add('is-soon');
     a.appendChild(icon(item.icon));
     var label = el('span');
+    label.setAttribute('data-nav-label', opts.short ? 'short' : 'label');
     setText(label, opts.short ? item.short : item.label);
     a.appendChild(label);
 
@@ -587,19 +588,51 @@
     }
   }
 
+  // Rung 3b: which settings layout the nav text was last drawn for (NV.itemFor). null until the state loads.
+  var navLayout = null;
+
+  /** Redraws the nav labels and screen headers of the screens whose text depends on the layout. */
+  function applyLayoutText(layout) {
+    if (layout === navLayout) return;
+    navLayout = layout;
+    ['title', 'vault-config'].forEach(function (id) {
+      var item = NV.itemFor(id, layout);
+      if (!item) return;
+      var labels = document.querySelectorAll('a[data-nav="' + id + '"] [data-nav-label]');
+      for (var i = 0; i < labels.length; i++) {
+        setText(labels[i], labels[i].getAttribute('data-nav-label') === 'short' ? item.short : item.label);
+      }
+      var head = screens[id] && screens[id].querySelector('.r3-head-t');
+      if (head) {
+        var eyebrow = head.querySelector('.a1-eyebrow');
+        var h1 = head.querySelector('h1');
+        var lede = head.querySelector('.a1-lede');
+        if (eyebrow) setText(eyebrow, item.eyebrow || item.group);
+        if (h1) setText(h1, item.label);
+        if (lede) setText(lede, item.lede || '');
+      }
+    });
+    var route = store.get().route;
+    if (route && (route.screen === 'title' || route.screen === 'vault-config')) showLabel(NV.itemFor(route.screen, layout));
+  }
+
+  function showLabel(item) {
+    var label = document.querySelector('[data-role="current-label"]');
+    if (label) setText(label, item.label);
+    document.title = item.label + ' · Scriptorium admin panel';
+  }
+
   /** show() never makes a request (FR02/FR04): every screen already exists in the DOM. */
   function show(route) {
     // Issue #109: 'notfound' is a frame state, not a nav item.
-    var item = route.screen === 'notfound' ? { id: 'notfound', label: 'Page not found' } : NV.item(route.screen) || NV.item('overview');
+    var item = route.screen === 'notfound' ? { id: 'notfound', label: 'Page not found' } : NV.itemFor(route.screen, navLayout) || NV.item('overview');
 
     Object.keys(screens).forEach(function (id) {
       screens[id].hidden = id !== item.id;
     });
     updateNavCurrent(item.id);
 
-    var label = document.querySelector('[data-role="current-label"]');
-    if (label) setText(label, item.label);
-    document.title = item.label + ' · Scriptorium admin panel';
+    showLabel(item);
 
     setSheetOpen(false);
 
@@ -993,6 +1026,7 @@
     layout();
     store.subscribe(function (next, prev) {
       updateBrand(session, next.state);
+      if (next.state !== prev.state && next.state && 'settingsLayout' in next.state) applyLayoutText(next.state.settingsLayout);
       if (next.pending !== prev.pending) updateNavPending(next.pending);
       if (next.busy !== prev.busy) updateBusyStatus(next.busy);
       if (next.vcEditing !== prev.vcEditing) updateNavGuard(session.writable, next.vcEditing);
