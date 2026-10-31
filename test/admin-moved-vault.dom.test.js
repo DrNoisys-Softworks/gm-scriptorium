@@ -60,8 +60,6 @@ const TITLE_MOVED =
   "This campaign's title is set in the vault's settings file (_meta/vault-config.yaml). Editing it here arrives in the next update; change it in that file for now.";
 const TAGLINE_MOVED =
   "This vault keeps its tagline in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit it there.";
-const SETTINGS_MOVED =
-  "This vault keeps its settings in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit them there.";
 const NO_TITLE = "No site title is set in the vault's settings file (_meta/vault-config.yaml).";
 const SAMPLE_TAGLINE = 'Three hundred years ago a queen rented this valley from a dragon. At midsummer the dragon came back for the rent.';
 
@@ -207,13 +205,12 @@ for (const browserName of ['chromium', 'firefox']) {
         await page.context().close();
       });
 
-      await t.test('the vault-config editor names the yaml, shows the refusal and offers no way to edit', async () => {
+      await t.test('the vault-config editor names the yaml and the vault-config.yaml screen shows its unlock', async () => {
         const { page } = await openPage();
         await gotoScreen(page, 'vault-config');
         const screen = '[data-screen="vault-config"]';
-        await page.waitForSelector(`${screen} [data-part="moved-note"]`);
-        assert.equal((await texts(page, `${screen} [data-part="moved-note"]`)).join('|'), SETTINGS_MOVED);
-        assert.equal(await page.$$eval(`${screen} .vc-sw, ${screen} [role="switch"]`, (els) => els.length), 0, 'no edit switch');
+        await page.waitForSelector(`${screen} .vc-sw[role="switch"]`);
+        assert.equal(await page.isDisabled(`${screen} .vc-sw[role="switch"]`), false, 'the unlock can be used');
         assert.equal((await texts(page, `${screen} .a1-eyebrow`))[0], '_meta/vault-config.yaml');
         assert.equal((await texts(page, `${screen} h1`))[0], 'vault-config.yaml');
         assert.equal((await texts(page, `${screen} .a1-lede`))[0], MOVED_VC_LEDE);

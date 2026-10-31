@@ -29,6 +29,8 @@ const TAGLINE_MOVED =
 const SETTINGS_MOVED =
   "This vault keeps its settings in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit them there.";
 const NO_TITLE = "No site title is set in the vault's settings file (_meta/vault-config.yaml).";
+const MOVED_SINCE_LOADED =
+  "This vault's settings moved to _meta/vault-config.yaml after the page loaded. Nothing was saved. Reload to edit them there.";
 const SAMPLE_TAGLINE = 'Three hundred years ago a queen rented this valley from a dragon. At midsummer the dragon came back for the rent.';
 const CHANGED =
   "The pack or the vault's settings file changed since these settings were shown. Nothing was written. Look at them again before carrying.";
@@ -185,14 +187,15 @@ test('a title save on a moved vault answers 409 settings-moved, dry run or not, 
   assert.equal(h.ctx.panelSaves || 0, 0);
 });
 
-test('the tagline and the settings editor on a moved vault are refused with the same sentence, naming the tagline or the settings', async (t) => {
+test('the settings editor opens on a moved vault, and md-named saves there answer 409 changed', async (t) => {
   const fx = movedCampaign(t);
   const h = await startPanel(t, { config: fx.configPath }, 'lease');
   const state = (await get(h, '/api/state?include=vaultconfig,vaultconfigeditor')).json;
   assert.equal(state.vaultConfigFile.editable, false);
   assert.equal(state.vaultConfigFile.reason, TAGLINE_MOVED);
-  assert.equal(state.vaultConfigEditor.canEdit, false);
-  assert.equal(state.vaultConfigEditor.reason, SETTINGS_MOVED);
+  assert.equal(state.vaultConfigEditor.canEdit, true);
+  assert.equal(state.vaultConfigEditor.file, 'vault-config.yaml');
+  assert.equal(state.vaultConfigEditor.reason, null);
   const before = snapshot(fx.vaultPath);
 
   const tagline = await post(h, '/api/vault-config/tagline', { tagline: 'New words', baseSha256: 'a'.repeat(64), dryRun: false });
@@ -200,8 +203,8 @@ test('the tagline and the settings editor on a moved vault are refused with the 
   assert.deepEqual(tagline.json, { error: 'unsupported', message: TAGLINE_MOVED });
   for (const [route, extra] of [['/api/vault-config/text', { frontmatterText: 'x: 1' }], ['/api/vault-config/fields', { set: { 'publish.landing.max_npcs': 3 } }], ['/api/vault-config/restore', { backupId: 'x' }]]) {
     const res = await post(h, route, { ...extra, baseSha256: 'a'.repeat(64), dryRun: true });
-    assert.equal(res.status, 422, `${route}: ${res.text}`);
-    assert.deepEqual(res.json, { error: 'unsupported', message: SETTINGS_MOVED }, route);
+    assert.equal(res.status, 409, `${route}: ${res.text}`);
+    assert.deepEqual(res.json, { error: 'changed', message: MOVED_SINCE_LOADED }, route);
   }
 
   assert.deepEqual(snapshot(fx.vaultPath), before);
