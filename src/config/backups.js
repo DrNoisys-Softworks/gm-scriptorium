@@ -397,4 +397,5 @@ module.exports = {
   backupThenPrune,
   listBackups,
   readBackup,
+  takenAtFor,
 };

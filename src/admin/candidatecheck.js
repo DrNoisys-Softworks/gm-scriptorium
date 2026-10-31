@@ -187,6 +187,25 @@ function computePublishDiff(ctx, target, candidateBytes) {
   };
 }
 
+const REASON_ORDER = Object.freeze(['privacy', 'new-errors', 'check-did-not-run', 'current-unreadable']);
+
+/**
+ * Why a reviewed edit needs the "Save anyway" tick, in a fixed order. Shared by both settings
+ * editors. `publishDiff` null means the review could not compare what the site would publish, which
+ * counts as the check not having run.
+ *
+ * @param {{ effects: object[], check: object, curData: object|null, publishDiff: object|null }} opts
+ * @returns {string[]}
+ */
+function computeReasons({ effects, check, curData, publishDiff }) {
+  const present = new Set();
+  if (effects.some((e) => e.level === 'bad')) present.add('privacy');
+  if (check.ran && check.newErrorCount > 0) present.add('new-errors');
+  if (!check.ran || publishDiff === null) present.add('check-did-not-run');
+  if (curData === null) present.add('current-unreadable');
+  return REASON_ORDER.filter((r) => present.has(r));
+}
+
 /**
  * @param {object} ctx an admin context (only `ctx.vaultPath` and `ctx.ctxInfo` are read)
  * @param {{ candidateBytes: Buffer, withCheck: boolean, targetRel?: string }} opts `targetRel` is
@@ -279,4 +298,5 @@ module.exports = {
   redact,
   diffFindings,
   runReview,
+  computeReasons,
 };

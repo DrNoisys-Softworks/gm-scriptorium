@@ -112,7 +112,7 @@ test('only the facade and the plan module name planSettingsText', () => {
   assert.deepEqual(users.sort(), allowed.sort());
 });
 
-test('graph walk: build, check, init and carry never reach the writer; serve-admin does (positive control)', { todo: 'serve-admin reaches the writer once the handlers exist' }, () => {
+test('graph walk: build, check, init and carry never reach the writer; serve-admin does (positive control)', () => {
   for (const entry of ['build.js', 'check.js', 'init.js', 'carry.js']) {
     const file = path.join(ROOT, 'src', 'cli', entry);
     assert.ok(fs.existsSync(file), `src/cli/${entry} must exist`);
