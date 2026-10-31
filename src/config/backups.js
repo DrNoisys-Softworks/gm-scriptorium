@@ -16,6 +16,24 @@ const { BACKUPS_DIRNAME, campaignSegment } = require('./machinedir');
 
 const BACKUP_KEEP = 20;
 const BACKUP_NAME_RE = /^vault-config-\d{8}T\d{9}Z-[0-9a-f]{6}\.md\.bak$/;
+const YAML_BACKUP_NAME_RE = /^vault-config-\d{8}T\d{9}Z-[0-9a-f]{6}\.yaml\.bak$/;
+
+/** The name pattern of each kind of copy. Labelled copies and .json.bak copies match neither. */
+const KIND_RES = Object.freeze({ md: BACKUP_NAME_RE, yaml: YAML_BACKUP_NAME_RE });
+
+/** 'md' or 'yaml' for a name of that kind of copy, else null. */
+function backupKindOf(id) {
+  if (typeof id !== 'string') return null;
+  if (BACKUP_NAME_RE.test(id)) return 'md';
+  if (YAML_BACKUP_NAME_RE.test(id)) return 'yaml';
+  return null;
+}
+
+function kindRe(kind) {
+  const re = KIND_RES[kind];
+  if (!re) throw new BackupError(`unknown backup kind "${kind}"`);
+  return re;
+}
 
 /** V1e-9 (SD-93): readBackup's own size cap, independent of JSON_BODY_CAP (the whole file, not JSON). */
 const BACKUP_MAX_BYTES = 4194304;
@@ -60,8 +78,9 @@ function stampFor(now) {
 }
 
 /**
- * The files writeBackup will keep a copy of. The panel's restore list (BACKUP_NAME_RE) still lists
- * only vault-config.md; the carry keeps the yaml and the pack's vault.config.json beside them.
+ * The files writeBackup will keep a copy of. The restore list and the prune keep copies of
+ * vault-config.md and of vault-config.yaml apart (kind); the pack's vault.config.json copies are
+ * kept but neither listed nor pruned.
  * The carry's copy of a leftover vault-config.md it removes carries the label "leftover", so it is
  * neither listed nor pruned with the panel's own saves.
  */
@@ -153,9 +172,11 @@ function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now, f
  * never counted), sorted by name descending (the stamp sorts lexically = chronologically), and
  * unlinks anything beyond `keep`, each removal in its own try/catch.
  *
- * @param {{ machineDir: string, campaign: string|null, keep?: number }} opts
+ * @param {{ machineDir: string, campaign: string|null, keep?: number, kind?: 'md'|'yaml' }} opts
+ *   only copies of `kind` are counted and removed
  */
-function pruneBackups({ machineDir, campaign, keep = BACKUP_KEEP }) {
+function pruneBackups({ machineDir, campaign, keep = BACKUP_KEEP, kind = 'md' }) {
+  const re = kindRe(kind);
   const dir = backupDirFor(machineDir, campaign);
   let entries;
   try {
@@ -166,7 +187,7 @@ function pruneBackups({ machineDir, campaign, keep = BACKUP_KEEP }) {
 
   const backups = [];
   for (const name of entries) {
-    if (!BACKUP_NAME_RE.test(name)) continue;
+    if (!re.test(name)) continue;
     let st;
     try {
       st = fs.lstatSync(path.join(dir, name));
@@ -195,7 +216,7 @@ function pruneBackups({ machineDir, campaign, keep = BACKUP_KEEP }) {
 function backupThenPrune(opts) {
   const result = writeBackup(opts);
   try {
-    pruneBackups({ machineDir: opts.machineDir, campaign: opts.campaign });
+    pruneBackups({ machineDir: opts.machineDir, campaign: opts.campaign, kind: opts.file === 'vault-config.yaml' ? 'yaml' : 'md' });
   } catch {
     // swallowed: pruneBackups itself never throws, but this stays defensive (same pattern).
   }
@@ -225,7 +246,8 @@ function takenAtFor(name) {
  * @returns {{ ok: true, dir: string, items: { id: string, takenAt: string, size: number }[] } |
  *   { ok: false, reason: string }}
  */
-function listBackups({ machineDir, campaign, vaultPath }) {
+function listBackups({ machineDir, campaign, vaultPath, kind = 'md' }) {
+  const re = kindRe(kind);
   const backupsDir = path.join(machineDir, BACKUPS_DIRNAME);
   const segmentDir = backupDirFor(machineDir, campaign);
   const segment = campaignSegment(campaign);
@@ -286,7 +308,7 @@ function listBackups({ machineDir, campaign, vaultPath }) {
 
   const items = [];
   for (const name of entries) {
-    if (!BACKUP_NAME_RE.test(name)) continue;
+    if (!re.test(name)) continue;
     let st;
     try {
       st = fs.lstatSync(path.join(segmentDir, name));
@@ -311,15 +333,15 @@ function listBackups({ machineDir, campaign, vaultPath }) {
  * @throws {BackupTooLargeError} the file is over BACKUP_MAX_BYTES
  * @throws {BackupError} any other read failure
  */
-function readBackup({ machineDir, campaign, vaultPath, id }) {
-  if (typeof id !== 'string' || !BACKUP_NAME_RE.test(id)) {
+function readBackup({ machineDir, campaign, vaultPath, id, kind = 'md' }) {
+  if (typeof id !== 'string' || !kindRe(kind).test(id)) {
     throw new BackupNotListedError('That backup is not in the list. Reload the backups.');
   }
   // Through module.exports (self-reference), not the bare local function: a test can inject a
   // stale listing here deterministically, to simulate a backup swapped to a symlink in the
   // narrow window between this very re-check and the fs.openSync below (the TOCTOU O_NOFOLLOW
   // exists for).
-  const list = module.exports.listBackups({ machineDir, campaign, vaultPath });
+  const list = module.exports.listBackups({ machineDir, campaign, vaultPath, kind });
   if (!list.ok || !list.items.some((i) => i.id === id)) {
     throw new BackupNotListedError('That backup is not in the list. Reload the backups.');
   }
@@ -364,6 +386,8 @@ module.exports = {
   BACKUP_KEEP,
   BACKUP_MAX_BYTES,
   BACKUP_NAME_RE,
+  YAML_BACKUP_NAME_RE,
+  backupKindOf,
   BackupError,
   BackupNotListedError,
   BackupTooLargeError,
