@@ -22,13 +22,12 @@ const { checkTarget } = require('../src/vault/vaultconfigwrite');
 
 const SAMPLE = path.join(__dirname, '..', 'examples', 'the-long-lease');
 
-const TITLE_MOVED =
-  "This campaign's title is set in the vault's settings file (_meta/vault-config.yaml). Editing it here arrives in the next update; change it in that file for now.";
 const TAGLINE_MOVED =
   "This vault keeps its tagline in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit it there.";
 const SETTINGS_MOVED =
   "This vault keeps its settings in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit them there.";
-const NO_TITLE = "No site title is set in the vault's settings file (_meta/vault-config.yaml).";
+const TITLE_SAVED_NOTE = "Saved in the vault's settings file, _meta/vault-config.yaml.";
+const NO_TITLE_NOTE = 'No site title is set in _meta/vault-config.yaml yet. Saving one adds it there.';
 const MOVED_SINCE_LOADED =
   "This vault's settings moved to _meta/vault-config.yaml after the page loaded. Nothing was saved. Reload to edit them there.";
 const SAMPLE_TAGLINE = 'Three hundred years ago a queen rented this valley from a dragon. At midsummer the dragon came back for the rent.';
@@ -120,7 +119,17 @@ test('state: a moved vault reports settingsLayout "new", no title in its setting
   const res = await get(h, '/api/state?include=settings');
   assert.equal(res.status, 200, res.text);
   assert.equal(res.json.settingsLayout, 'new');
-  assert.deepEqual(res.json.vaultSettings, { file: '_meta/vault-config.yaml', title: null, titleNote: NO_TITLE, tagline: SAMPLE_TAGLINE, error: null });
+  assert.deepEqual(res.json.vaultSettings, {
+    file: '_meta/vault-config.yaml',
+    sha256: sha(fs.readFileSync(fx.yaml)),
+    title: null,
+    titleNote: NO_TITLE_NOTE,
+    tagline: SAMPLE_TAGLINE,
+    editable: true,
+    reason: null,
+    backupDir: fx.backupDirNamed,
+    error: null,
+  });
   assert.equal(h.ctx.settingsLayout, 'new');
 });
 
@@ -129,7 +138,17 @@ test('state: a moved vault whose settings file sets the title shows that title, 
   const h = await startPanel(t, { config: fx.configPath }, 'lease');
   const res = await get(h, '/api/state?include=settings');
   assert.equal(res.json.settingsLayout, 'new');
-  assert.deepEqual(res.json.vaultSettings, { file: '_meta/vault-config.yaml', title: 'The Long Lease', titleNote: TITLE_MOVED, tagline: SAMPLE_TAGLINE, error: null });
+  assert.deepEqual(res.json.vaultSettings, {
+    file: '_meta/vault-config.yaml',
+    sha256: sha(fs.readFileSync(fx.yaml)),
+    title: 'The Long Lease',
+    titleNote: TITLE_SAVED_NOTE,
+    tagline: SAMPLE_TAGLINE,
+    editable: true,
+    reason: null,
+    backupDir: fx.backupDirNamed,
+    error: null,
+  });
 });
 
 test('state: an old-layout vault reports settingsLayout "legacy" and no vault settings', async (t) => {
@@ -174,14 +193,14 @@ test('switch: the moved campaign arrives with settingsLayout "new" and the old o
 
 // === edits the panel can no longer make =======================================================
 
-test('a title save on a moved vault answers 409 settings-moved, dry run or not, and the pack is unchanged', async (t) => {
+test('a title save to the pack of a moved vault answers 409 changed, dry run or not, and the pack is unchanged', async (t) => {
   const fx = movedCampaign(t);
   const h = await startPanel(t, { config: fx.configPath }, 'lease');
   const before = fs.readFileSync(fx.pack);
   for (const dryRun of [true, false]) {
     const res = await post(h, '/api/pack/settings', { siteTitle: 'A New Name', baseSha256: sha(before), dryRun });
     assert.equal(res.status, 409, res.text);
-    assert.deepEqual(res.json, { error: 'settings-moved', message: TITLE_MOVED });
+    assert.deepEqual(res.json, { error: 'changed', message: MOVED_SINCE_LOADED });
   }
   assert.deepEqual(fs.readFileSync(fx.pack), before);
   assert.equal(h.ctx.panelSaves || 0, 0);
@@ -199,8 +218,8 @@ test('the settings editor opens on a moved vault, and md-named saves there answe
   const before = snapshot(fx.vaultPath);
 
   const tagline = await post(h, '/api/vault-config/tagline', { tagline: 'New words', baseSha256: 'a'.repeat(64), dryRun: false });
-  assert.equal(tagline.status, 422, tagline.text);
-  assert.deepEqual(tagline.json, { error: 'unsupported', message: TAGLINE_MOVED });
+  assert.equal(tagline.status, 409, tagline.text);
+  assert.deepEqual(tagline.json, { error: 'changed', message: MOVED_SINCE_LOADED });
   for (const [route, extra] of [['/api/vault-config/text', { frontmatterText: 'x: 1' }], ['/api/vault-config/fields', { set: { 'publish.landing.max_npcs': 3 } }], ['/api/vault-config/restore', { backupId: 'x' }]]) {
     const res = await post(h, route, { ...extra, baseSha256: 'a'.repeat(64), dryRun: true });
     assert.equal(res.status, 409, `${route}: ${res.text}`);
@@ -259,7 +278,17 @@ test('carry: the yaml takes the title, the pack is stripped, both are backed up 
 
   const state = (await get(h, '/api/state?include=settings')).json;
   assert.equal(state.settingsLayout, 'new');
-  assert.deepEqual(state.vaultSettings, { file: '_meta/vault-config.yaml', title: 'The Long Lease', titleNote: TITLE_MOVED, tagline: SAMPLE_TAGLINE, error: null });
+  assert.deepEqual(state.vaultSettings, {
+    file: '_meta/vault-config.yaml',
+    sha256: sha(fs.readFileSync(fx.yaml)),
+    title: 'The Long Lease',
+    titleNote: TITLE_SAVED_NOTE,
+    tagline: SAMPLE_TAGLINE,
+    editable: true,
+    reason: null,
+    backupDir: fx.backupDirNamed,
+    error: null,
+  });
   assert.equal(state.vaultConfigJson.raw, '{}\n');
   assert.equal(state.vaultConfigJson.siteTitle, null);
 
@@ -369,7 +398,7 @@ test('freshness tracks _meta/vault-config.yaml beside the three files the panel 
 
 // === fix round 1 ================================================================================
 
-test('a title save after the vault is moved while the panel runs answers 409 settings-moved, and the pack is unchanged', async (t) => {
+test('a title save to the pack after the vault is moved while the panel runs answers 409 changed, and the pack is unchanged', async (t) => {
   const fx = legacyCampaign(t);
   const h = await startPanel(t, { config: fx.configPath }, 'lease');
   assert.equal(h.ctx.settingsLayout, 'legacy');
@@ -379,7 +408,7 @@ test('a title save after the vault is moved while the panel runs answers 409 set
   fs.renameSync(path.join(fx.vaultPath, '_meta', 'vault-config.md'), path.join(fx.vaultPath, '_meta', 'vault-config.yaml'));
   const res = await post(h, '/api/pack/settings', { siteTitle: 'A New Name', baseSha256: sha(before), dryRun: false });
   assert.equal(res.status, 409, res.text);
-  assert.deepEqual(res.json, { error: 'settings-moved', message: TITLE_MOVED });
+  assert.deepEqual(res.json, { error: 'changed', message: MOVED_SINCE_LOADED });
   assert.deepEqual(fs.readFileSync(pack), before);
 });
 

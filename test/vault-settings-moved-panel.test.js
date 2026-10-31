@@ -168,7 +168,7 @@ async function launchAuthed(t, configPath) {
   };
 }
 
-test('(j) a tagline save in the mixed state answers 422 unsupported, with the file unchanged, no backup and no temp file', async (t) => {
+test('(j) a tagline save in the mixed state answers 409 changed, with the file unchanged, no backup and no temp file', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-moved-http-'));
   try {
     const { vaultPath, configPath } = writeScratchVault(root);
@@ -181,11 +181,11 @@ test('(j) a tagline save in the mixed state answers 422 unsupported, with the fi
     fs.copyFileSync(path.join(vaultPath, '_meta', 'vault-config.md'), path.join(vaultPath, '_meta', 'vault-config.yaml'));
 
     const res = await c.post('/api/vault-config/tagline', JSON.stringify({ tagline: 'New words', baseSha256, dryRun: false }));
-    assert.equal(res.status, 422);
+    assert.equal(res.status, 409);
     assert.deepEqual(JSON.parse(res.body.toString('utf8')), {
-      error: 'unsupported',
+      error: 'changed',
       message:
-        "This vault keeps its tagline in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit it there.",
+        "This vault's settings moved to _meta/vault-config.yaml after the page loaded. Nothing was saved. Reload to edit them there.",
     });
     assert.equal(fs.readFileSync(path.join(vaultPath, '_meta', 'vault-config.md'), 'utf8'), MD_TEXT);
     assert.ok(!fs.existsSync(backupDir) || fs.readdirSync(backupDir).length === 0, 'no backup was written');

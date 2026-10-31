@@ -56,11 +56,10 @@ const axeSource = loadAxeSource();
 const SKIP = pw ? false : 'playwright not available (set PLAYWRIGHT_MODULE)';
 const SKIP_AXE = SKIP || (axeSource ? false : 'axe-core not available (set AXE_CORE_PATH)');
 
-const TITLE_MOVED =
-  "This campaign's title is set in the vault's settings file (_meta/vault-config.yaml). Editing it here arrives in the next update; change it in that file for now.";
 const TAGLINE_MOVED =
   "This vault keeps its tagline in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit it there.";
-const NO_TITLE = "No site title is set in the vault's settings file (_meta/vault-config.yaml).";
+const TITLE_SAVED_NOTE = "Saved in the vault's settings file, _meta/vault-config.yaml.";
+const NO_TITLE_NOTE = 'No site title is set in _meta/vault-config.yaml yet. Saving one adds it there.';
 const SAMPLE_TAGLINE = 'Three hundred years ago a queen rented this valley from a dragon. At midsummer the dragon came back for the rent.';
 
 const MOVED_TITLE_LEDE = 'The name and one-line tagline on your landing page. This vault keeps both in _meta/vault-config.yaml, so they show here read-only. Editing them here arrives in the next update.';
@@ -148,7 +147,7 @@ for (const browserName of ['chromium', 'firefox']) {
         // Before: the yaml sets no title (gm-apprentice#539), so the field is empty with a plain note.
         const title = await page.$eval('#pack-title-input', (e) => ({ value: e.value, readOnly: e.readOnly }));
         assert.deepEqual(title, { value: '', readOnly: true });
-        assert.equal((await texts(page, `${screen} [data-part="title-note"]`)).join('|'), NO_TITLE);
+        assert.equal((await texts(page, `${screen} [data-part="title-note"]`)).join('|'), NO_TITLE_NOTE);
         const tagline = await page.$eval('#pack-tagline-input', (e) => ({ value: e.value, disabled: e.disabled }));
         assert.deepEqual(tagline, { value: SAMPLE_TAGLINE, disabled: true });
         assert.ok(screenText.includes(TAGLINE_MOVED), 'the tagline says where it lives now');
@@ -197,7 +196,7 @@ for (const browserName of ['chromium', 'firefox']) {
         assert.equal(dryRuns.length, 2, 'one more dry run, after the carry');
         const after = await page.$eval('#pack-title-input', (e) => ({ value: e.value, readOnly: e.readOnly }));
         assert.deepEqual(after, { value: 'The Long Lease', readOnly: true });
-        assert.equal((await texts(page, `${screen} [data-part="title-note"]`)).join('|'), TITLE_MOVED);
+        assert.equal((await texts(page, `${screen} [data-part="title-note"]`)).join('|'), TITLE_SAVED_NOTE);
         assert.equal(await page.$$eval(button, (els) => els.length), 0, 'no carry button once there is nothing to carry');
         assert.equal(fs.readFileSync(pack, 'utf8'), '{}\n');
         assert.equal(await page.isDisabled(`${screen} .a1-pending .a1-btn.primary`), true, 'Review and save stays off');

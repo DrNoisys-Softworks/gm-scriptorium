@@ -27,6 +27,7 @@ const BOUND = [
   '/api/pack/slots',
   '/api/images/upload',
   '/api/vault-config/tagline',
+  '/api/vault-config/title',
   '/api/prefs',
   '/api/vault-config/effects',
   '/api/vault-config/text',
@@ -69,7 +70,7 @@ function spyOnRoutes(t) {
   return calls;
 }
 
-test('the campaign-bound routes are exactly the audited POSTs minus the setup commit (a hand-written list of 25)', () => {
+test('the campaign-bound routes are exactly the audited POSTs minus the setup commit (a hand-written list of 26)', () => {
   const derived = ADMIN_ROUTES.filter((r) => campaignstate.isCampaignBound(r)).map((r) => r.path);
   assert.deepEqual(derived, BOUND);
   const audited = ADMIN_ROUTES.filter((r) => r.method === 'POST' && r.audit === true).map((r) => r.path);
