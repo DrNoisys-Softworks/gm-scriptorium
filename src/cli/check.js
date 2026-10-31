@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const read = require('../vault/read');
 const pinned = require('../generator/pinned');
-const { readSettingsFiles, isYamlParseError } = require('../vault/publishset');
+const { readSettingsFiles, isYamlParseError, isMdParseError } = require('../vault/publishset');
 const { loadPackToml } = require('../build/packtoml');
 const { resolveCampaignContext } = require('./args');
 const { locateVault } = require('../vault/locate');
@@ -411,6 +411,16 @@ function contextFromSite(ctxInfo, vaultPath, site) {
       if (!isYamlParseError(err)) throw err;
     }
     jsonConfig = { ...resolved, vaultPath };
+  } else {
+    // An old-layout vault can set publish.folder_map in vault-config.md, and that map wins over the
+    // pack's when the build publishes. Scan the map the build uses; every other key stays the pack's.
+    // A markdown file that does not parse keeps the pack's map: frontmatter/parse-error reports it.
+    const { md } = readSettingsFiles(vaultPath);
+    try {
+      jsonConfig.folderMap = pinned.resolveSiteConfig(vaultPath, siteConfig, { md, yaml: null }).config.folderMap;
+    } catch (err) {
+      if (!isMdParseError(err)) throw err;
+    }
   }
 
   return {

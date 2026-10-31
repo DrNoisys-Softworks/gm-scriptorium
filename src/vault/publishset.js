@@ -116,6 +116,15 @@ function isYamlParseError(err) {
 }
 
 /**
+ * Is this the pin's "frontmatter is not valid YAML" error for _meta/vault-config.md (lib/settings/legacy.js)?
+ * The pin throws a plain Error, so its text is the only handle. The markdown file's own break is
+ * reported by frontmatter/parse-error, so a caller may fall back to the pack for it.
+ */
+function isMdParseError(err) {
+  return Boolean(err) && /^_meta\/vault-config\.md frontmatter is not valid YAML/.test(String(err.message));
+}
+
+/**
  * The vault's settings as the pinned build reads them. Up to publish-v1.21.0 this was a hand port
  * of the pin's config merge. At publish-v1.26.0 the pin's reader changed in ways a port would have
  * to follow line by line (a site-file hiding list now adds to the built-in list, upstream #371;
@@ -477,6 +486,7 @@ module.exports = {
   PUBLISH_DEFAULTS: pinned.PUBLISH_DEFAULTS,
   loadPublishConfig,
   isYamlParseError,
+  isMdParseError,
   readSettingsFiles,
   loadManifest,
   scanForPublish,
