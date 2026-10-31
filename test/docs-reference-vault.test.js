@@ -39,7 +39,7 @@ const byKey = (block) => Object.fromEntries(facts[block].map((f) => [f.key, f]))
 test('vault-publish: the keys, sorted', () => {
   assert.deepEqual(facts['vault-publish'].map((f) => f.key).sort(), [
     'banners', 'exclude_callouts', 'exclude_dirs', 'exclude_drafts', 'exclude_fields', 'exclude_sections',
-    'four_oh_four', 'four_oh_four.message', 'landing', 'landing.featured_npcs', 'landing.max_npcs',
+    'folder_map', 'four_oh_four', 'four_oh_four.message', 'landing', 'landing.featured_npcs', 'landing.max_npcs',
     'landing.quick_links', 'mode', 'overrides', 'theme.campaign_image', 'theme.fonts', 'theme.genre',
     'theme.palette', 'theme.tagline',
   ]);
