@@ -30,13 +30,13 @@ const MOVED_TITLE = {
   label: 'Title & tagline',
   short: 'Title & tagline',
   eyebrow: '_meta/vault-config.yaml',
-  lede: 'The name and one-line tagline on your landing page. This vault keeps both in _meta/vault-config.yaml, so they show here read-only. Editing them here arrives in the next update.',
+  lede: 'The name and one-line tagline on your landing page. This vault keeps both in _meta/vault-config.yaml.',
 };
 const MOVED_VC = {
   label: 'vault-config.yaml',
   short: 'vault-config.yaml',
   eyebrow: '_meta/vault-config.yaml',
-  lede: "Your vault's own settings file. gm-apprentice and GM-Scriptorium both read it. Editing it here arrives in the next update; change it in that file for now.",
+  lede: "Your vault's own settings file, _meta/vault-config.yaml. gm-apprentice and GM-Scriptorium both read it.",
 };
 
 const pick = (item) => ({ label: item.label, short: item.short, eyebrow: item.eyebrow, lede: item.lede });

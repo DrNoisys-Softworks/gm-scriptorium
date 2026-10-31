@@ -13,8 +13,8 @@ const { checkTarget } = require('../src/vault/vaultconfigwrite');
 
 /*
  * The panel on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (ADR 0071):
- * the title, tagline and settings editor are read-only with a line saying where each now lives,
- * and the Title & tagline screen offers the carry (POST /api/settings/carry). Each case starts from
+ * the state reports where the title, tagline and settings now live and whether they can be edited
+ * there, and the Title & tagline screen offers the carry (POST /api/settings/carry). Each case starts from
  * a copy of the sample vault that the pin's own move has run on WITHOUT folding the pack in, so the
  * yaml sets no title (the pin defect gm-apprentice#539) and the pack still holds its settings.
  * Expected values are literals; the only thing a test composes is a path it made itself.
@@ -133,7 +133,7 @@ test('state: a moved vault reports settingsLayout "new", no title in its setting
   assert.equal(h.ctx.settingsLayout, 'new');
 });
 
-test('state: a moved vault whose settings file sets the title shows that title, read-only', async (t) => {
+test('state: a moved vault whose settings file sets the title shows that title, editable', async (t) => {
   const fx = movedCampaign(t, { fold: true });
   const h = await startPanel(t, { config: fx.configPath }, 'lease');
   const res = await get(h, '/api/state?include=settings');

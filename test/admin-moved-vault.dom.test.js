@@ -5,8 +5,8 @@
  * real browser (Playwright via PLAYWRIGHT_MODULE; skips, loudly, without it; the axe check also needs
  * axe-core beside it or AXE_CORE_PATH). The vault is a copy of the sample that the pin's own move ran
  * on without folding the pack in, so the yaml sets no title and the pack still holds its settings.
- * Opening Title & tagline shows the carry's lines and a "Carry these settings" button; pressing it
- * shows the result lines, and the title, now in the yaml, is shown read-only. The nav and layout text
+ * Opening Title & tagline shows the carry's lines and a "Carry these settings" button, with the
+ * title and tagline editable; pressing it shows the result lines and the title, now in the yaml. The nav and layout text
  * name the yaml, the dry run runs once per screen open, and a busy dry run says so. Chromium and
  * Firefox, each on a fresh copy. Port from testPort(7942).
  */
@@ -62,8 +62,8 @@ const TITLE_SAVED_NOTE = "Saved in the vault's settings file, _meta/vault-config
 const NO_TITLE_NOTE = 'No site title is set in _meta/vault-config.yaml yet. Saving one adds it there.';
 const SAMPLE_TAGLINE = 'Three hundred years ago a queen rented this valley from a dragon. At midsummer the dragon came back for the rent.';
 
-const MOVED_TITLE_LEDE = 'The name and one-line tagline on your landing page. This vault keeps both in _meta/vault-config.yaml, so they show here read-only. Editing them here arrives in the next update.';
-const MOVED_VC_LEDE = "Your vault's own settings file. gm-apprentice and GM-Scriptorium both read it. Editing it here arrives in the next update; change it in that file for now.";
+const MOVED_TITLE_LEDE = 'The name and one-line tagline on your landing page. This vault keeps both in _meta/vault-config.yaml.';
+const MOVED_VC_LEDE = "Your vault's own settings file, _meta/vault-config.yaml. gm-apprentice and GM-Scriptorium both read it.";
 const BUSY = 'Another job is running in the panel. Open this screen again when it ends.';
 
 const texts = (page, sel) => page.$$eval(sel, (els) => els.map((e) => e.textContent.trim()));
@@ -122,7 +122,7 @@ for (const browserName of ['chromium', 'firefox']) {
         await page.context().close();
       });
 
-      await t.test('Title & tagline: the title and tagline are read-only, the carry lines show, and carrying shows the result and the yaml title', async () => {
+      await t.test('Title & tagline: the title and tagline are editable, the carry lines show, and carrying shows the result and the yaml title', async () => {
         const { page, dryRuns } = await openPage();
         assert.equal(dryRuns.length, 0, 'no dry run before the screen is opened');
         await gotoScreen(page, 'title');
@@ -146,11 +146,11 @@ for (const browserName of ['chromium', 'firefox']) {
 
         // Before: the yaml sets no title (gm-apprentice#539), so the field is empty with a plain note.
         const title = await page.$eval('#pack-title-input', (e) => ({ value: e.value, readOnly: e.readOnly }));
-        assert.deepEqual(title, { value: '', readOnly: true });
+        assert.deepEqual(title, { value: '', readOnly: false });
         assert.equal((await texts(page, `${screen} [data-part="title-note"]`)).join('|'), NO_TITLE_NOTE);
         const tagline = await page.$eval('#pack-tagline-input', (e) => ({ value: e.value, disabled: e.disabled }));
-        assert.deepEqual(tagline, { value: SAMPLE_TAGLINE, disabled: true });
-        assert.ok(screenText.includes(TAGLINE_MOVED), 'the tagline says where it lives now');
+        assert.deepEqual(tagline, { value: SAMPLE_TAGLINE, disabled: false });
+        assert.ok(!screenText.includes(TAGLINE_MOVED), 'no line says the tagline cannot be edited here');
 
         assert.deepEqual(await texts(page, `${screen} [data-part="carry"] li`), [
           'This vault is already on the new settings file (_meta/vault-config.yaml).',
@@ -191,11 +191,11 @@ for (const browserName of ['chromium', 'firefox']) {
         const shown = await texts(page, `${screen} [data-part="carry-backups"] li`);
         assert.deepEqual([...shown].sort(), [...backups].sort());
 
-        // After: the title is the yaml's, still read-only, and nothing is left to carry (planned once more, after the carry).
+        // After: the title is the yaml's, editable, and nothing is left to carry (planned once more, after the carry).
         await page.waitForTimeout(500);
         assert.equal(dryRuns.length, 2, 'one more dry run, after the carry');
         const after = await page.$eval('#pack-title-input', (e) => ({ value: e.value, readOnly: e.readOnly }));
-        assert.deepEqual(after, { value: 'The Long Lease', readOnly: true });
+        assert.deepEqual(after, { value: 'The Long Lease', readOnly: false });
         assert.equal((await texts(page, `${screen} [data-part="title-note"]`)).join('|'), TITLE_SAVED_NOTE);
         assert.equal(await page.$$eval(button, (els) => els.length), 0, 'no carry button once there is nothing to carry');
         assert.equal(fs.readFileSync(pack, 'utf8'), '{}\n');
