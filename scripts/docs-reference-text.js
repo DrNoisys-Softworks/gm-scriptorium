@@ -591,6 +591,10 @@ module.exports = deepFreeze({
       default: 'None',
       what: 'A picture at the top of a section\'s index page, keyed by the section\'s output folder, such as `locations`. A bare path, or a table with `image`, `link` and `alt`. A section with no entry uses a `_banner` picture, such as `_banner.png`, from its own vault folder. A picture or link you name here is copied even from a hidden folder, and `check` gives a WARN; a `_banner` picture in a hidden folder is an ERROR, and `build` refuses it (`leak/l2-excluded-dir-in-output`).',
     },
+    folder_map: {
+      type: 'table',
+      what: 'Which vault folder becomes which folder on the site, one vault folder and its site folder to a line. When it is set, the site uses it instead of `folderMap` in `vault.config.json`. *Since 0.6.0.* `check` scans the folders it maps, as the build publishes them. The panel has no field for it. An edit in the panel\'s text editor that maps a new folder needs your tick in the review, which names the folder.',
+    },
     landing: {
       type: 'table',
       default: 'The built-in landing page',
