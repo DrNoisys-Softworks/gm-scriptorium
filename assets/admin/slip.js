@@ -11,7 +11,7 @@
 (function () {
   var DF = typeof module === 'object' && module.exports ? require('./diff').DF : window.ScriptoriumAdmin.DF;
 
-  var TITLES = { theme: 'Save theme', settings: 'Save title and tagline', tagline: 'Save tagline', vocab: 'Save vocabulary', slots: 'Save image choices' };
+  var TITLES = { theme: 'Save theme', settings: 'Save title and tagline', tagline: 'Save tagline', 'vault-settings': 'Save title and tagline', vocab: 'Save vocabulary', slots: 'Save image choices' };
   var FOOT = 'Saving writes this one file and never publishes. The panel never commits.';
   // V1e-1 (SD-7, D-19): the combined Title-screen review, when both vault.config.json and
   // vault-config.md have pending edits.
@@ -106,6 +106,25 @@
     var after = normalizeEmpty(payload.tagline);
     if (now === after) return [];
     return [{ where: 'vault-config.md', key: 'publish.theme.tagline', now: now, nowNote: undefined, after: after, afterNote: undefined }];
+  }
+
+  /**
+   * The title and tagline of a vault whose settings live in _meta/vault-config.yaml: one file, a
+   * row for each value the payload carries that differs from the yaml's.
+   */
+  function buildVaultSettingsRows(payload, state) {
+    var vs = (state && state.vaultSettings) || {};
+    var rows = [];
+    [
+      ['title', 'player_site.title'],
+      ['tagline', 'player_site.theme.tagline'],
+    ].forEach(function (pair) {
+      if (!Object.prototype.hasOwnProperty.call(payload, pair[0])) return;
+      var now = normalizeEmpty(vs[pair[0]]);
+      var after = normalizeEmpty(payload[pair[0]]);
+      if (now !== after) rows.push({ where: 'vault-config.yaml', key: pair[1], now: now, nowNote: undefined, after: after, afterNote: undefined });
+    });
+    return rows;
   }
 
   /**
@@ -249,6 +268,7 @@
     if (kind === 'theme') return buildThemeRows(payload, state);
     if (kind === 'settings') return buildSettingsRows(payload, state);
     if (kind === 'tagline') return buildTaglineRows(payload, state);
+    if (kind === 'vault-settings') return buildVaultSettingsRows(payload, state);
     if (kind === 'slots') return buildSlotsRows(payload, state);
     if (kind === 'vocab') return buildVocabRows(payload, state);
     return [];
@@ -288,10 +308,14 @@
       effects.push({ id: 'frontmatter-only', level: 'info', text: 'Only the frontmatter is shown. The rest of the note is not changed.' });
     }
 
+    if (kind === 'vault-settings') {
+      effects.push({ id: 'backup', level: 'info', text: 'vault-config.yaml is backed up first, to ' + dry.backupDir + '.' });
+    }
+
     // V1e-4 (SD-31): closes V1e-1's DV-E17 -- an over-soft-limit tagline still saves, but the
     // review says so, matching the Title screen's own live counter warning. Counted in code
     // points (Array.from), the same rule PK.countState uses.
-    if (kind === 'tagline' && payload.tagline && Array.from(payload.tagline).length > 140) {
+    if ((kind === 'tagline' || kind === 'vault-settings') && payload.tagline && Array.from(payload.tagline).length > 140) {
       effects.push({
         id: 'tagline-length',
         level: 'warn',
@@ -309,6 +333,19 @@
         level: 'warn',
         text:
           "Your site's backend features are switched on in vault.config.json, and the generator builds a campaign id from the site title. Saving this title changes that id from " +
+          dry.campaignId.before +
+          ' to ' +
+          dry.campaignId.after +
+          '. Anything those features stored under the old id is not moved.',
+      });
+    }
+
+    if (kind === 'vault-settings' && dry.campaignId) {
+      effects.push({
+        id: 'campaign-id',
+        level: 'warn',
+        text:
+          "Your site's backend features are switched on in _meta/vault-config.yaml, and the generator builds a campaign id from the site title. Saving this title changes that id from " +
           dry.campaignId.before +
           ' to ' +
           dry.campaignId.after +
@@ -372,9 +409,17 @@
           ? '_meta/scriptorium/pack.toml'
           : dry.file === 'vault.config.json'
             ? '_meta/scriptorium/vault.config.json'
-            : '_meta/vault-config.md',
+            : dry.file === 'vault-config.yaml'
+              ? '_meta/vault-config.yaml'
+              : '_meta/vault-config.md',
       saveLabel:
-        dry.file === 'pack.toml' ? 'Save pack.toml' : dry.file === 'vault.config.json' ? 'Save vault.config.json' : 'Back up and save vault-config.md',
+        dry.file === 'pack.toml'
+          ? 'Save pack.toml'
+          : dry.file === 'vault.config.json'
+            ? 'Save vault.config.json'
+            : dry.file === 'vault-config.yaml'
+              ? 'Back up and save vault-config.yaml'
+              : 'Back up and save vault-config.md',
       rows: rows,
       effects: effects,
       diff: DF.diffLines(dry.before, dry.after),
@@ -1036,7 +1081,7 @@
 
       // The tagline part's ported .vc-bk block (vaultcfg.js:273, vaultcfg.css:139-144): an icon
       // column, then a text column (strong, then p, then code) grouped in their own div.
-      if (part.kind === 'tagline') {
+      if (part.kind === 'tagline' || part.kind === 'vault-settings') {
         var bk = el('div');
         bk.className = 'vc-bk';
         bk.appendChild(icon('archive'));
@@ -1110,7 +1155,12 @@
       var requests = parts.map(function (part) {
         return {
           file: part.dry.file,
-          path: part.dry.file === 'vault-config.md' ? '/api/vault-config/tagline' : '/api/pack/settings',
+          path:
+            part.dry.file === 'vault-config.yaml'
+              ? '/api/vault-config/title'
+              : part.dry.file === 'vault-config.md'
+                ? '/api/vault-config/tagline'
+                : '/api/pack/settings',
           body: confirmBody(part.dryBody),
         };
       });

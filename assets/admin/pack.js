@@ -1350,15 +1350,17 @@
       mount.appendChild(err);
     }
 
-    // On a vault whose settings moved to _meta/vault-config.yaml, the title and tagline are the
-    // yaml's, shown read-only. A title the yaml does not set shows empty with a note, never the pack's.
+    // On a vault whose settings moved to _meta/vault-config.yaml, the title and tagline are the yaml's,
+    // and both are saved there in one request. A title the yaml does not set shows empty with a note,
+    // never the pack's.
     var moved = state.settingsLayout === 'new';
     var vs = state.vaultSettings || {};
     var initialTitle = moved ? vs.title || '' : vcj.siteTitle === undefined || vcj.siteTitle === null ? '' : vcj.siteTitle;
     // V1e-1 (SD-7, D-20): the tagline now comes from vault-config.md's publish.theme.tagline,
     // never from the dead vault.config.json landingTagline key.
     var initialTagline = moved ? vs.tagline || '' : vcf.tagline === undefined || vcf.tagline === null ? '' : vcf.tagline;
-    var taglineEditable = Boolean(vcf.editable) && !moved;
+    var movedEditable = moved && Boolean(vs.editable) && Boolean(state.writable);
+    var taglineEditable = moved ? movedEditable : Boolean(vcf.editable);
 
     // ---------------------------------------------------------------------------------------
     // SD-29: the persistent fields block, built once per render and re-parented (never rebuilt)
@@ -1386,7 +1388,7 @@
     titleInput.type = 'text';
     titleInput.className = 'a1-in tt-big';
     titleInput.value = initialTitle;
-    titleInput.readOnly = moved;
+    titleInput.readOnly = moved && !movedEditable;
     titleField.appendChild(titleInput);
     var titleHint = el('p');
     titleHint.className = 'a1-hint';
@@ -1394,12 +1396,12 @@
       titleHint.setAttribute('data-part', 'title-note');
       titleHint.id = 'pack-title-note';
       titleInput.setAttribute('aria-describedby', 'pack-title-note');
-      setText(titleHint, vs.titleNote || '');
+      setText(titleHint, vs.editable ? vs.titleNote || '' : vs.reason || vs.titleNote || '');
     } else {
       setText(titleHint, 'In every browser tab, the top bar of every page, and large on the landing page. Short reads best.');
     }
     titleField.appendChild(titleHint);
-    if (moved && vs.error) {
+    if (moved && vs.error && vs.error !== vs.reason) {
       var vsError = el('p');
       vsError.className = 'pack-error';
       setText(vsError, vs.error);
@@ -1443,7 +1445,7 @@
     } else {
       var taglineReason = el('p');
       taglineReason.className = 'a1-hint';
-      setText(taglineReason, vcf.reason || 'Editing the tagline is off.');
+      setText(taglineReason, (moved ? vs.reason : vcf.reason) || 'Editing the tagline is off.');
       taglineField.appendChild(taglineReason);
     }
 
@@ -1456,7 +1458,7 @@
     taglineWarn.appendChild(taglineWarnText);
     taglineField.appendChild(taglineWarn);
 
-    if (taglineEditable) {
+    if (taglineEditable && !moved) {
       // FR-24 cleanup: this small print names a raw config path (publish.theme.tagline), so it
       // now sits behind its own "Show the file" disclosure rather than always on screen.
       var taglineDetails = el('details');
@@ -1527,6 +1529,10 @@
     }
 
     function onFieldInput() {
+      if (moved) {
+        refreshDisabledReason();
+        reviewBtn.disabled = titleOwnDisabled || store.isBusy();
+      }
       store.set({ pending: ScriptoriumAdmin.ST.withPending(store.get().pending, 'title', currentPending()) });
       refreshPendingText();
       refreshCounters();
@@ -1561,9 +1567,15 @@
     reviewBtn.type = 'button';
     reviewBtn.className = 'a1-btn primary';
     setText(reviewBtn, 'Review and save');
-    var disabledReason = Boolean(vcj.error) || !state.writable || moved;
+    var blockedReason = moved ? !movedEditable : Boolean(vcj.error) || !state.writable;
+    var disabledReason = blockedReason;
+    // On a moved vault Review is also off while nothing has changed.
+    function refreshDisabledReason() {
+      disabledReason = blockedReason || (moved && currentPending() === 0);
+      titleOwnDisabled = disabledReason;
+    }
     titleReviewBtn = reviewBtn;
-    titleOwnDisabled = disabledReason;
+    refreshDisabledReason();
     reviewBtn.disabled = disabledReason || store.isBusy();
     reviewBtn.addEventListener('click', function () {
       if (currentPending() === 0) return;
@@ -1572,7 +1584,18 @@
       // V1e-1 (SD-7, D-19): one dry-run request per changed file, run SEQUENTIALLY (parallel dry
       // runs would 409-busy each other, per runExclusive's one-write-at-a-time contract).
       var dryRequests = [];
-      if (titleInput.value !== initialTitle) {
+      if (moved) {
+        // One request for both values, carrying only the changed ones.
+        var changedValues = {};
+        if (titleInput.value !== initialTitle) changedValues.title = titleInput.value;
+        if (taglineInput.value !== initialTagline) changedValues.tagline = taglineInput.value;
+        dryRequests.push({
+          kind: 'vault-settings',
+          payload: changedValues,
+          dryBody: Object.assign({ file: 'vault-config.yaml', baseSha256: vs.sha256 }, changedValues, { dryRun: true }),
+          path: '/api/vault-config/title',
+        });
+      } else if (titleInput.value !== initialTitle) {
         dryRequests.push({
           kind: 'settings',
           payload: { siteTitle: titleInput.value },
@@ -1580,7 +1603,7 @@
           path: '/api/pack/settings',
         });
       }
-      if (taglineInput.value !== initialTagline) {
+      if (!moved && taglineInput.value !== initialTagline) {
         dryRequests.push({
           kind: 'tagline',
           payload: { tagline: taglineInput.value },
@@ -1593,6 +1616,7 @@
         return api(req.path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.dryBody) });
       })
         .then(function (results) {
+          refreshDisabledReason();
           reviewBtn.disabled = disabledReason || store.isBusy();
           var failedIndex = -1;
           for (var i = 0; i < results.length; i++) {
@@ -1615,7 +1639,10 @@
             onPartSaved: function (part, body) {
               var s = store.get();
               store.set({ files: ScriptoriumAdmin.ST.applySaveResult(s.files, body) });
-              if (part.kind === 'settings') {
+              if (part.kind === 'vault-settings') {
+                initialTitle = titleInput.value;
+                initialTagline = taglineInput.value;
+              } else if (part.kind === 'settings') {
                 initialTitle = titleInput.value;
               } else {
                 initialTagline = taglineInput.value;
@@ -1629,6 +1656,7 @@
           });
         })
         .catch(function () {
+          refreshDisabledReason();
           reviewBtn.disabled = disabledReason || store.isBusy();
           renderBanner(outcomeBox, mapOutcomeSafe({ ok: false, status: 0, body: null }, 'dry'));
         });

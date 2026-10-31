@@ -72,6 +72,10 @@
       var vcf = body.vaultConfigFile || {};
       shas['vault-config.md'] = vcf.exists ? vcf.sha256 : null;
     }
+    // A vault whose settings live in _meta/vault-config.yaml: its sha comes from ?include=settings.
+    if (body && body.settingsLayout === 'new' && body.vaultSettings && typeof body.vaultSettings === 'object') {
+      shas['vault-config.yaml'] = body.vaultSettings.sha256 || null;
+    }
     return shas;
   }
 
@@ -95,7 +99,7 @@
     if (!body || body.ok !== true) return next;
     // V1e-1 (SD-7): exact equality only -- '../vault-config.md', 'vault-config.mdx' and
     // '_meta/vault-config.md' must never be accepted (E24: no startsWith/indexOf check).
-    if (body.file !== 'pack.toml' && body.file !== 'vault.config.json' && body.file !== 'vault-config.md') return next;
+    if (body.file !== 'pack.toml' && body.file !== 'vault.config.json' && body.file !== 'vault-config.md' && body.file !== 'vault-config.yaml') return next;
     if (typeof body.sha256 !== 'string' || !SHA256_RE.test(body.sha256)) return next;
     next[body.file] = body.sha256;
     return next;
