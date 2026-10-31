@@ -106,7 +106,7 @@ test('only the settings editor and settings handlers require vaultsettingswrite'
   assert.deepEqual(users.sort(), allowed.sort());
 });
 
-test('only the facade and the plan module name planSettingsText', { todo: 'src/admin/vaultsettingsplan.js arrives in a later change' }, () => {
+test('only the facade and the plan module name planSettingsText', () => {
   const allowed = [path.join(ROOT, 'src', 'generator', 'pinned.js'), path.join(ROOT, 'src', 'admin', 'vaultsettingsplan.js')];
   const users = sourceFiles().filter((f) => stripComments(fs.readFileSync(f, 'utf8')).includes('planSettingsText'));
   assert.deepEqual(users.sort(), allowed.sort());
