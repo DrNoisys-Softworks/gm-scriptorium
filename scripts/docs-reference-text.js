@@ -593,7 +593,7 @@ module.exports = deepFreeze({
     },
     folder_map: {
       type: 'table',
-      what: 'Which vault folder becomes which folder on the site, one vault folder and its site folder to a line. When it is set, the site uses it instead of `folderMap` in `vault.config.json`. *Since 0.6.0.* `check` scans the folders it maps, as the build publishes them. The panel has no field for it. An edit in the panel\'s text editor that maps a new folder needs your tick in the review, which names the folder.',
+      what: 'Which vault folder becomes which folder on the site, one vault folder and its site folder to a line. On an old-layout vault the key is `publish.folder_map` in `vault-config.md`, and when it is set the site uses it instead of `folderMap` in `vault.config.json`. On a vault whose settings moved, the key is `player_site.folder_map` in `vault-config.yaml`, and the site never reads `folderMap` in `vault.config.json`. *Since 0.6.0.* `check` scans the folders it maps, as the build publishes them. The panel has no field for it. An edit in the panel\'s text editor that would publish pages from a newly mapped folder needs your tick, and the review names the folder.',
     },
     landing: {
       type: 'table',
