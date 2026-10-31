@@ -320,8 +320,8 @@ test('T14: pack JSON is read through read.readText (module-object call), never f
     const spy = mock.method(readModule, 'readText');
     try {
       resolveVaultContext(baseCtxInfo(vaultDir));
-      // Two reads since check began scanning the folder map vault-config.md sets on an old-layout
-      // vault (commit 6a40de8): the pack JSON once, and the vault's own settings file once.
+      // Two reads, since check reads the folder map vault-config.md sets on an old-layout vault:
+      // the pack JSON once, and the vault's own settings file once.
       assert.deepEqual(spy.mock.calls.map((c) => c.arguments[0]), [jsonPath, path.join(vaultDir, '_meta', 'vault-config.md')]);
     } finally {
       spy.mock.restore();
@@ -337,7 +337,7 @@ test('T14: pack JSON is read through read.readText (module-object call), never f
     try {
       resolveVaultContext(baseCtxInfo(vaultDir, { site_config: legacyPath }));
       // The legacy site JSON is never read through readText; the one call is the vault's own
-      // vault-config.md, read for its folder map since commit 6a40de8.
+      // vault-config.md, since check reads the folder map vault-config.md sets on an old-layout vault.
       assert.deepEqual(spy.mock.calls.map((c) => c.arguments[0]), [path.join(vaultDir, '_meta', 'vault-config.md')]);
     } finally {
       spy.mock.restore();
