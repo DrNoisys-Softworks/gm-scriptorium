@@ -246,11 +246,13 @@ function computeFixable(candSplit, candData) {
 
 const REASON_ORDER = ['privacy', 'new-errors', 'check-did-not-run', 'current-unreadable'];
 
-function computeReasons({ effects, check, curData }) {
+/** `publishDiff` null means the review could not compare what the site would publish, which counts
+ * as the check not having run. */
+function computeReasons({ effects, check, curData, publishDiff }) {
   const present = new Set();
   if (effects.some((e) => e.level === 'bad')) present.add('privacy');
   if (check.ran && check.newErrorCount > 0) present.add('new-errors');
-  if (!check.ran) present.add('check-did-not-run');
+  if (!check.ran || publishDiff === null) present.add('check-did-not-run');
   if (curData === null) present.add('current-unreadable');
   return REASON_ORDER.filter((r) => present.has(r));
 }
@@ -334,13 +336,18 @@ function reviewInner(ctx, { op, reqBody, dryRun, saveAnyway, machineDirResult, b
 
   let rv;
   let check;
+  let publishDiff;
   try {
+    // A confirm reusing its dry run's review takes the check and the publish comparison from it
+    // (the cache is keyed to the same bytes), so the vault is not scanned again.
     if (cacheMatches) {
       rv = candidatecheck.runReview(ctx, { candidateBytes: cand.bytes, withCheck: false });
       check = cached.check;
+      publishDiff = cached.publishDiff;
     } else {
       rv = candidatecheck.runReview(ctx, { candidateBytes: cand.bytes, withCheck: true });
       check = rv.check;
+      publishDiff = rv.publishDiff;
     }
   } catch (err) {
     if (err instanceof candidatecheck.CandidateCheckError) {
@@ -358,6 +365,7 @@ function reviewInner(ctx, { op, reqBody, dryRun, saveAnyway, machineDirResult, b
     jsonConfig: rv.jsonConfig,
     publishSet: rv.candPublishSet,
     fixable,
+    publishDiff,
   });
 
   if (check.ran && check.unforceable.length > 0) {
@@ -368,12 +376,12 @@ function reviewInner(ctx, { op, reqBody, dryRun, saveAnyway, machineDirResult, b
     });
   }
 
-  const reasons = computeReasons({ effects, check, curData });
+  const reasons = computeReasons({ effects, check, curData, publishDiff });
   const needsAck = reasons.length > 0;
   const notes = buildNotes({ op, split, cand });
 
   if (dryRun) {
-    ctx.vaultConfigReview = { op, baseSha256: curSha, candidateSha256, check, reasons };
+    ctx.vaultConfigReview = { op, baseSha256: curSha, candidateSha256, check, reasons, publishDiff };
     const dryBody = {
       ok: true,
       dryRun: true,

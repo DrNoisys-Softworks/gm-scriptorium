@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('path');
 const { ScriptoriumError } = require('../util/errors');
 // Every dependency below is called through its module object (never destructured at require
 // time), so a test can inject a throw or a wrong return value deterministically at exactly one
@@ -115,18 +116,83 @@ function runCandidateCheck(ctx, target, candidateBytes) {
   });
 }
 
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+
+/** Entries of folder map `b` that `a` lacks, or maps to another output, as `{folder, output}`. */
+function foldersAddedIn(a = {}, b = {}) {
+  return Object.entries(b).filter(([folder, output]) => !hasOwn(a, folder) || a[folder] !== output).map(([folder, output]) => ({ folder, output }));
+}
+
+/** Entries of folder map `a` that `b` no longer names at all. */
+function foldersDroppedFrom(a = {}, b = {}) {
+  return Object.entries(a).filter(([folder]) => !hasOwn(b, folder)).map(([folder, output]) => ({ folder, output }));
+}
+
+function publishedSetFor(ctx, vaultCtx) {
+  return publishset.computePublishedSet(ctx.vaultPath, vaultCtx.jsonConfig, vaultCtx.rawSiteConfig);
+}
+
+/**
+ * Which pages the site would publish with the file as it is now and with the candidate, each side
+ * read the way the generator reads it: the candidate's context is resolved inside the overlay, so
+ * its own folder map is the one scanned. Pages are compared by `rel`; folders by the two folder maps
+ * (an entry whose output changed counts as added).
+ *
+ * @returns {null | { newlyPublished: {rel, title}[], foldersAdded: {folder, output}[],
+ *   foldersRemoved: {folder, output}[] }} null when either side cannot be resolved
+ * @throws {CandidateCheckError} the candidate side resolved without ever reading the candidate
+ */
+function computePublishDiff(ctx, target, candidateBytes) {
+  let cur;
+  try {
+    const curCtx = checkcli.resolveVaultContext(ctx.ctxInfo);
+    cur = { folderMap: curCtx.jsonConfig.folderMap, set: publishedSetFor(ctx, curCtx) };
+  } catch {
+    return null;
+  }
+
+  const { value: cand, hits } = read.withCandidateFile(target, candidateBytes, () => {
+    try {
+      const candCtx = checkcli.resolveVaultContext(ctx.ctxInfo);
+      return { folderMap: candCtx.jsonConfig.folderMap, set: publishedSetFor(ctx, candCtx) };
+    } catch {
+      return null;
+    }
+  });
+  if (cand === null) return null;
+  if (hits < 1) {
+    throw new CandidateCheckError(HITS_MESSAGE);
+  }
+
+  const curRels = new Set(cur.set.publishedPages.map((p) => p.rel));
+  const newlyPublished = cand.set.publishedPages
+    .filter((p) => !curRels.has(p.rel))
+    .map((p) => ({ rel: p.rel, title: p.displayTitle }))
+    .sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+  return {
+    newlyPublished,
+    foldersAdded: foldersAddedIn(cur.folderMap, cand.folderMap),
+    foldersRemoved: foldersDroppedFrom(cur.folderMap, cand.folderMap),
+  };
+}
+
 /**
  * @param {object} ctx an admin context (only `ctx.vaultPath` and `ctx.ctxInfo` are read)
- * @param {{ candidateBytes: Buffer, withCheck: boolean }} opts
+ * @param {{ candidateBytes: Buffer, withCheck: boolean, targetRel?: string }} opts `targetRel` is
+ *   the settings file the candidate stands in for, relative to the vault (vault-config.md by default)
  * @returns {{ jsonConfig: object|null, jsonError: string|null, curPublish: object,
- *   candPublish: object, candPublishSet: object|null,
+ *   candPublish: object, candPublishSet: object|null, publishDiff: object|null,
  *   check: null | { ran:false, message:string } | { ran:true, exitCode:number, counts:object,
  *     newFindings:object[], newCount:number, newErrorCount:number, unforceable:object[] } }}
+ *   `publishDiff` (see computePublishDiff) is computed only with the check, and is null without it
+ *   or when either side cannot be resolved.
  * @throws {CandidateCheckError} the overlay was never actually read (`hits < 1`): the panel will
  *   not trust a result it cannot prove came from the candidate.
  */
-function runReview(ctx, { candidateBytes, withCheck }) {
-  const target = vaultconfigwrite.targetPathFor(ctx.vaultPath);
+function runReview(ctx, { candidateBytes, withCheck, targetRel = VAULT_CONFIG_REL }) {
+  // The default target keeps going through the markdown writer's own path, the one seam a test
+  // injects to prove a review that never read its candidate is refused.
+  const target = targetRel === VAULT_CONFIG_REL ? vaultconfigwrite.targetPathFor(ctx.vaultPath) : path.join(ctx.vaultPath, targetRel);
 
   let jsonConfig = null;
   let jsonError = null;
@@ -147,8 +213,11 @@ function runReview(ctx, { candidateBytes, withCheck }) {
 
   let check = null;
   let candPublishSet = null;
+  let publishDiff = null;
 
   if (withCheck) {
+    publishDiff = computePublishDiff(ctx, target, candidateBytes);
+
     let baseline = null;
     try {
       baseline = checkcli.runCheckForContextWithContext(ctx.ctxInfo, {}, {});
@@ -184,7 +253,7 @@ function runReview(ctx, { candidateBytes, withCheck }) {
     }
   }
 
-  return { jsonConfig, jsonError, curPublish, candPublish, candPublishSet, check };
+  return { jsonConfig, jsonError, curPublish, candPublish, candPublishSet, publishDiff, check };
 }
 
 module.exports = {

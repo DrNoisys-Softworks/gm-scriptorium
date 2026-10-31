@@ -53,7 +53,9 @@ function pathsGroup(dotPath) {
     PRIVACY_LIST_PATHS.includes(dotPath) ||
     dotPath === 'publish.exclude_drafts' ||
     dotPath === 'publish.exclude_callouts' ||
-    dotPath === 'publish.overrides'
+    dotPath === 'publish.overrides' ||
+    dotPath === 'publish.folder_map' ||
+    dotPath.startsWith('publish.folder_map.')
   ) {
     return 'privacy';
   }
@@ -235,10 +237,16 @@ function calloutsRule(curEff, candEff) {
   };
 }
 
-function overridesRule(curData, candData) {
-  const curOverrides = getAt(curData, 'publish.overrides');
-  const candOverrides = getAt(candData, 'publish.overrides');
-  if (isDeepStrictEqual(curOverrides, candOverrides)) return null;
+function effectiveOverrideFields(eff) {
+  return eff && eff.overrides && typeof eff.overrides === 'object' ? eff.overrides.fields : undefined;
+}
+
+/** Bad when the raw publish.overrides differs, or when the overrides the generator applies differ
+ * (a change made elsewhere, such as the pack or the defaults, still shows a hidden field). */
+function overridesRule(curData, candData, curEff, candEff) {
+  const rawSame = isDeepStrictEqual(getAt(curData, 'publish.overrides'), getAt(candData, 'publish.overrides'));
+  const effSame = isDeepStrictEqual(effectiveOverrideFields(curEff), effectiveOverrideFields(candEff));
+  if (rawSame && effSame) return null;
   return {
     id: 'overrides',
     group: 'privacy',
@@ -413,6 +421,7 @@ const COVERED_PREFIXES = Object.freeze([
   'publish.landing',
   'publish.four_oh_four',
   'publish.theme.tagline',
+  'publish.folder_map',
 ]);
 
 function isCovered(dotPath) {
@@ -447,15 +456,16 @@ function leafPaths(obj, prefix) {
   return out;
 }
 
-function otherRule(curData, candData) {
+function otherRule(curData, candData, nameOf, extraChanged) {
   const paths = new Set([...leafPaths(curData, ''), ...leafPaths(candData, '')]);
   const changed = [];
   for (const p of [...paths].sort()) {
     if (isCovered(p)) continue;
     const a = getAt(curData, p);
     const b = getAt(candData, p);
-    if (!isDeepStrictEqual(a, b)) changed.push(p);
+    if (!isDeepStrictEqual(a, b)) changed.push(nameOf(p));
   }
+  changed.push(...extraChanged);
   if (changed.length === 0) return null;
   const shown = changed.slice(0, 10);
   const more = changed.length > shown.length ? `, and ${changed.length - shown.length} more` : '';
@@ -480,9 +490,47 @@ function otherRule(curData, candData) {
  * @param {object|null} opts.publishSet the candidate's checkCtx.publishSet, or null (vc2's live
  *   effects route, withCheck:false)
  * @param {Set<string>} opts.fixable the PRIVACY_LIST_PATHS present as a flow/block list in the candidate
+ * @param {object|null} [opts.publishDiff] runReview's comparison of the two publish sets, or null
+ *   (no review check ran): gives `published-more` and the folder-map lines
+ * @param {(dotPath: string) => string} [opts.nameOf] how a setting's path is named to the GM; every
+ *   effect's `path` and `fix.path`, and the paths the `other` rule lists, pass through it
+ * @param {string[]} [opts.extraChanged] already-named settings the `other` rule lists as changed too
  * @returns {Array<{id, group, level, path, title, detail, fix}>}
  */
-function computeEffects({ cur, cand, curPublish, candPublish, jsonConfig, publishSet, fixable }) {
+function publishedMoreRule(publishDiff) {
+  const pages = publishDiff.newlyPublished;
+  if (pages.length === 0) return null;
+  const shown = pages.slice(0, 10).map((p) => p.rel);
+  const more = pages.length > shown.length ? `, and ${pages.length - shown.length} more` : '';
+  return {
+    id: 'published-more',
+    group: 'privacy',
+    level: 'bad',
+    path: null,
+    title: pages.length === 1 ? '1 page would be published that is not today' : `${pages.length} pages would be published that are not today`,
+    detail: `${shown.join(', ')}${more}`,
+    fix: null,
+  };
+}
+
+function folderMapRules(publishDiff) {
+  const out = [];
+  for (const { folder, output } of publishDiff.foldersAdded) {
+    out.push({ id: 'folder-map-added', group: 'privacy', level: 'info', path: 'publish.folder_map', title: `Publishes the folder ${folder} as /${output}/`, detail: '', fix: null });
+  }
+  for (const { folder } of publishDiff.foldersRemoved) {
+    out.push({ id: 'folder-map-removed', group: 'privacy', level: 'ok', path: 'publish.folder_map', title: `Stops publishing the folder ${folder}`, detail: '', fix: null });
+  }
+  return out;
+}
+
+function withNames(effect, nameOf) {
+  const named = { ...effect, path: effect.path === null ? null : nameOf(effect.path) };
+  if (effect.fix) named.fix = { ...effect.fix, path: nameOf(effect.fix.path) };
+  return named;
+}
+
+function computeEffects({ cur, cand, curPublish, candPublish, jsonConfig, publishSet, fixable, publishDiff = null, nameOf = (p) => p, extraChanged = [] }) {
   const out = [];
   const curUnreadable = cur === null;
   const curData = curUnreadable ? {} : cur || {};
@@ -498,6 +546,12 @@ function computeEffects({ cur, cand, curPublish, candPublish, jsonConfig, publis
       detail: 'So every setting in your edited copy is listed as a change.',
       fix: null,
     });
+  }
+
+  if (publishDiff) {
+    const more = publishedMoreRule(publishDiff);
+    if (more) out.push(more);
+    out.push(...folderMapRules(publishDiff));
   }
 
   const curEff = curPublish.publishConfig;
@@ -542,7 +596,7 @@ function computeEffects({ cur, cand, curPublish, candPublish, jsonConfig, publis
   const callouts = calloutsRule(curEff, candEff);
   if (callouts) out.push(callouts);
 
-  const overrides = overridesRule(curData, candData);
+  const overrides = overridesRule(curData, candData, curEff, candEff);
   if (overrides) out.push(overrides);
 
   for (const key of ['palette', 'fonts', 'genre', 'campaign_image', 'banners']) {
@@ -557,10 +611,10 @@ function computeEffects({ cur, cand, curPublish, candPublish, jsonConfig, publis
   const tagline = taglineRule(curData, candData);
   if (tagline) out.push(tagline);
 
-  const other = otherRule(curData, candData);
+  const other = otherRule(curData, candData, nameOf, extraChanged);
   if (other) out.push(other);
 
-  return out;
+  return out.map((effect) => withNames(effect, nameOf));
 }
 
 const GROUP_NAMES = Object.freeze({ privacy: 'publishing and privacy', look: 'the look', safe: 'landing page words', other: 'other settings' });
