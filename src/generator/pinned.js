@@ -291,6 +291,18 @@ function settingEntry(name) {
 }
 
 /**
+ * The dotted names of the live-play settings: the pin's registry entries in its 'live' group
+ * (titled "Live play"), the switches that need a site backend keyed on the campaign id (the slug
+ * of the site title). Scriptorium never names those switches itself (test/live-stats-off.test.js);
+ * code that must know whether a live feature is on asks the pin here.
+ *
+ * @returns {string[]}
+ */
+function liveFeatureSettings() {
+  return pinSettings.REGISTRY.filter((e) => e.group === 'live' && !e.legacyOnly && !e.retired).map((e) => e.name);
+}
+
+/**
  * Which settings layout a vault is on: 'new' (_meta/vault-config.yaml), 'legacy'
  * (_meta/vault-config.md) or 'none'. Reads the real disk; a caller that needs an edited copy
  * served instead passes its text to the functions above.
@@ -825,6 +837,7 @@ module.exports = {
   resolveSiteConfig,
   settingFaults,
   settingEntry,
+  liveFeatureSettings,
   readSettingValues,
   settingsLayoutOf,
   stripMovedSettings,

@@ -11,6 +11,7 @@ const vaultsettingswrite = require('../../vault/vaultsettingswrite');
 const vaultsettingsplan = require('../vaultsettingsplan');
 const vaultsettingscandidate = require('../vaultsettingscandidate');
 const settingsfile = require('../settingsfile');
+const vaultconfigfields = require('../vaultconfigfields');
 const pinned = require('../../generator/pinned');
 const machinedir = require('../../config/machinedir');
 const backups = require('../../config/backups');
@@ -88,14 +89,14 @@ function settingsView(ctx) {
   return view;
 }
 
-/** The campaign id the live stats and the inbox are keyed on, before and after, when the title change moves it. */
+/** The campaign id the live-play features are keyed on, before and after, when the title change moves it. */
 function campaignIdChange(ctx, curBytes, candBytes) {
-  const read1 = (bytes) => pinned.readSettingValues(ctx.vaultPath, {}, { md: null, yaml: bytes.toString('utf8') }).values.player_site || {};
+  const read1 = (bytes) => pinned.readSettingValues(ctx.vaultPath, {}, { md: null, yaml: bytes.toString('utf8') }).values || {};
   const cur = read1(curBytes);
-  const features = cur.features || {};
-  if (features.live_stats !== true && features.inbox !== true) return null;
-  const before = pinned.slugify(cur.title || 'campaign');
-  const after = pinned.slugify(read1(candBytes).title || 'campaign');
+  // Which switches are live features is the pin's answer (its registry's live-play group), never a name here.
+  if (!pinned.liveFeatureSettings().some((name) => vaultconfigfields.getPath(cur, name.split('.')) === true)) return null;
+  const before = pinned.slugify((cur.player_site || {}).title || 'campaign');
+  const after = pinned.slugify((read1(candBytes).player_site || {}).title || 'campaign');
   return before === after ? null : { before, after };
 }
 
