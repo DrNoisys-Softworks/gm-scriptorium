@@ -5,9 +5,16 @@
  * routes reaches the site the CLI builds. Each case saves through the routes a GM's browser uses
  * (the vault-config.md routes on the old layout, the same routes naming vault-config.yaml on the
  * moved one), always a dry run first and then a confirm carrying the reviewed hash, then runs
- * `build` and searches every file under the output, the search index included, for a marker that
- * only the hidden thing holds. Every hiding case has its control: the marker is in the output when
- * the thing is not hidden, so a case cannot pass because the marker never reached the site at all.
+ * `build` and searches every file under the output for a marker that only the hidden thing holds.
+ * Every hiding case has its control: the marker is in the output when the thing is not hidden, so a
+ * case cannot pass because the marker never reached the site at all.
+ *
+ * Each marker is one lowercase token with no punctuation, so the search index's tokenizer keeps it
+ * whole (the pin's index runs no stemmer). The controls prove the index channel where the pin feeds
+ * it: a heading's or a folder page's body text is indexed, and an NPC's occupation is the search
+ * result's subtitle, so for those three markers search-index.json is among the files the control
+ * finds. A PC's header facts never reach the index (a PC with no occupation has its type as
+ * subtitle), so that case's control proves only the page and the link previews.
  *
  * The moved fixture comes from the pin's own move (test/helpers/moved-vault.js); a case that needs a
  * different setting edits the text the move wrote. Expected values are literals.
@@ -27,10 +34,10 @@ const vaultconfigedit = require('../src/admin/vaultconfigedit');
 const SAMPLE = path.join(__dirname, '..', 'examples', 'the-long-lease');
 const BIN = path.join(__dirname, '..', 'bin', 'scriptorium.js');
 
-const FIELD_MARKER = 'FIELD-MARKER-7Q';
-const SECTION_MARKER = 'SECTION-MARKER-7Q';
-const HEADER_MARKER = 'HEADER-MARKER-7Q';
-const FOLDER_MARKER = 'FOLDER-MARKER-7Q';
+const FIELD_MARKER = 'zqfieldmarker7';
+const SECTION_MARKER = 'zqsectionmarker7';
+const HEADER_MARKER = 'zqheadermarker7';
+const FOLDER_MARKER = 'zqfoldermarker7';
 
 // The sample's own hide lists, the same on both layouts (the move carries them over unchanged).
 const SAMPLE_FIELDS = ['secrets', 'current_plan', 'plan_progress', 'gm_notes', 'prep_notes', 'reliability'];
@@ -190,6 +197,7 @@ function effectsWith(dry, id) {
 
 // The three hide lists: hide the thing, build, no marker; take it off again (which needs the tick),
 // build, and the marker is back (the control).
+// The search index holds each of these markers when the thing is not hidden (see the header).
 const HIDE_CASES = [
   { key: 'fields', entry: 'occupation', list: SAMPLE_FIELDS, marker: FIELD_MARKER, page: 'characters/npcs/marker-npc' },
   { key: 'sections', entry: 'Keeper Only', list: SAMPLE_SECTIONS, marker: SECTION_MARKER, page: 'characters/npcs/marker-npc' },
@@ -220,6 +228,7 @@ for (const layout of ['legacy', 'new']) {
         holding.some((f) => f.startsWith(c.page)),
         `control: ${c.marker} is on its page once ${c.entry} is not hidden (found in ${JSON.stringify(holding)})`,
       );
+      assert.ok(holding.includes('search-index.json'), `control: ${c.marker} is in the search index (found in ${JSON.stringify(holding)})`);
     });
   }
 
@@ -244,6 +253,11 @@ for (const layout of ['legacy', 'new']) {
       const block = '  folder_map:\n' + Object.entries(map).map(([k, v]) => `    ${JSON.stringify(k)}: ${JSON.stringify(v)}\n`).join('');
       text = replaceChecked(text, 'publish:\n', 'publish:\n' + block);
     }
+    // A site built before the save, so the refused builds below have an output folder to leave alone.
+    build(fx);
+    assert.equal(fs.existsSync(path.join(fx.out, 'secret')), false);
+    const siteBefore = filesUnder(fx.out).length;
+
     const h = await startPanel(t, { config: fx.configPath }, 's');
     const { dry } = await saveText(h, fx, text, { saveAnyway: true });
     assert.ok(dry.json.reasons.includes('privacy'), JSON.stringify(dry.json.reasons));
@@ -260,6 +274,7 @@ for (const layout of ['legacy', 'new']) {
     const b = runCli(fx, 'build');
     assert.equal(b.status, 2, `${b.stdout}\n${b.stderr}`);
     assert.equal(fs.existsSync(path.join(fx.out, 'secret')), false);
+    assert.equal(filesUnder(fx.out).length, siteBefore, 'the refused build left the earlier site as it was');
 
     // Control: the mapping does reach the build. Forced past the check, the staged build holds
     // secret/plot.html, and the output-leak scan is what refuses it, so still nothing is written.
@@ -269,12 +284,15 @@ for (const layout of ['legacy', 'new']) {
     assert.match(said, /ERROR leak\/l4-output-name secret\/plot\.html /);
     assert.match(said, /refusing to swap\. Nothing was written\./);
     assert.equal(fs.existsSync(path.join(fx.out, 'secret')), false);
+    assert.equal(filesUnder(fx.out).length, siteBefore);
   });
 
   test(`${layout}: a field exception that shows a hidden field on one page needs the tick`, async (t) => {
     const fx = makeCampaign(t, layout);
     const h = await startPanel(t, { config: fx.configPath }, 's');
     await saveFields(h, fx, { [fx.names.fields]: [...SAMPLE_FIELDS, 'occupation'] });
+    build(fx);
+    assert.deepEqual(filesHolding(fx, FIELD_MARKER), [], 'hidden, before the exception');
 
     const text =
       layout === 'new'
@@ -307,7 +325,8 @@ for (const layout of ['legacy', 'new']) {
     const ok = await post(h, '/api/vault-config/text', { ...body, dryRun: false, saveAnyway: true, reviewedSha256: dry.json.candidateSha256 });
     assert.equal(ok.status, 200, ok.text);
     build(fx);
-    assert.ok(filesHolding(fx, FIELD_MARKER).some((f) => f.startsWith('characters/npcs/marker-npc')));
+    const shown = filesHolding(fx, FIELD_MARKER);
+    assert.ok(shown.some((f) => f.startsWith('characters/npcs/marker-npc')), JSON.stringify(shown));
   });
 
   test(`${layout}: publish mode full, saved as text, needs the tick`, async (t) => {
@@ -346,7 +365,7 @@ test('new: the header facts show a field on a PC page, and hiding that field tak
   await saveText(h, fx, text);
   build(fx);
   const shown = filesHolding(fx, HEADER_MARKER);
-  assert.ok(shown.length > 0, 'control: the header facts put the marker on the site');
+  assert.deepEqual(shown, ['characters/pcs/marker-pc.html', 'previews.json'], 'control: the header facts put the marker on the PC page and its link preview');
 
   await saveFields(h, fx, { 'player_site.hide.fields': [...SAMPLE_FIELDS, 'plot_hook'] });
   build(fx);
