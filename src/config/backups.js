@@ -167,13 +167,16 @@ function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now, f
 }
 
 /**
- * Never throws. Lists the segment directory's direct children only; keeps names matching
- * BACKUP_NAME_RE whose lstat is a regular file (a foreign file or a symlink is left alone and
- * never counted), sorted by name descending (the stamp sorts lexically = chronologically), and
- * unlinks anything beyond `keep`, each removal in its own try/catch.
+ * Lists the segment directory's direct children only; keeps the names of `kind`'s pattern
+ * (BACKUP_NAME_RE for 'md', YAML_BACKUP_NAME_RE for 'yaml') whose lstat is a regular file (a
+ * foreign file, a labelled copy or a symlink is left alone and never counted), sorted by name
+ * descending (the stamp sorts lexically = chronologically), and unlinks anything beyond `keep`,
+ * each removal in its own try/catch. A missing or unreadable folder, or a failed removal, is
+ * swallowed.
  *
  * @param {{ machineDir: string, campaign: string|null, keep?: number, kind?: 'md'|'yaml' }} opts
- *   only copies of `kind` are counted and removed
+ *   only copies of `kind` (default 'md') are counted and removed
+ * @throws {BackupError} only for a `kind` other than 'md' or 'yaml', before anything is read
  */
 function pruneBackups({ machineDir, campaign, keep = BACKUP_KEEP, kind = 'md' }) {
   const re = kindRe(kind);
@@ -218,7 +221,8 @@ function backupThenPrune(opts) {
   try {
     pruneBackups({ machineDir: opts.machineDir, campaign: opts.campaign, kind: opts.file === 'vault-config.yaml' ? 'yaml' : 'md' });
   } catch {
-    // swallowed: pruneBackups itself never throws, but this stays defensive (same pattern).
+    // swallowed: pruneBackups throws only for an unknown kind, and this kind is always known; it
+    // stays defensive (same pattern).
   }
   return result;
 }
@@ -229,7 +233,8 @@ function ioReason(err) {
   return `GM-Scriptorium could not read the backups folder: ${err.code}.`;
 }
 
-/** The ISO-8601 moment a backup's own stamp encodes, or null if `name` doesn't match BACKUP_NAME_RE. */
+/** The ISO-8601 moment a backup's own stamp encodes (a .md.bak or a .yaml.bak copy alike), or null
+ * if `name` doesn't start with a `vault-config-<stamp>-` stamp. */
 function takenAtFor(name) {
   const m = /^vault-config-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(\d{3})Z-/.exec(name);
   if (!m) return null;
@@ -238,11 +243,14 @@ function takenAtFor(name) {
 }
 
 /**
- * V1e-9 (SD-93): never throws. Lists exactly the segment directory's own regular-file entries
- * matching BACKUP_NAME_RE (a foreign name, or a symlink whether or not its name matches, is
- * excluded), newest first by name (the stamp sorts lexically = chronologically).
+ * V1e-9 (SD-93): lists exactly the segment directory's own regular-file entries matching `kind`'s
+ * pattern (BACKUP_NAME_RE for 'md', YAML_BACKUP_NAME_RE for 'yaml'; a foreign name, a labelled
+ * copy, or a symlink whether or not its name matches, is excluded), newest first by name (the
+ * stamp sorts lexically = chronologically). A folder problem is an `ok: false` answer, not a throw.
  *
- * @param {{ machineDir: string, campaign: string|null, vaultPath: string }} opts
+ * @param {{ machineDir: string, campaign: string|null, vaultPath: string, kind?: 'md'|'yaml' }} opts
+ *   `kind` (default 'md') picks which copies are listed
+ * @throws {BackupError} only for a `kind` other than 'md' or 'yaml', before anything is read
  * @returns {{ ok: true, dir: string, items: { id: string, takenAt: string, size: number }[] } |
  *   { ok: false, reason: string }}
  */

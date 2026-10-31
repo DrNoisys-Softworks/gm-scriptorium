@@ -107,3 +107,15 @@ test('21 md saves keep 20 md copies and all 3 yaml copies; labelled and json cop
   assert.ok(fs.existsSync(path.join(dir, LEFTOVER)));
   assert.ok(fs.existsSync(path.join(dir, JSONBAK)));
 });
+
+// Pins the documented contract; it passes on the code as it was, so it proves the JSDoc, not a fix.
+test('listBackups and pruneBackups throw BackupError for an unknown kind, before reading anything', () => {
+  const { root, machineDir, vaultPath } = scratchLayout();
+  try {
+    for (const fn of [backups.listBackups, backups.pruneBackups]) {
+      assert.throws(() => fn({ machineDir, campaign: 'alpha', vaultPath, kind: 'json' }), (err) => err instanceof backups.BackupError && err.message === 'unknown backup kind "json"');
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
