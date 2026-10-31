@@ -150,3 +150,98 @@ test('CRLF stays on every line, and a BOM stays', () => {
   const out2 = plan.planFieldEdits(vaultPath, bom, { 'player_site.landing.max_npcs': 3 });
   assert.deepEqual([...out2.bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
 });
+
+// ---- fix round 1 ----
+
+const HIDE_FIELDS = 'player_site.hide.fields';
+const REFUSED_REORDER = 'Hidden fields: this list has comments inside it, and a new order would drop them. Use "Edit as text instead".';
+
+function refusedWith(fn, message) {
+  assert.throws(fn, (e) => {
+    assert.ok(e instanceof pinned.SettingsPlanError, String(e && e.stack));
+    assert.equal(e.kind, 'refused');
+    assert.equal(e.message, message);
+    return true;
+  });
+}
+
+test('an edit key that is not a registry name throws, naming the key', () => {
+  const { vaultPath, Y } = fixture();
+  assert.throws(() => plan.planFieldEdits(vaultPath, Y, { 'publish.exclude_fields': ['a'] }), (e) => {
+    assert.ok(!(e instanceof pinned.SettingsPlanError));
+    assert.match(e.message, /publish\.exclude_fields/);
+    return true;
+  });
+});
+
+test('emptying a flow list: what the pin writes', () => {
+  const { vaultPath, text, Y } = fixture();
+  const out = plan.planFieldEdits(vaultPath, Y, { [HIDE_FIELDS]: [] });
+  const lines = changedLines(text, out.bytes);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0], '    fields: []');
+  assert.deepEqual(pinned.parseSettingsText(vaultPath, out.bytes).data.player_site.hide.fields, []);
+});
+
+test('emptying a block list with comments: what the pin writes', () => {
+  const { vaultPath, Y } = fixture(BLOCK);
+  const out = plan.planFieldEdits(vaultPath, Y, { [HIDE_FIELDS]: [] });
+  const s = out.bytes.toString('utf8');
+  assert.ok(s.includes('\n    fields: []\n'), s);
+  assert.deepEqual(pinned.parseSettingsText(vaultPath, out.bytes).data.player_site.hide.fields, []);
+});
+
+test('a pure reorder of a list with comments, no removal, is refused', () => {
+  const { vaultPath, Y } = fixture(BLOCK);
+  refusedWith(() => plan.planFieldEdits(vaultPath, Y, {
+    [HIDE_FIELDS]: ['current_plan', 'secrets', 'plan_progress', 'gm_notes', 'prep_notes', 'reliability'],
+  }), REFUSED_REORDER);
+});
+
+test('a duplicate in wanted counts once (first occurrence kept), and is never called a reorder', () => {
+  const { vaultPath, Y } = fixture(BLOCK);
+  const out = plan.planFieldEdits(vaultPath, Y, {
+    [HIDE_FIELDS]: ['secrets', 'current_plan', 'plan_progress', 'gm_notes', 'prep_notes', 'reliability', 'x', 'x'],
+  });
+  assert.deepEqual(pinned.parseSettingsText(vaultPath, out.bytes).data.player_site.hide.fields,
+    ['secrets', 'current_plan', 'plan_progress', 'gm_notes', 'prep_notes', 'reliability', 'x']);
+  assert.deepEqual(plan.listChanges('a.b', ['p', 'q'], ['p', 'p', 'q'], 'a:\n  b: [p, q]\n', 'L'), []);
+});
+
+test('a duplicate already in current is one entry: dropping the extra copy changes nothing', () => {
+  assert.deepEqual(plan.listChanges('a.b', ['p', 'q', 'p'], ['p', 'q'], 'a:\n  b: [p, q, p]  # c\n', 'L'), []);
+  assert.deepEqual(plan.listChanges('a.b', ['p', 'q', 'p'], ['p'], 'a:\n  b: [p, q, p]  # c\n', 'L'),
+    [{ op: 'remove', name: 'a.b', entries: ['q'] }]);
+});
+
+test('a list field absent from the file is set', () => {
+  const { vaultPath, Y } = fixture((t) => replaceChecked(t, '    quick_links: ["The Long Lease", "Timeline", "The Lease of Quillet"]\n', ''));
+  const out = plan.planFieldEdits(vaultPath, Y, { 'player_site.landing.quick_links': ['Home', 'Map'] });
+  assert.deepEqual(out.changed, ['player_site.landing.quick_links']);
+  assert.deepEqual(pinned.parseSettingsText(vaultPath, out.bytes).data.player_site.landing.quick_links, ['Home', 'Map']);
+});
+
+test('an empty tagline on a file with no tagline changes nothing', () => {
+  const { vaultPath, text, Y } = fixture((t) => t.replace(/^ {4}tagline: .*\n/m, ''));
+  assert.ok(!/tagline:/.test(text));
+  const out = plan.planTitleTagline(vaultPath, Y, { tagline: '' });
+  assert.ok(out.bytes.equals(Y));
+});
+
+test('an empty title is refused', () => {
+  const { vaultPath, Y } = fixture();
+  refusedWith(() => plan.planTitleTagline(vaultPath, Y, { title: '' }), "The site title can't be empty.");
+});
+
+test('CRLF and BOM files with a list add: CRLF on every line, BOM kept', () => {
+  const { vaultPath, text } = fixture();
+  const list = ['secrets', 'current_plan', 'plan_progress', 'gm_notes', 'prep_notes', 'reliability', 'new_secret'];
+  const crlf = Buffer.from(text.replace(/\n/g, '\r\n'), 'utf8');
+  const s = plan.planFieldEdits(vaultPath, crlf, { [HIDE_FIELDS]: list }).bytes.toString('utf8');
+  assert.ok(s.includes('new_secret'));
+  assert.equal(s.replace(/\r\n/g, '').includes('\n'), false);
+  const bom = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(text, 'utf8')]);
+  const out = plan.planFieldEdits(vaultPath, bom, { [HIDE_FIELDS]: list }).bytes;
+  assert.deepEqual([...out.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+  assert.ok(out.toString('utf8').includes('new_secret'));
+});

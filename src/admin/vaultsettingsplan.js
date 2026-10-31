@@ -67,6 +67,10 @@ const REORDER_REFUSAL = (label) => `${label}: this list has comments inside it, 
  */
 function listChanges(name, current, wanted, yamlText, label) {
   if (current === undefined) return [{ op: 'set', name, value: wanted }];
+  // A duplicate is one entry: keep the first copy, in both lists, before comparing.
+  const once = (list) => list.filter((v, i) => list.indexOf(v) === i);
+  current = once(current);
+  wanted = once(wanted);
   const removed = current.filter((v) => !wanted.includes(v));
   const added = wanted.filter((v) => !current.includes(v));
   const kept = current.filter((v) => !removed.includes(v));
@@ -108,6 +112,9 @@ function planFieldEdits(vaultPath, curBytes, edits) {
   const parsed = pinned.parseSettingsText(vaultPath, curBytes);
   if (!parsed.ok) throw new SettingsPlanError('unreadable', parsed.message, { line: parsed.line });
   const text = utf8(curBytes);
+  for (const key of Object.keys(edits)) {
+    if (!YAML_FIELD_BY_PATH.has(key)) throw new Error(`planFieldEdits: ${key} is not an editable setting name`);
+  }
   const changes = [];
   for (const entry of YAML_FIELD_SCHEMA) {
     if (!Object.prototype.hasOwnProperty.call(edits, entry.path)) continue;
@@ -132,6 +139,7 @@ function planFieldEdits(vaultPath, curBytes, edits) {
  */
 function planTitleTagline(vaultPath, curBytes, { title, tagline } = {}) {
   const changes = [];
+  if (title === '') throw new SettingsPlanError('refused', "The site title can't be empty.");
   if (title !== undefined) changes.push({ op: 'set', name: 'player_site.title', value: title });
   if (tagline !== undefined) {
     changes.push(tagline === ''
