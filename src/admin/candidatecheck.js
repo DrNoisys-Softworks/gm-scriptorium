@@ -47,24 +47,35 @@ const MESSAGE_KEEP_IDS = Object.freeze([
 
 const REDACTED_MESSAGE = 'Check reports this for vault-config.md. Run Check after saving to see the detail.';
 
+const VAULT_SETTINGS_REL = '_meta/vault-config.yaml';
+
+const YAML_REDACTED_MESSAGE = 'Check reports this for vault-config.yaml. Run Check after saving to see the detail.';
+
 const HITS_MESSAGE = 'The check on the edited copy did not read it, so the panel will not trust the result.';
 
 class CandidateCheckError extends ScriptoriumError {}
 
 /**
  * @param {{id, severity, path, line, message, detail?, data?, human?}} finding
+ * @param {string} [rel] the settings file under review, relative to the vault
  * @returns {{id, severity, path, line, message}} `detail`, `data` and `human` are never returned.
- *   The message becomes REDACTED_MESSAGE when the finding is about vault-config.md itself and its
- *   id isn't in MESSAGE_KEEP_IDS.
+ *   For vault-config.md the message becomes REDACTED_MESSAGE when the finding is about that file
+ *   and its id isn't in MESSAGE_KEEP_IDS. For vault-config.yaml it becomes YAML_REDACTED_MESSAGE
+ *   when the finding is about that file, unless it is config/settings-fault, the finding that
+ *   explains a bad value there.
  */
-function redact(finding) {
-  const redactThis = finding.path === VAULT_CONFIG_REL && !MESSAGE_KEEP_IDS.includes(finding.id);
+function redact(finding, rel = VAULT_CONFIG_REL) {
+  const redactThis =
+    rel === VAULT_SETTINGS_REL
+      ? finding.path === VAULT_SETTINGS_REL && finding.id !== 'config/settings-fault'
+      : finding.path === VAULT_CONFIG_REL && !MESSAGE_KEEP_IDS.includes(finding.id);
+  const redacted = rel === VAULT_SETTINGS_REL ? YAML_REDACTED_MESSAGE : REDACTED_MESSAGE;
   return {
     id: finding.id,
     severity: finding.severity,
     path: finding.path,
     line: finding.line,
-    message: redactThis ? REDACTED_MESSAGE : finding.message,
+    message: redactThis ? redacted : finding.message,
   };
 }
 
@@ -239,12 +250,12 @@ function runReview(ctx, { candidateBytes, withCheck, targetRel = VAULT_CONFIG_RE
       const newErrorCount = newFindingsRaw.filter((f) => f.severity === 'error').length;
       const unforceable = candidateResult.envelope.findings
         .filter((f) => UNFORCEABLE_IDS.includes(f.id) && f.path === VAULT_CONFIG_REL)
-        .map(redact);
+        .map((f) => redact(f, targetRel));
       check = {
         ran: true,
         exitCode: candidateResult.exitCode,
         counts: candidateResult.envelope.counts,
-        newFindings: newFindingsRaw.slice(0, NEW_FINDINGS_CAP).map(redact),
+        newFindings: newFindingsRaw.slice(0, NEW_FINDINGS_CAP).map((f) => redact(f, targetRel)),
         newCount: newFindingsRaw.length,
         newErrorCount,
         unforceable,
@@ -262,6 +273,8 @@ module.exports = {
   NEW_FINDINGS_CAP,
   MESSAGE_KEEP_IDS,
   REDACTED_MESSAGE,
+  VAULT_SETTINGS_REL,
+  YAML_REDACTED_MESSAGE,
   CandidateCheckError,
   redact,
   diffFindings,
