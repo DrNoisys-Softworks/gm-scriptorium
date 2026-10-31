@@ -31,14 +31,14 @@ Anything outside those three stays on the page.
 A page's frontmatter holds fields such as `occupation` or `secrets`. A field named in the hidden fields list is removed from every page.
 
 1. [Open the admin panel](../using.md#quick-start).
-2. Open the **vault-config.md** screen, then **Fields by risk**.
+2. Open the **vault-config.md** screen, then **Fields by risk**. If gm-apprentice has moved your vault's settings, the screen is called **vault-config.yaml** and works the same way.
 3. Turn on **Edit this file**, read the warning, tick **I understand. Unlock the fields.** and choose **Unlock**.
 4. Under **Hidden fields**, choose **+ add**, type the field's name and press Enter.
 5. Choose **Review and save**. The panel shows the change and the result of a check on an edited copy. Choose **Back up and save**. It keeps a copy of the file outside the vault first.
 
 ![The vault settings screen in its fields layout, grouping each setting by how much it can expose to players.](../images/how-to/vault-config-fields.png)
 
-You can also add the name to `exclude_fields` under `publish:` in `_meta/vault-config.md` by hand. The campaign's `vault.config.json` can have its own list, and the two lists are joined. Both are in [the vault's publish settings](../reference/vault-config.md).
+You can also add the name to `exclude_fields` under `publish:` in `_meta/vault-config.md` by hand. The campaign's `vault.config.json` can have its own list, and the two lists are joined. Both are in [the vault's publish settings](../reference/vault-config.md). On a moved vault the list is `fields` under `hide:` under `player_site:` in `_meta/vault-config.yaml`, and the site reads only that list, not the one in `vault.config.json`.
 
 To hide a field on one page only, list it in that page's `publish_exclude_fields`.
 
@@ -71,4 +71,4 @@ Names shorter than three characters, and generic aliases such as "the Landlady",
 
 ## Check what is hidden
 
-The hidden headings and fields come from the vault's settings, not from this page. If a heading or field is not on the list, it is not hidden. Look at the lists in the panel (**Hidden fields** and **Hidden headings** on the vault-config.md screen) or in [the vault's publish settings](../reference/vault-config.md), which also gives the built-in lists.
+The hidden headings and fields come from the vault's settings, not from this page. If a heading or field is not on the list, it is not hidden. Look at the lists in the panel (**Hidden fields** and **Hidden headings** on the vault-config.md screen, or the vault-config.yaml screen on a moved vault) or in [the vault's publish settings](../reference/vault-config.md), which also gives the built-in lists.

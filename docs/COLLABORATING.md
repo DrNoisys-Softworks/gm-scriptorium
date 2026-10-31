@@ -142,6 +142,31 @@ and the facade adds these exports:
 - `stricterCallouts` (`lib/settings/legacy.js`) and `headingKey` (`lib/heading-key.js`): how the carry
   checks compare callout rules and section names, the same way the build does.
 
+For the panel's edits to a moved vault's `_meta/vault-config.yaml` (ADR 0033, addendum "The panel
+edits vault-config.yaml"), the facade adds these. None of them writes a file.
+
+- `planSettingsText` (`lib/settings/write.js` `planChanges`): the new text of the yaml after a list
+  of the pin's own change objects, planned on the bytes the panel read, which the facade serves to the
+  pin for that one call. It refuses, with a `SettingsPlanError`, bytes that are not valid UTF-8, a
+  change the pin refuses or cannot make, a file the pin cannot read, and a plan that names another
+  file or started from other bytes. Only `src/admin/vaultsettingsplan.js` calls it, and
+  `src/vault/vaultsettingswrite.js` writes the result.
+- `parseSettingsText` (`lib/settings/write.js` `settingsText`): the settings a yaml text holds, with no
+  defaults filled in, or the line and message of why the pin cannot read it. A `version` newer than
+  the pin's `LAYOUT_VERSION` counts as unreadable.
+- `settingsNameMap` (`lib/settings` `REGISTRY` with `lib/settings/describe.js` `isLeaf`): every setting
+  a GM can name, and the old `vault-config.md` name of each, so the review says what an edit changes
+  in the same words on both layouts.
+- `settingFieldInfo` (`lib/settings/describe.js` `row` and `leftOutCell`): what a setting does and what
+  happens when it is left out, shown under each field. The text is Markdown with backticks.
+- `commandSettingNames` (`lib/settings` `REGISTRY`, the entries with `stepsFrom` and their `gm_site`
+  twins): the settings that hold commands to run, which the panel never changes.
+- `settingsCommentsInside`: whether a setting's text in the yaml holds a comment, found with the
+  pin's own copy of the `yaml` library (`gm-apprentice-publish/node_modules/yaml`). The panel refuses
+  to reorder or empty a list that has one. Scriptorium has no `yaml` dependency of its own.
+- `SettingsPlanError`: the refusal `planSettingsText` throws, with a `kind` of `not-utf8`,
+  `unreadable`, `refused`, `not-made` or `mismatch`.
+
 Any change to one of these exported functions' name, signature, or return shape is a break. A
 rename or removed export is the single most disruptive kind of upstream change from Scriptorium's
 side, because every consumer of the facade goes through this one file.

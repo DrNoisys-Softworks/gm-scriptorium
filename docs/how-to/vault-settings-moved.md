@@ -3,7 +3,7 @@
 This guide is for a GM whose gm-apprentice plugin update moved the vault's settings from
 `_meta/vault-config.md` to `_meta/vault-config.yaml`. It covers how to tell, what `check` says
 afterwards, and how to move the settings your campaign pack still holds into the new file, from the
-command line or the admin panel.
+command line or the admin panel, and how to change them afterwards.
 
 *Since 0.6.0.*
 
@@ -106,10 +106,29 @@ Open the screen again and look at the new list before you carry.
 
 ## Change the title or what is hidden
 
-On a moved vault the panel shows the title and tagline from `_meta/vault-config.yaml` without letting
-you change them, and its **vault-config.yaml** screen only says where the settings live. Editing
-them in the panel arrives in a later release. For now, change them in `_meta/vault-config.yaml`: the title is `title:` and the hide lists
-are under `hide:`, both under `player_site:`. Run `check` afterwards.
+On a moved vault the panel edits `_meta/vault-config.yaml` for you, and keeps a copy of it outside
+the vault before every save.
+
+- **Title & tagline** saves the title and the tagline into that file, in one save when you change
+  both.
+- The **vault-config.yaml** screen works as the **vault-config.md** screen does on an older vault:
+  edit the file as text, see what each edit changes, or use **Fields by risk** for the hidden fields,
+  headings and folders and the landing and not-found pages. Each field shows gm-apprentice's own
+  description of the setting. Choose **Review and save**: the panel checks an edited copy and says
+  what changes before anything is written. An edit that would publish more pages, such as mapping a
+  new folder, needs your tick first.
+- To put back an earlier version, find it under **Backups** on the same screen and choose
+  **Restore**. A restore gets the same review. The list also holds the copy the carry made.
+
+Some edits are refused, and the message says why:
+
+- Changing the order of a list, or emptying it, when the list has a comment inside it. Use **Edit as
+  text instead** for that.
+- Changing `before_build` or `after_build`, for the player site or the GM site. They run commands on
+  your computer when gm-apprentice publishes, so change them in the file yourself.
+
+You can still edit `_meta/vault-config.yaml` by hand: the title is `title:` and the hide lists are
+under `hide:`, both under `player_site:`. Run `check` afterwards.
 
 ## A leftover vault-config.md
 

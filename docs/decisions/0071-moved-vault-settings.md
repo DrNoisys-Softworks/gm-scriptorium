@@ -2,9 +2,9 @@
 
 ## Summary
 
-An update of the gm-apprentice plugin moves a vault's settings from `_meta/vault-config.md` to `_meta/vault-config.yaml`, and GM-Scriptorium 0.5.0 refused such a vault with exit 3. Now `check`, `build`, `serve`, `init` and the admin panel read a moved vault through the pinned generator's own settings reader, and an old vault is read exactly as before. On a moved vault the generator no longer reads the campaign pack's site title, folder map or hide lists, so `check` names each one the vault's settings lack, and a hide entry or a folder map that would be lost fails `check`, and stops `build` even with `--no-check` or `--force-check`. The GM moves them with a new `carry` command, or the panel's **Carry these settings** button, which runs the generator's own merge and keeps a copy of both files outside the vault first; the vault's values win and hide lists only grow. The main rejected alternative was letting `build` carry the settings itself, which would break the promise of [ADR 0006](0006-post-build-page-writer.md) and [ADR 0018](0018-campaign-pack.md) that a build never writes to the vault. The limits a GM will meet: the GM must run the carry, the panel shows the moved settings read-only until a later release lets it edit them, and a new vault made by `init --new-vault` is still made on the old layout.
+An update of the gm-apprentice plugin moves a vault's settings from `_meta/vault-config.md` to `_meta/vault-config.yaml`, and GM-Scriptorium 0.5.0 refused such a vault with exit 3. Now `check`, `build`, `serve`, `init` and the admin panel read a moved vault through the pinned generator's own settings reader, and an old vault is read exactly as before. On a moved vault the generator no longer reads the campaign pack's site title, folder map or hide lists, so `check` names each one the vault's settings lack, and a hide entry or a folder map that would be lost fails `check`, and stops `build` even with `--no-check` or `--force-check`. The GM moves them with a new `carry` command, or the panel's **Carry these settings** button, which runs the generator's own merge and keeps a copy of both files outside the vault first; the vault's values win and hide lists only grow. The main rejected alternative was letting `build` carry the settings itself, which would break the promise of [ADR 0006](0006-post-build-page-writer.md) and [ADR 0018](0018-campaign-pack.md) that a build never writes to the vault. The limits a GM will meet: the GM must run the carry, and a new vault made by `init --new-vault` is still made on the old layout.
 
-Status: accepted. Retires the refusal added for issue 171. Amends [ADR 0018](0018-campaign-pack.md), [ADR 0021](0021-init-first-run-setup.md) and [ADR 0033](0033-vaultconfig-write-exception.md). Builds on [ADR 0005](0005-generator-pin.md)'s publish-v1.26.0 addendum.
+Status: accepted. Retires the refusal added for issue 171. Amends [ADR 0018](0018-campaign-pack.md), [ADR 0021](0021-init-first-run-setup.md) and [ADR 0033](0033-vaultconfig-write-exception.md). Builds on [ADR 0005](0005-generator-pin.md)'s publish-v1.26.0 addendum. Amended: the panel edits the yaml (ADR 0033, addendum "The panel edits vault-config.yaml").
 
 ## 1. What a GM sees
 
@@ -57,7 +57,9 @@ The pin's move wants a site file that names its vault in `vaultPath`, and the pa
 
 Before anything is written, both files are copied into the per-machine `backups` folder beside the settings file, in the campaign's folder, never into the vault, as ADR 0033's writer does. A failure before the yaml is written changes nothing.
 
-The pin's apply can also remove a leftover `_meta/vault-config.md` that holds nothing the yaml lacks; its plan says so before the GM answers. When the plan removes it, that file is copied into the same folder first, as `vault-config-leftover-<stamp>-<hex6>.md.bak`, and the output names the copy. The label keeps it out of the panel's restore list and out of the newest-20 pruning of the panel's own `vault-config.md` copies, so it is never offered as a panel restore and never deleted. One with anything of its own, such as notes in its body, is kept by the pin and reported by `check`. The pin also removes hidden files left by an earlier move of its own; those are its scratch copies, and no copy is kept.
+The pin's apply can also remove a leftover `_meta/vault-config.md` that holds nothing the yaml lacks; its plan says so before the GM answers. When the plan removes it, that file is copied into the same folder first, as `vault-config-leftover-<stamp>-<hex6>.md.bak`, and the output names the copy. The label keeps it out of the panel's restore list and out of the newest-20 pruning of the panel's own `vault-config.md` copies, so it is never offered as a panel restore and never deleted.
+
+The carry's copy of the yaml has no label. It has the same name the panel gives its own copies of the yaml, `vault-config-<stamp>-<hex6>.yaml.bak`, so the panel lists it for restore on a moved vault and counts it among the newest 20 copies of the yaml it keeps. It is a good earlier state, and restoring it passes the same review as any other restore, which names any hiding it would lose. Like any copy, it is removed after 20 later saves of the yaml. The copy of the pack's `vault.config.json` is neither listed nor removed. See ADR 0033, addendum "The panel edits vault-config.yaml". One with anything of its own, such as notes in its body, is kept by the pin and reported by `check`. The pin also removes hidden files left by an earlier move of its own; those are its scratch copies, and no copy is kept.
 
 ## 5. The title and folder map: Scriptorium writes them itself, for now
 
@@ -82,9 +84,13 @@ Carrying only the title, as the design first said, was not enough: a pack withou
 
 `init --new-vault` still makes a vault on the old layout, from the captured gm-apprentice scaffold, until the starter is recaptured.
 
-## 8. The panel until it can edit the yaml
+## 8. The panel on a moved vault
 
-On a moved vault, the panel's title save, tagline save and vault settings editor are read-only. The Title & tagline screen shows the title and tagline as the yaml sets them, with a line saying the setting now lives in `_meta/vault-config.yaml` and that editing it there arrives in a later release. Otherwise a GM could type a title, the panel would save it to the pack, and the site would ignore it. The screen names the yaml wherever it used to name `vault-config.md` or `vault.config.json`. The carry section is described in section 4.
+On a moved vault, the panel's Title & tagline screen and its settings editor save to `_meta/vault-config.yaml`. The title and tagline go to `player_site.title` and `player_site.theme.tagline`, in one save when both change, never to the pack, which the site no longer reads for them. The settings screen, named **vault-config.yaml** in the menu, has the same three layouts as on an old vault, and its seven fields carry the same labels under their new names, each with the generator's own description of the setting. The panel writes the yaml only through its own guarded writer, after a backup outside the vault; ADR 0033's addendum "The panel edits vault-config.yaml" has the rules. On a moved vault the Hidden headings field says the site reads only this list, because the pack's list is no longer used. The screen names the yaml wherever it used to name `vault-config.md` or `vault.config.json`. The carry section is described in section 4.
+
+The panel reads the layout from the disk again for every request, and every save names the file it was built against. A save started against `vault-config.md` before the vault moved is refused as changed and asks the GM to reload, and writes nothing; the same holds the other way round. The `vault-config.md` writer also looks for the yaml again just before it renames the new file into place, which closes the gap while a move is under way.
+
+*Changed.* This section first said the panel showed the moved settings read-only until a later release. The read-only period has ended.
 
 ## 9. The pin's move loads a child-process module
 
@@ -114,6 +120,5 @@ On a moved vault, the panel's title save, tagline save and vault settings editor
 ## 13. Limits
 
 - The GM must run the carry. Until they do, a moved vault with a pack folder map or hide entry fails `check` and cannot be built, with any flags.
-- Editing a moved vault's settings from the panel arrives in a later release; until then, edit `_meta/vault-config.yaml` by hand.
 - New vaults are made on the old layout until the starter is recaptured.
 - `_meta/publish-list.yaml`, which arrives with a later pin, is not read yet.

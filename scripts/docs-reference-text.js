@@ -748,7 +748,7 @@ module.exports = deepFreeze({
       handEdit: 'No',
     },
     'backups/': {
-      what: 'Copies of each campaign\'s `_meta/vault-config.md`, made before the admin panel saves it, in a `campaign-<name>/` folder each. The newest 20 per campaign are kept. *Since 0.6.0.* The same folder keeps the copies `carry` and `init` make of `_meta/vault-config.yaml` and the pack\'s `vault.config.json` before they change them, as `.yaml.bak` and `.json.bak` files, and the copy `carry` makes of a leftover `_meta/vault-config.md` it removes, as `vault-config-leftover-<stamp>-<hex6>.md.bak`. These are not removed.',
+      what: 'Copies of each campaign\'s `_meta/vault-config.md`, made before the admin panel saves it, in a `campaign-<name>/` folder each. The newest 20 per campaign are kept. *Since 0.6.0.* The same folder keeps the copies `carry` and `init` make of `_meta/vault-config.yaml` and the pack\'s `vault.config.json` before they change them, as `.yaml.bak` and `.json.bak` files, and the copy `carry` makes of a leftover `_meta/vault-config.md` it removes, as `vault-config-leftover-<stamp>-<hex6>.md.bak`. On a vault whose settings live in `_meta/vault-config.yaml`, the admin panel also keeps a copy of that file before each save, as a `.yaml.bak` file. The newest 20 copies of each kind are kept, counted apart: 20 of `_meta/vault-config.md` and 20 of `_meta/vault-config.yaml`. The copies `carry` and `init` make of `_meta/vault-config.yaml` count among those 20 and are removed like the panel\'s own. The `.json.bak` copies and the leftover copy are not removed.',
       handEdit: 'No (delete old ones if you like)',
     },
     'panel-prefs.json': {
