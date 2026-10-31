@@ -422,6 +422,177 @@ function siteFolderKeys() {
   return pinSettings.siteFolderKeys().map(({ key, name }) => ({ key, name, default: (settingEntry(name) || {}).default }));
 }
 
+// lib/settings/write.js:655 (planChanges), :723 (settingsText); lib/settings/read.js:19 and :356 (NEWER_VERSION,
+// LAYOUT_VERSION); lib/settings/describe.js:8 (isLeaf), :20 (leftOutCell), :30 (row); and the pin's own copy of the
+// `yaml` library (node_modules/gm-apprentice-publish/node_modules/yaml), the one that wrote the file's node
+// ranges. Scriptorium has no `yaml` dependency of its own.
+const settingsDescribe = require('gm-apprentice-publish/lib/settings/describe');
+const { LAYOUT_VERSION, NEWER_VERSION } = require('gm-apprentice-publish/lib/settings/read');
+const pinYaml = require('gm-apprentice-publish/node_modules/yaml');
+
+const SETTINGS_REL = '_meta/vault-config.yaml';
+
+/** A refusal to plan or read an edit to the vault's settings file. */
+class SettingsPlanError extends Error {
+  /**
+   * @param {'not-utf8'|'unreadable'|'refused'|'not-made'|'mismatch'} kind
+   * @param {string} message
+   * @param {{ refusals?: string[], line?: number|null }} [extra]
+   */
+  constructor(kind, message, { refusals = [], line = null } = {}) {
+    super(message);
+    this.name = 'SettingsPlanError';
+    this.kind = kind;
+    this.refusals = refusals;
+    this.line = line;
+  }
+}
+
+const NOT_UTF8 = `${SETTINGS_REL} isn't valid UTF-8 text, so the panel won't change it.`;
+
+function lineOf(message) {
+  const m = /line (\d+)/.exec(String(message));
+  return m ? Number(m[1]) : null;
+}
+
+/** Is this one of the pin's "cannot read this file" errors (write.js:181-182 parseText, read.js:184 and :223)? */
+function isUnreadableSettings(err) {
+  const msg = String((err && err.message) || '');
+  return /^_meta\/vault-config\.yaml is not valid YAML/.test(msg)
+    || /^_meta\/vault-config\.yaml must hold settings written as name: value/.test(msg)
+    || msg === NEWER_VERSION;
+}
+
+/** The text of a UTF-8 buffer, or null when the bytes are not valid UTF-8 (a lossy decode does not round-trip). */
+function utf8Text(bytes) {
+  const text = bytes.toString('utf8');
+  return Buffer.from(text, 'utf8').equals(bytes) ? text : null;
+}
+
+/**
+ * Plans edits to _meta/vault-config.yaml with the pin's own writer (write.js planChanges), on the
+ * bytes the caller supplies instead of the disk's. Writes nothing.
+ *
+ * @param {string} vaultPath
+ * @param {Buffer} yamlBytes the file as the panel read it
+ * @param {object[]} changes the pin's change objects ({ op: 'set', name, value } and the rest)
+ * @returns {{ after: Buffer, changed: string[], notes: string[] }}
+ * @throws {SettingsPlanError}
+ */
+function planSettingsText(vaultPath, yamlBytes, changes) {
+  const text = utf8Text(yamlBytes);
+  if (text === null) throw new SettingsPlanError('not-utf8', NOT_UTF8);
+  let plan;
+  try {
+    plan = withServedSettings(vaultPath, { md: null, yaml: text }, () => settingsWrite.planChanges(vaultPath, changes));
+  } catch (e) {
+    if (e && Array.isArray(e.refusals) && e.refusals.length) {
+      throw new SettingsPlanError('refused', e.message, { refusals: e.refusals });
+    }
+    if (e && e.plain) throw new SettingsPlanError('not-made', e.message, { line: lineOf(e.message) });
+    if (isUnreadableSettings(e)) throw new SettingsPlanError('unreadable', e.message, { line: lineOf(e.message) });
+    throw e;
+  }
+  if (plan.rel !== SETTINGS_REL || plan.before !== text) {
+    throw new SettingsPlanError('mismatch', 'the settings plan did not start from the file the panel checked; nothing was written.');
+  }
+  return { after: Buffer.from(plan.after, 'utf8'), changed: plan.changed, notes: plan.notes };
+}
+
+/**
+ * The settings the file itself holds (write.js:723 settingsText's `data`: the file's own tree, with
+ * no registry defaults), read from the bytes the caller supplies. settingsText returns the tree for
+ * a present file, so the pin's `yaml` is not needed here. It does not check `version`, so that is
+ * checked here against LAYOUT_VERSION, as read.js:223 does.
+ *
+ * @param {string} vaultPath
+ * @param {Buffer} yamlBytes
+ * @returns {{ ok: true, data: object } | { ok: false, line: number|null, message: string }}
+ */
+function parseSettingsText(vaultPath, yamlBytes) {
+  const text = utf8Text(yamlBytes);
+  if (text === null) return { ok: false, line: null, message: NOT_UTF8 };
+  try {
+    const found = withServedSettings(vaultPath, { md: null, yaml: text }, () => settingsWrite.settingsText(vaultPath));
+    const data = found && found.data;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return { ok: false, line: null, message: `${SETTINGS_REL} must hold settings written as name: value` };
+    }
+    if (typeof data.version === 'number' && data.version > LAYOUT_VERSION) {
+      return { ok: false, line: null, message: NEWER_VERSION };
+    }
+    return { ok: true, data };
+  } catch (e) {
+    return { ok: false, line: lineOf(e && e.message), message: String((e && e.message) || e) };
+  }
+}
+
+let nameMap = null;
+
+/**
+ * Every setting a GM can name (describe.js isLeaf) and, for each, the first old name the registry
+ * keeps for it in the vault's old settings file. Built once and frozen.
+ *
+ * @returns {{ leaves: readonly string[], oldNameOf: Readonly<Record<string, string>> }}
+ */
+function settingsNameMap() {
+  if (!nameMap) {
+    const all = pinSettings.REGISTRY;
+    const leafEntries = all.filter((e) => settingsDescribe.isLeaf(e, all));
+    const oldNameOf = {};
+    for (const e of leafEntries) {
+      const was = (e.was || []).find((w) => w.in === 'vault');
+      if (was) oldNameOf[e.name] = was.name;
+    }
+    nameMap = Object.freeze({ leaves: Object.freeze(leafEntries.map((e) => e.name)), oldNameOf: Object.freeze(oldNameOf) });
+  }
+  return nameMap;
+}
+
+/**
+ * What the pin says a setting does and what happens when it is left out (describe.js row().does and
+ * leftOutCell). The text is Markdown with backticks.
+ *
+ * @param {string} name
+ * @returns {{ name: string, does: string|null, leftOut: string|null }}
+ */
+function settingFieldInfo(name) {
+  const entry = settingEntry(name);
+  if (!entry) throw new ScriptoriumError(`the pinned generator has no setting named ${name}`);
+  return { name, does: settingsDescribe.row(entry).does, leftOut: settingsDescribe.leftOutCell(entry) };
+}
+
+/**
+ * The settings that hold commands to run: the registry's entries with `stepsFrom`, and their
+ * gm_site twins.
+ *
+ * @returns {readonly string[]}
+ */
+function commandSettingNames() {
+  const all = pinSettings.REGISTRY;
+  const own = new Set(all.filter((e) => e.stepsFrom).map((e) => e.name));
+  return Object.freeze(all.filter((e) => own.has(e.name) || own.has(e.twinOf)).map((e) => e.name));
+}
+
+/**
+ * Does the text of the setting at `name` hold a YAML comment? The node's range is found with the
+ * pin's `yaml` parser and its text is lexed, so a `#` inside a quoted string is not a comment.
+ *
+ * @param {string} yamlText
+ * @param {string} name a dotted setting name
+ * @returns {boolean}
+ */
+function settingsCommentsInside(yamlText, name) {
+  const doc = pinYaml.parseDocument(yamlText);
+  const node = doc.getIn(name.split('.'), true);
+  if (!node || !node.range) return false;
+  const slice = yamlText.slice(node.range[0], node.range[2]);
+  for (const token of new pinYaml.Lexer().lex(slice)) {
+    if (token.startsWith('#')) return true;
+  }
+  return false;
+}
+
 // lib/settings/legacy.js:455 (module.exports): the stricter of two exclude_callouts values (true beats a
 // list, a list beats off, two lists are unioned), so a carry never makes a callout publish.
 const { stricterCallouts } = require('gm-apprentice-publish/lib/settings/legacy');
@@ -661,6 +832,13 @@ module.exports = {
   planSettingsCarry,
   applySettingsCarry,
   applySettingsChanges,
+  SettingsPlanError,
+  planSettingsText,
+  parseSettingsText,
+  settingsNameMap,
+  settingFieldInfo,
+  commandSettingNames,
+  settingsCommentsInside,
   stricterCallouts,
   headingKey,
   vaultRelPath,
