@@ -473,6 +473,8 @@ published pages an entry would affect.
 
 On a vault whose settings moved to `_meta/vault-config.yaml`, the panel no longer writes `_meta/vault-config.md`: the tagline save, the title save and the vault settings editor are read-only there. The vault's settings file gets one more writer, the GM-run carry (from the command line, the panel or `init`), which writes through the generator's own settings code and backs up both files in the same per-machine backups folder first, as `.yaml.bak` and `.json.bak` files. See [ADR 0071](0071-moved-vault-settings.md).
 
+*Changed.* The read-only rule in this section is replaced by the addendum "The panel edits vault-config.yaml" below.
+
 ## Addendum: The panel edits vault-config.yaml
 
 On a vault whose settings moved to `_meta/vault-config.yaml`, the panel edits that file again, with the same care it takes over `vault-config.md`. The title and tagline save into the yaml (`player_site.title` and `player_site.theme.tagline`, in one save when both change), and the vault settings screen offers its three layouts on the yaml: the text, the text with "what this changes", and the fields. This replaces the read-only rule in the section above. An old-layout vault is unchanged: the title still goes to the pack and the tagline to `vault-config.md`.
