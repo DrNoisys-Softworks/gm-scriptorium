@@ -236,12 +236,12 @@ async function saveTagline(req, res, ctx) {
     return;
   }
 
-  const fileProblem = settingsfile.fileKeyProblem(parsed);
-  if (fileProblem !== null) {
-    sendJson(res, 400, { error: 'invalid', message: fileProblem });
+  // This route edits vault-config.md only; the yaml's tagline goes through /api/vault-config/title.
+  const file = settingsfile.requestedFile(parsed);
+  if (file !== settingsfile.FILE_MD) {
+    sendJson(res, 400, { error: 'invalid', message: `file must be "${settingsfile.FILE_MD}"` });
     return;
   }
-  const file = settingsfile.requestedFile(parsed);
 
   if (typeof parsed.tagline !== 'string') {
     sendJson(res, 400, { error: 'invalid', message: 'tagline must be a string' });
