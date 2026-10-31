@@ -262,7 +262,7 @@ test('(g) checkTarget refuses a mixed vault with a ConfigError, not a "changed" 
       assert.ok(!(err instanceof VaultConfigChangedError));
       assert.equal(
         err.message,
-        "This campaign's settings are set in the vault's settings file (_meta/vault-config.yaml). Editing them here arrives in the next update; change them in that file for now.",
+        "This vault keeps its settings in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit them there.",
       );
       assert.equal(err.path, path.join(dir, '_meta', 'vault-config.yaml'));
       return true;
@@ -280,7 +280,7 @@ test('(g) checkTarget refuses a moved vault with the same ConfigError, not "chan
       assert.ok(!(err instanceof VaultConfigChangedError));
       assert.equal(
         err.message,
-        "This campaign's settings are set in the vault's settings file (_meta/vault-config.yaml). Editing them here arrives in the next update; change them in that file for now.",
+        "This vault keeps its settings in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit them there.",
       );
       return true;
     },
@@ -335,7 +335,7 @@ test('(h) replaceVaultConfigMd on a mixed vault refuses before any backup, temp 
         },
         campaign: 'camp',
       }),
-    (err) => err instanceof ConfigError && err.message === "This campaign's settings are set in the vault's settings file (_meta/vault-config.yaml). Editing them here arrives in the next update; change them in that file for now.",
+    (err) => err instanceof ConfigError && err.message === "This vault keeps its settings in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit them there.",
   );
   assert.equal(backupCalls, 0);
   assert.deepEqual(fs.readdirSync(metaDir).sort(), listingBefore);

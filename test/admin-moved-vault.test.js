@@ -25,9 +25,9 @@ const SAMPLE = path.join(__dirname, '..', 'examples', 'the-long-lease');
 const TITLE_MOVED =
   "This campaign's title is set in the vault's settings file (_meta/vault-config.yaml). Editing it here arrives in the next update; change it in that file for now.";
 const TAGLINE_MOVED =
-  "This campaign's tagline is set in the vault's settings file (_meta/vault-config.yaml). Editing it here arrives in the next update; change it in that file for now.";
+  "This vault keeps its tagline in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit it there.";
 const SETTINGS_MOVED =
-  "This campaign's settings are set in the vault's settings file (_meta/vault-config.yaml). Editing them here arrives in the next update; change them in that file for now.";
+  "This vault keeps its settings in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit them there.";
 const NO_TITLE = "No site title is set in the vault's settings file (_meta/vault-config.yaml).";
 const SAMPLE_TAGLINE = 'Three hundred years ago a queen rented this valley from a dragon. At midsummer the dragon came back for the rent.';
 const CHANGED =
