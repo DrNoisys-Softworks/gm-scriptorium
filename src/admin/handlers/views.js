@@ -23,7 +23,7 @@ const freshness = require('../freshness');
 const pageroles = require('../pageroles');
 const variants = require('../variants');
 const variantHandlers = require('./variants');
-const carryHandlers = require('./carry');
+const vaultsettingsHandlers = require('./vaultsettings');
 const { refreshSettingsLayout } = require('../context');
 
 /*
@@ -177,7 +177,7 @@ function state(req, res, ctx, { query } = {}) {
   // because gm-apprentice can move a vault's settings while the panel runs.
   if (include.has('settings')) {
     payload.settingsLayout = refreshSettingsLayout(ctx);
-    payload.vaultSettings = carryHandlers.settingsView(ctx);
+    payload.vaultSettings = vaultsettingsHandlers.settingsView(ctx);
   }
   respond.send(res, 200, respond.adminHeaders({ 'Content-Type': 'application/json; charset=utf-8' }), JSON.stringify(payload));
 }

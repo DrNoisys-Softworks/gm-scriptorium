@@ -100,7 +100,7 @@ test('vaultsettingswrite.js requires neither vaultconfigwrite, packreplace nor p
   }
 });
 
-test('only the settings editor and settings handlers require vaultsettingswrite', { todo: 'the two handlers arrive in later changes' }, () => {
+test('only the settings editor and settings handlers require vaultsettingswrite', () => {
   const allowed = [path.join(ROOT, 'src', 'admin', 'handlers', 'vaultsettingseditor.js'), path.join(ROOT, 'src', 'admin', 'handlers', 'vaultsettings.js')];
   const users = sourceFiles().filter((f) => scanRequires(fs.readFileSync(f, 'utf8')).some((s) => /(^|\/)vaultsettingswrite(\.js)?$/.test(s)));
   assert.deepEqual(users.sort(), allowed.sort());

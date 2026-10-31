@@ -23,8 +23,7 @@ const { stripBom } = require('../../util/bom');
 const pinned = require('../../generator/pinned');
 const freshness = require('../freshness');
 
-// The one text for a title that lives in the vault's settings file; the carry handler keeps it.
-const { TITLE_MOVED } = require('./carry');
+const { MOVED_SINCE_LOADED } = require('../settingsfile');
 
 /*
  * Phase 8 slice S3 (FR15-FR24, SD-5 through SD-10). The panel's only edit path: POST
@@ -271,9 +270,10 @@ async function runSave(req, res, ctx, endpoint) {
   }
 
   // 2b. A setting the vault's own settings file now holds (ADR 0071): saving it to the pack would be
-  // ignored by the build, so it is refused, dry run or not, and the pack is left as it is.
+  // ignored by the build, so it is refused as changed, dry run or not, and the pack is left as it is.
+  // The page was built against the pack; the title is saved to the yaml through its own route.
   if (endpoint.movedRefusal && refreshSettingsLayout(ctx) === 'new') {
-    sendJson(res, 409, { error: 'settings-moved', message: endpoint.movedRefusal });
+    sendJson(res, 409, { error: 'changed', message: endpoint.movedRefusal });
     return;
   }
 
@@ -369,7 +369,7 @@ async function saveSettings(req, res, ctx) {
     allowedKeys: ['siteTitle', 'baseSha256', 'dryRun'],
     baseShaAllowsNull: false,
     requireAtLeastOneOf: ['siteTitle'],
-    movedRefusal: TITLE_MOVED,
+    movedRefusal: MOVED_SINCE_LOADED,
     validateFields: (parsed) => {
       const fields = {};
       if (Object.prototype.hasOwnProperty.call(parsed, 'siteTitle')) fields.siteTitle = validateTitle(parsed.siteTitle);

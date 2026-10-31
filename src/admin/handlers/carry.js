@@ -8,19 +8,12 @@ const body = require('../body');
 const freshness = require('../freshness');
 const { runExclusive, refreshSettingsLayout } = require('../context');
 const machinedir = require('../../config/machinedir');
-const pinned = require('../../generator/pinned');
-const { readSettingsFiles } = require('../../vault/publishset');
 const { planCarry, applyCarry, discardCarry } = require('../../vault/settingscarry');
 const { writeCarriedPack } = require('../../vault/carrypack');
 const { ScriptoriumError, VaultUnreachableError } = require('../../util/errors');
 
 /*
  * The panel on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (ADR 0071).
- *
- * settingsView: the `?include=settings` part of GET /api/state. The title and tagline as the vault's
- * settings file sets them, shown read-only until editing them there arrives. A title the yaml
- * does not set is null, never the pack's: on a moved vault the build no longer reads the pack's title
- * (the carry's lines say when it would move).
  *
  * carry: POST /api/settings/carry, the panel's way to run `gm-scriptorium carry` (src/cli/carry.js).
  * `{ dryRun: true }` plans and returns the plan's lines with a baseSha256 over the pack and the yaml as
@@ -33,9 +26,6 @@ const BASE_SHA_RE = /^[0-9a-f]{64}$/;
 const ALLOWED_KEYS = ['dryRun', 'baseSha256'];
 const YAML_REL = '_meta/vault-config.yaml';
 
-const TITLE_MOVED =
-  "This campaign's title is set in the vault's settings file (_meta/vault-config.yaml). Editing it here arrives in the next update; change it in that file for now.";
-const NO_TITLE = "No site title is set in the vault's settings file (_meta/vault-config.yaml).";
 const NOTHING = 'There is nothing to carry: the pack holds nothing the carry can move.';
 const CHANGED =
   "The pack or the vault's settings file changed since these settings were shown. Nothing was written. Look at them again before carrying.";
@@ -65,30 +55,6 @@ function shaOrAbsent(file) {
 /** One value standing for the pack and the yaml as they are now. */
 function basisOf(ctx) {
   return sha256Hex(`${shaOrAbsent(path.resolve(ctx.siteConfigPath))}\n${shaOrAbsent(path.join(ctx.vaultPath, YAML_REL))}`);
-}
-
-function textOrNull(v) {
-  return typeof v === 'string' ? v : null;
-}
-
-/**
- * GET /api/state's `?include=settings` payload. Never throws.
- *
- * @param {object} ctx
- * @returns {null | { file: string, title: string|null, titleNote: string, tagline: string|null, error: string|null }}
- *   null unless the vault keeps its settings in _meta/vault-config.yaml
- */
-function settingsView(ctx) {
-  if (ctx.settingsLayout !== 'new') return null;
-  try {
-    const { values, origins } = pinned.readSettingValues(ctx.vaultPath, {}, readSettingsFiles(ctx.vaultPath));
-    const site = (values && values.player_site) || {};
-    const title = origins['player_site.title'] === 'file' ? textOrNull(site.title) : null;
-    const tagline = origins['player_site.theme.tagline'] === 'file' ? textOrNull(site.theme && site.theme.tagline) : null;
-    return { file: YAML_REL, title, titleNote: title === null ? NO_TITLE : TITLE_MOVED, tagline, error: null };
-  } catch (err) {
-    return { file: YAML_REL, title: null, titleNote: NO_TITLE, tagline: null, error: String(err.message).replace(/\s+/g, ' ') };
-  }
 }
 
 /** A specific, already-decided HTTP response, thrown from inside the write-locked section. */
@@ -193,4 +159,4 @@ async function carry(req, res, ctx) {
   sendJson(res, outcome.value.status, outcome.value.body);
 }
 
-module.exports = { carry, settingsView, TITLE_MOVED };
+module.exports = { carry };
