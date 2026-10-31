@@ -136,13 +136,14 @@ for (const browserName of ['chromium', 'firefox']) {
         assert.equal((await texts(page, '[data-role="side"] a[data-nav="vault-config"] [data-nav-label]'))[0], 'vault-config.yaml');
         // The three layouts' summary.
         assert.equal((await texts(page, `${screen} .tt1-toggle b`))[0], 'Other site settings');
-        assert.equal((await texts(page, `${screen} .tt1-more .a1-fine`))[0], 'These are set in _meta/vault-config.yaml, not in the campaign pack.');
+        assert.equal((await texts(page, `${screen} .tt1-more .a1-fine`))[0], 'These are set in _meta/vault-config.yaml, not in the campaign pack. Change them on the vault-config.yaml screen.');
         assert.equal((await texts(page, `${screen} [data-tt="tt1"] [data-part="raw-file"]`)).length, 0, 'no pack file shown as the settings');
         assert.match((await texts(page, `${screen} [data-tt="tt2"] h2.a1-rule`))[1], /^Also set for your site/);
-        assert.equal((await texts(page, `${screen} [data-tt="tt3"] .tt3-card.main .a1-pill`))[0], 'read-only');
+        assert.equal((await texts(page, `${screen} [data-tt="tt3"] .tt3-card.main .a1-pill`))[0], 'editable', 'the name and tagline are editable on a moved vault');
         assert.equal(await page.$$eval(`${screen} [data-tt="tt3"] .a1-seg`, (els) => els.length), 0, 'no JSON view of the pack');
         const screenText = await page.textContent(screen);
         assert.ok(!screenText.includes('vault.config.json by hand'), 'no row sends the GM to vault.config.json');
+        assert.ok(!screenText.includes('by hand'), 'no line tells the GM to change these settings by hand');
 
         // Before: the yaml sets no title (gm-apprentice#539), so the field is empty with a plain note.
         const title = await page.$eval('#pack-title-input', (e) => ({ value: e.value, readOnly: e.readOnly }));

@@ -239,14 +239,15 @@
         icon: 'file',
         name: 'Site settings',
         text: "The site's address, the folders that become sections, what's kept off the site and the art folder.",
-        where: 'Set in _meta/vault-config.yaml. Change them in that file by hand.',
+        where: 'Set in _meta/vault-config.yaml. Change them on the vault-config.yaml screen.',
       },
     ],
     toggle: 'Other site settings',
-    toggleSmall: 'Read-only here: set in _meta/vault-config.yaml',
-    fine: 'These are set in _meta/vault-config.yaml, not in the campaign pack.',
+    toggleSmall: 'Set in _meta/vault-config.yaml, changed on the vault-config.yaml screen',
+    fine: 'These are set in _meta/vault-config.yaml, not in the campaign pack. Change them on the vault-config.yaml screen.',
     also: 'Also set for your site',
-    alsoSmall: 'read-only, set in _meta/vault-config.yaml',
+    alsoSmall: 'changed on the vault-config.yaml screen',
+    // The name and tagline card's pill, only when the panel cannot save them (a read-only campaign).
     pill: 'read-only',
   };
 
@@ -1113,7 +1114,7 @@
    * the Cards/JSON segmented control, then either the card grid or the read-only JSON view. Only
    * name/tagline are ever editable; every other card is a plain, read-only rendering with a
    * lock note. */
-  function buildTt3(vcj, cardModelList, heroRel, moved) {
+  function buildTt3(vcj, cardModelList, heroRel, moved, movedLocked) {
     var section = el('section');
     section.setAttribute('data-tt', 'tt3');
 
@@ -1149,7 +1150,7 @@
     mainHeader.appendChild(mainH2);
     var editablePill = el('span');
     editablePill.className = 'a1-pill brass';
-    setText(editablePill, moved ? MOVED_SUMMARY.pill : 'editable');
+    setText(editablePill, moved && movedLocked ? MOVED_SUMMARY.pill : 'editable');
     mainHeader.appendChild(editablePill);
     mainCard.appendChild(mainHeader);
     var fieldsSlot = el('div');
@@ -1694,7 +1695,7 @@
 
     var tt1 = buildTt1(vcj, summaryRowsList, heroRel, moved);
     var tt2 = buildTt2(summaryRowsList, heroRel, moved);
-    var tt3 = buildTt3(vcj, cardModelList, heroRel, moved);
+    var tt3 = buildTt3(vcj, cardModelList, heroRel, moved, moved && !movedEditable);
 
     if (moved) mount.appendChild(buildCarrySection(state));
     mount.appendChild(tt1.section);

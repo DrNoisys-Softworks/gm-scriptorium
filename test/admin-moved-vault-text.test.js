@@ -66,7 +66,7 @@ test('nav text on a moved vault names _meta/vault-config.yaml and never the old 
   }
 });
 
-test('the layouts\' summary on a moved vault points at _meta/vault-config.yaml', () => {
+test('the layouts\' summary on a moved vault points at the vault-config.yaml screen, where those settings are edited', () => {
   assert.deepEqual(PK.MOVED_SUMMARY, {
     rows: [
       {
@@ -74,14 +74,14 @@ test('the layouts\' summary on a moved vault points at _meta/vault-config.yaml',
         icon: 'file',
         name: 'Site settings',
         text: "The site's address, the folders that become sections, what's kept off the site and the art folder.",
-        where: 'Set in _meta/vault-config.yaml. Change them in that file by hand.',
+        where: 'Set in _meta/vault-config.yaml. Change them on the vault-config.yaml screen.',
       },
     ],
     toggle: 'Other site settings',
-    toggleSmall: 'Read-only here: set in _meta/vault-config.yaml',
-    fine: 'These are set in _meta/vault-config.yaml, not in the campaign pack.',
+    toggleSmall: 'Set in _meta/vault-config.yaml, changed on the vault-config.yaml screen',
+    fine: 'These are set in _meta/vault-config.yaml, not in the campaign pack. Change them on the vault-config.yaml screen.',
     also: 'Also set for your site',
-    alsoSmall: 'read-only, set in _meta/vault-config.yaml',
+    alsoSmall: 'changed on the vault-config.yaml screen',
     pill: 'read-only',
   });
 });
