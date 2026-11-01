@@ -683,7 +683,7 @@ async function effects(req, res, ctx) {
 
   let rv;
   try {
-    rv = candidatecheck.runReview(ctx, { candidateBytes: candResult.bytes, withCheck: false });
+    rv = candidatecheck.runReview(ctx, { candidateBytes: candResult.bytes, withCheck: false, publishDiffWhenItCanChange: true });
   } catch (err) {
     sendJson(res, 503, { error: 'io', message: err.message });
     return;
@@ -698,6 +698,7 @@ async function effects(req, res, ctx) {
     jsonConfig: rv.jsonConfig,
     publishSet: null,
     fixable,
+    publishDiff: rv.publishDiff,
   });
 
   const responseBody = {

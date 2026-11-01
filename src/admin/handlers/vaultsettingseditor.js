@@ -459,7 +459,7 @@ function effectsYaml(ctx, parsed, res) {
 
   let rv;
   try {
-    rv = candidatecheck.runReview(ctx, { candidateBytes: candBytes, withCheck: false, targetRel: TARGET_REL });
+    rv = candidatecheck.runReview(ctx, { candidateBytes: candBytes, withCheck: false, targetRel: TARGET_REL, publishDiffWhenItCanChange: true });
   } catch (err) {
     sendJson(res, 503, { error: 'io', message: err.message });
     return;
@@ -473,6 +473,7 @@ function effectsYaml(ctx, parsed, res) {
     jsonConfig: rv.jsonConfig,
     publishSet: null,
     fixable: computeFixable(candParsed.data),
+    publishDiff: rv.publishDiff,
   });
 
   const body = { ok: true, parse: { ok: true }, effects: effectsList, needsAck: effectsList.some((e) => e.level === 'bad') || curData === null };

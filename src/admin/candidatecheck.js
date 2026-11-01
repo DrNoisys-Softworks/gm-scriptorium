@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('path');
+const { isDeepStrictEqual } = require('util');
 const { ScriptoriumError } = require('../util/errors');
 // Every dependency below is called through its module object (never destructured at require
 // time), so a test can inject a throw or a wrong return value deterministically at exactly one
@@ -188,6 +189,32 @@ function computePublishDiff(ctx, target, candidateBytes) {
   };
 }
 
+/** The effective publish settings that decide which pages publish: the hide lists, drafts, callouts, field exceptions and mode. */
+const PAGE_DECIDING_KEYS = Object.freeze(['mode', 'exclude_drafts', 'exclude_callouts', 'exclude_sections', 'exclude_fields', 'exclude_dirs', 'overrides']);
+
+/**
+ * Whether the candidate can change which pages publish, judged from the settings as the generator
+ * reads them, never from the text: the effective publish settings both sides already hold, and the
+ * folder map of each side's resolved context. A candidate side that cannot be resolved counts as a
+ * change, so the comparison runs and decides for itself.
+ *
+ * @returns {boolean}
+ */
+function publishMayChange(ctx, target, candidateBytes, jsonConfig, curPublish, candPublish) {
+  const curEff = curPublish.publishConfig;
+  const candEff = candPublish.publishConfig;
+  if (PAGE_DECIDING_KEYS.some((k) => !isDeepStrictEqual(curEff[k], candEff[k]))) return true;
+  if (jsonConfig === null) return true;
+  const { value: candMap } = read.withCandidateFile(target, candidateBytes, () => {
+    try {
+      return { ok: true, map: checkcli.resolveVaultContext(ctx.ctxInfo).jsonConfig.folderMap };
+    } catch {
+      return { ok: false };
+    }
+  });
+  return !candMap.ok || !isDeepStrictEqual(jsonConfig.folderMap, candMap.map);
+}
+
 const REASON_ORDER = Object.freeze(['privacy', 'new-errors', 'check-did-not-run', 'current-unreadable']);
 
 /**
@@ -209,18 +236,21 @@ function computeReasons({ effects, check, curData, publishDiff }) {
 
 /**
  * @param {object} ctx an admin context (only `ctx.vaultPath` and `ctx.ctxInfo` are read)
- * @param {{ candidateBytes: Buffer, withCheck: boolean, targetRel?: string }} opts `targetRel` is
- *   the settings file the candidate stands in for, relative to the vault (vault-config.md by default)
+ * @param {{ candidateBytes: Buffer, withCheck: boolean, targetRel?: string, publishDiffWhenItCanChange?: boolean }} opts
+ *   `targetRel` is the settings file the candidate stands in for, relative to the vault
+ *   (vault-config.md by default). `publishDiffWhenItCanChange` (the live pane, without the check)
+ *   computes the publish comparison only when the edit can change which pages publish (see
+ *   publishMayChange), and leaves it null, never throwing, when that comparison fails.
  * @returns {{ jsonConfig: object|null, jsonError: string|null, curPublish: object,
  *   candPublish: object, candPublishSet: object|null, publishDiff: object|null,
  *   check: null | { ran:false, message:string } | { ran:true, exitCode:number, counts:object,
  *     newFindings:object[], newCount:number, newErrorCount:number, unforceable:object[] } }}
- *   `publishDiff` (see computePublishDiff) is computed only with the check, and is null without it
- *   or when either side cannot be resolved.
+ *   `publishDiff` (see computePublishDiff) is computed with the check, or without it under
+ *   `publishDiffWhenItCanChange`, and is null otherwise or when either side cannot be resolved.
  * @throws {CandidateCheckError} the overlay was never actually read (`hits < 1`): the panel will
  *   not trust a result it cannot prove came from the candidate.
  */
-function runReview(ctx, { candidateBytes, withCheck, targetRel = VAULT_CONFIG_REL }) {
+function runReview(ctx, { candidateBytes, withCheck, targetRel = VAULT_CONFIG_REL, publishDiffWhenItCanChange = false }) {
   // The default target keeps going through the markdown writer's own path, the one seam a test
   // injects to prove a review that never read its candidate is refused.
   const target = targetRel === VAULT_CONFIG_REL ? vaultconfigwrite.targetPathFor(ctx.vaultPath) : path.join(ctx.vaultPath, targetRel);
@@ -245,6 +275,15 @@ function runReview(ctx, { candidateBytes, withCheck, targetRel = VAULT_CONFIG_RE
   let check = null;
   let candPublishSet = null;
   let publishDiff = null;
+
+  if (!withCheck && publishDiffWhenItCanChange && publishMayChange(ctx, target, candidateBytes, jsonConfig, curPublish, candPublish)) {
+    // The live pane only informs: the review at save time runs the comparison again and fails closed.
+    try {
+      publishDiff = computePublishDiff(ctx, target, candidateBytes);
+    } catch {
+      publishDiff = null;
+    }
+  }
 
   if (withCheck) {
     publishDiff = computePublishDiff(ctx, target, candidateBytes);
