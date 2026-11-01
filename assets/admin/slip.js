@@ -274,6 +274,21 @@
     return [];
   }
 
+  function campaignIdEffect(file, campaignId) {
+    return {
+      id: 'campaign-id',
+      level: 'warn',
+      text:
+        "Your site's backend features are switched on in " +
+        file +
+        ', and the generator builds a campaign id from the site title. Saving this title changes that id from ' +
+        campaignId.before +
+        ' to ' +
+        campaignId.after +
+        '. Anything those features stored under the old id is not moved.',
+    };
+  }
+
   function buildEffects(kind, payload, dry, rows, mismatch, advice, onDiskHasKinds) {
     var effects = [];
 
@@ -327,31 +342,8 @@
     // hook (src/admin/handlers/pack.js's settingsDryRunExtras) found a backend flag on and the
     // slug actually changing. Never blocks -- it is an 'info'-adjacent 'warn' the same way
     // comments-lost is, not a refusal.
-    if (kind === 'settings' && dry.campaignId) {
-      effects.push({
-        id: 'campaign-id',
-        level: 'warn',
-        text:
-          "Your site's backend features are switched on in vault.config.json, and the generator builds a campaign id from the site title. Saving this title changes that id from " +
-          dry.campaignId.before +
-          ' to ' +
-          dry.campaignId.after +
-          '. Anything those features stored under the old id is not moved.',
-      });
-    }
-
-    if (kind === 'vault-settings' && dry.campaignId) {
-      effects.push({
-        id: 'campaign-id',
-        level: 'warn',
-        text:
-          "Your site's backend features are switched on in _meta/vault-config.yaml, and the generator builds a campaign id from the site title. Saving this title changes that id from " +
-          dry.campaignId.before +
-          ' to ' +
-          dry.campaignId.after +
-          '. Anything those features stored under the old id is not moved.',
-      });
-    }
+    if (kind === 'settings' && dry.campaignId) effects.push(campaignIdEffect('vault.config.json', dry.campaignId));
+    if (kind === 'vault-settings' && dry.campaignId) effects.push(campaignIdEffect('_meta/vault-config.yaml', dry.campaignId));
 
     if (kind === 'theme' && mismatch) {
       effects.push({
