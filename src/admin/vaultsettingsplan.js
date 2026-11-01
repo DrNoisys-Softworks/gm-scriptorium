@@ -66,11 +66,11 @@ const DROPS_COMMENTS = (label, what) => `${label}: this list has comments inside
  * @throws {SettingsPlanError} kind 'refused' for a reorder of a list with comments inside
  */
 function listChanges(name, current, wanted, yamlText, label) {
-  if (current === undefined) return [{ op: 'set', name, value: wanted }];
   // A duplicate is one entry: keep the first copy, in both lists, before comparing.
   const once = (list) => list.filter((v, i) => list.indexOf(v) === i);
-  current = once(current);
   wanted = once(wanted);
+  if (current === undefined) return [{ op: 'set', name, value: wanted }];
+  current = once(current);
   if (wanted.length === 0 && current.length > 0 && pinned.settingsCommentsInside(yamlText, name)) {
     throw new SettingsPlanError('refused', DROPS_COMMENTS(label, 'emptying it'));
   }

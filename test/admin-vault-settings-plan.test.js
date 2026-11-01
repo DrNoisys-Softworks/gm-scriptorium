@@ -79,7 +79,9 @@ test('block list with comments: a removal keeps the lines outside and both comme
   const before = text.split('\n');
   const after = out.bytes.toString('utf8').split('\n');
   const start = before.indexOf('    fields:');
-  const endB = start + 1 + before.slice(start + 1).findIndex((l) => !/^\s{6}/.test(l));
+  // The list ends at its last entry, which BLOCK writes by name; every line after it is outside the list.
+  const endB = before.indexOf('      - reliability') + 1;
+  assert.ok(start >= 0 && endB > start + 1, 'the block list was not found');
   const tail = before.length - endB;
   assert.deepEqual(after.slice(0, start), before.slice(0, start));
   assert.deepEqual(after.slice(after.length - tail), before.slice(endB));
@@ -223,6 +225,13 @@ test('a list field absent from the file is set', () => {
   const { vaultPath, Y } = fixture((t) => replaceChecked(t, '    quick_links: ["The Long Lease", "Timeline", "The Lease of Quillet"]\n', ''));
   const out = plan.planFieldEdits(vaultPath, Y, { 'player_site.landing.quick_links': ['Home', 'Map'] });
   assert.deepEqual(out.changed, ['player_site.landing.quick_links']);
+  assert.deepEqual(pinned.parseSettingsText(vaultPath, out.bytes).data.player_site.landing.quick_links, ['Home', 'Map']);
+});
+
+test('a list absent from the file is set once: a duplicate in the wanted list counts first occurrence only', () => {
+  assert.deepEqual(plan.listChanges('a.b', undefined, ['x', 'y', 'x'], 'a: {}\n', 'L'), [{ op: 'set', name: 'a.b', value: ['x', 'y'] }]);
+  const { vaultPath, Y } = fixture((t) => replaceChecked(t, '    quick_links: ["The Long Lease", "Timeline", "The Lease of Quillet"]\n', ''));
+  const out = plan.planFieldEdits(vaultPath, Y, { 'player_site.landing.quick_links': ['Home', 'Map', 'Home'] });
   assert.deepEqual(pinned.parseSettingsText(vaultPath, out.bytes).data.player_site.landing.quick_links, ['Home', 'Map']);
 });
 
