@@ -14,6 +14,7 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+const { contextFromSite } = require('../src/cli/check');
 const { isMdParseError, isYamlParseError } = require('../src/vault/publishset');
 const { moveVaultCopy, assertMovedLayout, replaceChecked } = require('./helpers/moved-vault');
 
@@ -108,13 +109,44 @@ test('isMdParseError is true for the markdown file\'s parse error only', () => {
   assert.equal(isYamlParseError(new Error('_meta/vault-config.md frontmatter is not valid YAML: x')), false);
 });
 
-test('legacy: a vault-config.md whose frontmatter does not parse still ends in frontmatter/parse-error, with the pack\'s map', () => {
+// Add Secret to the pack's own folder map (vault.config.json), the map check falls back to when the settings file is unusable or absent.
+function mapSecretInPack(vault) {
+  const file = path.join(vault, '_meta', 'scriptorium', 'vault.config.json');
+  const json = JSON.parse(fs.readFileSync(file, 'utf8'));
+  json.folderMap.Secret = 'secret';
+  fs.writeFileSync(file, JSON.stringify(json, null, 2));
+}
+
+test('legacy: a vault-config.md whose frontmatter does not parse still ends in frontmatter/parse-error, with the pack\'s map in force', () => {
   inScratch((root) => {
     const vault = makeVault(root, 'legacy', false);
+    mapSecretInPack(vault);
     const file = path.join(vault, '_meta', 'vault-config.md');
     fs.writeFileSync(file, replaceChecked(fs.readFileSync(file, 'utf8'), 'publish:\n', 'publish: [unclosed\n'));
     const { status, findings, stderr } = runCheck(root, vault);
     assert.equal(status, 2, stderr);
     assert.ok(findings.some((f) => f.id === 'frontmatter/parse-error' && f.path === '_meta/vault-config.md'));
+    // Only the pack's map names Secret, so a leak found there shows the pack's map was the one scanned.
+    const leak = findings.filter((f) => f.id === 'leak/l4-hidden-name' && f.path === 'Secret/Plot.md');
+    assert.equal(leak.length, 1);
+    assert.equal(leak[0].data.hiddenName, 'Ottoline Pardew');
+    assert.deepEqual(findings.filter((f) => f.id === 'vault/unmapped-directory' && f.path === 'Secret/Plot.md'), []);
+  });
+});
+
+// `check` and `build` refuse a vault with no settings file before they reach the folder map, so this
+// drives the context builder directly.
+test('legacy: an old-layout vault with no settings file at all (layout none) takes the pack\'s folder map', () => {
+  inScratch((root) => {
+    const vault = makeVault(root, 'legacy', false);
+    mapSecretInPack(vault);
+    fs.rmSync(path.join(vault, '_meta', 'vault-config.md'));
+    assert.equal(fs.existsSync(path.join(vault, '_meta', 'vault-config.yaml')), false);
+    const siteConfigPath = path.join(vault, '_meta', 'scriptorium', 'vault.config.json');
+    const site = { siteSource: 'pack', siteConfigPath, siteDir: path.dirname(siteConfigPath), packShadowed: null };
+    const ctx = contextFromSite({ campaign: 's', vault, pack: path.dirname(siteConfigPath) }, vault, site);
+    assert.equal(ctx.settingsLayout, 'legacy');
+    assert.equal(ctx.jsonConfig.folderMap.Secret, 'secret');
+    assert.deepEqual(ctx.jsonConfig.folderMap, { ...packMapOf(vault) });
   });
 });
