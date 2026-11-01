@@ -17,6 +17,7 @@ const path = require('path');
 const { withScratch, run, SAMPLE } = require('./helpers/b4-cli');
 const { runInitCommand } = require('../src/cli/init');
 const pinned = require('../src/generator/pinned');
+const vaultsettingswrite = require('../src/vault/vaultsettingswrite');
 const { VaultUnreachableError } = require('../src/util/errors');
 const { stripEntriesForMovedVault } = require('../src/setup/scaffold');
 const { moveVaultCopy, assertMovedLayout, replaceChecked } = require('./helpers/moved-vault');
@@ -298,20 +299,20 @@ async function initInProcess(root, vault) {
 
 test('when the vault settings cannot be written, init exits 3, says to run the command again, and writes no pack', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-initfail-'));
-  const real = pinned.applySettingsChanges;
+  const real = vaultsettingswrite.replaceVaultSettingsYaml;
   try {
     const vault = movedNoPack(root);
-    pinned.applySettingsChanges = () => {
+    vaultsettingswrite.replaceVaultSettingsYaml = () => {
       throw new Error('EACCES: permission denied');
     };
     const res = await initInProcess(root, vault);
-    pinned.applySettingsChanges = real;
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
     assert.equal(res.code, 3);
     assert.match(res.err.message, /^The site title and folder map could not be set in the vault's settings file \(EACCES: permission denied\)\. Nothing else was written\. Run the command again once the file can be written\./);
     assert.ok(!/gm-scriptorium carry|still in/.test(res.err.message), res.err.message);
     assert.ok(!fs.existsSync(path.join(vault, '_meta', 'scriptorium')));
   } finally {
-    pinned.applySettingsChanges = real;
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

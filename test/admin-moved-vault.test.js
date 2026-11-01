@@ -466,16 +466,16 @@ test('carry whose title cannot be set in the yaml answers 503, says to carry aga
   const fx = movedCampaign(t);
   const h = await startPanel(t, { config: fx.configPath }, 'lease');
   const dry = await post(h, '/api/settings/carry', { dryRun: true });
-  const pinned = require('../src/generator/pinned');
-  const real = pinned.applySettingsChanges;
-  pinned.applySettingsChanges = () => {
+  const vaultsettingswrite = require('../src/vault/vaultsettingswrite');
+  const real = vaultsettingswrite.replaceVaultSettingsYaml;
+  vaultsettingswrite.replaceVaultSettingsYaml = () => {
     throw Object.assign(new Error('injected'), { code: 'EIO' });
   };
   let res;
   try {
     res = await post(h, '/api/settings/carry', { dryRun: false, baseSha256: dry.json.baseSha256 });
   } finally {
-    pinned.applySettingsChanges = real;
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
   }
   assert.equal(res.status, 503, res.text);
   const names = backupsIn(fx.backupDir);

@@ -9,7 +9,8 @@ const Module = require('module');
 /*
  * The structure of the vault-config.yaml writer: it is a chokepoint of its own, a sibling of
  * vaultconfigwrite.js that never imports it (ADR 0033 section 4), and the build and check paths
- * never reach it.
+ * never reach it. The panel's settings handlers and the carry (which init and the carry command run)
+ * write through it.
  */
 
 const ROOT = path.join(__dirname, '..');
@@ -100,23 +101,30 @@ test('vaultsettingswrite.js requires neither vaultconfigwrite, packreplace nor p
   }
 });
 
-test('only the settings editor and settings handlers require vaultsettingswrite', () => {
-  const allowed = [path.join(ROOT, 'src', 'admin', 'handlers', 'vaultsettingseditor.js'), path.join(ROOT, 'src', 'admin', 'handlers', 'vaultsettings.js')];
+test('only the settings editor, the settings handlers and the carry require vaultsettingswrite', () => {
+  const allowed = [
+    path.join(ROOT, 'src', 'admin', 'handlers', 'vaultsettingseditor.js'),
+    path.join(ROOT, 'src', 'admin', 'handlers', 'vaultsettings.js'),
+    path.join(ROOT, 'src', 'vault', 'settingscarry.js'),
+  ];
   const users = sourceFiles().filter((f) => scanRequires(fs.readFileSync(f, 'utf8')).some((s) => /(^|\/)vaultsettingswrite(\.js)?$/.test(s)));
   assert.deepEqual(users.sort(), allowed.sort());
 });
 
-test('only the facade and the plan module name planSettingsText', () => {
-  const allowed = [path.join(ROOT, 'src', 'generator', 'pinned.js'), path.join(ROOT, 'src', 'admin', 'vaultsettingsplan.js')];
+test('only the facade, the plan module and the carry name planSettingsText', () => {
+  const allowed = [path.join(ROOT, 'src', 'generator', 'pinned.js'), path.join(ROOT, 'src', 'admin', 'vaultsettingsplan.js'), path.join(ROOT, 'src', 'vault', 'settingscarry.js')];
   const users = sourceFiles().filter((f) => stripComments(fs.readFileSync(f, 'utf8')).includes('planSettingsText'));
   assert.deepEqual(users.sort(), allowed.sort());
 });
 
-test('graph walk: build, check, init and carry never reach the writer; serve-admin does (positive control)', () => {
-  for (const entry of ['build.js', 'check.js', 'init.js', 'carry.js']) {
+test('graph walk: build and check never reach the writer; serve-admin, init and carry do (positive controls)', () => {
+  for (const entry of ['build.js', 'check.js']) {
     const file = path.join(ROOT, 'src', 'cli', entry);
     assert.ok(fs.existsSync(file), `src/cli/${entry} must exist`);
     assert.equal(graphReaches(file, WRITER), false, `${entry} must never reach vaultsettingswrite.js`);
   }
-  assert.equal(graphReaches(path.join(ROOT, 'src', 'cli', 'serve-admin.js'), WRITER), true, 'positive control: serve-admin.js must reach the writer');
+  // init and the carry command run the carry, which sets the title and folder map through the writer.
+  for (const entry of ['serve-admin.js', 'init.js', 'carry.js']) {
+    assert.equal(graphReaches(path.join(ROOT, 'src', 'cli', entry), WRITER), true, `positive control: ${entry} must reach the writer`);
+  }
 });

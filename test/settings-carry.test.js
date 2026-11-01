@@ -290,15 +290,15 @@ test('a yaml title and folder map the pin cannot read are kept as written, named
 
 test('when the title and folder map cannot be written, the pack keeps both, the command exits 3, and the rest is carried', async () => {
   const root = fs.mkdtempSync(path.join(require('os').tmpdir(), 'scriptorium-b4-'));
-  const pinned = require('../src/generator/pinned');
-  const real = pinned.applySettingsChanges;
+  const vaultsettingswrite = require('../src/vault/vaultsettingswrite');
+  const real = vaultsettingswrite.replaceVaultSettingsYaml;
   try {
     const vault = setupUnfolded(root);
-    pinned.applySettingsChanges = () => {
+    vaultsettingswrite.replaceVaultSettingsYaml = () => {
       throw new Error('EACCES: permission denied');
     };
     const res = await inProcess(root, { yes: true });
-    pinned.applySettingsChanges = real;
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
     assert.equal(res.code, 3, res.out);
     assert.equal(res.err.reason, 'carry-blocked');
     assert.match(res.err.message, /siteTitle and folderMap are still in /);
@@ -310,7 +310,7 @@ test('when the title and folder map cannot be written, the pack keeps both, the 
     assert.ok(fs.readFileSync(yamlOf(vault), 'utf8').includes('Pack Only Secret'));
     assert.ok(!/folder_map:/.test(fs.readFileSync(yamlOf(vault), 'utf8')));
   } finally {
-    pinned.applySettingsChanges = real;
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
@@ -347,13 +347,13 @@ test('settings the pin drops without carrying stay in the pack with their values
 
 test('if the title write and the pack rewrite both fail, exit 3, the message says the title is still only in the pack, and names both backups', async () => {
   const root = fs.mkdtempSync(path.join(require('os').tmpdir(), 'scriptorium-b4-'));
-  const pinned = require('../src/generator/pinned');
-  const realWrite = pinned.applySettingsChanges;
+  const vaultsettingswrite = require('../src/vault/vaultsettingswrite');
+  const realWrite = vaultsettingswrite.replaceVaultSettingsYaml;
   const realReplace = packreplace.replacePackFile;
   try {
     const vault = setupUnfolded(root);
     const packBefore = fs.readFileSync(packOf(vault));
-    pinned.applySettingsChanges = () => {
+    vaultsettingswrite.replaceVaultSettingsYaml = () => {
       throw new Error('EACCES: yaml');
     };
     packreplace.replacePackFile = () => {
@@ -362,7 +362,7 @@ test('if the title write and the pack rewrite both fail, exit 3, the message say
       throw e;
     };
     const res = await inProcess(root, { yes: true });
-    pinned.applySettingsChanges = realWrite;
+    vaultsettingswrite.replaceVaultSettingsYaml = realWrite;
     packreplace.replacePackFile = realReplace;
     assert.equal(res.code, 3, res.out);
     assert.equal(res.err.reason, 'carry-blocked');
@@ -372,7 +372,7 @@ test('if the title write and the pack rewrite both fail, exit 3, the message say
     assert.match(res.err.message, /vault\.config-\d{8}T\d{9}Z-[0-9a-f]{6}\.json\.bak/);
     assert.equal(Buffer.compare(fs.readFileSync(packOf(vault)), packBefore), 0);
   } finally {
-    pinned.applySettingsChanges = realWrite;
+    vaultsettingswrite.replaceVaultSettingsYaml = realWrite;
     packreplace.replacePackFile = realReplace;
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -380,40 +380,40 @@ test('if the title write and the pack rewrite both fail, exit 3, the message say
 
 test('a plain title write failure exits 3 and names both backups', async () => {
   const root = fs.mkdtempSync(path.join(require('os').tmpdir(), 'scriptorium-b4-'));
-  const pinned = require('../src/generator/pinned');
-  const real = pinned.applySettingsChanges;
+  const vaultsettingswrite = require('../src/vault/vaultsettingswrite');
+  const real = vaultsettingswrite.replaceVaultSettingsYaml;
   try {
     setupUnfolded(root);
-    pinned.applySettingsChanges = () => {
+    vaultsettingswrite.replaceVaultSettingsYaml = () => {
       throw new Error('EACCES: yaml');
     };
     const res = await inProcess(root, { yes: true });
-    pinned.applySettingsChanges = real;
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
     assert.equal(res.code, 3, res.out);
     assert.match(res.err.message, /vault-config-\d{8}T\d{9}Z-[0-9a-f]{6}\.yaml\.bak/);
     assert.match(res.err.message, /vault\.config-\d{8}T\d{9}Z-[0-9a-f]{6}\.json\.bak/);
   } finally {
-    pinned.applySettingsChanges = real;
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
 test('a writer that reports success but writes nothing is caught by the read-back: exit 3, the pack keeps the title and folder map', async () => {
   const root = fs.mkdtempSync(path.join(require('os').tmpdir(), 'scriptorium-b4-'));
-  const pinned = require('../src/generator/pinned');
-  const real = pinned.applySettingsChanges;
+  const vaultsettingswrite = require('../src/vault/vaultsettingswrite');
+  const real = vaultsettingswrite.replaceVaultSettingsYaml;
   try {
     const vault = setupUnfolded(root);
-    pinned.applySettingsChanges = () => ({ file: yamlOf(vault), changed: [] });
+    vaultsettingswrite.replaceVaultSettingsYaml = () => ({ file: yamlOf(vault), changed: [] });
     const res = await inProcess(root, { yes: true });
-    pinned.applySettingsChanges = real;
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
     assert.equal(res.code, 3, res.out);
     assert.match(res.err.message, /it did not read back as written/);
     const left = JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
     assert.equal(left.siteTitle, 'The Long Lease');
     assert.equal(left.folderMap.Sessions, 'sessions');
   } finally {
-    pinned.applySettingsChanges = real;
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

@@ -4,7 +4,9 @@
  * Structural pins for the carry (ADR 0071). The pin's move code can write the settings files, so:
  *
  *   1. only src/generator/pinned.js names planMove or applyMove (the facade);
- *   2. only src/vault/settingscarry.js names applySettingsCarry or applySettingsChanges (the writers);
+ *   2. only src/vault/settingscarry.js names applySettingsCarry (the pin's move writer), and nothing
+ *      names applySettingsChanges, the pin's settings writer the facade once offered: the carry sets
+ *      the title and folder map through src/vault/vaultsettingswrite.js instead;
  *   3. settingscarry is required only by the carry command, init and the panel's carry handler
  *      (src/admin/handlers/carry.js, which arrives with the panel slice).
  *
@@ -42,7 +44,8 @@ function filesNaming(root, dirs, re) {
 
 const MOVE_RE = /\b(?:applyMove|planMove)\b/;
 const APPLY_CARRY_RE = /\bapplySettingsCarry\b/;
-// The facade's writer of the vault's settings file: check and build must never reach it.
+// The pin's own writer of the vault's settings file, which the facade no longer offers: it has no
+// unchanged-file check, no flush and follows a link. Nothing may name it.
 const WRITER_RE = /\bapplySettingsChanges\b/;
 const REQUIRE_CARRY_RE = /require\(\s*(['"`])[^'"`]*\bsettingscarry\1\s*\)/;
 const DIRS = ['src', 'bin', 'scripts'];
@@ -57,9 +60,9 @@ test('only src/vault/settingscarry.js names applySettingsCarry, apart from its d
   assert.deepEqual(found, ['src/generator/pinned.js', 'src/vault/settingscarry.js']);
 });
 
-test('only src/vault/settingscarry.js calls applySettingsChanges, apart from its definition in the facade', () => {
+test('nothing in src, bin or scripts names applySettingsChanges, not even the facade', () => {
   const found = filesNaming(ROOT, DIRS, WRITER_RE);
-  assert.deepEqual(found, ['src/generator/pinned.js', 'src/vault/settingscarry.js']);
+  assert.deepEqual(found, []);
 });
 
 test('settingscarry is required only by the carry command, init and the panel carry handler', () => {

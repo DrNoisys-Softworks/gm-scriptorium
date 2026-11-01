@@ -6,7 +6,8 @@ const os = require('os');
 const path = require('path');
 const pinned = require('../generator/pinned');
 const backups = require('../config/backups');
-const { ScriptoriumError, VaultUnreachableError } = require('../util/errors');
+const vaultsettingswrite = require('./vaultsettingswrite');
+const { ConfigError, ScriptoriumError, VaultUnreachableError } = require('../util/errors');
 const { stripBom } = require('../util/bom');
 const { readSettingsFiles } = require('./publishset');
 const { unheldPackSettings, missingEntries, vaultSets, isVaultPack } = require('../checks/carry');
@@ -28,7 +29,8 @@ const { unheldPackSettings, missingEntries, vaultSets, isVaultPack } = require('
  * lists and callouts (folded in), and the names it no longer reads. It removes the rest of the pack's
  * settings (siteTitle, folderMap, attachmentsDir and so on) from the site file WITHOUT writing them to the
  * yaml. Letting that through would lose them, so:
- *   - siteTitle and folderMap are set in the yaml afterwards with the pin's own settings writer (below);
+ *   - siteTitle and folderMap are set in the yaml afterwards: the pin plans the text (planSettingsText) and
+ *     the guarded writer src/vault/vaultsettingswrite.js writes it (writeOwnSettings, below);
  *   - any other setting the vault's settings do not hold afterwards stays in the pack, is named in the plan,
  *     and `check` keeps reporting it. It is the GM's to put in _meta/vault-config.yaml.
  *
@@ -48,6 +50,45 @@ const SCRATCH_PREFIX = 'scriptorium-carry-';
 const PIN_CHANGED_RE = /changed since the move was planned/;
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+
+/**
+ * Sets the title and folder map in the vault's settings file, read as it is right after the pin's apply.
+ * The pin plans the new text; the guarded writer replaces the file only if it still holds the bytes read
+ * here, refuses a link or anything but a regular file, and flushes before its rename.
+ *
+ * The writer asks for a backup of the bytes it replaces. The carry already copied the yaml outside the
+ * vault before anything was written (applyCarry step 1), and that copy is the one a GM wants back: it is
+ * the file before the carry, where the bytes here are the file halfway through it. A second copy would
+ * look like a restore point the GM made and would push an older one out of the newest-20 prune, so the
+ * callback takes no copy and hands back the first one's path.
+ *
+ * @throws {pinned.SettingsPlanError} the pin would not plan the change
+ * @throws {ConfigError} the writer refused the file (vaultsettingswrite.VaultSettingsChangedError when it changed)
+ * @throws {ScriptoriumError|Error} the file could not be read or written
+ */
+function writeOwnSettings(vaultPath, yamlPath, changes, { yamlBackup, campaign }) {
+  const current = fs.readFileSync(yamlPath);
+  const planned = pinned.planSettingsText(vaultPath, current, changes);
+  vaultsettingswrite.replaceVaultSettingsYaml(vaultPath, planned.after, {
+    expectedSha256: sha256(current),
+    backup: () => yamlBackup,
+    campaign,
+  });
+}
+
+/** A refusal of the file or the change itself, as opposed to a failed read or write. */
+function isOwnRefusal(err) {
+  return err instanceof ConfigError || err instanceof pinned.SettingsPlanError;
+}
+
+/** The short reason applyCarry puts in brackets when the title and folder map could not be set. */
+function ownFailureReason(err) {
+  // The writer's own text for a changed file speaks to the panel ("Reload before saving").
+  if (err instanceof vaultsettingswrite.VaultSettingsChangedError) return 'it changed while the carry was running';
+  // A failed read or write says its error code (the writer keeps it on `cause`); anything else, its message.
+  const text = err.code || (err instanceof ScriptoriumError && err.cause && err.cause.code) || err.message;
+  return String(text).replace(/\s+/g, ' ');
+}
 
 function blocked(blockers) {
   return { state: 'blocked', lines: [], blockers, plan: null, internal: null, unmoved: [] };
@@ -397,17 +438,31 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
     let staying = after.filter((u) => !OWN_KEYS.includes(u.name) || unreadableOwn(u));
     const moved = [];
     let ownFailure = null;
+    // Set when the guarded writer refused the file itself (changed, a link, not a regular file) or the
+    // pin would not plan the change: the pack is then left exactly as it was, not rewritten.
+    let ownRefused = false;
     if (own.length > 0) {
       // Why this step exists: see OWN_KEYS (AntTheLimey/gm-apprentice#539).
       try {
-        pinned.applySettingsChanges(vaultPath, own.map((u) => ({ op: 'set', name: u.setting, value: valueAtPath(internal.pack, u.name.split('.')) })));
-        const still = readBack().filter((u) => OWN_KEYS.includes(u.name) && !unreadableOwn(u));
-        if (still.length > 0) throw new Error('it did not read back as written');
-        for (const u of own) moved.push(`\`${u.name}\` moved to \`${u.setting}\`.`);
+        writeOwnSettings(vaultPath, yamlPath, own.map((u) => ({ op: 'set', name: u.setting, value: valueAtPath(internal.pack, u.name.split('.')) })), {
+          yamlBackup: done.yaml,
+          campaign,
+        });
       } catch (err) {
-        if (err instanceof ScriptoriumError) throw err;
-        ownFailure = String(err.code || err.message).replace(/\s+/g, ' ');
+        ownRefused = isOwnRefusal(err);
+        ownFailure = ownFailureReason(err);
         staying = [...staying, ...own];
+      }
+      if (!ownFailure) {
+        try {
+          const still = readBack().filter((u) => OWN_KEYS.includes(u.name) && !unreadableOwn(u));
+          if (still.length > 0) throw new Error('it did not read back as written');
+          for (const u of own) moved.push(`\`${u.name}\` moved to \`${u.setting}\`.`);
+        } catch (err) {
+          if (err instanceof ScriptoriumError) throw err;
+          ownFailure = String(err.code || err.message).replace(/\s+/g, ' ');
+          staying = [...staying, ...own];
+        }
       }
     }
     const ownNames = () => `${own.map((u) => u.name).join(' and ')} ${own.length === 1 ? 'is' : 'are'}`;
@@ -416,6 +471,14 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
     const stayNames = staying.map((u) => u.name);
     const lines = (applied.lines || []).map((l) => withoutStaying(namingThePack(l, internal), packConfigPath, stayNames));
     lines.push(...moved, ...stayLines(staying.filter((u) => !OWN_KEYS.includes(u.name) || unreadableOwn(u)), packConfigPath));
+
+    if (ownRefused && writePack) {
+      throw new VaultUnreachableError(
+        `The carry could not finish: ${ownNames()} not set in the vault's settings file (${ownFailure}), so ${packConfigPath} was left as it was. ` +
+          `Run "gm-scriptorium carry" again. ${backupText}`,
+        { path: yamlPath, campaign, reason: 'carry-blocked' },
+      );
+    }
 
     // 3. The scratch copy becomes the pack, with whatever stays put back.
     if (writePack) {

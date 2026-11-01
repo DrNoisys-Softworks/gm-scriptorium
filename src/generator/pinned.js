@@ -359,19 +359,6 @@ function applySettingsCarry(plan) {
 const settingsWrite = require('gm-apprentice-publish/lib/settings/write');
 
 /**
- * Sets settings in the vault's _meta/vault-config.yaml with the pin's writer: `changes` are
- * { op: 'set', name, value } with the registry's dotted names (`player_site.title`). Writes the file
- * atomically, or throws having written nothing.
- *
- * @param {string} vaultPath
- * @param {{ op: string, name: string, value?: * }[]} changes
- * @returns {{ file: string, changed: string[] }}
- */
-function applySettingsChanges(vaultPath, changes) {
-  return settingsWrite.applyChanges(vaultPath, changes);
-}
-
-/**
  * A site config with every key the pin has moved into the vault's settings taken out, and the names
  * of what was taken. The pin's own stripSiteKeys (lib/settings/move.js:177) is not exported, so this
  * rebuilds its reading from the registry: every name the registry's `was` entries give for the site
@@ -844,7 +831,6 @@ module.exports = {
   siteFolderKeys,
   planSettingsCarry,
   applySettingsCarry,
-  applySettingsChanges,
   SettingsPlanError,
   planSettingsText,
   parseSettingsText,
