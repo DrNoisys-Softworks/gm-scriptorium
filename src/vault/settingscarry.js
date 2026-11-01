@@ -545,7 +545,10 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
     }
     if (ownFailure && !writePack) {
       throw new VaultUnreachableError(
-        `The site title and folder map could not be set in the vault's settings file (${ownFailure}). Nothing else was written. ` +
+        `The site title and folder map could not be set in the vault's settings file (${ownFailure}). ` +
+          // The pin's apply has already written the other carried settings to the yaml by now, and init
+          // makes the pack only after this returns.
+          'The other settings init carries are already in that file, and no pack was made. ' +
           `${ownLasting ? `${ownLasting}, then run the command again.` : 'Run the command again once the file can be written.'} ${backupText}`,
         { path: yamlPath, campaign, reason: 'carry-blocked' },
       );

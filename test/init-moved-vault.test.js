@@ -308,8 +308,42 @@ test('when the vault settings cannot be written, init exits 3, says to run the c
     const res = await initInProcess(root, vault);
     vaultsettingswrite.replaceVaultSettingsYaml = real;
     assert.equal(res.code, 3);
-    assert.match(res.err.message, /^The site title and folder map could not be set in the vault's settings file \(EACCES: permission denied\)\. Nothing else was written\. Run the command again once the file can be written\./);
+    assert.match(res.err.message, /^The site title and folder map could not be set in the vault's settings file \(EACCES: permission denied\)\. The other settings init carries are already in that file, and no pack was made\. Run the command again once the file can be written\./);
     assert.ok(!/gm-scriptorium carry|still in/.test(res.err.message), res.err.message);
+    assert.ok(!fs.existsSync(path.join(vault, '_meta', 'scriptorium')));
+  } finally {
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// The pin's apply has already written the other carried settings when the title write fails, so the
+// message must not say nothing else was written.
+test('init: when the title cannot be set, the message says the other carried settings are already in the file, and they are', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-initpartial-'));
+  const real = vaultsettingswrite.replaceVaultSettingsYaml;
+  try {
+    const vault = movedNoPack(root);
+    const before = fs.readFileSync(yamlOf(vault), 'utf8');
+    assert.ok(before.includes('    folders: ["_meta", "_Templates"]\n') && !before.includes('    callouts: true\n'), before);
+    vaultsettingswrite.replaceVaultSettingsYaml = () => {
+      throw new Error('EACCES: permission denied');
+    };
+    const res = await initInProcess(root, vault);
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
+    assert.equal(res.code, 3);
+    assert.ok(
+      res.err.message.startsWith(
+        "The site title and folder map could not be set in the vault's settings file (EACCES: permission denied). " +
+          'The other settings init carries are already in that file, and no pack was made. ' +
+          'Run the command again once the file can be written. The files as they were are kept at ',
+      ),
+      res.err.message,
+    );
+    assert.ok(!/Nothing else was written/.test(res.err.message), res.err.message);
+    const after = fs.readFileSync(yamlOf(vault), 'utf8');
+    assert.ok(after.includes('    folders: ["_meta", "_Templates", _resources]\n'), after);
+    assert.ok(after.includes('    callouts: true\n'), after);
     assert.ok(!fs.existsSync(path.join(vault, '_meta', 'scriptorium')));
   } finally {
     vaultsettingswrite.replaceVaultSettingsYaml = real;
@@ -331,7 +365,7 @@ test('init: a vault settings file that changed while init ran is named as change
     assert.equal(res.code, 3);
     assert.ok(
       res.err.message.startsWith(
-        "The site title and folder map could not be set in the vault's settings file (it changed while init was running). Nothing else was written. " +
+        "The site title and folder map could not be set in the vault's settings file (it changed while init was running). The other settings init carries are already in that file, and no pack was made. " +
           'Run the command again once the file can be written. The files as they were are kept at ',
       ),
       res.err.message,
@@ -357,7 +391,7 @@ test('init: a plan the pin refuses says what to fix, then to run the command aga
     assert.equal(res.code, 3);
     assert.ok(
       res.err.message.startsWith(
-        "The site title and folder map could not be set in the vault's settings file (injected: the pin will not plan this.). Nothing else was written. " +
+        "The site title and folder map could not be set in the vault's settings file (injected: the pin will not plan this.). The other settings init carries are already in that file, and no pack was made. " +
           'Fix what it names in _meta/vault-config.yaml, then run the command again. The files as they were are kept at ',
       ),
       res.err.message,
@@ -383,7 +417,7 @@ test('init: a vault settings file that is a link says to replace it, then run th
     assert.equal(res.code, 3);
     assert.ok(
       res.err.message.startsWith(
-        "The site title and folder map could not be set in the vault's settings file (_meta/vault-config.yaml is a link or not a regular file). Nothing else was written. " +
+        "The site title and folder map could not be set in the vault's settings file (_meta/vault-config.yaml is a link or not a regular file). The other settings init carries are already in that file, and no pack was made. " +
           'Replace it with the file itself, then run the command again. The files as they were are kept at ',
       ),
       res.err.message,
