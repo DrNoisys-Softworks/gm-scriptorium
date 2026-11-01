@@ -9,6 +9,11 @@ const path = require('path');
 const { moveVaultCopy, replaceChecked } = require('./helpers/moved-vault');
 const { scratchRoot, configPathIn, startPanel, get, post } = require('./helpers/campaigns-panel');
 const pinned = require('../src/generator/pinned');
+const machinedir = require('../src/config/machinedir');
+const vaultsettingswrite = require('../src/vault/vaultsettingswrite');
+const vaultsettingsplan = require('../src/admin/vaultsettingsplan');
+const read = require('../src/vault/read');
+const { VaultReadError } = require('../src/util/errors');
 
 /*
  * POST /api/vault-config/title: the title and tagline of a vault whose settings live in
@@ -318,4 +323,121 @@ test('a move that lands while a md tagline save waits for the lock answers 409 c
   assert.deepEqual(res.json, { error: 'changed', message: MOVED_SINCE_LOADED });
   assert.equal(looks, 2);
   assert.deepEqual(backupsIn(path.join(path.dirname(fx.configPath), 'backups', 'campaign-lease')), []);
+});
+
+/** Replaces `mod[name]` for the length of `fn`, then puts it back. */
+async function withInjected(mod, name, impl, fn) {
+  const real = mod[name];
+  mod[name] = impl(real);
+  try {
+    return await fn();
+  } finally {
+    mod[name] = real;
+  }
+}
+
+test('a machine folder that cannot be found answers 503 unavailable and writes nothing', async (t) => {
+  const fx = movedCampaign(t);
+  const h = await startPanel(t, { config: fx.configPath }, 'lease');
+  const before = fs.readFileSync(fx.yaml);
+  const res = await withInjected(
+    machinedir,
+    'resolveMachineDir',
+    () => () => ({ ok: false, reason: 'injected: no machine folder' }),
+    () => post(h, '/api/vault-config/title', titleBody(fx, { title: 'A New Name' })),
+  );
+  assert.equal(res.status, 503, res.text);
+  assert.deepEqual(res.json, { error: 'unavailable', message: 'injected: no machine folder' });
+  assert.deepEqual(fs.readFileSync(fx.yaml), before);
+  assert.deepEqual(backupsIn(fx.backupDir), []);
+});
+
+test('a target check that finds the yaml changed answers 409 changed and writes nothing', async (t) => {
+  const fx = movedCampaign(t);
+  const h = await startPanel(t, { config: fx.configPath }, 'lease');
+  const before = fs.readFileSync(fx.yaml);
+  const res = await withInjected(
+    vaultsettingswrite,
+    'checkTarget',
+    () => () => {
+      throw new vaultsettingswrite.VaultSettingsChangedError('injected: the yaml changed');
+    },
+    () => post(h, '/api/vault-config/title', titleBody(fx, { title: 'A New Name' })),
+  );
+  assert.equal(res.status, 409, res.text);
+  assert.deepEqual(res.json, { error: 'changed', message: 'injected: the yaml changed' });
+  assert.deepEqual(fs.readFileSync(fx.yaml), before);
+  assert.deepEqual(backupsIn(fx.backupDir), []);
+});
+
+test('a plan the pin refuses answers 422 unsupported with its message and writes nothing', async (t) => {
+  const fx = movedCampaign(t);
+  const h = await startPanel(t, { config: fx.configPath }, 'lease');
+  const before = fs.readFileSync(fx.yaml);
+  const res = await withInjected(
+    vaultsettingsplan,
+    'planTitleTagline',
+    () => () => {
+      throw new pinned.SettingsPlanError('refused', 'injected: the pin will not make this edit');
+    },
+    () => post(h, '/api/vault-config/title', titleBody(fx, { title: 'A New Name' })),
+  );
+  assert.equal(res.status, 422, res.text);
+  assert.deepEqual(res.json, { error: 'unsupported', message: 'injected: the pin will not make this edit' });
+  assert.deepEqual(fs.readFileSync(fx.yaml), before);
+  assert.deepEqual(backupsIn(fx.backupDir), []);
+});
+
+// The route reads the yaml right after checking where it is. A file gone in between answers 409
+// changed and any other read failure 503 io, never a 500.
+test('a yaml that vanishes between the target check and the read answers 409 changed', async (t) => {
+  const fx = movedCampaign(t);
+  const h = await startPanel(t, { config: fx.configPath }, 'lease');
+  const res = await withInjected(
+    vaultsettingswrite,
+    'checkTarget',
+    (real) => (...args) => {
+      const out = real(...args);
+      fs.rmSync(fx.yaml);
+      return out;
+    },
+    () => post(h, '/api/vault-config/title', titleBody(fx, { title: 'A New Name' })),
+  );
+  assert.equal(res.status, 409, res.text);
+  assert.deepEqual(res.json, { error: 'changed', message: CHANGED });
+  assert.equal(fs.existsSync(fx.yaml), false, 'never recreated');
+});
+
+test('a yaml read that fails for another reason answers 503 io', async (t) => {
+  const fx = movedCampaign(t);
+  const h = await startPanel(t, { config: fx.configPath }, 'lease');
+  const before = fs.readFileSync(fx.yaml);
+  let armed = false;
+  const res = await withInjected(
+    vaultsettingswrite,
+    'checkTarget',
+    (real) => (...args) => {
+      const out = real(...args);
+      armed = true;
+      return out;
+    },
+    () =>
+      withInjected(
+        read,
+        'readBytes',
+        (real) => (p) => {
+          if (armed && p === fx.yaml) {
+            armed = false;
+            const cause = new Error('i/o error');
+            cause.code = 'EIO';
+            throw new VaultReadError(p, cause);
+          }
+          return real(p);
+        },
+        () => post(h, '/api/vault-config/title', titleBody(fx, { title: 'A New Name' })),
+      ),
+  );
+  assert.equal(res.status, 503, res.text);
+  assert.deepEqual(res.json, { error: 'io', message: `could not read vault path: ${fx.yaml} (EIO)` });
+  assert.deepEqual(fs.readFileSync(fx.yaml), before);
 });
