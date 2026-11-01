@@ -242,7 +242,15 @@ function reviewYamlInner(ctx, { op, reqBody, dryRun, machineDirResult, edits }) 
     throw new VaultSettingsRefusal(422, { error: 'unsupported', message: err.message });
   }
 
-  const curBytes = read.readBytes(target);
+  // The file can vanish between the check above and this read: that is a change made outside the
+  // panel, as at save time. Any other read failure is an I/O answer, never a 500.
+  let curBytes;
+  try {
+    curBytes = read.readBytes(target);
+  } catch (err) {
+    if (err.cause && err.cause.code === 'ENOENT') throw new VaultSettingsRefusal(409, { error: 'changed', message: CHANGED });
+    throw new VaultSettingsRefusal(503, { error: 'io', message: err.message });
+  }
   const curSha = sha256Hex(curBytes);
   if (curSha !== reqBody.baseSha256) throw new VaultSettingsRefusal(409, { error: 'changed', message: CHANGED });
 

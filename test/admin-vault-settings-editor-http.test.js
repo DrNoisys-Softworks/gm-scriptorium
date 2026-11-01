@@ -11,6 +11,9 @@ const { scratchRoot, configPathIn, startPanel, get, post } = require('./helpers/
 const pinned = require('../src/generator/pinned');
 const backups = require('../src/config/backups');
 const candidatecheck = require('../src/admin/candidatecheck');
+const read = require('../src/vault/read');
+const vaultsettingswrite = require('../src/vault/vaultsettingswrite');
+const { VaultReadError } = require('../src/util/errors');
 
 /*
  * The settings editor on a vault whose settings live in _meta/vault-config.yaml: the text view, the
@@ -626,4 +629,65 @@ test('a confirm never reuses a review cached for vault-config.md, even one keyed
   }
   assert.equal(res.status, 200, res.text);
   assert.deepEqual(calls, [true], 'the confirm ran its own check');
+});
+
+// The review reads the yaml right after checking where it is. A file that vanishes between the two
+// is a change made outside the panel (409), and any other read failure is an I/O answer (503),
+// never a 500. Both are injected through the module objects the handler calls.
+test('a yaml that vanishes between the target check and the review read answers 409 changed', async (t) => {
+  const fx = movedCampaign(t);
+  const h = await startPanel(t, { config: fx.configPath }, 'lease');
+  const text = replaceChecked(editorTextOf(fx.yaml), '    max_npcs: 8\n', '    max_npcs: 3\n');
+  const realCheck = vaultsettingswrite.checkTarget;
+  let removed = 0;
+  vaultsettingswrite.checkTarget = (...args) => {
+    const out = realCheck(...args);
+    fs.rmSync(fx.yaml);
+    removed += 1;
+    return out;
+  };
+  let res;
+  try {
+    res = await textDry(h, fx, text);
+  } finally {
+    vaultsettingswrite.checkTarget = realCheck;
+  }
+  assert.equal(removed, 1);
+  assert.equal(res.status, 409, res.text);
+  assert.deepEqual(res.json, { error: 'changed', message: YAML_CHANGED });
+  assert.equal(fs.existsSync(fx.yaml), false, 'never recreated');
+});
+
+test('a review read that fails for another reason answers 503 io', async (t) => {
+  const fx = movedCampaign(t);
+  const h = await startPanel(t, { config: fx.configPath }, 'lease');
+  const before = fs.readFileSync(fx.yaml);
+  const text = replaceChecked(editorTextOf(fx.yaml), '    max_npcs: 8\n', '    max_npcs: 3\n');
+  const realCheck = vaultsettingswrite.checkTarget;
+  const realRead = read.readBytes;
+  let armed = false;
+  vaultsettingswrite.checkTarget = (...args) => {
+    const out = realCheck(...args);
+    armed = true;
+    return out;
+  };
+  read.readBytes = (p) => {
+    if (armed && p === fx.yaml) {
+      armed = false;
+      const cause = new Error('i/o error');
+      cause.code = 'EIO';
+      throw new VaultReadError(p, cause);
+    }
+    return realRead(p);
+  };
+  let res;
+  try {
+    res = await textDry(h, fx, text);
+  } finally {
+    vaultsettingswrite.checkTarget = realCheck;
+    read.readBytes = realRead;
+  }
+  assert.equal(res.status, 503, res.text);
+  assert.deepEqual(res.json, { error: 'io', message: `could not read vault path: ${fx.yaml} (EIO)` });
+  assert.deepEqual(fs.readFileSync(fx.yaml), before);
 });
