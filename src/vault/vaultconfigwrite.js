@@ -327,7 +327,6 @@ module.exports = {
   VaultConfigChangedError,
   TMP_PREFIX,
   RETRYABLE_CODES,
-  MOVED_DURING_SAVE,
   targetPathFor,
   checkTarget,
   replaceVaultConfigMd,
