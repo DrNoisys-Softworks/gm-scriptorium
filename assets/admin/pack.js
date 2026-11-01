@@ -282,7 +282,7 @@
     return Object.assign({}, MOVED_SUMMARY_READ_ONLY, { fine: MOVED_SUMMARY_READ_ONLY.fine + ' ' + reason });
   }
 
-  /** The Theme screen's palette note. On a moved vault (rung 3b) the palette is read from
+  /** The Theme screen's palette note. On a moved vault the palette is read from
    * _meta/vault-config.yaml, so the note names that file. */
   function mismatchText(mismatch, settingsLayout) {
     var file = settingsLayout === 'new' ? '_meta/vault-config.yaml' : 'vault-config.md';
