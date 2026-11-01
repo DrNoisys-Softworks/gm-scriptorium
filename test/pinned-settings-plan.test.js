@@ -153,3 +153,41 @@ test('settingsCommentsInside: a comment in the setting\'s own text only', () => 
   assert.equal(pinned.settingsCommentsInside(text, 'player_site.nothing.here'), false);
   assert.equal(pinned.settingsCommentsInside('player_site:\n  title: "a # b"\n', 'player_site.title'), false);
 });
+
+// The facade refuses a plan the pin made from some other file or other text than the one it was handed.
+// The pin's planner is replaced through its module object, which is what the facade calls.
+function withPlanner(report, fn) {
+  const settingsWrite = require('gm-apprentice-publish/lib/settings/write');
+  const original = settingsWrite.planChanges;
+  settingsWrite.planChanges = (vaultPath, changes) => ({ ...original(vaultPath, changes), ...report });
+  try {
+    return fn();
+  } finally {
+    settingsWrite.planChanges = original;
+  }
+}
+
+const MISMATCH = 'the settings plan did not start from the file the panel checked; nothing was written.';
+
+test('planSettingsText: a plan for another file is refused as a mismatch', () => {
+  const { vaultPath, yamlPath, Y } = fixture();
+  withPlanner({ rel: '_meta/vault-config.md' }, () => {
+    const e = throwsPlan(() => pinned.planSettingsText(vaultPath, Y, [{ op: 'set', name: 'player_site.title', value: 'A' }]), 'mismatch');
+    assert.equal(e.message, MISMATCH);
+  });
+  assert.ok(fs.readFileSync(yamlPath).equals(Y));
+});
+
+test('planSettingsText: a plan that started from other text is refused as a mismatch', () => {
+  const { vaultPath, Y } = fixture();
+  withPlanner({ before: Y.toString('utf8') + '# other\n' }, () => {
+    const e = throwsPlan(() => pinned.planSettingsText(vaultPath, Y, [{ op: 'set', name: 'player_site.title', value: 'A' }]), 'mismatch');
+    assert.equal(e.message, MISMATCH);
+  });
+});
+
+test('planSettingsText: control, the unpatched planner is not a mismatch', () => {
+  const { vaultPath, Y } = fixture();
+  const plan = pinned.planSettingsText(vaultPath, Y, [{ op: 'set', name: 'player_site.title', value: 'A' }]);
+  assert.deepEqual(plan.changed, ['player_site.title']);
+});
