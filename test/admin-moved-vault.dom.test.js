@@ -236,12 +236,12 @@ for (const browserName of ['chromium', 'firefox']) {
         await gotoScreen(page, 'title');
         const screen = '[data-screen="title"]';
         await page.waitForSelector(`${screen} .tt1-toggle`);
-        assert.equal((await texts(page, `${screen} .tt1-toggle small`))[0], 'Set in _meta/vault-config.yaml, read-only here');
+        assert.equal((await texts(page, `${screen} .tt1-toggle small`))[0], 'Set in _meta/vault-config.yaml, not changeable right now');
         assert.equal(
           (await texts(page, `${screen} .tt1-more .a1-fine`))[0],
-          'These are set in _meta/vault-config.yaml, not in the campaign pack. This campaign is read-only, so they cannot be changed here.',
+          'These are set in _meta/vault-config.yaml, not in the campaign pack. They cannot be changed here right now. The panel cannot save these settings.',
         );
-        assert.equal((await texts(page, `${screen} [data-tt="tt2"] h2.a1-rule small`))[0], 'read-only here');
+        assert.equal((await texts(page, `${screen} [data-tt="tt2"] h2.a1-rule small`))[0], 'not changeable right now');
         assert.equal((await texts(page, `${screen} [data-tt="tt3"] .tt3-card.main .a1-pill`))[0], 'read-only');
         assert.ok(!(await page.textContent(screen)).includes('Change them on the vault-config.yaml screen'));
         await page.context().close();

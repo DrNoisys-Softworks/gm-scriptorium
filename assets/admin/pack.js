@@ -260,20 +260,26 @@
         icon: 'file',
         name: 'Site settings',
         text: MOVED_SUMMARY.rows[0].text,
-        where: 'Set in _meta/vault-config.yaml. This campaign is read-only, so they cannot be changed here.',
+        where: 'Set in _meta/vault-config.yaml. They cannot be changed here right now.',
       },
     ],
     toggle: MOVED_SUMMARY.toggle,
-    toggleSmall: 'Set in _meta/vault-config.yaml, read-only here',
-    fine: 'These are set in _meta/vault-config.yaml, not in the campaign pack. This campaign is read-only, so they cannot be changed here.',
+    toggleSmall: 'Set in _meta/vault-config.yaml, not changeable right now',
+    fine: 'These are set in _meta/vault-config.yaml, not in the campaign pack. They cannot be changed here right now.',
     also: MOVED_SUMMARY.also,
-    alsoSmall: 'read-only here',
+    alsoSmall: 'not changeable right now',
     pill: MOVED_SUMMARY.pill,
   };
 
-  /** @param {boolean} locked true when the panel cannot save this vault's settings */
-  function movedSummary(locked) {
-    return locked ? MOVED_SUMMARY_READ_ONLY : MOVED_SUMMARY;
+  /**
+   * @param {boolean} locked true when the panel cannot save this vault's settings, whether the campaign is
+   *   read-only or the settings view has its own reason (no machine folder, a link, an unreadable file)
+   * @param {string} [reason] why, in the view's own words (movedTitleHint's text); added to the note when given
+   */
+  function movedSummary(locked, reason) {
+    if (!locked) return MOVED_SUMMARY;
+    if (!reason) return MOVED_SUMMARY_READ_ONLY;
+    return Object.assign({}, MOVED_SUMMARY_READ_ONLY, { fine: MOVED_SUMMARY_READ_ONLY.fine + ' ' + reason });
   }
 
   /** The Theme screen's palette note. On a moved vault (rung 3b) the palette is read from
@@ -1716,7 +1722,7 @@
     // ---------------------------------------------------------------------------------------
     // The three surrounds (SD-29).
     // ---------------------------------------------------------------------------------------
-    var summary = PK.movedSummary(!movedEditable);
+    var summary = PK.movedSummary(!movedEditable, movedHint.text);
     var summaryRowsList = moved ? summary.rows : PK.summaryRows(vcj.raw === undefined || vcj.raw === null ? '' : vcj.raw);
     var cardModelList = moved ? [] : PK.cardModel(vcj.raw === undefined || vcj.raw === null ? '' : vcj.raw);
     var heroRel = PK.heroArt((state.packToml && state.packToml.images) || {}, state.images || [], ScriptoriumAdmin.IM.slotImageRel);

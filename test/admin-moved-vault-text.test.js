@@ -86,7 +86,7 @@ test('the layouts\' summary on a moved vault points at the vault-config.yaml scr
   });
 });
 
-test('on a read-only campaign the moved summary does not tell the GM to change the settings', () => {
+test('when the settings cannot be saved, the moved summary does not tell the GM to change them, and claims no cause it cannot know', () => {
   assert.deepEqual(PK.movedSummary(true), {
     rows: [
       {
@@ -94,17 +94,31 @@ test('on a read-only campaign the moved summary does not tell the GM to change t
         icon: 'file',
         name: 'Site settings',
         text: "The site's address, the folders that become sections, what's kept off the site and the art folder.",
-        where: 'Set in _meta/vault-config.yaml. This campaign is read-only, so they cannot be changed here.',
+        where: 'Set in _meta/vault-config.yaml. They cannot be changed here right now.',
       },
     ],
     toggle: 'Other site settings',
-    toggleSmall: 'Set in _meta/vault-config.yaml, read-only here',
-    fine: 'These are set in _meta/vault-config.yaml, not in the campaign pack. This campaign is read-only, so they cannot be changed here.',
+    toggleSmall: 'Set in _meta/vault-config.yaml, not changeable right now',
+    fine: 'These are set in _meta/vault-config.yaml, not in the campaign pack. They cannot be changed here right now.',
     also: 'Also set for your site',
-    alsoSmall: 'read-only here',
+    alsoSmall: 'not changeable right now',
     pill: 'read-only',
   });
   assert.equal(PK.movedSummary(false), PK.MOVED_SUMMARY);
+  // The reason is the view's own words: the campaign's read-only reason, or the settings view's (no machine folder, a link).
+  assert.equal(
+    PK.movedSummary(true, 'This campaign is read-only.').fine,
+    'These are set in _meta/vault-config.yaml, not in the campaign pack. They cannot be changed here right now. This campaign is read-only.',
+  );
+  assert.equal(
+    PK.movedSummary(true, 'vault-config.yaml is a link, so the panel will not change it.').fine,
+    'These are set in _meta/vault-config.yaml, not in the campaign pack. They cannot be changed here right now. vault-config.yaml is a link, so the panel will not change it.',
+  );
+  const wording = PK.movedSummary(true, 'x');
+  for (const line of [wording.rows[0].where, wording.toggleSmall, wording.fine, wording.alsoSmall]) {
+    assert.ok(!line.includes('read-only'), `no line claims the campaign is read-only unless the reason does: ${line}`);
+    assert.ok(!line.includes('Change them on'), line);
+  }
 });
 
 test('the layouts\' summary on the old layout is unchanged', () => {
