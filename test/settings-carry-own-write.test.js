@@ -12,7 +12,7 @@ const { moveVaultCopy } = require('./helpers/moved-vault');
 const { runCarryCommand } = require('../src/cli/carry');
 const pinned = require('../src/generator/pinned');
 const vaultsettingswrite = require('../src/vault/vaultsettingswrite');
-const { VaultUnreachableError, ScriptoriumError } = require('../src/util/errors');
+const { VaultUnreachableError, ScriptoriumError, ConfigError } = require('../src/util/errors');
 const { startPanel, post } = require('./helpers/campaigns-panel');
 
 /*
@@ -349,7 +349,6 @@ test('through the panel, a plan the pin refuses answers 503 io and says what to 
   assert.deepEqual(fs.readFileSync(packOf(vault)), packBefore);
 });
 
-const { ConfigError } = require('../src/util/errors');
 
 // The guarded writer's own refusal of a linked settings file, as it words it.
 const notRegular = () => {
