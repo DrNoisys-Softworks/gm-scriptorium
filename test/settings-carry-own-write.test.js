@@ -11,7 +11,9 @@ const { SAMPLE } = require('./helpers/b4-cli');
 const { moveVaultCopy } = require('./helpers/moved-vault');
 const { runCarryCommand } = require('../src/cli/carry');
 const pinned = require('../src/generator/pinned');
+const vaultsettingswrite = require('../src/vault/vaultsettingswrite');
 const { VaultUnreachableError, ScriptoriumError } = require('../src/util/errors');
+const { startPanel, post } = require('./helpers/campaigns-panel');
 
 /*
  * The carry's own step that sets the site title and folder map in _meta/vault-config.yaml (the pin's
@@ -133,21 +135,20 @@ test(
       fs.renameSync(yamlOf(vault), elsewhere);
       fs.symlinkSync(elsewhere, yamlOf(vault));
     });
-    let elsewhereBefore;
     let res;
     try {
       res = await carry(root);
     } finally {
       restore();
     }
-    elsewhereBefore = fs.readFileSync(elsewhere, 'utf8');
+    const elsewhereAfter = fs.readFileSync(elsewhere, 'utf8');
     assert.equal(res.code, 3, res.out);
     assert.equal(res.err.reason, 'carry-blocked');
     assert.ok(res.err.message.includes('it is not a regular file'), res.err.message);
     assert.ok(res.err.message.includes(`so ${packOf(vault)} was left as it was.`), res.err.message);
     assert.deepEqual(fs.readFileSync(packOf(vault)), packBefore);
     assert.ok(fs.lstatSync(yamlOf(vault)).isSymbolicLink(), 'the link must still be a link');
-    assert.ok(!/folder_map:/.test(elsewhereBefore), 'the file behind the link must not have been written');
+    assert.ok(!/folder_map:/.test(elsewhereAfter), 'the file behind the link must not have been written');
   }),
 );
 
@@ -171,3 +172,148 @@ test(
     assert.ok(res.out.includes(`  ${yamlCopyPath}\n`), res.out);
   }),
 );
+
+/** Replaces `mod[name]` with `impl` for the length of `fn`, then puts it back. */
+async function withInjected(mod, name, impl, fn) {
+  const real = mod[name];
+  mod[name] = impl;
+  try {
+    return await fn();
+  } finally {
+    mod[name] = real;
+  }
+}
+
+const planRefusal = (kind, message) => () => {
+  throw new pinned.SettingsPlanError(kind, message);
+};
+
+// A refusal the pin gives for the file as it is (refused, not made, unreadable) comes back on every
+// run, so the message says what to fix rather than only to run the carry again.
+for (const kind of ['refused', 'not-made', 'unreadable']) {
+  test(
+    `a ${kind} plan for the title and folder map is refused: exit 3, the pack is byte-for-byte as it was, and the message says what to fix`,
+    withRoot(`scriptorium-ownwrite-${kind}-`, async (root) => {
+      const vault = setupUnfolded(root);
+      const packBefore = fs.readFileSync(packOf(vault));
+      const res = await withInjected(pinned, 'planSettingsText', planRefusal(kind, `injected: the pin will not plan this (${kind}).`), () => carry(root));
+      assert.equal(res.code, 3, res.out);
+      assert.equal(res.err.reason, 'carry-blocked');
+      assert.ok(
+        res.err.message.startsWith(
+          `The carry could not finish: siteTitle and folderMap are not set in the vault's settings file (injected: the pin will not plan this (${kind}).), ` +
+            `so ${packOf(vault)} was left as it was. Fix what it names in _meta/vault-config.yaml, then run "gm-scriptorium carry" again. ` +
+            'The files as they were are kept at ',
+        ),
+        res.err.message,
+      );
+      assert.ok(!res.err.message.includes('Run "gm-scriptorium carry" again'), res.err.message);
+      assert.deepEqual(fs.readFileSync(packOf(vault)), packBefore);
+    }),
+  );
+}
+
+test(
+  'a plan that did not start from the file the carry read is refused without claiming nothing was written',
+  withRoot('scriptorium-ownwrite-mismatch-', async (root) => {
+    const vault = setupUnfolded(root);
+    const packBefore = fs.readFileSync(packOf(vault));
+    const res = await withInjected(
+      pinned,
+      'planSettingsText',
+      planRefusal('mismatch', 'the settings plan did not start from the file the panel checked; nothing was written.'),
+      () => carry(root),
+    );
+    assert.equal(res.code, 3, res.out);
+    assert.ok(
+      res.err.message.startsWith(
+        "The carry could not finish: siteTitle and folderMap are not set in the vault's settings file (the settings plan did not start from the file the carry read), " +
+          `so ${packOf(vault)} was left as it was. Run "gm-scriptorium carry" again. The files as they were are kept at `,
+      ),
+      res.err.message,
+    );
+    assert.ok(!/nothing was written/i.test(res.err.message), res.err.message);
+    assert.deepEqual(fs.readFileSync(packOf(vault)), packBefore);
+  }),
+);
+
+test(
+  'a writer failure that keeps its code on cause is reported by that code, and the rest of the carry is done',
+  withRoot('scriptorium-ownwrite-eio-', async (root) => {
+    const vault = setupUnfolded(root);
+    const res = await withInjected(
+      vaultsettingswrite,
+      'replaceVaultSettingsYaml',
+      () => {
+        throw new ScriptoriumError('injected: a long writer message that must not be shown', { cause: Object.assign(new Error('io'), { code: 'EIO' }) });
+      },
+      () => carry(root),
+    );
+    assert.equal(res.code, 3, res.out);
+    assert.ok(
+      res.err.message.startsWith(
+        `siteTitle and folderMap are still in ${packOf(vault)}: the vault's settings file could not be written (EIO). ` +
+          'The rest of the carry is done. Run "gm-scriptorium carry" again once the file can be written. The files as they were are kept at ',
+      ),
+      res.err.message,
+    );
+    const pack = JSON.parse(fs.readFileSync(packOf(vault), 'utf8'));
+    assert.equal(pack.siteTitle, 'The Long Lease');
+  }),
+);
+
+// Through the panel: the carry route answers a refusal with 503 io and the panel's own words.
+async function panelCarry(t, root, inject) {
+  const vault = setupUnfolded(root);
+  const h = await startPanel(t, { config: path.join(root, 'config.toml') }, 't');
+  const dry = await post(h, '/api/settings/carry', { dryRun: true });
+  assert.equal(dry.status, 200, dry.text);
+  const packBefore = fs.readFileSync(packOf(vault));
+  const res = await inject(() => post(h, '/api/settings/carry', { dryRun: false, baseSha256: dry.json.baseSha256 }));
+  return { vault, res, packBefore };
+}
+
+test('through the panel, a yaml changed during the carry answers 503 io and says to press the button again', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-ownwrite-panel-changed-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { vault, res, packBefore } = await panelCarry(t, root, (fn) =>
+    withInjected(
+      vaultsettingswrite,
+      'replaceVaultSettingsYaml',
+      () => {
+        throw new vaultsettingswrite.VaultSettingsChangedError('vault-config.yaml changed outside the panel. Reload before saving.');
+      },
+      fn,
+    ),
+  );
+  assert.equal(res.status, 503, res.text);
+  assert.equal(res.json.error, 'io');
+  assert.ok(
+    res.json.message.startsWith(
+      "The carry could not finish: siteTitle and folderMap are not set in the vault's settings file (it changed while the carry was running), " +
+        `so ${packOf(vault)} was left as it was. Press "Carry these settings" again. The files as they were are kept at `,
+    ),
+    res.json.message,
+  );
+  assert.deepEqual(fs.readFileSync(packOf(vault)), packBefore);
+});
+
+test('through the panel, a plan the pin refuses answers 503 io and says what to fix before pressing the button again', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-ownwrite-panel-refused-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { vault, res, packBefore } = await panelCarry(t, root, (fn) =>
+    withInjected(pinned, 'planSettingsText', planRefusal('refused', 'injected: the pin will not plan this.'), fn),
+  );
+  assert.equal(res.status, 503, res.text);
+  assert.equal(res.json.error, 'io');
+  assert.ok(
+    res.json.message.startsWith(
+      "The carry could not finish: siteTitle and folderMap are not set in the vault's settings file (injected: the pin will not plan this.), " +
+        `so ${packOf(vault)} was left as it was. Fix what it names in _meta/vault-config.yaml, then press "Carry these settings" again. ` +
+        'The files as they were are kept at ',
+    ),
+    res.json.message,
+  );
+  assert.ok(!res.json.message.includes('gm-scriptorium carry'), res.json.message);
+  assert.deepEqual(fs.readFileSync(packOf(vault)), packBefore);
+});

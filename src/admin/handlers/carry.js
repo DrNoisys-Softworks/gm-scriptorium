@@ -31,9 +31,12 @@ const CHANGED =
   "The pack or the vault's settings file changed since these settings were shown. Nothing was written. Look at them again before carrying.";
 const NO_BACKUP_FOLDER = "GM-Scriptorium's own folder can't hold backups, so the carry can't keep a copy of both files first. Nothing was written.";
 // applyCarry's partial-failure messages name the command; in the panel the button does the same job.
+// The lower-case pair follows "Fix what it names ..., then".
 const CLI_AGAIN = 'Run "gm-scriptorium carry" again';
 const PANEL_AGAIN = 'Press "Carry these settings" again';
-const inPanelWords = (message) => String(message).split(CLI_AGAIN).join(PANEL_AGAIN);
+const CLI_AGAIN_LOWER = 'run "gm-scriptorium carry" again';
+const PANEL_AGAIN_LOWER = 'press "Carry these settings" again';
+const inPanelWords = (message) => String(message).split(CLI_AGAIN).join(PANEL_AGAIN).split(CLI_AGAIN_LOWER).join(PANEL_AGAIN_LOWER);
 // applyCarry's own refusal when a file changed between its plan and its apply (src/vault/settingscarry.js).
 const APPLY_CHANGED_RE = /changed since the carry was planned/;
 

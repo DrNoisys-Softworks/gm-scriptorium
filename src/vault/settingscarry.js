@@ -60,18 +60,20 @@ const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
  * vault before anything was written (applyCarry step 1), and that copy is the one a GM wants back: it is
  * the file before the carry, where the bytes here are the file halfway through it. A second copy would
  * look like a restore point the GM made and would push an older one out of the newest-20 prune, so the
- * callback takes no copy and hands back the first one's path.
+ * callback takes no copy and returns null.
  *
  * @throws {pinned.SettingsPlanError} the pin would not plan the change
  * @throws {ConfigError} the writer refused the file (vaultsettingswrite.VaultSettingsChangedError when it changed)
  * @throws {ScriptoriumError|Error} the file could not be read or written
  */
-function writeOwnSettings(vaultPath, yamlPath, changes, { yamlBackup, campaign }) {
+function writeOwnSettings(vaultPath, yamlPath, changes, { campaign }) {
   const current = fs.readFileSync(yamlPath);
   const planned = pinned.planSettingsText(vaultPath, current, changes);
   vaultsettingswrite.replaceVaultSettingsYaml(vaultPath, planned.after, {
     expectedSha256: sha256(current),
-    backup: () => yamlBackup,
+    // No copy here: the carry's own copy of the yaml was made before anything was written, and the
+    // carry reports that one itself.
+    backup: () => null,
     campaign,
   });
 }
@@ -81,10 +83,25 @@ function isOwnRefusal(err) {
   return err instanceof ConfigError || err instanceof pinned.SettingsPlanError;
 }
 
-/** The short reason applyCarry puts in brackets when the title and folder map could not be set. */
-function ownFailureReason(err) {
+/** The pin's refusals that come back on every run until the file is fixed, so "run it again" alone is no help. */
+const LASTING_PLAN_KINDS = ['refused', 'not-made', 'unreadable', 'not-utf8'];
+
+function isLastingRefusal(err) {
+  return err instanceof pinned.SettingsPlanError && LASTING_PLAN_KINDS.includes(err.kind);
+}
+
+/**
+ * The short reason applyCarry puts in brackets when the title and folder map could not be set.
+ * `writePack` false is init, which runs the carry's steps under its own name.
+ */
+function ownFailureReason(err, { writePack }) {
+  const who = writePack ? 'the carry' : 'init';
   // The writer's own text for a changed file speaks to the panel ("Reload before saving").
-  if (err instanceof vaultsettingswrite.VaultSettingsChangedError) return 'it changed while the carry was running';
+  if (err instanceof vaultsettingswrite.VaultSettingsChangedError) return `it changed while ${who} was running`;
+  // The pin's own text for these two speaks to the panel, and its "nothing was written" is not true
+  // here: the pin's apply already wrote the file.
+  if (err instanceof pinned.SettingsPlanError && err.kind === 'mismatch') return `the settings plan did not start from the file ${who} read`;
+  if (err instanceof pinned.SettingsPlanError && err.kind === 'not-utf8') return "it isn't valid UTF-8 text";
   // A failed read or write says its error code (the writer keeps it on `cause`); anything else, its message.
   const text = err.code || (err instanceof ScriptoriumError && err.cause && err.cause.code) || err.message;
   return String(text).replace(/\s+/g, ' ');
@@ -441,16 +458,18 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
     // Set when the guarded writer refused the file itself (changed, a link, not a regular file) or the
     // pin would not plan the change: the pack is then left exactly as it was, not rewritten.
     let ownRefused = false;
+    // Set when that refusal will come back on every run until the GM fixes the file.
+    let ownLasting = false;
     if (own.length > 0) {
       // Why this step exists: see OWN_KEYS (AntTheLimey/gm-apprentice#539).
       try {
         writeOwnSettings(vaultPath, yamlPath, own.map((u) => ({ op: 'set', name: u.setting, value: valueAtPath(internal.pack, u.name.split('.')) })), {
-          yamlBackup: done.yaml,
           campaign,
         });
       } catch (err) {
         ownRefused = isOwnRefusal(err);
-        ownFailure = ownFailureReason(err);
+        ownLasting = isLastingRefusal(err);
+        ownFailure = ownFailureReason(err, { writePack });
         staying = [...staying, ...own];
       }
       if (!ownFailure) {
@@ -475,7 +494,7 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
     if (ownRefused && writePack) {
       throw new VaultUnreachableError(
         `The carry could not finish: ${ownNames()} not set in the vault's settings file (${ownFailure}), so ${packConfigPath} was left as it was. ` +
-          `Run "gm-scriptorium carry" again. ${backupText}`,
+          `${ownLasting ? 'Fix what it names in _meta/vault-config.yaml, then run "gm-scriptorium carry" again.' : 'Run "gm-scriptorium carry" again.'} ${backupText}`,
         { path: yamlPath, campaign, reason: 'carry-blocked' },
       );
     }
@@ -515,7 +534,7 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
     if (ownFailure && !writePack) {
       throw new VaultUnreachableError(
         `The site title and folder map could not be set in the vault's settings file (${ownFailure}). Nothing else was written. ` +
-          `Run the command again once the file can be written. ${backupText}`,
+          `${ownLasting ? 'Fix what it names in _meta/vault-config.yaml, then run the command again.' : 'Run the command again once the file can be written.'} ${backupText}`,
         { path: yamlPath, campaign, reason: 'carry-blocked' },
       );
     }

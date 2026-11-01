@@ -317,6 +317,59 @@ test('when the vault settings cannot be written, init exits 3, says to run the c
   }
 });
 
+// On init the words name init, never the carry, and a refusal that comes back on every run says what to fix.
+test('init: a vault settings file that changed while init ran is named as changed during init', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-initchanged-'));
+  const real = vaultsettingswrite.replaceVaultSettingsYaml;
+  try {
+    const vault = movedNoPack(root);
+    vaultsettingswrite.replaceVaultSettingsYaml = () => {
+      throw new vaultsettingswrite.VaultSettingsChangedError('vault-config.yaml changed outside the panel. Reload before saving.');
+    };
+    const res = await initInProcess(root, vault);
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
+    assert.equal(res.code, 3);
+    assert.ok(
+      res.err.message.startsWith(
+        "The site title and folder map could not be set in the vault's settings file (it changed while init was running). Nothing else was written. " +
+          'Run the command again once the file can be written. The files as they were are kept at ',
+      ),
+      res.err.message,
+    );
+    assert.ok(!/carry/.test(res.err.message), res.err.message);
+    assert.ok(!fs.existsSync(path.join(vault, '_meta', 'scriptorium')));
+  } finally {
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('init: a plan the pin refuses says what to fix, then to run the command again', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-initrefused-'));
+  const real = pinned.planSettingsText;
+  try {
+    const vault = movedNoPack(root);
+    pinned.planSettingsText = () => {
+      throw new pinned.SettingsPlanError('refused', 'injected: the pin will not plan this.');
+    };
+    const res = await initInProcess(root, vault);
+    pinned.planSettingsText = real;
+    assert.equal(res.code, 3);
+    assert.ok(
+      res.err.message.startsWith(
+        "The site title and folder map could not be set in the vault's settings file (injected: the pin will not plan this.). Nothing else was written. " +
+          'Fix what it names in _meta/vault-config.yaml, then run the command again. The files as they were are kept at ',
+      ),
+      res.err.message,
+    );
+    assert.ok(!/carry|once the file can be written/.test(res.err.message), res.err.message);
+    assert.ok(!fs.existsSync(path.join(vault, '_meta', 'scriptorium')));
+  } finally {
+    pinned.planSettingsText = real;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('a setting the vault settings cannot take stays in the pack init makes, with its value', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-initkeep-'));
   const real = pinned.readVaultConfigTemplate;
