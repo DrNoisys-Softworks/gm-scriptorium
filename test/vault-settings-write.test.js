@@ -168,6 +168,24 @@ test('a symlinked _meta is refused, even when it points inside the vault', () =>
   });
 });
 
+test('a symlinked _meta refuses the save itself: yaml bytes unchanged, no temp file', () => {
+  withMoved(({ vaultPath, metaDir }) => {
+    const moved = path.join(vaultPath, 'meta-copy');
+    fs.renameSync(metaDir, moved);
+    fs.symlinkSync(moved, metaDir);
+    const realYaml = path.join(moved, 'vault-config.yaml');
+    const before = fs.readFileSync(realYaml);
+    const calls = [];
+    assert.throws(
+      () => replaceVaultSettingsYaml(vaultPath, CAND, { expectedSha256: sha256(before), backup: recordingBackup(calls) }),
+      (err) => err instanceof ConfigError && !(err instanceof VaultSettingsChangedError) && err.message.startsWith('refusing to edit vault-config.yaml: '),
+    );
+    assert.equal(calls.length, 0);
+    assert.deepEqual(fs.readFileSync(realYaml), before);
+    assert.deepEqual(tmpLeft(moved), []);
+  });
+});
+
 test('a yaml replaced by a folder is refused and nothing is written', () => {
   withMoved(({ vaultPath, metaDir, target }) => {
     fs.rmSync(target);
@@ -182,7 +200,7 @@ test('a yaml replaced by a folder is refused and nothing is written', () => {
 });
 
 test('a missing yaml is VaultSettingsChangedError and is never created', () => {
-  withMoved(({ vaultPath, target }) => {
+  withMoved(({ vaultPath, metaDir, target }) => {
     fs.rmSync(target);
     assert.throws(
       () => replaceVaultSettingsYaml(vaultPath, CAND, { expectedSha256: 'a'.repeat(64), backup: () => ({}) }),
@@ -190,6 +208,53 @@ test('a missing yaml is VaultSettingsChangedError and is never created', () => {
     );
     assert.throws(() => checkTarget(vaultPath), VaultSettingsChangedError);
     assert.equal(fs.existsSync(target), false);
+    assert.deepEqual(tmpLeft(metaDir), []);
+  });
+});
+
+test('a yaml that disappears during the save is VaultSettingsChangedError, never created, no temp', () => {
+  withMoved(({ vaultPath, metaDir, target }) => {
+    const old = fs.readFileSync(target);
+    assert.throws(
+      () =>
+        replaceVaultSettingsYaml(vaultPath, CAND, {
+          expectedSha256: sha256(old),
+          backup: () => {
+            fs.rmSync(target);
+            return {};
+          },
+        }),
+      (err) => err instanceof VaultSettingsChangedError && err.message === 'vault-config.yaml changed outside the panel. Reload before saving.',
+    );
+    assert.equal(fs.existsSync(target), false);
+    assert.deepEqual(tmpLeft(metaDir), []);
+  });
+});
+
+test('a yaml that vanishes between the first look and the first read is VaultSettingsChangedError', () => {
+  withMoved(({ vaultPath, metaDir, target }) => {
+    const old = fs.readFileSync(target);
+    const realRead = fs.readFileSync;
+    const calls = [];
+    fs.readFileSync = (p, ...rest) => {
+      if (p === target) {
+        const err = new Error('gone');
+        err.code = 'ENOENT';
+        throw err;
+      }
+      return realRead(p, ...rest);
+    };
+    try {
+      assert.throws(
+        () => replaceVaultSettingsYaml(vaultPath, CAND, { expectedSha256: sha256(old), backup: recordingBackup(calls) }),
+        (err) => err instanceof VaultSettingsChangedError && err.message === 'vault-config.yaml changed outside the panel. Reload before saving.',
+      );
+    } finally {
+      fs.readFileSync = realRead;
+    }
+    assert.equal(calls.length, 0);
+    assert.deepEqual(fs.readFileSync(target), old);
+    assert.deepEqual(tmpLeft(metaDir), []);
   });
 });
 
@@ -258,7 +323,7 @@ test('a non-retryable rename code fails at once, yaml unchanged, no temp left', 
       () =>
         assert.throws(
           () => replaceVaultSettingsYaml(vaultPath, CAND, { expectedSha256: sha256(old), backup: () => ({}), sleep: (ms) => sleeps.push(ms) }),
-          ScriptoriumError,
+          (err) => err instanceof ScriptoriumError && err.message === `could not replace ${target}: EXDEV. vault-config.yaml was left unchanged.`,
         ),
     );
     assert.equal(calls, 1);

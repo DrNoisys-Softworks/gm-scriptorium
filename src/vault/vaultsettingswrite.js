@@ -67,6 +67,15 @@ function fold(s) {
   return platformFoldsCase() ? s.toLowerCase() : s;
 }
 
+/**
+ * Only a retryable code (a lock that outlasted every wait) hints at another program holding the
+ * file. Any other code, such as EXDEV, is reported as it is.
+ */
+function replaceFailedMessage(target, code) {
+  const hint = RETRYABLE_CODES.has(code) ? ' Another program may have it open.' : '';
+  return `could not replace ${target}: ${code}.${hint} vault-config.yaml was left unchanged.`;
+}
+
 /** The fixed target: no request ever supplies a name. */
 function targetPathFor(vaultPath) {
   return path.join(vaultPath, '_meta', 'vault-config.yaml');
@@ -149,6 +158,7 @@ function replaceVaultSettingsYaml(vaultPath, candidateBytes, { expectedSha256, b
   try {
     precheckBuf = fs.readFileSync(target);
   } catch (err) {
+    if (err.code === 'ENOENT') throw new VaultSettingsChangedError(CHANGED, { path: target, campaign });
     throw new ScriptoriumError(`could not read ${target}: ${err.code}. vault-config.yaml was left unchanged.`, {
       path: target,
       campaign,
@@ -209,10 +219,10 @@ function replaceVaultSettingsYaml(vaultPath, candidateBytes, { expectedSha256, b
         continue;
       }
       removeTempBestEffort(tmp);
-      throw new ScriptoriumError(
-        `could not replace ${target}: ${err.code}. Another program may have it open. vault-config.yaml was left unchanged.`,
-        { path: target, campaign, cause: err },
-      );
+      // A yaml that vanished since the first look was changed outside the panel: the same 409 as a
+      // hash mismatch, never a generic I/O failure.
+      if (err.code === 'ENOENT') throw new VaultSettingsChangedError(CHANGED, { path: target, campaign });
+      throw new ScriptoriumError(replaceFailedMessage(target, err.code), { path: target, campaign, cause: err });
     }
 
     if (sha256Hex(liveBuf) !== expectedSha256) {
@@ -234,10 +244,7 @@ function replaceVaultSettingsYaml(vaultPath, candidateBytes, { expectedSha256, b
   }
 
   removeTempBestEffort(tmp);
-  throw new ScriptoriumError(
-    `could not replace ${target}: ${lastErr.code}. Another program may have it open. vault-config.yaml was left unchanged.`,
-    { path: target, campaign, cause: lastErr },
-  );
+  throw new ScriptoriumError(replaceFailedMessage(target, lastErr.code), { path: target, campaign, cause: lastErr });
 }
 
 module.exports = {
