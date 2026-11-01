@@ -219,6 +219,32 @@ for (const kind of ['refused', 'not-made', 'unreadable']) {
 }
 
 test(
+  'a not-utf8 plan is refused in the carry\'s own words and counts as lasting: it says what to fix',
+  withRoot('scriptorium-ownwrite-not-utf8-', async (root) => {
+    const vault = setupUnfolded(root);
+    const packBefore = fs.readFileSync(packOf(vault));
+    const res = await withInjected(
+      pinned,
+      'planSettingsText',
+      planRefusal('not-utf8', "_meta/vault-config.yaml isn't valid UTF-8 text, so the panel won't change it."),
+      () => carry(root),
+    );
+    assert.equal(res.code, 3, res.out);
+    assert.equal(res.err.reason, 'carry-blocked');
+    assert.ok(
+      res.err.message.startsWith(
+        "The carry could not finish: siteTitle and folderMap are not set in the vault's settings file (it isn't valid UTF-8 text), " +
+          `so ${packOf(vault)} was left as it was. Fix what it names in _meta/vault-config.yaml, then run "gm-scriptorium carry" again. ` +
+          'The files as they were are kept at ',
+      ),
+      res.err.message,
+    );
+    assert.ok(!res.err.message.includes('the panel'), res.err.message);
+    assert.deepEqual(fs.readFileSync(packOf(vault)), packBefore);
+  }),
+);
+
+test(
   'a plan that did not start from the file the carry read is refused without claiming nothing was written',
   withRoot('scriptorium-ownwrite-mismatch-', async (root) => {
     const vault = setupUnfolded(root);
