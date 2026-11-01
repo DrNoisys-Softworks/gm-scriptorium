@@ -191,7 +191,7 @@ test('VR.themeItems: items whose theme !== null', () => {
 
 test('SAVED_WORDS drift: VR and PV map the same TRACKED_FILES name to the same words, independently', () => {
   const timeOf = () => 'T';
-  for (const file of ['pack.toml', 'vault.config.json', 'vault-config.md']) {
+  for (const file of ['pack.toml', 'vault.config.json', 'vault-config.md', 'vault-config.yaml']) {
     const pvInfo = { built: true, builtAt: 'A', stale: true, savedSince: [file], panelSavesSince: 0 };
     const pvText = PV.freshnessLine(pvInfo, [], timeOf).text;
     const pvWords = pvText.match(/Saved since: (.*)\.$/)[1];

@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { planBuild } = require('./plan');
-const { writeStagedConfig, mirrorSiteInputs } = require('./stage');
+const { stageConfig, mirrorSiteInputs } = require('./stage');
 const { swapIntoPlace, sweepStaleSiblings } = require('./swap');
 const { runGeneratorBuild } = require('../generator/bootstrap');
 const { applyAssetRedactions } = require('../generator/redactions');
@@ -100,11 +100,11 @@ function runAtomicBuild({ vaultPath, userJsonConfig, finalOut, siteDir, campaign
 
   sweepStaleSiblings(finalOut);
   const { stagingRoot, stagingOut } = planBuild(vaultPath, finalOut);
-  const configPath = writeStagedConfig(userJsonConfig, vaultPath, stagingRoot, stagingOut);
+  const { configPath, outputDirOverride } = stageConfig(userJsonConfig, vaultPath, stagingRoot, stagingOut);
   mirrorSiteInputs(siteDir, stagingRoot);
 
   const start = process.hrtime.bigint();
-  const { error, renderErrors, detail, redactions: moduleRedactions } = runGeneratorBuild(configPath);
+  const { error, renderErrors, detail, redactions: moduleRedactions } = runGeneratorBuild(configPath, { outputDirOverride });
   const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
 
   // Treat any captured render error as a build failure even if build()

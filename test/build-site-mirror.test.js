@@ -159,8 +159,17 @@ test('SITE_RELATIVE_INPUTS matches the literal configDir/siteDir joins in the pi
   // SITE_RELATIVE_INPUTS (the deepEqual above confirms the discovered join set is unchanged). The
   // other five are the config-relative path resolution, css/overrides.css and the default_mode
   // storage key.
+  // 18 at publish-v1.26.0, read by hand (lib/build.js): the declaration (:206); the vault path (:208);
+  // `siteDir: configDir` handed to loadPublishConfig three times (:214 twice, :221), which judges the
+  // output folder and the folders to keep against it, not a file in it; the output folder (:226); the
+  // GM site's folders (:228, :232, :236, :309), built only when gm_site.publish is on, which an
+  // old-layout vault cannot set; packageScripts (:262), read only on the new layout; the before and
+  // after build steps (:265, :2026), run only with options.runSteps, which Scriptorium never passes;
+  // and the five from 1.12.0 (:282 hasRealKvId, :398 css/overrides.css, :1118 the storage key, :1961
+  // detectStatusBar, :1962 detectInbox). No new file is read from the site folder for a build
+  // Scriptorium runs, so SITE_RELATIVE_INPUTS is unchanged (the deepEqual above).
   const configDirCount = (buildSource.match(/\bconfigDir\b/g) || []).length;
-  assert.equal(configDirCount, 8, `expected configDir to appear exactly 8 times in lib/build.js, found ${configDirCount}`);
+  assert.equal(configDirCount, 18, `expected configDir to appear exactly 18 times in lib/build.js, found ${configDirCount}`);
 });
 
 // -- 4. end to end: runBuildCommand --force with a tmp site config whose dir holds css/overrides.css --

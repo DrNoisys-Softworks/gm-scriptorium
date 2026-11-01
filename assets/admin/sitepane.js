@@ -197,6 +197,7 @@
     'pack.toml': 'theme, images or words',
     'vault.config.json': 'the site title',
     'vault-config.md': 'the tagline or vault settings',
+    'vault-config.yaml': "the vault's settings file",
   };
 
   var COUNTER_ONLY_WORDS = 'other changes saved in the panel';

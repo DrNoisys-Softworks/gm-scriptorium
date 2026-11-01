@@ -7,19 +7,26 @@ const { hubBodyWithheld } = require('./sessionmodel');
 
 /*
  * L6, the config-surface-divergence class (Engineering Brief section 7),
- * re-ported against the pin (Track DEP-b). Two config surfaces exist:
+ * re-ported against the pin (Track DEP-b).
+ *
+ * From publish-v1.26.0 (upstream #371, lib/settings/legacy.js pick) a list in vault.config.json
+ * with none in _meta/vault-config.md ADDS to the built-in list; only a list in the vault file
+ * replaces it. The checks below read the effective list from the pin's own loader, so a
+ * site-file-only list drops no default and they report nothing for it; their messages name the
+ * vault file, the one list that can drop a default (lib/settings/legacy.js:86-139, pick). The
+ * history below is kept for the record. Two config surfaces exist:
  * vault.config.json (outside the vault) and _meta/vault-config.md's
- * `publish:` block (inside it). lib/config.js:246-300's pick (unionExcludeList up to publish-v1.11.44)
- * genuinely unions exclude_sections/exclude_fields/exclude_dirs from BOTH
+ * `publish:` block (inside it). Up to publish-v1.21.0 the pin's pick (unionExcludeList up to
+ * publish-v1.11.44) unioned exclude_sections/exclude_fields/exclude_dirs from BOTH
  * surfaces (case-insensitively de-duplicated) — it does NOT let one side
- * win outright — but falls back to PUBLISH_DEFAULTS (lib/config.js:17-18)
- * ONLY when NEITHER surface supplies a list at all. So supplying a list
+ * win outright — but fell back to PUBLISH_DEFAULTS
+ * ONLY when NEITHER surface supplied a list at all. So supplying a list
  * from either surface silently drops every pin default that list doesn't
  * also name, which is what runExcludeSectionsDivergence and
  * runExcludeFieldsDivergence below report.
  *
  * exclude_dirs is different again, and changed at publish-v1.11.40 (Δ, #209 follow-up):
- * lib/build.js:400 now calls lib/config.js's scanConfigFor(config, publishConfig) before
+ * lib/build.js:585 (from publish-v1.26.0) calls lib/config.js's scanConfigFor(config, publishConfig) before
  * scanVault, so the walk sees the merged, unioned exclude_dirs, not the raw vault.config.json
  * object. A vault-only publish.exclude_dirs entry now genuinely gates a fresh build's walk too.
  * See runExcludeDirsDivergence's own doc comment for what this check still catches.
@@ -49,19 +56,32 @@ function headingSurvives(ctx, sectionName) {
 }
 
 /**
- * exclude_sections: when EITHER config surface supplies its own list, a pin
- * default (PUBLISH_DEFAULTS.exclude_sections, lib/config.js:17) that list
- * doesn't re-name is silently dropped from the effective union
- * (lib/config.js:246-300's pick (unionExcludeList up to publish-v1.11.44), with the list() fallback at :396,
- * :441-443, only falls back to the defaults
- * when NEITHER surface supplies a list). ERROR if the heading actually
+ * The file the vault keeps its settings in, as the messages below name it. A list there replaces the
+ * pin defaults on either layout: the yaml's player_site.hide lists settle with origin 'file' and
+ * replace the default in the pin's reader, as publish.exclude_* in the md always did. These
+ * dropped-default checks therefore run on both layouts. The pack-against-vault comparisons (exclude
+ * dirs below) do not run on the moved layout: the carry checks own them.
+ */
+function vaultSettingsFile(ctx) {
+  return ctx.settingsLayout === 'new' ? '_meta/vault-config.yaml' : '_meta/vault-config.md';
+}
+
+/**
+ * exclude_sections: when _meta/vault-config.md supplies its own list, a pin
+ * default (PUBLISH_DEFAULTS.exclude_sections, the registry's player_site.hide.sections) that list
+ * doesn't re-name is silently dropped from the effective list (lib/settings/legacy.js:86-139's
+ * pick; a list only in vault.config.json is added to the defaults, :117-120). Up to
+ * publish-v1.21.0 a list in either file dropped them. ERROR if the heading actually
  * renders in a published page; WARN otherwise. When neither surface
  * supplies a list, the defaults apply in full and nothing is missing, so
  * this reports nothing.
  */
 function runExcludeSectionsDivergence(ctx) {
+  const file = vaultSettingsFile(ctx);
   const { vault, json } = ctx.publishSet.configSources;
-  if (!vault.exclude_sections && !json.excludeSections) return [];
+  // On the moved layout only the vault's own (file-origin) list can drop a default; the pack is no list source.
+  const supplied = ctx.settingsLayout === 'new' ? vault.exclude_sections : vault.exclude_sections || json.excludeSections;
+  if (!supplied) return [];
 
   const effective = ctx.publishSet.publishConfig.exclude_sections || [];
   const effectiveLower = new Set(effective.map(normaliseSection));
@@ -76,7 +96,7 @@ function runExcludeSectionsDivergence(ctx) {
         severity: fires ? 'error' : 'warn',
         category: 'config',
         campaign: ctx.campaign,
-        message: `"## ${section}" is one of the default excluded sections, but vault.config.json or _meta/vault-config.md supplies its own exclude_sections list, which replaces the defaults instead of extending them, so it is no longer excluded${
+        message: `"## ${section}" is one of the default excluded sections, but ${file} supplies its own exclude_sections list, which replaces the defaults instead of extending them, so it is no longer excluded${
           fires ? ' and the heading renders in published output' : ''
         }`,
         data: { section, appliesInOutput: fires },
@@ -101,6 +121,7 @@ function runExcludeSectionsDivergence(ctx) {
  * JSON-only entries are INFO (they take effect either way).
  */
 function runExcludeDirsDivergence(ctx) {
+  if (ctx.settingsLayout === 'new') return []; // the pack is no longer a second source; see runPackHidingNotCarried
   const jsonList = ctx.jsonConfig.excludeDirs || [];
   const vaultList = ctx.publishSet.configSources.vault.exclude_dirs || [];
   // Two entries name the same folder when the pin spells them the same (normalizeExcludeDir: no
@@ -162,13 +183,14 @@ function toCamelCase(snake) {
 }
 
 /**
- * exclude_fields: PUBLISH_DEFAULTS.exclude_fields (lib/config.js:18, now
- * secrets/current_plan/plan_progress/gm_notes/prep_notes/reliability) is only used
- * whole when neither surface supplies its own exclude_fields list; a list
- * from EITHER surface replaces the defaults instead of extending them
- * (lib/config.js:246-300's pick (unionExcludeList up to publish-v1.11.44)).
+ * exclude_fields: PUBLISH_DEFAULTS.exclude_fields (the registry's player_site.hide.fields:
+ * secrets/current_plan/plan_progress/gm_notes/prep_notes/reliability) is used whole unless
+ * _meta/vault-config.md supplies its own exclude_fields list, which replaces the defaults instead
+ * of extending them (lib/settings/legacy.js:86-139's pick). A list only in vault.config.json is
+ * added to them from publish-v1.26.0 (:117-120); before, a list from either file replaced them.
  */
 function runExcludeFieldsDivergence(ctx) {
+  const file = vaultSettingsFile(ctx);
   const effective = new Set(ctx.publishSet.publishConfig.exclude_fields || []);
   const findings = [];
 
@@ -188,7 +210,7 @@ function runExcludeFieldsDivergence(ctx) {
         severity: 'warn',
         category: 'config',
         campaign: ctx.campaign,
-        message: `default excluded field "${defaultField}" is no longer filtered; a vault.config.json or _meta/vault-config.md exclude_fields list replaced the default list instead of extending it`,
+        message: `default excluded field "${defaultField}" is no longer filtered; the ${file} exclude_fields list replaced the default list instead of extending it`,
         data: { field: defaultField, occurrences: { [defaultField]: exactCount, [camel]: camelCount } },
       }),
     );
@@ -205,6 +227,55 @@ function runExcludeFieldsDivergence(ctx) {
  */
 function siteVaultPathMismatchMessage(m) {
   return `${m.siteConfigPath} sets vaultPath to "${m.siteConfigVaultPath}", but the resolved vault "${m.resolvedVaultPath}" was used instead`;
+}
+
+/**
+ * config/settings-fault: one ERROR per fault the pinned build stops on (lib/config.js
+ * assertNoStops), in the pin's own words, read by src/vault/publishset.js's loadPublishConfig through
+ * the pin's own settings loader. The path is the vault's settings file, except for a fault in a key
+ * of the site's vault.config.json, which the pin names by that key.
+ */
+function runSettingsFault(ctx) {
+  // On the moved layout a hide list the pack holds is reported once, by config/pack-hiding-not-carried
+  // (src/checks/carry.js): drop exactly the faults that check owns, the old-name stops from the site file.
+  const owned = (f) => ctx.settingsLayout === 'new' && f.kind === 'old-name' && f.source === 'site';
+  const stops = (ctx.publishSet.stops || []).filter((f) => !owned(f));
+  const site = ctx.jsonConfig || {};
+  const siteFile = ctx.rawSiteConfig || site;
+  return stops.map((fault) => {
+    const inSiteFile = !String(fault.name).includes('.') && Object.prototype.hasOwnProperty.call(siteFile, fault.name);
+    return createFinding({
+      id: 'config/settings-fault',
+      severity: 'error',
+      category: 'config',
+      campaign: ctx.campaign,
+      path: inSiteFile ? null : (ctx.settingsLayout === 'new' ? '_meta/vault-config.yaml' : '_meta/vault-config.md'),
+      message: `${fault.message} The build will not run until this is fixed.`,
+      data: { name: fault.name, setting: fault.setting || null, kind: fault.kind },
+    });
+  });
+}
+
+/**
+ * config/switch-word-now-off: `no`, `off` or "false" for publish.exclude_drafts or
+ * publish.exclude_callouts hid the drafts or callouts up to GM-Scriptorium 0.5.0 (the pin then
+ * counted any text as on). Since publish-v1.26.0 they are switch words that mean off, so those pages
+ * and callouts are now published. One WARN per setting, naming the value as the file writes it.
+ */
+const SWITCH_WORD_WHAT = { 'publish.exclude_drafts': ['draft pages', 'draft pages are published'], 'publish.exclude_callouts': ['callouts', 'callouts are published'] };
+function runSwitchWordNowOff(ctx) {
+  return (ctx.publishSet.switchWords || []).map(({ setting, raw }) => {
+    const [hid, published] = SWITCH_WORD_WHAT[setting];
+    return createFinding({
+      id: 'config/switch-word-now-off',
+      severity: 'warn',
+      category: 'config',
+      campaign: ctx.campaign,
+      path: '_meta/vault-config.md',
+      message: `${setting} is ${JSON.stringify(raw)}. Up to GM-Scriptorium 0.5.0 this hid ${hid}; it now means off, so ${published}. Set it to true to hide them, or false to keep publishing them and silence this warning.`,
+      data: { setting, value: raw },
+    });
+  });
 }
 
 /** config/site-vault-path-mismatch (FR-18): 0 findings when ctx.vaultMismatch is null, else one WARN naming both paths. */
@@ -251,6 +322,8 @@ function runPackShadowed(ctx) {
 }
 
 module.exports = {
+  runSettingsFault,
+  runSwitchWordNowOff,
   runExcludeSectionsDivergence,
   runExcludeDirsDivergence,
   runExcludeFieldsDivergence,

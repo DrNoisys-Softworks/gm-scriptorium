@@ -259,30 +259,24 @@ test('9: an injected light fixture theme on a dark palette fires (symmetry with 
 
 // -- 10. parity matrix against the pin ------------------------------------------------------------
 
-test('10: paletteScheme() parity against the pin\'s full pipeline (config.js merge + theme.js generateThemeCSS)', () => {
-  // Deep-required in this test only (SD-6): the pin's real merge defaults + CSS generator, to
-  // derive an INDEPENDENT scheme/background reading, never the module under test's own logic.
+test('10: paletteScheme() parity against the pin\'s full pipeline (its settings loader + theme.js generateThemeCSS)', () => {
+  // Deep-required in this test only (SD-6): the pin's real settings loader and CSS generator, run
+  // on the same vault files, give an INDEPENDENT scheme/background reading, never the module under
+  // test's own logic. From publish-v1.26.0 the pin has no PUBLISH_DEFAULTS or resolveGenrePreset to
+  // rebuild its merge from, so this asks its loadPublishConfig for the theme the build hands
+  // generateThemeCSS (lib/build.js:478), which is the stronger oracle anyway.
   // eslint-disable-next-line global-require
-  const { PUBLISH_DEFAULTS } = require('gm-apprentice-publish/lib/config');
+  const { loadPublishConfig } = require('gm-apprentice-publish/lib/config');
   // eslint-disable-next-line global-require
-  const { generateThemeCSS, resolveGenrePreset } = require('gm-apprentice-publish/lib/theme');
+  const { generateThemeCSS } = require('gm-apprentice-publish/lib/theme');
   const themescheme = requireFresh('../src/checks/themescheme');
 
-  /** Reproduces lib/config.js:257-262's own merge, then theme.js:87-110's scheme read -- the
-   * SAME two-stage pipeline paletteScheme() reproduces, from the pin's real exports, for a
-   * genuine independent check (not calling generateThemeCSS with an unmerged palette, which
-   * would trip its own internal '#1a1f25' fallback the merge stage already resolved --
-   * deviation 1 at the top of the Engineering Brief). */
-  function pinReading({ rawPalette, genre }) {
-    let palette;
-    if (rawPalette) palette = { ...PUBLISH_DEFAULTS.theme.palette, ...rawPalette };
-    else if (genre) palette = null;
-    else palette = { ...PUBLISH_DEFAULTS.theme.palette };
-
-    if (palette === null && resolveGenrePreset(genre)) {
-      return { scheme: null, background: null };
-    }
-    const css = generateThemeCSS({ palette, fonts: {}, genre });
+  /** The build's own theme for this vault, then theme.js's scheme read off the CSS it writes. A
+   * preset that owns the palette (no palette, a genre the pin knows) gives null/null. */
+  function pinReading(vaultDir) {
+    const { theme } = loadPublishConfig(vaultDir, {}, () => {}, { quietStops: true });
+    if (!theme.palette && theme.genre) return { scheme: null, background: null };
+    const css = generateThemeCSS(theme);
     const bgMatch = css.match(/--bg: ([^;]+);/);
     const background = bgMatch ? bgMatch[1] : null;
     let scheme = null;
@@ -305,31 +299,28 @@ test('10: paletteScheme() parity against the pin\'s full pipeline (config.js mer
   ];
 
   for (const c of cases) {
-    const pin = c.none ? { scheme: null, background: null } : pinReading({ rawPalette: c.rawPalette, genre: c.genre || null });
-
     withScratchDir((dir) => {
       const vaultDir = path.join(dir, 'vault');
       fs.mkdirSync(path.join(vaultDir, '_meta'), { recursive: true });
       if (!c.none) {
-        let publishTheme = '';
+        const lines = [];
+        if (c.genre) lines.push(`    genre: '${c.genre}'`);
         if (c.rawPalette && c.rawPalette.background !== undefined) {
-          publishTheme = `  theme:\n    palette:\n      background: '${c.rawPalette.background}'\n`;
+          lines.push('    palette:', `      background: '${c.rawPalette.background}'`);
         } else if (c.rawPalette) {
-          publishTheme = `  theme:\n    palette:\n      primary: '${c.rawPalette.primary}'\n`;
-        } else if (c.genre) {
-          publishTheme = `  theme:\n    genre: '${c.genre}'\n`;
+          lines.push('    palette:', `      primary: '${c.rawPalette.primary}'`);
         }
-        const vcMd = `---\ntype: meta\npublish:\n${publishTheme}---\n\n# Vault config\n`;
+        const vcMd = `---\ntype: meta\npublish:\n  theme:\n${lines.join('\n')}\n---\n\n# Vault config\n`;
         fs.writeFileSync(path.join(vaultDir, '_meta', 'vault-config.md'), vcMd);
       }
 
-      const ours = c.none ? { scheme: 'n/a' } : themescheme.paletteScheme(vaultDir);
-      // "no file at all": the pin has no comparable reading either (Not our own real target for
-      // an assertion, since the pin never runs without a config), so only assert our own result
-      // reads the un-authored default (light, background #e8f0f3) when the file is simply absent.
+      // "no file at all": only assert our own result reads the un-authored default (light,
+      // background #e8f0f3) when the file is simply absent.
       if (c.none) {
         assert.equal(themescheme.paletteScheme(vaultDir).background, '#e8f0f3');
       } else {
+        const pin = pinReading(vaultDir);
+        const ours = themescheme.paletteScheme(vaultDir);
         assert.equal(ours.scheme, pin.scheme, `scheme mismatch for case "${c.label}"`);
       }
     });

@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const locate = require('../vault/locate');
+const pinned = require('../generator/pinned');
 const { assertSafeOutputDir } = require('../build/plan');
 const { THEMES, INIT_DEFAULT_THEME, loadTheme } = require('../build/themes');
 const { loadPackToml } = require('../build/packtoml');
@@ -102,9 +103,6 @@ async function checkVault(value, { name = '', commit = false, deferUntilCommit =
       const candidate = await probeLib.findVaultChild(typed.abs, opts);
       return result('vault', 'bad', typed.abs, err.message, vaultFacts({ found: true, unc: typed.unc, candidate }));
     }
-    // A moved or mixed vault (settings in vault-config.yaml): show the refusal as it is, and never
-    // search for a child folder (issue #171). settingsMoved is set only here, so every other result keeps its key set.
-    if (err.reason === 'settings-moved') return result('vault', 'bad', typed.abs, err.message, vaultFacts({ found: true, unc: typed.unc, settingsMoved: true }));
     return result('vault', 'bad', typed.abs, err.message, vaultFacts({ unc: typed.unc }));
   }
 
@@ -121,6 +119,9 @@ async function checkVault(value, { name = '', commit = false, deferUntilCommit =
     packExists: fs.existsSync(packDirFor(typed.abs)),
     campaignTitle,
   });
+  // settingsMoved is set only for a vault whose settings are in _meta/vault-config.yaml (moved or
+  // mixed), so every other result keeps its key set. The picker then names the yaml, not the .md.
+  if (pinned.settingsLayoutOf(typed.abs) === 'new') facts.settingsMoved = true;
   return result('vault', typed.unc ? 'warn' : 'ok', typed.abs, null, facts);
 }
 

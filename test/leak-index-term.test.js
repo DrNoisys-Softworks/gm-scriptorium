@@ -9,11 +9,16 @@ const path = require('path');
 const pinned = require('../src/generator/pinned');
 const { scanSearchIndex } = require('../src/checks/leak/outputscan');
 const { runAtomicBuild } = require('../src/build/run');
+const { onLayout } = require('./helpers/moved-vault');
 
 const PIN_VAULT = path.join(__dirname, 'fixtures', 'pin-vault');
 const INDEX_TERM_VAULT = path.join(__dirname, 'fixtures', 'index-term-vault');
 const INDEX_TERM_SITE_CONFIG = require(path.join(__dirname, 'fixtures', 'index-term-vault-site-config.json'));
 const PIN_SITE_CONFIG = require(path.join(__dirname, 'fixtures', 'pin-vault-site-config.json'));
+
+// The real-build cases run on both settings layouts: the old _meta/vault-config.md and the moved
+// _meta/vault-config.yaml. The assertions are the same on both.
+const LAYOUTS = ['legacy', 'new'];
 
 function mkRow(relPath, hiddenNames) {
   return { entity: { relPath }, candidateNames: hiddenNames, hiddenNames, collisions: [] };
@@ -122,35 +127,37 @@ test('the term rule is "exact token, optional possessive/s, trailing punctuation
 
 // --- AC-D2-06: invertedIndex is a sorted ARRAY of pairs, proven against a REAL build ---
 
-test('AC-D2-06: a real built search-index.json from test/fixtures/pin-vault is read correctly (invertedIndex as an array, not Object.keys)', () => {
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-index-term-realbuild-'));
-  try {
-    const siteDir = path.join(scratch, 'site');
-    fs.mkdirSync(siteDir, { recursive: true });
-    const userJsonConfig = { ...PIN_SITE_CONFIG, vaultPath: PIN_VAULT };
-    const finalOut = path.join(scratch, 'out');
+for (const layout of LAYOUTS) {
+  test(`AC-D2-06: a real built search-index.json from test/fixtures/pin-vault is read correctly (invertedIndex as an array, not Object.keys) [${layout}]`, () => {
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-index-term-realbuild-'));
+    try {
+      const siteDir = path.join(scratch, 'site');
+      fs.mkdirSync(siteDir, { recursive: true });
+      const { vaultPath, jsonConfig: userJsonConfig } = onLayout(layout, PIN_VAULT, PIN_SITE_CONFIG, path.join(scratch, 'layout'));
+      const finalOut = path.join(scratch, 'out');
 
-    const buildResult = runAtomicBuild({
-      vaultPath: PIN_VAULT,
-      userJsonConfig,
-      finalOut,
-      siteDir,
-      campaign: 'index-term-real-build',
-      force: true,
-    });
-    assert.equal(buildResult.ok, true, buildResult.ok ? '' : JSON.stringify(buildResult.renderErrors));
+      const buildResult = runAtomicBuild({
+        vaultPath,
+        userJsonConfig,
+        finalOut,
+        siteDir,
+        campaign: 'index-term-real-build',
+        force: true,
+      });
+      assert.equal(buildResult.ok, true, buildResult.ok ? '' : JSON.stringify(buildResult.renderErrors));
 
-    const raw = JSON.parse(fs.readFileSync(path.join(finalOut, 'search-index.json'), 'utf8'));
-    assert.ok(Array.isArray(raw.index.invertedIndex), 'invertedIndex must really be an array in the file this arm reads');
+      const raw = JSON.parse(fs.readFileSync(path.join(finalOut, 'search-index.json'), 'utf8'));
+      assert.ok(Array.isArray(raw.index.invertedIndex), 'invertedIndex must really be an array in the file this arm reads');
 
-    const withheld = [mkRow('Characters/NPCs/Gus-Hidden.md', ['Gus Marzone'])];
-    const findings = scanSearchIndex({ outDir: finalOut, campaign: 'unit', withheld });
-    assert.ok(findings.length > 0, 'must find "Gus Marzone" reachable in the real built index, not silently nothing');
-    assert.ok(findings.every((f) => f.id === 'leak/l4-index-term'));
-  } finally {
-    fs.rmSync(scratch, { recursive: true, force: true });
-  }
-});
+      const withheld = [mkRow('Characters/NPCs/Gus-Hidden.md', ['Gus Marzone'])];
+      const findings = scanSearchIndex({ outDir: finalOut, campaign: 'unit', withheld });
+      assert.ok(findings.length > 0, 'must find "Gus Marzone" reachable in the real built index, not silently nothing');
+      assert.ok(findings.every((f) => f.id === 'leak/l4-index-term'));
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+}
 
 test('a naive Object.keys(invertedIndex) reading would find nothing — regression guard for the risk area', () => {
   const json = buildRealIndex([{ id: 'a.html', title: '', aliases: '', type: '', body: 'Tanmora raids the caravans.' }]);
@@ -240,43 +247,45 @@ test('FR-18 precondition: "thornwicke" really is stemmable (its stem differs fro
   assert.notEqual(stemmed, 'thornwicke', 'the fixture name must be one a real stemmer would actually change');
 });
 
-test('FR-18 red-first: a real build finds the withheld name via the unstemmed index, with an href documentRef (not a base-36 id)', () => {
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-idxterm-realbuild-'));
-  try {
-    const siteDir = path.join(scratch, 'site');
-    fs.mkdirSync(siteDir, { recursive: true });
-    const finalOut = path.join(scratch, 'out');
-    const userJsonConfig = { ...INDEX_TERM_SITE_CONFIG, vaultPath: INDEX_TERM_VAULT };
+for (const layout of LAYOUTS) {
+  test(`FR-18 red-first: a real build finds the withheld name via the unstemmed index, with an href documentRef (not a base-36 id) [${layout}]`, () => {
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-idxterm-realbuild-'));
+    try {
+      const siteDir = path.join(scratch, 'site');
+      fs.mkdirSync(siteDir, { recursive: true });
+      const finalOut = path.join(scratch, 'out');
+      const { vaultPath, jsonConfig: userJsonConfig } = onLayout(layout, INDEX_TERM_VAULT, INDEX_TERM_SITE_CONFIG, path.join(scratch, 'layout'));
 
-    const buildResult = runAtomicBuild({
-      vaultPath: INDEX_TERM_VAULT,
-      userJsonConfig,
-      finalOut,
-      siteDir,
-      campaign: 'idxterm-realbuild',
-      force: true,
-    });
-    assert.equal(buildResult.ok, true, buildResult.ok ? '' : JSON.stringify(buildResult.renderErrors));
-    assert.equal(fs.existsSync(path.join(finalOut, 'characters', 'npcs', 'thornwicke.html')), false, 'the withheld NPC page must not publish');
-    assert.equal(fs.existsSync(path.join(finalOut, 'locations', 'old-watch.html')), true, 'the mentioning page must publish');
+      const buildResult = runAtomicBuild({
+        vaultPath,
+        userJsonConfig,
+        finalOut,
+        siteDir,
+        campaign: 'idxterm-realbuild',
+        force: true,
+      });
+      assert.equal(buildResult.ok, true, buildResult.ok ? '' : JSON.stringify(buildResult.renderErrors));
+      assert.equal(fs.existsSync(path.join(finalOut, 'characters', 'npcs', 'thornwicke.html')), false, 'the withheld NPC page must not publish');
+      assert.equal(fs.existsSync(path.join(finalOut, 'locations', 'old-watch.html')), true, 'the mentioning page must publish');
 
-    const rawIndex = JSON.parse(fs.readFileSync(path.join(finalOut, 'search-index.json'), 'utf8'));
-    assert.deepEqual(rawIndex.index.pipeline, [], 'precondition: the real build\'s own serialised pipeline must be empty (no stemmer)');
-    const rawTermRow = rawIndex.index.invertedIndex.find(([term]) => term === 'thornwicke');
-    assert.ok(rawTermRow, 'precondition: the real index must contain the raw, unstemmed term "thornwicke"');
+      const rawIndex = JSON.parse(fs.readFileSync(path.join(finalOut, 'search-index.json'), 'utf8'));
+      assert.deepEqual(rawIndex.index.pipeline, [], 'precondition: the real build\'s own serialised pipeline must be empty (no stemmer)');
+      const rawTermRow = rawIndex.index.invertedIndex.find(([term]) => term === 'thornwicke');
+      assert.ok(rawTermRow, 'precondition: the real index must contain the raw, unstemmed term "thornwicke"');
 
-    const withheld = [mkRow('Characters/NPCs/Thornwicke.md', ['Thornwicke'])];
-    const findings = scanSearchIndex({ outDir: finalOut, campaign: 'unit', withheld });
-    const hit = findings.find((f) => f.data && f.data.hiddenName === 'Thornwicke');
-    assert.ok(hit, `expected a finding for "Thornwicke", got: ${JSON.stringify(findings)}`);
-    assert.equal(hit.severity, 'error');
-    assert.equal(hit.id, 'leak/l4-index-term');
-    assert.deepEqual(hit.data.documentRefs, ['locations/old-watch.html'], 'documentRefs must be the published page\'s href, not a base-36 ref');
-    assert.equal(hit.data.unmappedRefs, 0);
-  } finally {
-    fs.rmSync(scratch, { recursive: true, force: true });
-  }
-});
+      const withheld = [mkRow('Characters/NPCs/Thornwicke.md', ['Thornwicke'])];
+      const findings = scanSearchIndex({ outDir: finalOut, campaign: 'unit', withheld });
+      const hit = findings.find((f) => f.data && f.data.hiddenName === 'Thornwicke');
+      assert.ok(hit, `expected a finding for "Thornwicke", got: ${JSON.stringify(findings)}`);
+      assert.equal(hit.severity, 'error');
+      assert.equal(hit.id, 'leak/l4-index-term');
+      assert.deepEqual(hit.data.documentRefs, ['locations/old-watch.html'], 'documentRefs must be the published page\'s href, not a base-36 ref');
+      assert.equal(hit.data.unmappedRefs, 0);
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+}
 
 test('FR-18: an unrecognised serialised pipeline gives exactly one WARN and interprets no terms', () => {
   const json = {

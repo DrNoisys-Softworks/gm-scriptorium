@@ -31,6 +31,7 @@ const AXE_CORE_VERSION = '4.13.0';
 const BROWSER_TEST_FILES = Object.freeze([
   'test/admin-109-roadmap.dom.test.js',
   'test/admin-bugs-b1.dom.test.js',
+  'test/admin-moved-vault.dom.test.js',
   'test/admin-signin.dom.test.js',
   'test/admin-v1e10-vc.dom.test.js',
   'test/admin-vocab-phone-example.dom.test.js',

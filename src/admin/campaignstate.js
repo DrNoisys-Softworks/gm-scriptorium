@@ -12,8 +12,9 @@
  */
 
 const CAMPAIGN_FIELDS = Object.freeze({
-  // Set from a fresh resolve of the target campaign (the same eight the setup handover copies).
-  resolved: Object.freeze(['campaign', 'ctxInfo', 'vaultPath', 'siteSource', 'siteConfigPath', 'packDir', 'writable', 'readOnlyReason']),
+  // Set from a fresh resolve of the target campaign (the same nine the setup handover copies).
+  // settingsLayout is also read again by each request that depends on it (context.refreshSettingsLayout).
+  resolved: Object.freeze(['campaign', 'ctxInfo', 'vaultPath', 'siteSource', 'siteConfigPath', 'packDir', 'writable', 'readOnlyReason', 'settingsLayout']),
   // One set per campaign: stashed on the way out and restored on the way back in.
   kept: Object.freeze(['previewRoot', 'previewDir', 'previewStamp', 'previewPages', 'variants', 'panelSaves']),
   // Rebuilt from the vault on demand: dropped on every switch, and deleted, never set to null

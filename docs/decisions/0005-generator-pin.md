@@ -1307,3 +1307,119 @@ Repin from `publish-v1.17.0` (db6fb2b0), the second rung toward `publish-v1.34.0
 
 `npm run package` was not run (no Node 22 for pkg, no mingw-w64 on this host). No Windows run: C210 and
 C211 are OPEN.
+
+## Addendum: repin to publish-v1.26.0 (228fa161), 2026-10-27
+
+Repin from `publish-v1.21.0` (9def97ea), the third rung toward `publish-v1.34.0`. Follows
+`docs/COLLABORATING.md`'s pin bump procedure. Upstream went through 1.22.0 to 1.26.0, the start of
+its settings-file overhaul. This rung keeps every vault on the old layout (`_meta/vault-config.md`)
+working as before; a vault moved to `_meta/vault-config.yaml` is still refused, and that is the next
+rung.
+
+### What upstream changed (the part that reaches us)
+
+- **The settings reader** (1.22.0 to 1.26.0): `lib/config.js` keeps `loadPublishConfig`, but the
+  settings are now read against one registry (`lib/settings/`). `PUBLISH_DEFAULTS`,
+  `resolveGenrePreset`, and `normalizeExcludeDir` (moved to `lib/settings/`) are no longer exported from
+  where the facade took them. (`stricterCallouts` went the same way; the facade does not carry it,
+  because the pin's own loader does the merge.) The facade rebuilds `PUBLISH_DEFAULTS` from the
+  registry by each key's old name: it equals 1.21.0's except that `landing.max_events` (4) is new and
+  `four_oh_four.style` is retired. The reference pages show neither, since the panel edits neither.
+- **Hiding rules for an old-layout vault.** A hiding list in the site's `vault.config.json`, with none
+  in the vault file, now adds to the built-in list (#371). That includes `excludeSections` and
+  `excludeFields`: a site that left a default out on purpose (for example "Player Notes") now hides it
+  again. This is the safe direction, but a reader can see the change. `no`, `off`, `yes` and `on` are switch words
+  for `exclude_callouts` and `exclude_drafts`. Up to 1.21.0 any text there counted as on, so `no`, `off`
+  and `"false"` hid drafts and callouts; they now publish them, and `check` warns with
+  `config/switch-word-now-off`. A hiding setting the reader cannot use, or a name that
+  looks like one, stops the build (`assertNoStops`); `publish.mode: gm` is one.
+- **Withheld words.** `gmAliasRewriter` and `pairHubs` now need the site's `withheld_words`; on an old
+  layout they are the built-in someone, somewhere and something, the words 1.21.0 hard-coded.
+- **The note walk** (`scanAllNotes`) reads the frontmatter of every note under `_meta` (the first segment of its path is tested, so a note
+  at any depth counts) and of
+  any note with a `title:` or `publish:` line or a meta or template type. `src/vault/sessionpairs.js`
+  follows it. Notes under `_meta` and `_Templates` no longer count as hidden names, but that set feeds
+  only links written in settings, which nothing in Scriptorium mirrors.
+- **The registry loads every character-sheet template**, so the facade now seeds the redactions at
+  load (ADR 0007's addendum), and the GURPS to-hit data module is redacted too.
+- **The scaffold template** holds only `vaultPath`, so a new campaign's `vault.config.json` has no
+  `host`; the generator's default is the same.
+
+### How `check` reads the hiding settings now
+
+Up to 1.21.0, `src/vault/publishset.js` hand-ported the pin's config merge. The three hiding changes
+above would each have needed a port, and the third needs the reader's whole fault logic. So `check`
+now calls the pin's own `loadPublishConfig` through the facade (`readPublishSettings`). The pin opens
+the settings file with `fs`; for that one synchronous call the facade answers `fs.existsSync` and
+`fs.readFileSync` for exactly two paths, the old settings file (from text `check` read through
+`src/vault/read.js`, so a failing disk still aborts and the panel's edited copy, ADR 0041, is still
+what is read) and the new one (always absent), and restores both functions in a `finally`. The stop
+faults it returns are reported by the new `config/settings-fault` ERROR, so a build stops at its
+check step with the generator's own words.
+
+Rejected: aligning the hand port. It would follow the first two changes in a few lines, but the stop
+faults come from several hundred lines of reader (near-miss names, misplaced keys, unreadable values),
+and a port of that drifts on the next pin. ADR 0041 rejected patching `fs` for its overlay because that
+patch would be process-wide and long-lived; this one covers two paths for one synchronous call, as
+`bootstrap.js`'s vault read shim does.
+
+### What the procedure found
+
+- **Release artefact.** Tarball checked against upstream's `SHA256SUMS`; two independent downloads of
+  both files are byte-identical. The tag is a lightweight tag on the pinned commit.
+- **Reproducible-build cross-check.** A fresh checkout at the pinned commit, `npm ci --ignore-scripts`,
+  `npm pack`: `diff -rq` clean against the extracted release, 834 files, `treeSha256`
+  `7bb5f05fe579543d70ca67c918e0b8f68f659b0ad3ee71415da14ebbf625a67f`. npm 11.8.0 on macOS.
+- **Dependency set.** One new bundled package, `yaml` 2.9.1 (ISC, its licence file shipped and in the
+  notices); the other bundled files are byte-identical. The generator-owned delta is 62 changed, 22 new
+  and 5 removed paths. `fmguard.js`'s four bound files and `gurps/blocks/reference.js` are
+  byte-identical; `coc/skills-data.js` changed and its stub still fits. `npm audit --omit=dev` reports
+  the same eleven advisories in `js-yaml`, `linkify-it` and `markdown-it` as the 1.21.0 lockfile does
+  today; `yaml` has none.
+- **Lockfile.** Allowed hunks only; the root `name`/`version` and `pkg.patches` formatting restored.
+  `npm ci` reproduces and `verify-generator` passes before and after. No top-level `node_modules/lunr`.
+- **Network posture.** No new or changed file reached from `bin/scriptorium.js` gained a `fetch(`, an
+  `eval(` or a network builtin. `lib/serve.js` requires `node:http` and is not reached. `child_process`
+  is now also required by `lib/settings/steps.js`, which runs a vault's build steps only when the
+  caller passes `options.runSteps` (`lib/build.js:258`); Scriptorium never does. A search of `src/`,
+  `bin/` and `scripts/` finds no use of `runSteps`, and the only callers in the pin are its own
+  deploy and backend-setup commands, which Scriptorium does not reach. Adding
+  `lib/settings/steps.js` to the module-graph test's expected set, which then named three files, is a
+  maintainer decision, flagged in the pull request that made it. The
+  file is in the graph but cannot run from here; if Scriptorium ever passes `runSteps`, this
+  decision must be revisited first.
+
+  The settings move (`lib/settings/move.js`), reached since the carry command, is the
+  fourth. It takes `spawnSync` out of the child-process module when it loads, for a check that asks a
+  site folder which publish tool it uses by running the pin's own command with `process.execPath`. In
+  the packaged executable `process.execPath` is GM-Scriptorium itself, so that command must never run.
+  The facade (`planSettingsCarry` and `applySettingsCarry` in `src/generator/pinned.js`) always hands
+  the move its own answer to that question, so the command is never started. The answer is "no
+  publish tool installed or pinned", which is what the real command says for the scratch folder a
+  carry works in, and the move reads it as "nothing holds the move back". Adding
+  `lib/settings/move.js` to the module-graph test's expected set, which now names four files, is a
+  maintainer decision, flagged in the pull request that made it.
+  `test/settings-carry-no-spawn.test.js` replaces every way of starting a program with a stub that
+  throws, then plans and applies a real carry, and fails if the facade stops handing over the
+  answer. Upstream issue AntTheLimey/gm-apprentice#535 asks for the file to load the module lazily;
+  once the pin has that, the exception and the injected answer can go.
+- **Rules-content scan.** `PIN_SCAN_BASELINE` re-derived: 56 hits before, 69 after, every new one read
+  by hand: system names in comments, setting descriptions and the new settings schema, and the
+  redacted CoC file's own lines.
+- **Citations.** All 151 `lib/<file>.js:N` citations in `src/` mapped by a line diff: 64 moved with
+  their text unchanged, 39 changed and were read by hand, six had run past a shrunken `lib/config.js`.
+- **Equivalence check:** clean on `examples/the-long-lease` (40 pages), `pin-vault` (26), `story-vault`
+  (8) and `redaction-gurps-vault` (1). `session-chain-vault` reports `timeline.html` predicted and not
+  built at 1.21.0 too, so it is not from this pin.
+- **Before and after**, each vault built at both pins through Scriptorium: `examples/the-long-lease`
+  differs only in `css/style.css` (upstream's header accent, landing banner and contrast rules) and
+  in no longer getting `js/gurps-tohit.js`; `check` is identical. The GURPS fixture loses only the
+  calculator's box, data block and script tag. The CoC fixture differs only in `css/style.css`. The
+  generator prints four new warnings on the example: `four_oh_four.style` is retired, and `purpose`,
+  `source_confidence` and `created`, which the plugin writes into every `vault-config.md`, are "not a
+  setting". 142 packaged assets.
+
+### What this does not prove here
+
+No Windows run. The packaged executable loading the bundled `yaml` through its exports map is proven
+only by the Linux packaging gates; C1, C219 and C220 are OPEN.

@@ -73,7 +73,7 @@ function readView(ctx) {
 
   let target;
   try {
-    ({ target } = vaultconfigwrite.checkTarget(ctx.vaultPath, { campaign: ctx.campaign }));
+    ({ target } = vaultconfigwrite.checkTarget(ctx.vaultPath, { campaign: ctx.campaign, what: 'tagline' }));
   } catch (err) {
     return { ...empty, backupDir, reason: err.message };
   }
@@ -108,7 +108,7 @@ function readView(ctx) {
 function readEditWrite(ctx, { tagline, baseSha256, dryRun, machineDirResult, backupDir }) {
   let target;
   try {
-    ({ target } = vaultconfigwrite.checkTarget(ctx.vaultPath, { campaign: ctx.campaign }));
+    ({ target } = vaultconfigwrite.checkTarget(ctx.vaultPath, { campaign: ctx.campaign, what: 'tagline' }));
   } catch (err) {
     if (err instanceof vaultconfigwrite.VaultConfigChangedError) {
       throw new HandlerRefusal(409, { error: 'changed', message: err.message });

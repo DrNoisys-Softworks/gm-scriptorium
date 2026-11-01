@@ -31,10 +31,11 @@ function withScratchDir(fn) {
 }
 
 // L-VCJ: the expected vault.config.json for the title "Fixture Chronicle", hand-typed from the template.
+// From publish-v1.26.0 the template holds only vaultPath, so no "host" (the generator's default host
+// is github-pages either way).
 const L_VCJ = `{
   "siteTitle": "Fixture Chronicle",
   "landingTagline": "",
-  "host": "github-pages",
   "attachmentsDir": "_attachments",
   "folderMap": {
     "Characters/PCs": "characters/pcs",

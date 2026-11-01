@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const read = require('../vault/read');
 const pinned = require('../generator/pinned');
+const { readSettingsFiles } = require('../vault/publishset');
 const { ScriptoriumError } = require('../util/errors');
 const { deriveFolderMapAdditions } = require('./foldermap');
 const { composePackToml } = require('./validate');
@@ -28,8 +29,31 @@ function defaultOutputFor(vaultAbs, name) {
   return path.join(path.dirname(vaultAbs), `${name}-site`);
 }
 
+/** True when the vault keeps its settings in _meta/vault-config.yaml. */
+function isMovedVault(vaultAbs) {
+  return pinned.settingsLayoutOf(vaultAbs) === 'new';
+}
+
+/** The site title a moved vault's own settings set, trimmed, or null when they set none. */
+function movedVaultTitle(vaultAbs) {
+  const { md, yaml } = readSettingsFiles(vaultAbs);
+  const { values, origins } = pinned.readSettingValues(vaultAbs, {}, { md, yaml });
+  const title = values.player_site && values.player_site.title;
+  return origins['player_site.title'] === 'file' && typeof title === 'string' && title.trim().length > 0 ? title.trim() : null;
+}
+
 /** vault-config.md's `campaign` frontmatter, if it's a non-empty string once trimmed; otherwise the name. */
 function defaultTitleFor(vaultAbs, name) {
+  if (isMovedVault(vaultAbs)) {
+    // A moved vault: the site title the yaml sets, else its campaign name, else the name.
+    const set = movedVaultTitle(vaultAbs);
+    if (set !== null) return set;
+    const { md, yaml } = readSettingsFiles(vaultAbs);
+    const { values, origins } = pinned.readSettingValues(vaultAbs, {}, { md, yaml });
+    const campaign = values.vault && values.vault.campaign;
+    if (origins['vault.campaign'] === 'file' && typeof campaign === 'string' && campaign.trim().length > 0) return campaign.trim();
+    return name;
+  }
   const configPath = path.join(vaultAbs, '_meta', 'vault-config.md');
   const result = read.readFrontmatter(configPath);
   if (result.ok && typeof result.data.campaign === 'string' && result.data.campaign.trim().length > 0) {
@@ -152,6 +176,39 @@ function scaffoldEntries(vaultAbs, missing, { title, theme }) {
   });
 }
 
+/**
+ * For a moved vault: the pack's vault.config.json entry without any key the vault's settings now
+ * hold (the generator no longer reads them from the pack), and the whole composed site config, which
+ * the carry puts into the vault's settings file. The other entries come back as they were.
+ *
+ * @param {{ rel: string, kind: string, data?: string }[]} entries from scaffoldEntries
+ * @param {string[]} [keep] dotted names of settings to leave in the pack after all
+ * @returns {{ entries: object[], siteConfig: object|null }} siteConfig is null when no entry is the pack's file
+ */
+function stripEntriesForMovedVault(entries, keep = []) {
+  let siteConfig = null;
+  const out = entries.map((entry) => {
+    if (entry.rel !== 'vault.config.json' || entry.kind !== 'file') return entry;
+    siteConfig = JSON.parse(entry.data);
+    const left = pinned.stripMovedSettings(siteConfig).config;
+    // A setting the vault's settings cannot take (the carry could not move it) stays in the pack, as the carry command leaves it.
+    for (const name of keep) {
+      const segs = name.split('.');
+      let from = siteConfig;
+      for (const seg of segs) from = from && typeof from === 'object' ? from[seg] : undefined;
+      if (from === undefined) continue;
+      let at = left;
+      for (const seg of segs.slice(0, -1)) {
+        if (!at[seg] || typeof at[seg] !== 'object') at[seg] = {};
+        at = at[seg];
+      }
+      at[segs[segs.length - 1]] = structuredClone(from);
+    }
+    return { ...entry, data: `${JSON.stringify(left, null, 2)}\n` };
+  });
+  return { entries: out, siteConfig };
+}
+
 /** A1 (orchestrator addendum): a folder that exists, is non-empty, and does not look like a previous build. */
 function looksLikePreviousBuild(outAbs) {
   return fs.existsSync(path.join(outAbs, 'index.html')) && fs.existsSync(path.join(outAbs, 'css', 'scriptorium.css'));
@@ -192,6 +249,9 @@ module.exports = {
   SCAFFOLD,
   defaultOutputFor,
   defaultTitleFor,
+  isMovedVault,
+  movedVaultTitle,
+  stripEntriesForMovedVault,
   LEGACY_SCAFFOLD_SETTINGS,
   composeVaultConfigJson,
   scaffoldEntries,

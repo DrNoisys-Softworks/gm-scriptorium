@@ -45,7 +45,7 @@ test('the installed tree verifies against PIN.json (real repo state)', () => {
 
 test('PIN.json.commit is the pinned SHA', () => {
   const pin = JSON.parse(fs.readFileSync(REAL_PIN_PATH, 'utf8'));
-  assert.equal(pin.commit, '9def97ea6586009019b35d77ba480738a936c457');
+  assert.equal(pin.commit, '228fa161932d9119408d28e11628e22dd9b2ed76');
 });
 
 test('FR-02: the facade\'s PIN_COMMIT is bound to PIN.json.commit, not just hardcoded in step', () => {

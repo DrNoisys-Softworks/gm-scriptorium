@@ -22,6 +22,11 @@ const os = require('os');
 const path = require('path');
 
 const { runAtomicBuild } = require('../src/build/run');
+const { onLayout } = require('./helpers/moved-vault');
+
+// Every build case runs on both settings layouts: the old _meta/vault-config.md and the moved
+// _meta/vault-config.yaml. The assertions are the same on both.
+const LAYOUTS = ['legacy', 'new'];
 
 const LIVE_SCRIPTS = /live-state\.js|dnd-live\.js|dnd-party\.js|party-core\.js|gurps-live\.js|coc-live\.js/;
 
@@ -34,33 +39,36 @@ function walk(dir, out = []) {
   return out;
 }
 
-function build({ liveStats, kv }) {
+function build({ liveStats, kv, layout }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-live-stats-'));
-  const vault = path.join(root, 'vault');
-  fs.mkdirSync(path.join(vault, '_meta'), { recursive: true });
-  fs.mkdirSync(path.join(vault, 'Characters', 'PCs'), { recursive: true });
+  const srcVault = path.join(root, 'src-vault');
+  fs.mkdirSync(path.join(srcVault, '_meta'), { recursive: true });
+  fs.mkdirSync(path.join(srcVault, 'Characters', 'PCs'), { recursive: true });
   fs.writeFileSync(
-    path.join(vault, '_meta', 'vault-config.md'),
-    `---\ntype: meta\npublish:\n  system: dnd-5e-2024\n  mode: gm\n${liveStats ? '  live_stats: true\n' : ''}---\n# Config\n`
+    path.join(srcVault, '_meta', 'vault-config.md'),
+    `---\ntype: meta\npublish:\n  system: dnd-5e-2024\n  mode: player\n${liveStats ? '  live_stats: true\n' : ''}---\n# Config\n`
   );
   fs.writeFileSync(
-    path.join(vault, 'Characters', 'PCs', 'Tamsin.md'),
+    path.join(srcVault, 'Characters', 'PCs', 'Tamsin.md'),
     '---\ntype: pc\ntitle: Tamsin\n---\n## Stat Sheet\n\n| Ability | Score | Mod |\n|---|---|---|\n| STR | 10 | +0 |\n| DEX | 14 | +2 |\n\n**HP** 12/12  **AC** 15\n\n## Public Bio\nA cautious scout.\n'
   );
   fs.writeFileSync(
-    path.join(vault, 'Characters', 'PCs', 'Party.md'),
+    path.join(srcVault, 'Characters', 'PCs', 'Party.md'),
     '---\ntype: pc_roster\ntitle: The Party\n---\n## Party\nTamsin\n'
   );
   const siteDir = path.join(root, 'site');
   fs.mkdirSync(siteDir, { recursive: true });
   if (kv) fs.writeFileSync(path.join(siteDir, 'wrangler.toml'), '[[kv_namespaces]]\nbinding = "INBOX"\nid = "abc123realid"\n');
   const finalOut = path.join(root, 'out');
+  const siteConfig = {
+    siteTitle: 'Live', siteUrl: 'https://example.invalid',
+    outputDir: './out',
+    attachmentsDir: '_attachments', folderMap: { 'Characters/PCs': 'characters/pcs' }, excludeDirs: ['_meta'],
+  };
+  const { vaultPath, jsonConfig } = onLayout(layout, srcVault, siteConfig, path.join(root, 'layout'));
   const result = runAtomicBuild({
-    vaultPath: vault,
-    userJsonConfig: {
-      siteTitle: 'Live', siteUrl: 'https://example.invalid', vaultPath: vault, outputDir: './out',
-      attachmentsDir: '_attachments', folderMap: { 'Characters/PCs': 'characters/pcs' }, excludeDirs: ['_meta'],
-    },
+    vaultPath,
+    userJsonConfig: jsonConfig,
     finalOut,
     siteDir,
     campaign: 'live-stats',
@@ -74,58 +82,60 @@ function pagesReferencing(finalOut, re) {
   return walk(finalOut).filter((f) => f.endsWith('.html')).filter((f) => re.test(fs.readFileSync(f, 'utf8')));
 }
 
-test('live_stats unset (the default): no page loads a live script or names the backend API', () => {
-  const { root, finalOut } = build({ liveStats: false, kv: false });
-  try {
-    const pcPage = path.join(finalOut, 'characters', 'pcs', 'tamsin.html');
-    assert.ok(fs.existsSync(pcPage) && fs.existsSync(path.join(finalOut, 'characters', 'pcs', 'party.html')), 'positive control: the PC and party pages were built');
-    assert.deepEqual(pagesReferencing(finalOut, LIVE_SCRIPTS), [], 'a page loads a live script with the switch unset');
-    assert.deepEqual(pagesReferencing(finalOut, /\/api\/(loadout|request)/), [], 'a page names the backend API with the switch unset');
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('live_stats on but no KV store wired (a Scriptorium site): still no live script, and the pin says it was withheld', () => {
-  const { root, finalOut, result } = build({ liveStats: true, kv: false });
-  try {
-    assert.deepEqual(pagesReferencing(finalOut, LIVE_SCRIPTS), []);
-    assert.deepEqual(pagesReferencing(finalOut, /\/api\/(loadout|request)/), []);
-    assert.match(JSON.stringify(result.detail), /live_stats is on but this site has no KV store wired; live stats are not published/);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('positive control: live_stats on AND a KV store wired loads the live scripts, and every call they make is same-origin', () => {
-  const { root, finalOut } = build({ liveStats: true, kv: true });
-  try {
-    const withLive = pagesReferencing(finalOut, /js\/dnd-live\.js/);
-    assert.ok(withLive.length >= 2, 'with the switch and a KV store, the PC page and the party page must load dnd-live.js');
-    const loaded = new Set();
-    for (const f of withLive) {
-      for (const m of fs.readFileSync(f, 'utf8').matchAll(/<script[^>]*src="[^"]*js\/([\w.-]+\.js)"/g)) loaded.add(m[1]);
+for (const layout of LAYOUTS) {
+  test(`live_stats unset (the default): no page loads a live script or names the backend API [${layout}]`, () => {
+    const { root, finalOut } = build({ liveStats: false, kv: false, layout });
+    try {
+      const pcPage = path.join(finalOut, 'characters', 'pcs', 'tamsin.html');
+      assert.ok(fs.existsSync(pcPage) && fs.existsSync(path.join(finalOut, 'characters', 'pcs', 'party.html')), 'positive control: the PC and party pages were built');
+      assert.deepEqual(pagesReferencing(finalOut, LIVE_SCRIPTS), [], 'a page loads a live script with the switch unset');
+      assert.deepEqual(pagesReferencing(finalOut, /\/api\/(loadout|request)/), [], 'a page names the backend API with the switch unset');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
     }
-    assert.ok(loaded.has('live-state.js') && loaded.has('dnd-live.js'));
-    for (const name of loaded) {
-      const src = fs.readFileSync(path.join(finalOut, 'js', name), 'utf8');
-      // Every fetch target literal is a root-relative path (same origin).
-      for (const m of src.matchAll(/fetch\w*\(\s*'([^']*)'/g)) {
-        assert.match(m[1], /^\/api\//, `${name}: a network call goes somewhere other than the site's own /api/: ${m[1]}`);
+  });
+
+  test(`live_stats on but no KV store wired (a Scriptorium site): still no live script, and the pin says it was withheld [${layout}]`, () => {
+    const { root, finalOut, result } = build({ liveStats: true, kv: false, layout });
+    try {
+      assert.deepEqual(pagesReferencing(finalOut, LIVE_SCRIPTS), []);
+      assert.deepEqual(pagesReferencing(finalOut, /\/api\/(loadout|request)/), []);
+      assert.match(JSON.stringify(result.detail), /live_stats is on but this site has no KV store wired; live stats are not published/);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test(`positive control: live_stats on AND a KV store wired loads the live scripts, and every call they make is same-origin [${layout}]`, () => {
+    const { root, finalOut } = build({ liveStats: true, kv: true, layout });
+    try {
+      const withLive = pagesReferencing(finalOut, /js\/dnd-live\.js/);
+      assert.ok(withLive.length >= 2, 'with the switch and a KV store, the PC page and the party page must load dnd-live.js');
+      const loaded = new Set();
+      for (const f of withLive) {
+        for (const m of fs.readFileSync(f, 'utf8').matchAll(/<script[^>]*src="[^"]*js\/([\w.-]+\.js)"/g)) loaded.add(m[1]);
       }
+      assert.ok(loaded.has('live-state.js') && loaded.has('dnd-live.js'));
+      for (const name of loaded) {
+        const src = fs.readFileSync(path.join(finalOut, 'js', name), 'utf8');
+        // Every fetch target literal is a root-relative path (same origin).
+        for (const m of src.matchAll(/fetch\w*\(\s*'([^']*)'/g)) {
+          assert.match(m[1], /^\/api\//, `${name}: a network call goes somewhere other than the site's own /api/: ${m[1]}`);
+        }
+      }
+      // No shipped script anywhere in js/ names an absolute or protocol-relative URL as code (comments skipped).
+      for (const f of walk(path.join(finalOut, 'js')).filter((p) => p.endsWith('.js'))) {
+        const code = fs.readFileSync(f, 'utf8').split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+        // The SVG namespace name (js/connections.js from publish-v1.18.0) is an identifier passed to
+        // createElementNS, never fetched. Only that exact string is let through.
+        const withoutSvgNs = code.split("'http://www.w3.org/2000/svg'").join("''");
+        assert.doesNotMatch(withoutSvgNs, /['"`](https?:)?\/\/[\w.-]+/, `${path.basename(f)} names a cross-origin URL`);
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
     }
-    // No shipped script anywhere in js/ names an absolute or protocol-relative URL as code (comments skipped).
-    for (const f of walk(path.join(finalOut, 'js')).filter((p) => p.endsWith('.js'))) {
-      const code = fs.readFileSync(f, 'utf8').split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
-      // The SVG namespace name (js/connections.js from publish-v1.18.0) is an identifier passed to
-      // createElementNS, never fetched. Only that exact string is let through.
-      const withoutSvgNs = code.split("'http://www.w3.org/2000/svg'").join("''");
-      assert.doesNotMatch(withoutSvgNs, /['"`](https?:)?\/\/[\w.-]+/, `${path.basename(f)} names a cross-origin URL`);
-    }
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
+  });
+}
 
 test('Scriptorium never sets the live_stats switch itself (scaffold, admin panel, pack settings)', () => {
   const offenders = [];

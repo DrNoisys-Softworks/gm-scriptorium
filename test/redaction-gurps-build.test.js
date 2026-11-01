@@ -86,8 +86,17 @@ test('build --force-check against the GURPS fixture renders gurps-combat and shi
       for (const marker of GURPS_MARKERS) if (text.includes(marker)) anyFileHits.push({ file, marker });
     }
     assert.deepEqual(anyFileHits, [], `no built file may carry a GURPS marker: ${JSON.stringify(anyFileHits)}`);
+    // From publish-v1.26.0 the calculator's data module is redacted too (ADR 0007 addendum): no page
+    // carries the calculator's box or its data block, and the module counts each GURPS page it was
+    // asked for as degraded. The script redaction then finds no page that loads it.
+    for (const file of htmlFiles) {
+      const text = fs.readFileSync(file, 'utf8');
+      assert.doesNotMatch(text, /id="gurps-tohit-data"|id="tohit-calc"/, `${file} carries the to-hit calculator`);
+    }
+    const dataEntry = result.envelope.redactions.find((x) => x.id === 'gurps-tohit-data');
+    assert.ok(dataEntry && dataEntry.calls > 0, 'expected the GURPS page to be counted as degraded by the data module');
     const tohitEntry = result.envelope.redactions.find((x) => x.id === 'gurps-tohit-script');
-    assert.ok(tohitEntry && tohitEntry.calls > 0, 'expected the calculator page to be counted as degraded');
+    assert.ok(tohitEntry && tohitEntry.calls === 0, 'no page loads the calculator script any more');
 
     let sawGurpsCombat = false;
     const hits = [];

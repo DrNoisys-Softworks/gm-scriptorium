@@ -12,6 +12,7 @@ const {
   scanOutputTree,
   runOutputName,
 } = require('../src/checks/leak/outputscan');
+const { onLayout } = require('./helpers/moved-vault');
 
 // --- AC-D2-01: normaliseEmitted -------------------------------------------
 
@@ -415,45 +416,51 @@ test('AC-D2-12: deferOutputScan is set to true nowhere except src/cli/build.js, 
 
 // --- previews.json, the link-preview data a real build writes (publish-v1.17.0) --------------
 
-test('AC-D2-04: a withheld name in a real build\'s previews.json is found there', () => {
-  const { runAtomicBuild } = require('../src/build/run');
-  const PIN_VAULT = path.join(__dirname, 'fixtures', 'pin-vault');
-  const PIN_SITE_CONFIG = require(path.join(__dirname, 'fixtures', 'pin-vault-site-config.json'));
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-outputscan-previews-'));
-  try {
-    const siteDir = path.join(scratch, 'site');
-    fs.mkdirSync(siteDir, { recursive: true });
-    const outDir = path.join(scratch, 'out');
-    const result = runAtomicBuild({
-      vaultPath: PIN_VAULT,
-      userJsonConfig: { ...PIN_SITE_CONFIG, vaultPath: PIN_VAULT },
-      finalOut: outDir,
-      siteDir,
-      campaign: 'previews-scan',
-      force: true, // this fixture vault deliberately carries withheld-name leaks
-    });
-    assert.equal(result.ok, true, result.ok ? '' : JSON.stringify(result.renderErrors));
+const PIN_VAULT = path.join(__dirname, 'fixtures', 'pin-vault');
+const PIN_SITE_CONFIG = require(path.join(__dirname, 'fixtures', 'pin-vault-site-config.json'));
 
-    const previewsPath = path.join(outDir, 'previews.json');
-    const cards = JSON.parse(fs.readFileSync(previewsPath, 'utf8'));
-    const keys = Object.keys(cards);
-    assert.ok(keys.length > 0, 'the build wrote preview cards');
+// The real-build case runs on both settings layouts: the old _meta/vault-config.md and the moved
+// _meta/vault-config.yaml. The assertions are the same on both.
+for (const layout of ['legacy', 'new']) {
+  test(`AC-D2-04: a withheld name in a real build's previews.json is found there [${layout}]`, () => {
+    const { runAtomicBuild } = require('../src/build/run');
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-outputscan-previews-'));
+    try {
+      const { vaultPath, jsonConfig } = onLayout(layout, PIN_VAULT, PIN_SITE_CONFIG, path.join(scratch, 'layout'));
+      const siteDir = path.join(scratch, 'site');
+      fs.mkdirSync(siteDir, { recursive: true });
+      const outDir = path.join(scratch, 'out');
+      const result = runAtomicBuild({
+        vaultPath,
+        userJsonConfig: jsonConfig,
+        finalOut: outDir,
+        siteDir,
+        campaign: 'previews-scan',
+        force: true, // this fixture vault deliberately carries withheld-name leaks
+      });
+      assert.equal(result.ok, true, result.ok ? '' : JSON.stringify(result.renderErrors));
 
-    // A name the build never printed: the scan finds nothing in previews.json before the plant.
-    const withheld = [mkRow('Hidden/Plant.md', ['Ossery Plantwell'])];
-    const before = scanOutputTree({ outDir, campaign: 'unit', withheld });
-    assert.deepEqual(before.filter((f) => f.outputPath === 'previews.json'), []);
+      const previewsPath = path.join(outDir, 'previews.json');
+      const cards = JSON.parse(fs.readFileSync(previewsPath, 'utf8'));
+      const keys = Object.keys(cards);
+      assert.ok(keys.length > 0, 'the build wrote preview cards');
 
-    // Plant it in one card's first text field, written back the way the generator writes the file.
-    const card = cards[keys[0]];
-    const field = Object.keys(card).find((k) => typeof card[k] === 'string');
-    assert.ok(field, 'a preview card has a text field');
-    card[field] += ' Ossery Plantwell';
-    fs.writeFileSync(previewsPath, JSON.stringify(cards));
+      // A name the build never printed: the scan finds nothing in previews.json before the plant.
+      const withheld = [mkRow('Hidden/Plant.md', ['Ossery Plantwell'])];
+      const before = scanOutputTree({ outDir, campaign: 'unit', withheld });
+      assert.deepEqual(before.filter((f) => f.outputPath === 'previews.json'), []);
 
-    const after = scanOutputTree({ outDir, campaign: 'unit', withheld });
-    assert.deepEqual(after.map((f) => f.outputPath), ['previews.json']);
-  } finally {
-    fs.rmSync(scratch, { recursive: true, force: true });
-  }
-});
+      // Plant it in one card's first text field, written back the way the generator writes the file.
+      const card = cards[keys[0]];
+      const field = Object.keys(card).find((k) => typeof card[k] === 'string');
+      assert.ok(field, 'a preview card has a text field');
+      card[field] += ' Ossery Plantwell';
+      fs.writeFileSync(previewsPath, JSON.stringify(cards));
+
+      const after = scanOutputTree({ outDir, campaign: 'unit', withheld });
+      assert.deepEqual(after.map((f) => f.outputPath), ['previews.json']);
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+}

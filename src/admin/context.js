@@ -9,6 +9,8 @@
  * one seam instead of inventing their own.
  */
 
+const pinned = require('../generator/pinned');
+
 const READ_ONLY_REASON = Object.freeze({
   site_config:
     'This campaign builds from a site_config file, so the panel is read-only. It only ever edits the campaign pack at _meta/scriptorium/ inside the vault.',
@@ -52,6 +54,26 @@ function createAdminContext({ ctxInfo, vaultPath, site, token }) {
 }
 
 /**
+ * Which file the campaign's vault keeps its settings in: 'new' (_meta/vault-config.yaml), 'legacy'
+ * (_meta/vault-config.md) or 'none', read from the disk now; null when there is no vault yet (setup).
+ * Not part of createAdminContext's literal (test/admin-context.test.js is frozen): set beside it at
+ * launch and on a resolve, and read again by every request that depends on it, because gm-apprentice
+ * can move a vault's settings while the panel runs.
+ *
+ * @param {string|null} vaultPath
+ * @returns {'new'|'legacy'|'none'|null}
+ */
+function settingsLayoutFor(vaultPath) {
+  return typeof vaultPath === 'string' && vaultPath.length > 0 ? pinned.settingsLayoutOf(vaultPath) : null;
+}
+
+/** Sets ctx.settingsLayout from the disk now, and returns it. */
+function refreshSettingsLayout(ctx) {
+  ctx.settingsLayout = settingsLayoutFor(ctx.vaultPath);
+  return ctx.settingsLayout;
+}
+
+/**
  * FR31: only one build, check or write runs at a time. `ctx.busy` is set to `label` for the
  * duration of `fn`, cleared in a `finally` so it clears on a throw too.
  *
@@ -73,4 +95,4 @@ async function runExclusive(ctx, label, fn) {
   }
 }
 
-module.exports = { createAdminContext, runExclusive, READ_ONLY_REASON };
+module.exports = { createAdminContext, runExclusive, READ_ONLY_REASON, settingsLayoutFor, refreshSettingsLayout };

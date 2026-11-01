@@ -280,13 +280,13 @@ test('build --force-check with a mismatched site config builds the resolved vaul
   });
 });
 
-test('writeStagedConfig writes the passed vault, not the site config vaultPath', () => {
+test('stageConfig writes the passed vault, not the site config vaultPath', () => {
   withScratchDir((dir) => {
-    const { writeStagedConfig } = require('../src/build/stage');
+    const { stageConfig } = require('../src/build/stage');
     const stagingRoot = path.join(dir, 'staging');
     const stagingOut = path.join(stagingRoot, 'out');
 
-    const configPath = writeStagedConfig({ vaultPath: '/wrong', siteTitle: 'x' }, MINI_VAULT, stagingRoot, stagingOut);
+    const { configPath } = stageConfig({ vaultPath: '/wrong', siteTitle: 'x' }, MINI_VAULT, stagingRoot, stagingOut);
     const written = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
     assert.equal(written.vaultPath, MINI_VAULT);
