@@ -264,6 +264,7 @@ function replacePackFile(vaultPath, name, data, { expectedSha256, campaign = nul
 
   // 9. Exhausted or a non-retryable code: clean up and report.
   removeTempBestEffort(tmp);
+  // The hint is kept for every code by design (here and in the loop); the yaml writer gives it only for the retried codes.
   throw new ScriptoriumError(
     `could not replace ${target}: ${lastErr.code}. Another program may have it open. The file was left unchanged.`,
     { path: target, campaign, cause: lastErr },
