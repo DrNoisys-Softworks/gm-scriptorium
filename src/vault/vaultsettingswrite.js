@@ -11,7 +11,8 @@ const { RETRY_DELAYS_MS } = require('../build/swap');
  * The guarded write of exactly <vault>/_meta/vault-config.yaml, the settings file of a vault whose
  * settings gm-apprentice moved out of vault-config.md. A sibling of src/vault/vaultconfigwrite.js
  * (the vault-config.md writer), and like it a chokepoint of its own: only the panel's settings
- * handlers reach it, and check and build never do.
+ * handlers and the carry (src/vault/settingscarry.js, which init and the carry command run, to set
+ * the title and folder map) reach it. check and build never do.
  *
  * It never imports vaultconfigwrite.js, packreplace.js or packwrite.js (ADR 0033 section 4). The
  * retry loop below is a deliberate structural copy of the one in vaultconfigwrite.js, which is
