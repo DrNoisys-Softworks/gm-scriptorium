@@ -18,7 +18,7 @@ const { withScratch, run, SAMPLE } = require('./helpers/b4-cli');
 const { runInitCommand } = require('../src/cli/init');
 const pinned = require('../src/generator/pinned');
 const vaultsettingswrite = require('../src/vault/vaultsettingswrite');
-const { VaultUnreachableError } = require('../src/util/errors');
+const { VaultUnreachableError, ConfigError } = require('../src/util/errors');
 const { stripEntriesForMovedVault } = require('../src/setup/scaffold');
 const { moveVaultCopy, assertMovedLayout, replaceChecked } = require('./helpers/moved-vault');
 
@@ -366,6 +366,32 @@ test('init: a plan the pin refuses says what to fix, then to run the command aga
     assert.ok(!fs.existsSync(path.join(vault, '_meta', 'scriptorium')));
   } finally {
     pinned.planSettingsText = real;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('init: a vault settings file that is a link says to replace it, then run the command again', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-initlink-'));
+  const real = vaultsettingswrite.replaceVaultSettingsYaml;
+  try {
+    const vault = movedNoPack(root);
+    vaultsettingswrite.replaceVaultSettingsYaml = () => {
+      throw new ConfigError('refusing to edit /somewhere/_meta/vault-config.yaml: it is not a regular file');
+    };
+    const res = await initInProcess(root, vault);
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
+    assert.equal(res.code, 3);
+    assert.ok(
+      res.err.message.startsWith(
+        "The site title and folder map could not be set in the vault's settings file (_meta/vault-config.yaml is a link or not a regular file). Nothing else was written. " +
+          'Replace it with the file itself, then run the command again. The files as they were are kept at ',
+      ),
+      res.err.message,
+    );
+    assert.ok(!/carry|once the file can be written/.test(res.err.message), res.err.message);
+    assert.ok(!fs.existsSync(path.join(vault, '_meta', 'scriptorium')));
+  } finally {
+    vaultsettingswrite.replaceVaultSettingsYaml = real;
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

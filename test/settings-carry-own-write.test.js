@@ -144,8 +144,13 @@ test(
     const elsewhereAfter = fs.readFileSync(elsewhere, 'utf8');
     assert.equal(res.code, 3, res.out);
     assert.equal(res.err.reason, 'carry-blocked');
-    assert.ok(res.err.message.includes('it is not a regular file'), res.err.message);
-    assert.ok(res.err.message.includes(`so ${packOf(vault)} was left as it was.`), res.err.message);
+    assert.ok(
+      res.err.message.startsWith(
+        "The carry could not finish: siteTitle and folderMap are not set in the vault's settings file (_meta/vault-config.yaml is a link or not a regular file), " +
+          `so ${packOf(vault)} was left as it was. Replace it with the file itself, then run "gm-scriptorium carry" again. The files as they were are kept at `,
+      ),
+      res.err.message,
+    );
     assert.deepEqual(fs.readFileSync(packOf(vault)), packBefore);
     assert.ok(fs.lstatSync(yamlOf(vault)).isSymbolicLink(), 'the link must still be a link');
     assert.ok(!/folder_map:/.test(elsewhereAfter), 'the file behind the link must not have been written');
@@ -317,3 +322,50 @@ test('through the panel, a plan the pin refuses answers 503 io and says what to 
   assert.ok(!res.json.message.includes('gm-scriptorium carry'), res.json.message);
   assert.deepEqual(fs.readFileSync(packOf(vault)), packBefore);
 });
+
+const { ConfigError } = require('../src/util/errors');
+
+// The guarded writer's own refusal of a linked settings file, as it words it.
+const notRegular = () => {
+  throw new ConfigError('refusing to edit /somewhere/_meta/vault-config.yaml: it is not a regular file');
+};
+
+test(
+  'through the panel, a yaml that is a link answers 503 io and says to replace it, then press the button again',
+  async (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-ownwrite-panel-link-'));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const { vault, res, packBefore } = await panelCarry(t, root, (fn) => withInjected(vaultsettingswrite, 'replaceVaultSettingsYaml', notRegular, fn));
+    assert.equal(res.status, 503, res.text);
+    assert.equal(res.json.error, 'io');
+    assert.ok(
+      res.json.message.startsWith(
+        "The carry could not finish: siteTitle and folderMap are not set in the vault's settings file (_meta/vault-config.yaml is a link or not a regular file), " +
+          `so ${packOf(vault)} was left as it was. Replace it with the file itself, then press "Carry these settings" again. ` +
+          'The files as they were are kept at ',
+      ),
+      res.json.message,
+    );
+    assert.ok(!res.json.message.includes('gm-scriptorium carry'), res.json.message);
+    assert.deepEqual(fs.readFileSync(packOf(vault)), packBefore);
+  },
+);
+
+test(
+  'a refusal of a linked yaml that is not the writer\'s file-kind refusal still says to run the carry again, with no fix named',
+  withRoot('scriptorium-ownwrite-other-config-', async (root) => {
+    const vault = setupUnfolded(root);
+    const res = await withInjected(
+      vaultsettingswrite,
+      'replaceVaultSettingsYaml',
+      () => {
+        throw new ConfigError('refusing to edit /somewhere/_meta/vault-config.yaml: injected other refusal');
+      },
+      () => carry(root),
+    );
+    assert.equal(res.code, 3, res.out);
+    assert.ok(res.err.message.includes('Run "gm-scriptorium carry" again. The files as they were'), res.err.message);
+    assert.ok(!res.err.message.includes('Replace it with the file itself'), res.err.message);
+    assert.ok(fs.existsSync(packOf(vault)));
+  }),
+);

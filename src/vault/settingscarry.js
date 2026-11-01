@@ -87,7 +87,17 @@ function isOwnRefusal(err) {
 const LASTING_PLAN_KINDS = ['refused', 'not-made', 'unreadable', 'not-utf8'];
 
 function isLastingRefusal(err) {
-  return err instanceof pinned.SettingsPlanError && LASTING_PLAN_KINDS.includes(err.kind);
+  return (err instanceof pinned.SettingsPlanError && LASTING_PLAN_KINDS.includes(err.kind)) || isLinkRefusal(err);
+}
+
+/** The guarded writer's refusal of a settings file that is a link or not a regular file: it repeats until the GM replaces the file. */
+function isLinkRefusal(err) {
+  return err instanceof ConfigError && !(err instanceof vaultsettingswrite.VaultSettingsChangedError) && /it is not a regular file/.test(err.message);
+}
+
+/** What the GM does before running the carry again, for a refusal that repeats on every run. */
+function lastingFix(err) {
+  return isLinkRefusal(err) ? 'Replace it with the file itself' : 'Fix what it names in _meta/vault-config.yaml';
 }
 
 /**
@@ -98,6 +108,8 @@ function ownFailureReason(err, { writePack }) {
   const who = writePack ? 'the carry' : 'init';
   // The writer's own text for a changed file speaks to the panel ("Reload before saving").
   if (err instanceof vaultsettingswrite.VaultSettingsChangedError) return `it changed while ${who} was running`;
+  // The writer's text for a linked file names a path the GM does not need; say which file and what is wrong.
+  if (isLinkRefusal(err)) return '_meta/vault-config.yaml is a link or not a regular file';
   // The pin's own text for these two speaks to the panel, and its "nothing was written" is not true
   // here: the pin's apply already wrote the file.
   if (err instanceof pinned.SettingsPlanError && err.kind === 'mismatch') return `the settings plan did not start from the file ${who} read`;
@@ -458,8 +470,8 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
     // Set when the guarded writer refused the file itself (changed, a link, not a regular file) or the
     // pin would not plan the change: the pack is then left exactly as it was, not rewritten.
     let ownRefused = false;
-    // Set when that refusal will come back on every run until the GM fixes the file.
-    let ownLasting = false;
+    // Set (to what the GM does first) when that refusal will come back on every run until the GM fixes the file.
+    let ownLasting = null;
     if (own.length > 0) {
       // Why this step exists: see OWN_KEYS (AntTheLimey/gm-apprentice#539).
       try {
@@ -468,7 +480,7 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
         });
       } catch (err) {
         ownRefused = isOwnRefusal(err);
-        ownLasting = isLastingRefusal(err);
+        ownLasting = isLastingRefusal(err) ? lastingFix(err) : null;
         ownFailure = ownFailureReason(err, { writePack });
         staying = [...staying, ...own];
       }
@@ -494,7 +506,7 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
     if (ownRefused && writePack) {
       throw new VaultUnreachableError(
         `The carry could not finish: ${ownNames()} not set in the vault's settings file (${ownFailure}), so ${packConfigPath} was left as it was. ` +
-          `${ownLasting ? 'Fix what it names in _meta/vault-config.yaml, then run "gm-scriptorium carry" again.' : 'Run "gm-scriptorium carry" again.'} ${backupText}`,
+          `${ownLasting ? `${ownLasting}, then run "gm-scriptorium carry" again.` : 'Run "gm-scriptorium carry" again.'} ${backupText}`,
         { path: yamlPath, campaign, reason: 'carry-blocked' },
       );
     }
@@ -534,7 +546,7 @@ function applyCarry(planned, { machineDir, campaign, sleep, now, writePack = tru
     if (ownFailure && !writePack) {
       throw new VaultUnreachableError(
         `The site title and folder map could not be set in the vault's settings file (${ownFailure}). Nothing else was written. ` +
-          `${ownLasting ? 'Fix what it names in _meta/vault-config.yaml, then run the command again.' : 'Run the command again once the file can be written.'} ${backupText}`,
+          `${ownLasting ? `${ownLasting}, then run the command again.` : 'Run the command again once the file can be written.'} ${backupText}`,
         { path: yamlPath, campaign, reason: 'carry-blocked' },
       );
     }
