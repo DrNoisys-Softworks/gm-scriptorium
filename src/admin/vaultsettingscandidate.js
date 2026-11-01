@@ -107,7 +107,8 @@ function buildYamlTextCandidate(split, text) {
 
 /**
  * The candidate for a restore: the backup's lines, written with the CURRENT file's byte order mark
- * and line ending.
+ * and line ending. A byte order mark on the backup is dropped, and one the current file has is
+ * kept: the two files' marks differing is normalised to the current file's, not reported.
  *
  * @param {{bom:boolean, eol:string}} split splitYamlFile's result for the CURRENT file
  * @param {Buffer} backupBytes the backup's whole bytes

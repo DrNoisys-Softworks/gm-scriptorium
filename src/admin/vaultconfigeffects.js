@@ -464,7 +464,7 @@ function leafPaths(obj, prefix) {
   return out;
 }
 
-function otherRule(curData, candData, nameOf, extraChanged) {
+function otherRule(curData, candData, nameOf, extraChanged, sortNames) {
   const paths = new Set([...leafPaths(curData, ''), ...leafPaths(candData, '')]);
   const changed = [];
   for (const p of [...paths].sort()) {
@@ -474,6 +474,9 @@ function otherRule(curData, candData, nameOf, extraChanged) {
     if (!isDeepStrictEqual(a, b)) changed.push(nameOf(p));
   }
   changed.push(...extraChanged);
+  // The yaml names its settings differently from the old paths, so the old-path order is not the
+  // order the GM sees; sort the names as shown. The markdown file's list keeps its order.
+  if (sortNames) changed.sort();
   if (changed.length === 0) return null;
   const shown = changed.slice(0, 10);
   const more = changed.length > shown.length ? `, and ${changed.length - shown.length} more` : '';
@@ -537,9 +540,10 @@ function withNames(effect, nameOf) {
  *   effect's `path` and `fix.path`, the paths the `other` rule lists, and the setting names in the
  *   drafts and overrides details pass through it
  * @param {string[]} [opts.extraChanged] already-named settings the `other` rule lists as changed too
+ * @param {boolean} [opts.sortOther] list the `other` rule's names in one sorted order (the yaml's review)
  * @returns {Array<{id, group, level, path, title, detail, fix}>}
  */
-function computeEffects({ cur, cand, curPublish, candPublish, jsonConfig, publishSet, fixable, publishDiff = null, nameOf = (p) => p, extraChanged = [] }) {
+function computeEffects({ cur, cand, curPublish, candPublish, jsonConfig, publishSet, fixable, publishDiff = null, nameOf = (p) => p, extraChanged = [], sortOther = false }) {
   const out = [];
   const curUnreadable = cur === null;
   const curData = curUnreadable ? {} : cur || {};
@@ -620,7 +624,7 @@ function computeEffects({ cur, cand, curPublish, candPublish, jsonConfig, publis
   const tagline = taglineRule(curData, candData);
   if (tagline) out.push(tagline);
 
-  const other = otherRule(curData, candData, nameOf, extraChanged);
+  const other = otherRule(curData, candData, nameOf, extraChanged, sortOther);
   if (other) out.push(other);
 
   return out.map((effect) => withNames(effect, nameOf));

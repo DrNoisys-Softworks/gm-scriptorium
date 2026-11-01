@@ -148,6 +148,7 @@ function effectsForYaml({ cur, cand, curPublish, candPublish, jsonConfig, publis
     publishDiff,
     nameOf,
     extraChanged,
+    sortOther: true,
   });
 }
 

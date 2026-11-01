@@ -208,6 +208,52 @@ test(COVERS.folderMap, () => {
   });
 });
 
+test('narrowing hide.callouts, removing a hide.folders or hide.sections entry, and leaving hide.mode player are bad lines under the yaml names', () => {
+  inScratch((root) => {
+    const vault = movedSample(root);
+    const one = (cur, cand, id) => {
+      const found = effectsFor(vault, cur, cand).filter((e) => e.id === id);
+      assert.equal(found.length, 1, id);
+      return found[0];
+    };
+    const callouts = one({ player_site: { hide: { callouts: ['gm', 'dm'] } } }, { player_site: { hide: { callouts: ['gm'] } } }, 'callouts');
+    assert.equal(callouts.level, 'bad');
+    assert.equal(callouts.path, 'player_site.hide.callouts');
+    assert.equal(callouts.title, 'Fewer callouts are stripped');
+
+    const folders = one({ player_site: { hide: { folders: ['A', 'B'] } } }, { player_site: { hide: { folders: ['A'] } } }, 'list-removed');
+    assert.equal(folders.level, 'bad');
+    assert.equal(folders.path, 'player_site.hide.folders');
+    assert.equal(folders.title, 'The "B" folder is no longer hidden');
+
+    const sections = one({ player_site: { hide: { sections: ['GM Notes'] } } }, { player_site: { hide: { sections: [] } } }, 'list-removed');
+    assert.equal(sections.level, 'bad');
+    assert.equal(sections.path, 'player_site.hide.sections');
+    assert.equal(sections.title, 'The "GM Notes" heading is no longer hidden');
+
+    const mode = one({ player_site: { hide: { mode: 'player' } } }, { player_site: { hide: { mode: 'full' } } }, 'mode');
+    assert.equal(mode.level, 'bad');
+    assert.equal(mode.path, 'player_site.hide.mode');
+    assert.equal(mode.title, 'The publish mode changes from "player" to "full"');
+  });
+});
+
+test('the other settings that change are listed in one sorted order, old-shape and extra names together', () => {
+  inScratch((root) => {
+    const vault = movedSample(root);
+    const other = effectsFor(
+      vault,
+      { player_site: { host: 'a', title: 'x' } },
+      { player_site: { host: 'b', title: 'y', zeta: 1, alpha: 2 } },
+    ).filter((e) => e.id === 'other');
+    assert.equal(other.length, 1);
+    assert.equal(
+      other[0].detail,
+      "player_site.alpha, player_site.host, player_site.title, player_site.zeta. The panel doesn't read these; the line-by-line change shows them.",
+    );
+  });
+});
+
 test('a changed player_site.hide.fields reads in the old words, under the yaml name', () => {
   inScratch((root) => {
     const vault = movedSample(root);

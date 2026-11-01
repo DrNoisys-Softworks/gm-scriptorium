@@ -103,6 +103,17 @@ test('a restore takes the backup\'s lines with the current file\'s BOM and line 
   assert.ok(same.bytes.equals(backup));
 });
 
+test('a restore normalises a byte order mark difference to the current file\'s', () => {
+  const withMark = Buffer.concat([BOM, Buffer.from('version: 1\nplayer_site:\n  title: Old\n')]);
+  const plain = Buffer.from('version: 1\nplayer_site:\n  title: Old\n');
+  const noMark = buildYamlRestoreCandidate(splitYamlFile(Buffer.from('version: 1\n')), withMark);
+  assert.equal(noMark.ok, true);
+  assert.ok(noMark.bytes.equals(plain), 'the backup\'s mark is dropped when the current file has none');
+  assert.equal(noMark.text, 'version: 1\nplayer_site:\n  title: Old\n');
+  const kept = buildYamlRestoreCandidate(splitYamlFile(Buffer.concat([BOM, Buffer.from('version: 1\n')])), withMark);
+  assert.ok(kept.bytes.equals(withMark), 'one mark, the current file\'s, when both have one');
+});
+
 test('a restore from a backup that cannot be split is refused with its code', () => {
   const cur = splitYamlFile(Buffer.from('version: 1\n'));
   assert.deepEqual(buildYamlRestoreCandidate(cur, Buffer.from([0xff])), { ok: false, code: 'not-utf8' });
