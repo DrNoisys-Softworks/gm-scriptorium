@@ -579,7 +579,7 @@ test('the vault-config.md writer\'s last look: a yaml that appears during the ba
 
 // === the review cache names its file ===========================================================
 
-test('a vault-config.md dry run, then a move: a confirm with the same reviewedSha256 answers 409', async (t) => {
+test('a vault-config.md dry run, then a move: a confirm carrying that review\'s reviewedSha256 answers 409 because the hash is not the yaml candidate\'s (the reviewedSha256 check, not the cache key)', async (t) => {
   const fx = legacyCampaign(t);
   const h = await startPanel(t, { config: fx.configPath }, 'lease');
   const view = (await get(h, '/api/state?include=vaultconfigeditor')).json.vaultConfigEditor;
