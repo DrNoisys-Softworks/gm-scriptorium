@@ -336,6 +336,7 @@ function reviewInner(ctx, { op, reqBody, dryRun, saveAnyway, machineDirResult, b
   let rv;
   let check;
   let publishDiff;
+  let publishDiffReason;
   try {
     // A confirm reusing its dry run's review takes the check and the publish comparison from it
     // (the cache is keyed to the same bytes), so the vault is not scanned again.
@@ -343,10 +344,12 @@ function reviewInner(ctx, { op, reqBody, dryRun, saveAnyway, machineDirResult, b
       rv = candidatecheck.runReview(ctx, { candidateBytes: cand.bytes, withCheck: false });
       check = cached.check;
       publishDiff = cached.publishDiff;
+      publishDiffReason = cached.publishDiffReason;
     } else {
       rv = candidatecheck.runReview(ctx, { candidateBytes: cand.bytes, withCheck: true });
       check = rv.check;
       publishDiff = rv.publishDiff;
+      publishDiffReason = rv.publishDiffReason;
     }
   } catch (err) {
     if (err instanceof candidatecheck.CandidateCheckError) {
@@ -378,9 +381,11 @@ function reviewInner(ctx, { op, reqBody, dryRun, saveAnyway, machineDirResult, b
   const reasons = candidatecheck.computeReasons({ effects, check, curData, publishDiff });
   const needsAck = reasons.length > 0;
   const notes = buildNotes({ op, split, cand });
+  const diffNote = candidatecheck.publishDiffNote(publishDiffReason);
+  if (diffNote) notes.push(diffNote);
 
   if (dryRun) {
-    ctx.vaultConfigReview = { file: settingsfile.FILE_MD, op, baseSha256: curSha, candidateSha256, check, reasons, publishDiff };
+    ctx.vaultConfigReview = { file: settingsfile.FILE_MD, op, baseSha256: curSha, candidateSha256, check, reasons, publishDiff, publishDiffReason };
     const dryBody = {
       ok: true,
       dryRun: true,

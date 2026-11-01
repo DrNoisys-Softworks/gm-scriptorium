@@ -279,15 +279,18 @@ function reviewYamlInner(ctx, { op, reqBody, dryRun, machineDirResult, edits }) 
   let rv;
   let check;
   let publishDiff;
+  let publishDiffReason;
   try {
     if (cacheMatches) {
       rv = candidatecheck.runReview(ctx, { candidateBytes: cand.bytes, withCheck: false, targetRel: TARGET_REL });
       check = cached.check;
       publishDiff = cached.publishDiff;
+      publishDiffReason = cached.publishDiffReason;
     } else {
       rv = candidatecheck.runReview(ctx, { candidateBytes: cand.bytes, withCheck: true, targetRel: TARGET_REL });
       check = rv.check;
       publishDiff = rv.publishDiff;
+      publishDiffReason = rv.publishDiffReason;
     }
   } catch (err) {
     if (err instanceof candidatecheck.CandidateCheckError) throw new VaultSettingsRefusal(503, { error: 'io', message: err.message });
@@ -316,9 +319,11 @@ function reviewYamlInner(ctx, { op, reqBody, dryRun, machineDirResult, edits }) 
   const reasons = candidatecheck.computeReasons({ effects, check, curData, publishDiff });
   const needsAck = reasons.length > 0;
   const notes = buildNotes({ op, split, cand });
+  const diffNote = candidatecheck.publishDiffNote(publishDiffReason);
+  if (diffNote) notes.push(diffNote);
 
   if (dryRun) {
-    ctx.vaultConfigReview = { file: FILE, op, baseSha256: curSha, candidateSha256, check, reasons, publishDiff };
+    ctx.vaultConfigReview = { file: FILE, op, baseSha256: curSha, candidateSha256, check, reasons, publishDiff, publishDiffReason };
     const dryBody = {
       ok: true,
       dryRun: true,

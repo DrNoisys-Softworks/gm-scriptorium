@@ -151,8 +151,9 @@ function publishedSetFor(ctx, vaultCtx) {
  * its own folder map is the one scanned. Pages are compared by `rel`; folders by the two folder maps
  * (an entry whose output changed counts as added).
  *
- * @returns {null | { newlyPublished: {rel, title}[], foldersAdded: {folder, output}[],
- *   foldersRemoved: {folder, output}[] }} null when either side cannot be resolved
+ * @returns {{ diff: null | { newlyPublished: {rel, title}[], foldersAdded: {folder, output}[],
+ *   foldersRemoved: {folder, output}[] }, reason: string|null }} `diff` is null when either side
+ *   cannot be resolved, and `reason` is then the first line of that side's error
  * @throws {CandidateCheckError} the candidate side resolved without ever reading the candidate
  */
 function computePublishDiff(ctx, target, candidateBytes) {
@@ -160,19 +161,19 @@ function computePublishDiff(ctx, target, candidateBytes) {
   try {
     const curCtx = checkcli.resolveVaultContext(ctx.ctxInfo);
     cur = { folderMap: curCtx.jsonConfig.folderMap, set: publishedSetFor(ctx, curCtx) };
-  } catch {
-    return null;
+  } catch (err) {
+    return { diff: null, reason: firstLineOf(err) };
   }
 
   const { value: cand, hits } = read.withCandidateFile(target, candidateBytes, () => {
     try {
       const candCtx = checkcli.resolveVaultContext(ctx.ctxInfo);
-      return { folderMap: candCtx.jsonConfig.folderMap, set: publishedSetFor(ctx, candCtx) };
-    } catch {
-      return null;
+      return { ok: true, folderMap: candCtx.jsonConfig.folderMap, set: publishedSetFor(ctx, candCtx) };
+    } catch (err) {
+      return { ok: false, reason: firstLineOf(err) };
     }
   });
-  if (cand === null) return null;
+  if (!cand.ok) return { diff: null, reason: cand.reason };
   if (hits < 1) {
     throw new CandidateCheckError(HITS_MESSAGE);
   }
@@ -183,10 +184,29 @@ function computePublishDiff(ctx, target, candidateBytes) {
     .map((p) => ({ rel: p.rel, title: p.displayTitle }))
     .sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
   return {
-    newlyPublished,
-    foldersAdded: foldersAddedIn(cur.folderMap, cand.folderMap),
-    foldersRemoved: foldersDroppedFrom(cur.folderMap, cand.folderMap),
+    diff: {
+      newlyPublished,
+      foldersAdded: foldersAddedIn(cur.folderMap, cand.folderMap),
+      foldersRemoved: foldersDroppedFrom(cur.folderMap, cand.folderMap),
+    },
+    reason: null,
   };
+}
+
+/** The first line of an error's message, short enough to show the GM. */
+function firstLineOf(err) {
+  const message = err && typeof err.message === 'string' ? err.message : String(err);
+  return message.split(/\r?\n/)[0].trim() || 'no reason given';
+}
+
+/**
+ * The Review's note when the page comparison failed, so the GM can see why the tick is needed.
+ *
+ * @param {string|null} reason runReview's `publishDiffReason`
+ * @returns {string|null} null when there is nothing to say
+ */
+function publishDiffNote(reason) {
+  return reason ? `The page comparison could not run (${reason}), so this save needs your tick.` : null;
 }
 
 /** The effective publish settings that decide which pages publish: the hide lists, drafts, callouts, field exceptions and mode. */
@@ -243,10 +263,13 @@ function computeReasons({ effects, check, curData, publishDiff }) {
  *   publishMayChange), and leaves it null, never throwing, when that comparison fails.
  * @returns {{ jsonConfig: object|null, jsonError: string|null, curPublish: object,
  *   candPublish: object, candPublishSet: object|null, publishDiff: object|null,
+ *   publishDiffReason: string|null,
  *   check: null | { ran:false, message:string } | { ran:true, exitCode:number, counts:object,
  *     newFindings:object[], newCount:number, newErrorCount:number, unforceable:object[] } }}
  *   `publishDiff` (see computePublishDiff) is computed with the check, or without it under
  *   `publishDiffWhenItCanChange`, and is null otherwise or when either side cannot be resolved.
+ *   `publishDiffReason` is the first line of that failure's error under the check, and null
+ *   otherwise; publishDiffNote turns it into the Review's note.
  * @throws {CandidateCheckError} the overlay was never actually read (`hits < 1`): the panel will
  *   not trust a result it cannot prove came from the candidate.
  */
@@ -275,18 +298,19 @@ function runReview(ctx, { candidateBytes, withCheck, targetRel = VAULT_CONFIG_RE
   let check = null;
   let candPublishSet = null;
   let publishDiff = null;
+  let publishDiffReason = null;
 
   if (!withCheck && publishDiffWhenItCanChange && publishMayChange(ctx, target, candidateBytes, jsonConfig, curPublish, candPublish)) {
     // The live pane only informs: the review at save time runs the comparison again and fails closed.
     try {
-      publishDiff = computePublishDiff(ctx, target, candidateBytes);
+      publishDiff = computePublishDiff(ctx, target, candidateBytes).diff;
     } catch {
       publishDiff = null;
     }
   }
 
   if (withCheck) {
-    publishDiff = computePublishDiff(ctx, target, candidateBytes);
+    ({ diff: publishDiff, reason: publishDiffReason } = computePublishDiff(ctx, target, candidateBytes));
 
     let baseline = null;
     try {
@@ -323,7 +347,7 @@ function runReview(ctx, { candidateBytes, withCheck, targetRel = VAULT_CONFIG_RE
     }
   }
 
-  return { jsonConfig, jsonError, curPublish, candPublish, candPublishSet, publishDiff, check };
+  return { jsonConfig, jsonError, curPublish, candPublish, candPublishSet, publishDiff, publishDiffReason, check };
 }
 
 module.exports = {
@@ -339,4 +363,5 @@ module.exports = {
   diffFindings,
   runReview,
   computeReasons,
+  publishDiffNote,
 };

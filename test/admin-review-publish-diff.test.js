@@ -131,6 +131,7 @@ test('legacy: a publish set that cannot be computed gives no publish comparison'
       assert.equal(calls, 2);
       assert.equal(rv.publishDiff, null);
       assert.equal(rv.check.ran, true);
+      assert.equal(rv.publishDiffReason, 'injected: the candidate side cannot be read');
     } finally {
       publishset.computePublishedSet = original;
     }
@@ -214,6 +215,10 @@ test('legacy, through the panel: no publish comparison counts as the check not h
   assert.equal(dry.json.check.ran, true);
   assert.deepEqual(dry.json.reasons, ['check-did-not-run']);
   assert.equal(dry.json.needsAck, true);
+  assert.ok(
+    dry.json.notes.includes('The page comparison could not run (injected: the candidate side cannot be read), so this save needs your tick.'),
+    JSON.stringify(dry.json.notes),
+  );
 
   const confirm = await post(h, '/api/vault-config/text', { frontmatterText, baseSha256, dryRun: false, reviewedSha256: dry.json.candidateSha256 });
   assert.equal(confirm.status, 422, confirm.text);
