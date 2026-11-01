@@ -344,7 +344,8 @@ function reviewInner(ctx, { op, reqBody, dryRun, saveAnyway, machineDirResult, b
       rv = candidatecheck.runReview(ctx, { candidateBytes: cand.bytes, withCheck: false });
       check = cached.check;
       publishDiff = cached.publishDiff;
-      publishDiffReason = cached.publishDiffReason;
+      // A confirm never shows notes, so the dry run's comparison reason is not carried here.
+      publishDiffReason = null;
     } else {
       rv = candidatecheck.runReview(ctx, { candidateBytes: cand.bytes, withCheck: true });
       check = rv.check;
@@ -385,7 +386,7 @@ function reviewInner(ctx, { op, reqBody, dryRun, saveAnyway, machineDirResult, b
   if (diffNote) notes.push(diffNote);
 
   if (dryRun) {
-    ctx.vaultConfigReview = { file: settingsfile.FILE_MD, op, baseSha256: curSha, candidateSha256, check, reasons, publishDiff, publishDiffReason };
+    ctx.vaultConfigReview = { file: settingsfile.FILE_MD, op, baseSha256: curSha, candidateSha256, check, reasons, publishDiff };
     const dryBody = {
       ok: true,
       dryRun: true,

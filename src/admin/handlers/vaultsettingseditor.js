@@ -293,7 +293,8 @@ function reviewYamlInner(ctx, { op, reqBody, dryRun, machineDirResult, edits }) 
       rv = candidatecheck.runReview(ctx, { candidateBytes: cand.bytes, withCheck: false, targetRel: TARGET_REL });
       check = cached.check;
       publishDiff = cached.publishDiff;
-      publishDiffReason = cached.publishDiffReason;
+      // A confirm never shows notes, so the dry run's comparison reason is not carried here.
+      publishDiffReason = null;
     } else {
       rv = candidatecheck.runReview(ctx, { candidateBytes: cand.bytes, withCheck: true, targetRel: TARGET_REL });
       check = rv.check;
@@ -331,7 +332,7 @@ function reviewYamlInner(ctx, { op, reqBody, dryRun, machineDirResult, edits }) 
   if (diffNote) notes.push(diffNote);
 
   if (dryRun) {
-    ctx.vaultConfigReview = { file: FILE, op, baseSha256: curSha, candidateSha256, check, reasons, publishDiff, publishDiffReason };
+    ctx.vaultConfigReview = { file: FILE, op, baseSha256: curSha, candidateSha256, check, reasons, publishDiff };
     const dryBody = {
       ok: true,
       dryRun: true,

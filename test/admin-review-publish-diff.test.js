@@ -225,3 +225,100 @@ test('legacy, through the panel: no publish comparison counts as the check not h
   assert.equal(confirm.json.error, 'needs-ack');
   assert.deepEqual(fs.readFileSync(mdPath), current);
 });
+
+/**
+ * Makes the publish scan throw only while a candidate overlay is active, for the rest of the test.
+ * Returns a function giving how many times it fired.
+ */
+function failCandidateScan(t) {
+  const originalScan = publishset.computePublishedSet;
+  const originalOverlay = read.withCandidateFile;
+  let underOverlay = false;
+  let injected = 0;
+  read.withCandidateFile = (absPath, b, fn) =>
+    originalOverlay(absPath, b, () => {
+      underOverlay = true;
+      try {
+        return fn();
+      } finally {
+        underOverlay = false;
+      }
+    });
+  publishset.computePublishedSet = (...args) => {
+    if (underOverlay) {
+      injected += 1;
+      throw new Error('injected: the candidate side cannot be read');
+    }
+    return originalScan(...args);
+  };
+  t.after(() => {
+    publishset.computePublishedSet = originalScan;
+    read.withCandidateFile = originalOverlay;
+  });
+  return () => injected;
+}
+
+function registerLease(root, vault) {
+  const configPath = configPathIn(root);
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, ['config_version = 1', 'default_campaign = "lease"', '', '[campaigns.lease]', `vault = ${JSON.stringify(vault)}`, `output = ${JSON.stringify(path.join(root, 'out'))}`, ''].join('\n'));
+  return configPath;
+}
+
+const FAILED_COMPARISON_NOTE = 'The page comparison could not run (injected: the candidate side cannot be read), so this save needs your tick.';
+
+// The moved layout: the yaml editor's dry run shows the same note and needs the tick.
+test('new, through the panel: a failed page comparison shows its reason as a note and needs the tick', async (t) => {
+  const root = scratchRoot(t);
+  const { vault } = makeCampaign(root, 'new');
+  const configPath = registerLease(root, vault);
+  const yamlPath = path.join(vault, '_meta', 'vault-config.yaml');
+  const current = fs.readFileSync(yamlPath);
+  const frontmatterText = replaceChecked(current.toString('utf8'), '    max_npcs: 8\n', '    max_npcs: 7\n').replace(/\n$/, '');
+  const baseSha256 = crypto.createHash('sha256').update(current).digest('hex');
+  const injected = failCandidateScan(t);
+
+  const h = await startPanel(t, { config: configPath }, 'lease');
+  const dry = await post(h, '/api/vault-config/text', { file: 'vault-config.yaml', frontmatterText, baseSha256, dryRun: true });
+  assert.equal(dry.status, 200, dry.text);
+  assert.ok(injected() >= 1, 'the candidate-side scan was reached');
+  assert.deepEqual(dry.json.reasons, ['check-did-not-run']);
+  assert.equal(dry.json.needsAck, true);
+  assert.deepEqual(dry.json.notes, [FAILED_COMPARISON_NOTE]);
+  assert.deepEqual(fs.readFileSync(yamlPath), current);
+});
+
+// A confirm reuses its dry run's review, so the failed comparison still needs the tick there, on both
+// editors, and the save goes through once it is ticked.
+for (const layout of ['legacy', 'new']) {
+  test(`${layout}, through the panel: a confirm after a failed comparison still needs the tick, and saves with it`, async (t) => {
+    const root = scratchRoot(t);
+    const { vault } = makeCampaign(root, layout);
+    const configPath = registerLease(root, vault);
+    const file = layout === 'new' ? 'vault-config.yaml' : 'vault-config.md';
+    const filePath = path.join(vault, '_meta', file);
+    const current = fs.readFileSync(filePath);
+    const edited = replaceChecked(current.toString('utf8'), '    max_npcs: 8\n', '    max_npcs: 7\n');
+    const frontmatterText = layout === 'new' ? edited.replace(/\n$/, '') : vaultconfigedit.splitFile(Buffer.from(edited)).frontmatterText;
+    const baseSha256 = crypto.createHash('sha256').update(current).digest('hex');
+    const req = { file, frontmatterText, baseSha256 };
+    const injected = failCandidateScan(t);
+
+    const h = await startPanel(t, { config: configPath }, 'lease');
+    const dry = await post(h, '/api/vault-config/text', { ...req, dryRun: true });
+    assert.equal(dry.status, 200, dry.text);
+    assert.ok(dry.json.notes.includes(FAILED_COMPARISON_NOTE), JSON.stringify(dry.json.notes));
+    const scansAfterDry = injected();
+
+    const unticked = await post(h, '/api/vault-config/text', { ...req, dryRun: false, reviewedSha256: dry.json.candidateSha256 });
+    assert.equal(unticked.status, 422, unticked.text);
+    assert.deepEqual(unticked.json.reasons, ['check-did-not-run']);
+    assert.deepEqual(fs.readFileSync(filePath), current);
+
+    // The unticked confirm does not consume the cached review, so the ticked one reuses it too.
+    const ticked = await post(h, '/api/vault-config/text', { ...req, dryRun: false, reviewedSha256: dry.json.candidateSha256, saveAnyway: true });
+    assert.equal(ticked.status, 200, ticked.text);
+    assert.equal(injected(), scansAfterDry, 'the confirms reused the dry run\'s comparison instead of scanning again');
+    assert.equal(fs.readFileSync(filePath, 'utf8'), edited);
+  });
+}
