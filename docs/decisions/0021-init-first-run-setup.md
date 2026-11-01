@@ -309,3 +309,7 @@ Writes now also require the pack folder's real path to be strictly inside the va
 A pack folder linked to another vault folder, or to `_meta` itself, is therefore refused. This retires the old frozen test PW8, which accepted a link to an arbitrary in-vault folder; it now asserts the refusal. A `_meta` that is itself a link to an in-vault folder is still accepted, and so is a pack folder linked to a folder inside `_meta`.
 
 Reads are unchanged: the `pack` key and the convention folder resolve as before. The rejected alternative was refusing every symlinked `_meta`: the rule needs only the pack folder's real path, and a linked `_meta` that stays inside the vault is harmless.
+
+## Amended by ADR 0071
+
+On an existing vault whose settings moved to `_meta/vault-config.yaml`, `init` also writes that file: it sets the site title, the folder map and the hide lists it composed, where the file lacks them, through the generator's own settings code and after a backup outside the vault, and it writes the pack without those keys. It asks first, and `--yes` accepts it. A new vault made with `--new-vault` is unchanged. See [ADR 0071](0071-moved-vault-settings.md), section 7.

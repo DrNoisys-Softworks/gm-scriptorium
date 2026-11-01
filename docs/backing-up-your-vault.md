@@ -15,9 +15,10 @@ telemetry and no sync. The only network call the tool makes is `update`, and it 
 own release files, never anything about your campaign. *Since 0.5.0.* The admin panel also asks GitHub once a day whether a newer version is out, and you can turn that off; see [Privacy](privacy.md).
 
 The tool also does not back your vault up. It will write small files inside the vault, such as the
-campaign pack in `_meta/scriptorium/` and, if you edit the tagline in the admin panel,
-`_meta/vault-config.md`. It keeps a copy of `_meta/vault-config.md` outside the vault before each
-panel save. That copy covers one file and is not a vault backup.
+campaign pack in `_meta/scriptorium/` and, if you edit the tagline or the vault's settings in the
+admin panel, `_meta/vault-config.md`. *Since 0.6.0.* On a vault whose settings gm-apprentice moved to
+`_meta/vault-config.yaml`, the panel writes that file instead. It keeps a copy of the file outside
+the vault before each panel save. That copy covers one file and is not a vault backup.
 
 Your vault is the only copy of your notes that matters. Back it up yourself.
 

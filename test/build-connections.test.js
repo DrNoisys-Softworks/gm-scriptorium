@@ -452,7 +452,7 @@ test('ownTargets: a target named by its owner\'s GM alias resolves to the owner,
     { title: 'Doran', rel: 'Characters/NPCs/Doran.md', outputPath: 'characters/npcs/doran.html', frontmatter: { type: 'npc', relationships: [{ target: '[[The Courier]]', type: 'knows' }] } },
     { title: 'Tilda', rel: 'Characters/NPCs/Tilda.md', outputPath: 'characters/npcs/tilda.html', frontmatter: { type: 'npc', relationships: { knows: 'The Courier' } } },
   ];
-  const rewriter = pinned.gmAliasRewriter(pages, pages, []);
+  const rewriter = pinned.gmAliasRewriter(pages, pages, [], { person: 'someone', place: 'somewhere', thing: 'something' });
   const own = ownTargets(pages, {}, rewriter);
   assert.deepEqual([...own.get('characters/npcs/doran.html')], ['characters/pcs/grix.html']);
   assert.deepEqual([...own.get('characters/npcs/tilda.html')], ['characters/pcs/grix.html'], 'a bare name in a relationship is rewritten too');

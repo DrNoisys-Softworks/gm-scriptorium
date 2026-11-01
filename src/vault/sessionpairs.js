@@ -10,18 +10,24 @@ const { toRelativePosix } = require('../util/paths');
  * reads what a real build actually did). This module never touches the vault except through
  * `src/vault/read.js`, and never asks the pin's own `scanAllNotes(vaultPath)` (which bypasses that
  * chokepoint and swallows read errors) -- `scanAllNotesForPairing` below is a faithful, structurally
- * change-detected port of it instead (lib/scanner.js:410-448).
+ * change-detected port of it instead (lib/scanner.js:415-455).
  *
  * All internal calls the rest of the codebase makes go through `module.exports`, so a test can spy
  * on `adaptPage` / `scanAllNotesForPairing` independently of `computeSessionPairing`.
  */
 
-// lib/scanner.js:428: the note is frontmatter-gated when its raw text matches either the
-// aliases-or-withheld line or the session-type line. ALIASES_LINE mirrors that line's first half
-// verbatim (`withheld:` joined it at publish-v1.21.0).
-const ALIASES_LINE = /^(?:(?:gm_)?aliases|withheld):/m;
+// lib/scanner.js:434-435: the note's frontmatter is read when the first segment of its path is `_meta` (a note at any depth
+// under that folder), or its
+// raw text has an aliases, withheld, title or publish line, a meta or template type line, or a
+// session type line. ALIASES_LINE and HOUSEKEEPING_TYPE_LINE mirror the pin's literals verbatim
+// (`withheld:` joined at publish-v1.21.0; `title:`, `publish:`, the `_meta` folder and the
+// housekeeping types at publish-v1.26.0, so the pin can tell its own housekeeping notes apart,
+// lib/publish-decision.js isHousekeepingNote). A `title:` changes the names pairHubs resolves a
+// pairing link against, so the port must read the same notes.
+const ALIASES_LINE = /^(?:(?:gm_)?aliases|withheld|title|publish):/m;
+const HOUSEKEEPING_TYPE_LINE = /^type:\s*["']?(meta|template)["']?\s*$/m;
 
-// lib/scanner.js:408's SESSION_TYPE_LINE, in its exact shape, built from the pin's own
+// lib/scanner.js:413's SESSION_TYPE_LINE, in its exact shape, built from the pin's own
 // WRAP_UP_TYPES rather than a hand copy of the three type strings -- a pin bump that changes the
 // Wrap-Up type list changes this gate too, by construction, and test/session-pairing.test.js's
 // change detector proves the alternation still equals {'session'} union WRAP_UP_TYPES.
@@ -56,7 +62,7 @@ function adaptPage(page) {
 }
 
 /**
- * A faithful port of lib/scanner.js:410-448's scanAllNotes, routed through src/vault/read.js
+ * A faithful port of lib/scanner.js:415-455's scanAllNotes, routed through src/vault/read.js
  * (Structural decision 2). Every note in the vault, ignoring excludeDirs/folderMap/type, the way
  * Obsidian resolves a link to any note in the vault and a GM-only folder the site never scans is
  * the likeliest home for a secret pairing link.
@@ -93,7 +99,8 @@ function scanAllNotesForPairing(vaultPath) {
       const title = entry.name.slice(0, -3);
       const relPath = toRelativePosix(vaultPath, full);
       const result = read.readFrontmatter(full);
-      const gated = ALIASES_LINE.test(result.raw) || SESSION_TYPE_GATE.test(result.raw);
+      const inMeta = relPath.split('/')[0] === '_meta';
+      const gated = inMeta || ALIASES_LINE.test(result.raw) || HOUSEKEEPING_TYPE_LINE.test(result.raw) || SESSION_TYPE_GATE.test(result.raw);
       const frontmatter = result.ok && gated ? result.data || {} : {};
 
       notes.push({
@@ -176,11 +183,14 @@ function computeSessionPairing({ vaultPath, publishSet }) {
   const { notes: allNotes, symlinkedNotes } = module.exports.scanAllNotesForPairing(vaultPath);
   const uncertain = symlinkedNotes > 0;
 
-  const standard = pinned.pairHubs(corpus, published, { allNotes, apply: false });
+  // pairHubs hands the site's withheld words to the pin's alias rewriter, which refuses to run
+  // without them from publish-v1.26.0 (lib/session-hub.js:152). The words never change a pairing.
+  const withheldWords = (publishSet.publishConfig && publishSet.publishConfig.withheld_words) || pinned.DEFAULT_WITHHELD_WORDS;
+  const standard = pinned.pairHubs(corpus, published, { allNotes, apply: false, withheldWords });
 
   const scannedSourcePaths = new Set(corpusPages.map((p) => p.sourcePath));
   const notesOutsideCorpus = allNotes.filter((n) => !scannedSourcePaths.has(n.sourcePath));
-  const wide = pinned.pairHubs(corpus.concat(notesOutsideCorpus), published, { allNotes, apply: false });
+  const wide = pinned.pairHubs(corpus.concat(notesOutsideCorpus), published, { allNotes, apply: false, withheldWords });
 
   const pairs = [...standard.entries()].map(([hub, wrapUp]) => toPairEntry(hub, wrapUp, originalOf, publishedSet));
   const widePairs = [...wide.entries()].map(([hub, wrapUp]) => toPairEntry(hub, wrapUp, originalOf, publishedSet));

@@ -24,10 +24,9 @@ function withTmpDir(fn) {
 function buildGraphemeVault(outDir, vaultPath = VAULT_PATH) {
   const siteConfig = JSON.parse(fs.readFileSync(SITE_CONFIG_SRC, 'utf8'));
   const synthesized = Object.assign({}, siteConfig, { vaultPath, outputDir: outDir });
-  const tmpConfigPath = path.join(
-    fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-grapheme-config-')),
-    'vault.config.json',
-  );
+  // From publish-v1.26.0 the output folder must be inside the site folder (the config's own folder),
+  // so the config is written in the folder that holds the output folder, never in a separate one.
+  const tmpConfigPath = path.join(path.dirname(outDir), 'vault.config.json');
   fs.writeFileSync(tmpConfigPath, JSON.stringify(synthesized, null, 2));
 
   // test-only require of the pinned generator's own module, per src/generator/bootstrap.js's

@@ -54,7 +54,8 @@
    * @param {string} text editorText's own shape: frontmatter lines, \n-joined, no EOLs
    * @returns {{label:string, hint:string, line:number|null}[]}
    */
-  function fileMap(text) {
+  function fileMap(text, yaml) {
+    if (yaml) return fileMapYaml(text);
     var lines = text.split('\n');
     var out = [];
     var publishChildIndent = null;
@@ -104,6 +105,107 @@
     }
     out.push({ label: 'Notes', hint: 'your prose, below the frontmatter. The panel never shows or changes it.', line: null });
     return out;
+  }
+
+  var YAML_GROUPS = {
+    hide: { id: 'privacy', label: 'Publishing and privacy', hint: 'player mode and the hidden lists' },
+    theme: { id: 'theme', label: 'Look', hint: 'tagline, colours, fonts, cover art' },
+    lists: { id: 'banners', label: 'Banners', hint: 'the section banners' },
+    landing: { id: 'landing', label: 'Landing page', hint: 'featured characters, quick links, blurbs' },
+    not_found: { id: 'notfound', label: 'Not-found page', hint: 'the 404 message' },
+  };
+
+  /**
+   * fileMap for _meta/vault-config.yaml: the whole file is shown, so the first line is line 1, and
+   * there are no notes below it. `vault` is the campaign; `player_site`'s children are grouped.
+   *
+   * @param {string} text the yaml editor text, \n-joined
+   * @returns {{label:string, hint:string, line:number|null}[]}
+   */
+  function fileMapYaml(text) {
+    var lines = text.split('\n');
+    var out = [];
+    var seen = {};
+    var inSite = false;
+    var childIndent = null;
+    for (var i = 0; i < lines.length; i++) {
+      var m = /^(\s*)([A-Za-z0-9_]+):/.exec(lines[i]);
+      if (!m) continue;
+      var indent = m[1].length;
+      var key = m[2];
+      var line = i + 1;
+      if (indent === 0) {
+        inSite = key === 'player_site';
+        if (key === 'vault' && !seen.campaign) {
+          out.push({ label: 'Campaign', hint: 'what it is, the system, the year', line: line });
+          seen.campaign = true;
+        }
+        continue;
+      }
+      if (!inSite) continue;
+      if (childIndent === null) childIndent = indent;
+      if (indent !== childIndent) continue;
+      var group = Object.prototype.hasOwnProperty.call(YAML_GROUPS, key) ? YAML_GROUPS[key] : null;
+      if (group) {
+        if (!seen[group.id]) {
+          out.push({ label: group.label, hint: group.hint, line: line });
+          seen[group.id] = true;
+        }
+      } else if (!seen.other) {
+        out.push({ label: key, hint: 'other player-site settings', line: line });
+        seen.other = true;
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Plan note: the generator's own descriptions are Markdown with backtick spans. Splits `text`
+   * into plain and code pieces, for the browser to build as text nodes and <code> elements.
+   * An unmatched backtick is plain text.
+   *
+   * @param {string} text
+   * @returns {{code:boolean, s:string}[]}
+   */
+  function codeSpans(text) {
+    var out = [];
+    var re = /`([^`]+)`/g;
+    var last = 0;
+    var m;
+    while ((m = re.exec(text))) {
+      if (m.index > last) out.push({ code: false, s: text.slice(last, m.index) });
+      out.push({ code: true, s: m[1] });
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) out.push({ code: false, s: text.slice(last) });
+    return out;
+  }
+
+  /**
+   * The Hidden headings hint. On the old layout the site joins this list with vault.config.json's;
+   * on a moved vault the site reads only the yaml's list.
+   *
+   * @param {boolean} yaml
+   * @returns {string}
+   */
+  function sectionsHint(yaml) {
+    if (yaml) return "On this vault the site reads only this list. vault.config.json's list is no longer used.";
+    return "These combine with vault.config.json's list: a heading named in either stays hidden.";
+  }
+
+  /**
+   * One editor gutter row: its file line number, and whether it is the line that will not read.
+   * vault-config.yaml is shown whole, so its first line is 1; vault-config.md's first content line
+   * is 2, after the opening fence.
+   *
+   * @param {number} i the 0-based editor line
+   * @param {boolean} yaml
+   * @param {number|null} badLine the parse error's file line, or null
+   * @returns {{n:number, bad:boolean}}
+   */
+  function gutterMark(i, yaml, badLine) {
+    var n = i + (yaml ? 1 : 2);
+    return { n: n, bad: badLine !== null && badLine === n };
   }
 
   /** @returns {number[]} file line numbers (frontmatter line n -> file line n + 1) that changed */
@@ -191,14 +293,16 @@
   // (drift-tested, test/admin-v1e10-model.test.js).
   // ===========================================================================================
 
+  // `yamlPath` is the same setting's name in _meta/vault-config.yaml (drift-tested against
+  // src/admin/vaultsettingsplan.js's YAML_FIELD_SCHEMA). Rows and edits stay keyed by `path`.
   var FIELDS = [
-    { path: 'publish.exclude_fields', kind: 'list', group: 'privacy', label: 'Hidden fields' },
-    { path: 'publish.exclude_sections', kind: 'list', group: 'privacy', label: 'Hidden headings' },
-    { path: 'publish.exclude_dirs', kind: 'list', group: 'privacy', label: 'Hidden folders' },
-    { path: 'publish.landing.featured_npcs', kind: 'list', group: 'safe', label: 'Featured characters' },
-    { path: 'publish.landing.quick_links', kind: 'list', group: 'safe', label: 'Quick links' },
-    { path: 'publish.landing.max_npcs', kind: 'int', group: 'safe', label: 'How many characters to show', min: 0, max: 100 },
-    { path: 'publish.four_oh_four.message', kind: 'string', group: 'safe', label: 'Not-found message', min: 1, max: 300 },
+    { path: 'publish.exclude_fields', yamlPath: 'player_site.hide.fields', kind: 'list', group: 'privacy', label: 'Hidden fields' },
+    { path: 'publish.exclude_sections', yamlPath: 'player_site.hide.sections', kind: 'list', group: 'privacy', label: 'Hidden headings' },
+    { path: 'publish.exclude_dirs', yamlPath: 'player_site.hide.folders', kind: 'list', group: 'privacy', label: 'Hidden folders' },
+    { path: 'publish.landing.featured_npcs', yamlPath: 'player_site.landing.featured_npcs', kind: 'list', group: 'safe', label: 'Featured characters' },
+    { path: 'publish.landing.quick_links', yamlPath: 'player_site.landing.quick_links', kind: 'list', group: 'safe', label: 'Quick links' },
+    { path: 'publish.landing.max_npcs', yamlPath: 'player_site.landing.max_npcs', kind: 'int', group: 'safe', label: 'How many characters to show', min: 0, max: 100 },
+    { path: 'publish.four_oh_four.message', yamlPath: 'player_site.not_found', kind: 'string', group: 'safe', label: 'Not-found message', min: 1, max: 300 },
   ];
 
   var PRIVACY_PATHS = ['publish.exclude_fields', 'publish.exclude_sections', 'publish.exclude_dirs'];
@@ -223,7 +327,8 @@
     if (edits && Object.prototype.hasOwnProperty.call(edits, path)) return edits[path];
     var fields = (fieldsGet && fieldsGet.fields) || [];
     for (var i = 0; i < fields.length; i++) {
-      if (fields[i].path === path) {
+      // A vault-config.yaml row carries its yaml name in `path` and the old name in `key`.
+      if ((fields[i].key || fields[i].path) === path) {
         var v = fields[i].value;
         if (fields[i].kind === 'list') return Array.isArray(v) ? v.slice() : [];
         return v;
@@ -322,15 +427,16 @@
   /**
    * SD-114: the rows the review slip's Setting/Now/After grid shows for a field save, in FIELDS order.
    *
+   * @param {boolean} [yaml] name each setting as vault-config.yaml does
    * @returns {{where:string, key:string, now:string, after:string}[]}
    */
-  function fieldRows(fieldsGet, edits) {
+  function fieldRows(fieldsGet, edits, yaml) {
     var rows = [];
     FIELDS.forEach(function (f) {
       if (!edits || !Object.prototype.hasOwnProperty.call(edits, f.path)) return;
       var was = currentValue(fieldsGet, {}, f.path);
       if (sameValue(was, edits[f.path])) return;
-      rows.push({ where: f.label, key: f.path, now: valueText(f, was), after: valueText(f, edits[f.path]) });
+      rows.push({ where: f.label, key: yaml ? f.yamlPath : f.path, now: valueText(f, was), after: valueText(f, edits[f.path]) });
     });
     return rows;
   }
@@ -396,6 +502,9 @@
   var VC = {
     tokens: tokens,
     fileMap: fileMap,
+    codeSpans: codeSpans,
+    sectionsHint: sectionsHint,
+    gutterMark: gutterMark,
     changedLines: changedLines,
     reviewEnabled: reviewEnabled,
     effectsSorted: effectsSorted,
@@ -437,7 +546,7 @@
 
   var RISKS = [
     ['shield', 'It decides what stays private', 'The hidden headings, fields and folders live here. One typo can publish GM notes or secrets to players.'],
-    ['warn', 'Every build reads it', 'If the frontmatter stops reading cleanly, check, preview and publish all stop until it is fixed.'],
+    ['warn', 'Every build reads it', 'If the <part> stops reading cleanly, check, preview and publish all stop until it is fixed.'],
     ['file', 'Other tools read it too', 'gm-apprentice keeps its own settings here. Change a setting you do not recognise and it may behave differently.'],
   ];
   var PROMISES_TEMPLATE = [
@@ -500,6 +609,62 @@
     return store.get().session ? store.get().session.writable : true;
   }
 
+  /** True on a vault whose settings live in _meta/vault-config.yaml. */
+  function moved() {
+    return state().settingsLayout === 'new';
+  }
+
+  /** The settings file this screen edits, as every visible string and every request names it. */
+  function fileName() {
+    return moved() ? 'vault-config.yaml' : 'vault-config.md';
+  }
+
+  /** The file line number of the editor text's first line: the yaml is shown whole, the md after its opening fence. */
+  function firstLine() {
+    return moved() ? 1 : 2;
+  }
+
+  /** A field's setting name as this vault's file writes it. */
+  function fieldPath(f) {
+    return moved() ? f.yamlPath : f.path;
+  }
+
+  /** The old name (rows' key) of a setting the server named as this vault's file writes it. */
+  function keyOf(path) {
+    for (var i = 0; i < VC.FIELDS.length; i++) if (VC.FIELDS[i].yamlPath === path) return VC.FIELDS[i].path;
+    return path;
+  }
+
+  /** A request body as the server wants it: the yaml's `set` is keyed by the yaml's own names. */
+  function wireBody(body) {
+    if (!moved() || !body.set) return body;
+    var set = {};
+    Object.keys(body.set).forEach(function (k) {
+      var f = VC.FIELDS.filter(function (x) {
+        return x.path === k;
+      })[0];
+      set[f ? f.yamlPath : k] = body.set[k];
+    });
+    return Object.assign({}, body, { set: set });
+  }
+
+  /** Builds the generator's Markdown text (backtick spans) into `node` as text nodes and <code> elements. */
+  function appendCodeSpans(node, text) {
+    VC.codeSpans(text).forEach(function (piece) {
+      if (!piece.code) {
+        node.appendChild(document.createTextNode(piece.s));
+        return;
+      }
+      var code = el('code');
+      code.appendChild(document.createTextNode(piece.s));
+      node.appendChild(code);
+    });
+  }
+
+  function codeLabel() {
+    return moved() ? 'vault-config.yaml' : 'vault-config.md frontmatter';
+  }
+
   /** Builds a `.vc-code` block: the opening fence, every frontmatter line, the closing fence. */
   function buildCode(text) {
     var code = el('div');
@@ -507,7 +672,7 @@
     // A scrollable region must be keyboard-reachable (axe scrollable-region-focusable, found live
     // in V1e-10's G7 at 390 px).
     code.setAttribute('role', 'region');
-    code.setAttribute('aria-label', 'vault-config.md frontmatter');
+    code.setAttribute('aria-label', codeLabel());
     code.tabIndex = 0;
     var lines = text.split('\n');
 
@@ -534,11 +699,13 @@
       return ln;
     }
 
-    code.appendChild(row(1, '---'));
+    // vault-config.yaml is shown whole; vault-config.md's frontmatter between its two fences.
+    var yaml = moved();
+    if (!yaml) code.appendChild(row(1, '---'));
     lines.forEach(function (lineText, i) {
-      code.appendChild(row(i + 2, lineText));
+      code.appendChild(row(i + firstLine(), lineText));
     });
-    code.appendChild(row(lines.length + 2, '---'));
+    if (!yaml) code.appendChild(row(lines.length + 2, '---'));
     return code;
   }
 
@@ -572,7 +739,7 @@
     cap.className = 'a1-cap';
     setText(cap, "What's in this file");
     container.appendChild(cap);
-    VC.fileMap(text).forEach(function (entry) {
+    VC.fileMap(text, moved()).forEach(function (entry) {
       var btn = el('button');
       btn.type = 'button';
       btn.className = 'vc-mapi';
@@ -684,7 +851,7 @@
       setText(b, r[1]);
       div.appendChild(b);
       var p = el('p');
-      setText(p, r[2]);
+      setText(p, r[2].replace('<part>', moved() ? 'file' : 'frontmatter'));
       div.appendChild(p);
       li.appendChild(div);
       ul.appendChild(li);
@@ -754,7 +921,7 @@
     var ackLabelEl = el('label');
     ackLabelEl.className = 'st-check vc-ack';
     ackLabelEl.appendChild(ackCheckbox);
-    ackLabelEl.appendChild(document.createTextNode(' I understand the risks. Let me edit vault-config.md.'));
+    ackLabelEl.appendChild(document.createTextNode(' I understand the risks. Let me edit ' + fileName() + '.'));
     dbody.appendChild(ackLabelEl);
 
     var btns = el('div');
@@ -787,7 +954,7 @@
     setText(h2, 'Leave with unsaved edits?');
     dialog.appendChild(h2);
     var p = el('p');
-    setText(p, "Your edits to vault-config.md aren't saved. Leaving discards them and locks the file again.");
+    setText(p, 'Your edits to ' + fileName() + " aren't saved. Leaving discards them and locks the file again.");
     dialog.appendChild(p);
     var btns = el('div');
     btns.className = 'cf-btns';
@@ -871,7 +1038,7 @@
         api('/api/vault-config/effects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ frontmatterText: text, baseSha256: session.base }),
+          body: JSON.stringify({ file: fileName(), frontmatterText: text, baseSha256: session.base }),
         })
           .then(function (result) {
             if (!VC.acceptResponse(reqSeq, seq)) {
@@ -893,7 +1060,7 @@
     banner.appendChild(icon('unlock'));
     var div = el('div');
     var b = el('b');
-    setText(b, 'Editing vault-config.md');
+    setText(b, 'Editing ' + fileName());
     div.appendChild(b);
     var span = el('span');
     setText(span, 'Nothing is saved until you review it. A backup is made before every save.');
@@ -914,9 +1081,12 @@
     var wrap = el('div');
     wrap.className = 'vc-ed';
 
+    // vault-config.yaml has no fences: the editor holds the whole file.
+    var yaml = moved();
+    var first = firstLine();
     var topFence = fenceRow(1);
     topFence.el.setAttribute('aria-hidden', 'true');
-    wrap.appendChild(topFence.el);
+    if (!yaml) wrap.appendChild(topFence.el);
 
     var mid = el('div');
     mid.className = 'vc-ed-mid';
@@ -930,7 +1100,7 @@
     var label = el('label');
     label.className = 'visually-hidden';
     label.setAttribute('for', 'vc-text');
-    setText(label, 'vault-config.md');
+    setText(label, fileName());
     mid.appendChild(label);
 
     var ta = el('textarea');
@@ -943,7 +1113,7 @@
 
     var bottomFence = fenceRow(2);
     bottomFence.el.setAttribute('aria-hidden', 'true');
-    wrap.appendChild(bottomFence.el);
+    if (!yaml) wrap.appendChild(bottomFence.el);
 
     var statusEl = el('div');
     statusEl.className = 'vc-status';
@@ -988,11 +1158,13 @@
         var span = el('span');
         var cls = [];
         if (changed[i]) cls.push('chg');
-        if (badLine !== null && badLine === i + 2) cls.push('bad');
+        var mark = VC.gutterMark(i, yaml, badLine);
+        if (mark.bad) cls.push('bad');
         span.className = cls.join(' ');
         // File-relative, matching buildCode's own numbering and the status line's own per-line
         // parse-error wording below: the opening fence is line 1, so the first content line is 2.
-        setText(span, String(i + 2));
+        if (yaml) setText(span, String(mark.n));
+        else setText(span, String(i + 2));
         gutter.appendChild(span);
       });
       wrap.classList.toggle('has-bad', badLine !== null);
@@ -1007,7 +1179,7 @@
       } else {
         statusEl.appendChild(icon('tick'));
         var span2 = el('span');
-        setText(span2, 'The frontmatter reads cleanly.');
+        setText(span2, yaml ? 'The file reads cleanly.' : 'The frontmatter reads cleanly.');
         statusEl.appendChild(span2);
       }
       var chg = el('span');
@@ -1154,7 +1326,7 @@
     api('/api/vault-config/effects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ frontmatterText: text, baseSha256: session.base, putBack: fix }),
+      body: JSON.stringify({ file: fileName(), frontmatterText: text, baseSha256: session.base, putBack: fix }),
     }).then(function (result) {
       if (!result.ok || !result.body || !result.body.frontmatterText) return;
       if (session) done(result.body.frontmatterText);
@@ -1164,6 +1336,7 @@
   /** The fields layout's Put it back: re-adds the entry at its loaded position (else the end), then re-opens the review. */
   function fieldsPutBack(fix) {
     if (session === null || session.kind !== 'fields') return;
+    fix = { path: keyOf(fix.path), entry: fix.entry };
     var list = VC.currentValue(fieldsGet, session.edits, fix.path).slice();
     if (list.indexOf(fix.entry) === -1) {
       var loadedAt = VC.currentValue(fieldsGet, {}, fix.path).indexOf(fix.entry);
@@ -1191,14 +1364,16 @@
         var title = el('h2');
         title.id = ctx.titleId;
         title.className = 'cf-title';
-        setText(title, op === 'restore' ? 'Restore vault-config.md' : 'Save vault-config.md');
+        setText(title, (op === 'restore' ? 'Restore ' : 'Save ') + fileName());
         ctx.body.appendChild(title);
 
         if (op === 'restore') {
           var firstLine = el('p');
           setText(
             firstLine,
-            'Restoring the backup from ' + VC.backupWhen(dry.backup ? dry.backup.takenAt : new Date().toISOString(), new Date().toISOString()) + '. Only the frontmatter comes back; your notes below it stay as they are now.',
+            'Restoring the backup from ' +
+              VC.backupWhen(dry.backup ? dry.backup.takenAt : new Date().toISOString(), new Date().toISOString()) +
+              (moved() ? '.' : '. Only the frontmatter comes back; your notes below it stay as they are now.'),
           );
           ctx.body.appendChild(firstLine);
         }
@@ -1206,7 +1381,7 @@
         var fileRow = el('div');
         fileRow.className = 'cf-file';
         var code = el('code');
-        setText(code, '_meta/vault-config.md');
+        setText(code, '_meta/' + fileName());
         fileRow.appendChild(code);
         var pill = el('span');
         pill.className = 'a1-pill err';
@@ -1216,7 +1391,7 @@
 
         var df = el('div');
         df.className = 'df';
-        if (op === 'fields') df.appendChild(ctx.parts.dfFields(VC.fieldRows(fieldsGet, confirmBody.set)));
+        if (op === 'fields') df.appendChild(ctx.parts.dfFields(VC.fieldRows(fieldsGet, confirmBody.set, moved())));
         var sliphead = el('div');
         sliphead.className = 'vc-sliphead';
         setText(sliphead, 'What this changes');
@@ -1314,7 +1489,7 @@
           api(endpointFor(op), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+            body: JSON.stringify(wireBody(body)),
           }).then(function (result) {
             var outcome = window.ScriptoriumAdmin.OC.mapOutcome(result, 'save');
             if (outcome.kind === 'saved' || (result.ok && result.body && result.body.ok)) {
@@ -1340,7 +1515,7 @@
     setText(eyebrow, 'Saved');
     bodyEl.appendChild(eyebrow);
     var h2 = el('h2');
-    setText(h2, 'vault-config.md is updated');
+    setText(h2, fileName() + ' is updated');
     bodyEl.appendChild(h2);
     var p = el('p');
     setText(p, 'Editing is switched off again.');
@@ -1382,7 +1557,7 @@
     var backBtn = el('button');
     backBtn.type = 'button';
     backBtn.className = 'a1-btn';
-    setText(backBtn, 'Back to vault-config.md');
+    setText(backBtn, 'Back to ' + fileName());
     backBtn.addEventListener('click', function () {
       window.ScriptoriumAdmin.slip.close();
     });
@@ -1392,11 +1567,11 @@
 
   function openReview(op, payload) {
     store.set({ busy: 'check' });
-    var body = Object.assign({ baseSha256: session.base, dryRun: true }, payload);
+    var body = Object.assign({ file: fileName(), baseSha256: session.base, dryRun: true }, payload);
     return api(endpointFor(op), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(wireBody(body)),
     })
       .then(function (result) {
         store.set({ busy: null });
@@ -1485,12 +1660,12 @@
           api('/api/vault-config/restore', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ backupId: item.id, baseSha256: ed.sha256, dryRun: true }),
+            body: JSON.stringify({ file: fileName(), backupId: item.id, baseSha256: ed.sha256, dryRun: true }),
           }).then(function (dryResult) {
             store.set({ busy: null });
             if (!dryResult.ok || !dryResult.body) return;
             session = session || { kind: 'text', base: ed.sha256, orig: ed.text, current: ed.text, view: currentView() };
-            openGuardedSlip('restore', dryResult.body, { backupId: item.id, baseSha256: ed.sha256 }, function (confirmResultBody) {
+            openGuardedSlip('restore', dryResult.body, { file: fileName(), backupId: item.id, baseSha256: ed.sha256 }, function (confirmResultBody) {
               store.load();
               session = null;
               store.set({ vcEditing: false });
@@ -1662,15 +1837,15 @@
 
   function lockForStaleBase() {
     stopEditing(false);
-    setFine('vault-config.md changed while the panel loaded it. Reload.');
+    setFine(fileName() + ' changed while the panel loaded it. Reload.');
   }
 
   /** Shared by every layout's unlock: refuses a base that drifted while the panel loaded it. */
   function beginSession(kind) {
     var ed = editorField();
-    var knownSha = store.baseSha('vault-config.md');
+    var knownSha = store.baseSha(fileName());
     if (knownSha !== null && ed.sha256 !== knownSha) {
-      setFine('vault-config.md changed while the panel loaded it. Reload.');
+      setFine(fileName() + ' changed while the panel loaded it. Reload.');
       render();
       return false;
     }
@@ -1685,7 +1860,7 @@
   function goToLine(n) {
     var ta = document.getElementById('vc-text');
     if (!ta) return;
-    var idx = Math.max(0, n - 2);
+    var idx = Math.max(0, n - firstLine());
     var lines = ta.value.split('\n');
     var pos = 0;
     for (var i = 0; i < idx && i < lines.length; i++) pos += lines[i].length + 1;
@@ -1705,7 +1880,7 @@
     li.appendChild(icon('warn'));
     var div = el('div');
     var b = el('b');
-    setText(b, "The frontmatter won't read");
+    setText(b, moved() ? "The file won't read" : "The frontmatter won't read");
     div.appendChild(b);
     var p = el('p');
     setText(p, 'Line ' + parse.line + ': ' + parse.message + ' Check, preview and publish all stop until it reads cleanly.');
@@ -2058,9 +2233,45 @@
     if (forId) node.setAttribute('for', forId);
     node.appendChild(document.createTextNode(label));
     var small = el('small');
-    setText(small, path === 'publish.mode' || path.indexOf('publish.exclude_') === 0 ? path : path.replace(/^publish\./, ''));
+    if (moved()) setText(small, shownName(path));
+    else setText(small, path === 'publish.mode' || path.indexOf('publish.exclude_') === 0 ? path : path.replace(/^publish\./, ''));
     node.appendChild(small);
     return node;
+  }
+
+  /** On a moved vault, the name vault-config.yaml gives the setting a row is keyed by (its old name). */
+  function shownName(path) {
+    var f = VC.FIELDS.filter(function (x) {
+      return x.path === path;
+    })[0];
+    if (f) return f.yamlPath;
+    var list = (fieldsGet && fieldsGet.display) || [];
+    for (var i = 0; i < list.length; i++) if ((list[i].key || list[i].path) === path) return list[i].path;
+    return path;
+  }
+
+  /**
+   * What the generator says a setting does, and what it is when the file leaves it out, under the
+   * field's label. Only vault-config.yaml's fields carry these; vault-config.md's rows are unchanged.
+   */
+  function appendDoes(wrap, path) {
+    var entry = fieldEntry(path);
+    if (!entry) return;
+    if (typeof entry.does === 'string' && entry.does !== '') {
+      var does = el('p');
+      does.className = 'a1-hint vc3-does';
+      does.setAttribute('data-part', 'does');
+      appendCodeSpans(does, entry.does);
+      wrap.appendChild(does);
+    }
+    if (typeof entry.leftOut === 'string' && entry.leftOut !== '') {
+      var left = el('p');
+      left.className = 'a1-hint vc3-does';
+      left.setAttribute('data-part', 'left-out');
+      left.appendChild(document.createTextNode('When not set: '));
+      appendCodeSpans(left, entry.leftOut);
+      wrap.appendChild(left);
+    }
   }
 
   function valText(text, className) {
@@ -2072,7 +2283,7 @@
 
   function displayEntry(path) {
     var list = (fieldsGet && fieldsGet.display) || [];
-    for (var i = 0; i < list.length; i++) if (list[i].path === path) return list[i];
+    for (var i = 0; i < list.length; i++) if ((list[i].key || list[i].path) === path) return list[i];
     return { path: path, value: null };
   }
 
@@ -2144,7 +2355,7 @@
 
   function fieldEntry(path) {
     var list = (fieldsGet && fieldsGet.fields) || [];
-    for (var i = 0; i < list.length; i++) if (list[i].path === path) return list[i];
+    for (var i = 0; i < list.length; i++) if ((list[i].key || list[i].path) === path) return list[i];
     return null;
   }
 
@@ -2160,6 +2371,7 @@
     var lab = buildFieldLabel(f.label, path, null);
     lab.id = labelId;
     wrap.appendChild(lab);
+    appendDoes(wrap, path);
 
     var list = valueOf(path);
     var flags = (VC.chipFlags(fieldsGet, session !== null && session.kind === 'fields' ? session.edits : {})[path]) || [];
@@ -2292,7 +2504,7 @@
     if (path === 'publish.exclude_sections') {
       var hint = el('p');
       hint.className = 'a1-hint';
-      setText(hint, "These combine with vault.config.json's list: a heading named in either stays hidden.");
+      setText(hint, VC.sectionsHint(moved()));
       wrap.appendChild(hint);
     }
 
@@ -2334,10 +2546,12 @@
     var shown = current === null || current === undefined ? '' : String(current);
     if (!editing) {
       wrap.appendChild(buildFieldLabel(f.label, path, null));
+      appendDoes(wrap, path);
       wrap.appendChild(valText(shown === '' ? 'Not set' : shown, f.kind === 'int' ? 'narrow' : ''));
       return wrap;
     }
     wrap.appendChild(buildFieldLabel(f.label, path, id));
+    appendDoes(wrap, path);
     var input = el('input');
     input.id = id;
     input.type = 'text';
@@ -2394,7 +2608,11 @@
         ? buildTierHeader('shield', 'Controls privacy', 'What never reaches players. ', 'Removing an entry here publishes it.')
         : buildTierHeader('shield', 'Controls privacy', 'The riskiest part of the file.'),
     );
-    priv.appendChild(buildDisplayField('Publish mode', 'publish.mode', buildModeValue()));
+    // On vault-config.yaml the server lists the publish mode only when the file sets it.
+    var hasMode = !moved() || ((fieldsGet && fieldsGet.display) || []).some(function (d) {
+      return d.key === 'publish.mode';
+    });
+    if (hasMode) priv.appendChild(buildDisplayField('Publish mode', 'publish.mode', buildModeValue()));
     priv.appendChild(buildChipField('publish.exclude_fields', editing, null));
     priv.appendChild(buildChipField('publish.exclude_sections', editing, null));
     priv.appendChild(buildChipField('publish.exclude_dirs', editing, null));
@@ -2426,9 +2644,17 @@
     var p = el('p');
     p.className = 'a1-fine';
     var unknown = (fieldsGet && fieldsGet.unknown) || [];
-    p.appendChild(
-      document.createTextNode('Also in this file: ' + (unknown.length ? unknown.join(', ') + ' and ' : '') + 'your notes below the frontmatter. '),
-    );
+    if (moved()) {
+      // The yaml has no notes below it, and its format version is no setting a GM changes.
+      var others = unknown.filter(function (k) {
+        return k !== 'version';
+      });
+      if (others.length) p.appendChild(document.createTextNode('Also in this file: ' + others.join(', ') + '. '));
+    } else {
+      p.appendChild(
+        document.createTextNode('Also in this file: ' + (unknown.length ? unknown.join(', ') + ' and ' : '') + 'your notes below the frontmatter. '),
+      );
+    }
     var link = el('button');
     link.type = 'button';
     link.className = 'a1-link';
@@ -2562,7 +2788,7 @@
     dbody.className = 'vc-dbody';
     var h2 = el('h2');
     h2.id = 'vc3-t';
-    setText(h2, 'Editing vault-config.md can break your site or publish your secrets');
+    setText(h2, 'Editing ' + fileName() + ' can break your site or publish your secrets');
     dbody.appendChild(h2);
     var lede = el('p');
     lede.id = 'vc3-d';
@@ -2623,7 +2849,7 @@
       closeAndCleanup();
       var ed = editorField();
       if (!fieldsGet || fieldsGet.sha256 !== ed.sha256) {
-        setFine('vault-config.md changed while the panel loaded it. Reload.');
+        setFine(fileName() + ' changed while the panel loaded it. Reload.');
         fieldsGet = null;
         render();
         return;
@@ -2811,7 +3037,6 @@
     updateFieldsPending();
   }
 
-
   function render() {
     clear(mountEl);
     if (!ensureSessionKind()) return;
@@ -2855,12 +3080,12 @@
     });
     unlockBtn.addEventListener('click', function () {
       var ed = editorField();
-      var knownSha = store.baseSha('vault-config.md');
+      var knownSha = store.baseSha(fileName());
       closeAndCleanup();
       if (knownSha !== null && ed.sha256 !== knownSha) {
         // Base drifted while the panel loaded it (e.g. another screen's own save): refuse to
         // open a stale session. session stays null, so the switch itself stays off.
-        setFine('vault-config.md changed while the panel loaded it. Reload.');
+        setFine(fileName() + ' changed while the panel loaded it. Reload.');
         render();
         return;
       }

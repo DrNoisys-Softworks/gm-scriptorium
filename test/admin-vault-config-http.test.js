@@ -379,6 +379,28 @@ test('400 body errors: malformed JSON, non-object, unknown field, tagline not a 
   });
 });
 
+test('400 file key: only "vault-config.md" (or no file key) is accepted, and nothing is written', async (t) => {
+  await withScratch(async ({ configPath, vaultPath }) => {
+    const c = await launchAuthed(t, configPath);
+    const state = json(await c.get('/api/state?include=vaultconfig'));
+    const goodSha = state.vaultConfigFile.sha256;
+    const mdPath = path.join(vaultPath, '_meta', 'vault-config.md');
+    const before = fs.readFileSync(mdPath);
+
+    for (const file of ['vault-config.yaml', '../vault-config.md', 42, null]) {
+      const res = await c.post('/api/vault-config/tagline', { body: JSON.stringify({ file, tagline: 'x', baseSha256: goodSha, dryRun: false }) });
+      assert.equal(res.status, 400, `${JSON.stringify(file)}: ${res.body.toString()}`);
+      assert.deepEqual(json(res), { error: 'invalid', message: 'file must be "vault-config.md"' });
+    }
+    assert.deepEqual(fs.readFileSync(mdPath), before);
+
+    const named = await c.post('/api/vault-config/tagline', { body: JSON.stringify({ file: 'vault-config.md', tagline: 'x', baseSha256: goodSha, dryRun: true }) });
+    assert.equal(named.status, 200, named.body.toString());
+
+    await c.shutdown();
+  });
+});
+
 // === Route siblings (404) =====================================================================
 
 test('/api/vault-config/taglinex and /api/vault-config return 404', async (t) => {

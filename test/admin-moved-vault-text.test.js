@@ -1,0 +1,142 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('path');
+
+const { NV } = require(path.join(__dirname, '..', 'assets', 'admin', 'nav.js'));
+const { PK } = require(path.join(__dirname, '..', 'assets', 'admin', 'pack.js'));
+
+/*
+ * The panel's words on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (ADR 0071):
+ * the Title & tagline and vault-config screens' nav text, and the Title & tagline layouts' summary of
+ * the other settings, must not send a GM to vault.config.json or vault-config.md for settings the site
+ * now reads from the yaml. The old layout's words are pinned here too, unchanged. All literals.
+ */
+
+const LEGACY_TITLE = {
+  label: 'Title & tagline',
+  short: 'Title & tagline',
+  eyebrow: 'vault.config.json · vault-config.md',
+  lede: 'The name and one-line tagline on your landing page. The name is saved in vault.config.json and the tagline in vault-config.md. The rest of both files is read-only here.',
+};
+const LEGACY_VC = {
+  label: 'vault-config.md',
+  short: 'vault-config.md',
+  eyebrow: '_meta/vault-config.md',
+  lede: "Your vault's own settings note. gm-apprentice and GM-Scriptorium both read it: it sets the publish mode, what stays private, the site's look and the landing page.",
+};
+const MOVED_TITLE = {
+  label: 'Title & tagline',
+  short: 'Title & tagline',
+  eyebrow: '_meta/vault-config.yaml',
+  lede: 'The name and one-line tagline on your landing page. This vault keeps both in _meta/vault-config.yaml.',
+};
+const MOVED_VC = {
+  label: 'vault-config.yaml',
+  short: 'vault-config.yaml',
+  eyebrow: '_meta/vault-config.yaml',
+  lede: "Your vault's own settings file, _meta/vault-config.yaml. gm-apprentice and GM-Scriptorium both read it.",
+};
+
+const pick = (item) => ({ label: item.label, short: item.short, eyebrow: item.eyebrow, lede: item.lede });
+
+test('nav text on the old layout is unchanged', () => {
+  for (const layout of ['legacy', 'none', null, undefined]) {
+    assert.deepEqual(pick(NV.itemFor('title', layout)), LEGACY_TITLE, String(layout));
+    assert.deepEqual(pick(NV.itemFor('vault-config', layout)), LEGACY_VC, String(layout));
+  }
+  assert.deepEqual(pick(NV.item('title')), LEGACY_TITLE);
+  assert.deepEqual(pick(NV.item('vault-config')), LEGACY_VC);
+});
+
+test('nav text on a moved vault names _meta/vault-config.yaml and never the old files', () => {
+  assert.deepEqual(pick(NV.itemFor('title', 'new')), MOVED_TITLE);
+  assert.deepEqual(pick(NV.itemFor('vault-config', 'new')), MOVED_VC);
+  // Every other screen is the same on both layouts, and the moved items keep their id, icon and group.
+  for (const id of NV.ids()) {
+    if (id === 'title' || id === 'vault-config') continue;
+    assert.deepEqual(NV.itemFor(id, 'new'), NV.item(id), id);
+  }
+  for (const id of ['title', 'vault-config']) {
+    const moved = NV.itemFor(id, 'new');
+    assert.equal(moved.id, id);
+    assert.equal(moved.icon, NV.item(id).icon);
+    assert.equal(moved.group, NV.item(id).group);
+  }
+});
+
+test('the layouts\' summary on a moved vault points at the vault-config.yaml screen, where those settings are edited', () => {
+  assert.deepEqual(PK.MOVED_SUMMARY, {
+    rows: [
+      {
+        id: 'moved',
+        icon: 'file',
+        name: 'Site settings',
+        text: "The site's address, the folders that become sections, what's kept off the site and the art folder.",
+        where: 'Set in _meta/vault-config.yaml. Change them on the vault-config.yaml screen.',
+      },
+    ],
+    toggle: 'Other site settings',
+    toggleSmall: 'Set in _meta/vault-config.yaml, changed on the vault-config.yaml screen',
+    fine: 'These are set in _meta/vault-config.yaml, not in the campaign pack. Change them on the vault-config.yaml screen.',
+    also: 'Also set for your site',
+    alsoSmall: 'changed on the vault-config.yaml screen',
+    pill: 'read-only',
+  });
+});
+
+test('when the settings cannot be saved, the moved summary does not tell the GM to change them, and claims no cause it cannot know', () => {
+  assert.deepEqual(PK.movedSummary(true), {
+    rows: [
+      {
+        id: 'moved',
+        icon: 'file',
+        name: 'Site settings',
+        text: "The site's address, the folders that become sections, what's kept off the site and the art folder.",
+        where: 'Set in _meta/vault-config.yaml. They cannot be changed here right now.',
+      },
+    ],
+    toggle: 'Other site settings',
+    toggleSmall: 'Set in _meta/vault-config.yaml, not changeable right now',
+    fine: 'These are set in _meta/vault-config.yaml, not in the campaign pack. They cannot be changed here right now.',
+    also: 'Also set for your site',
+    alsoSmall: 'not changeable right now',
+    pill: 'read-only',
+  });
+  assert.equal(PK.movedSummary(false), PK.MOVED_SUMMARY);
+  // The reason is the view's own words: the campaign's read-only reason, or the settings view's (no machine folder, a link).
+  assert.equal(
+    PK.movedSummary(true, 'This campaign is read-only.').fine,
+    'These are set in _meta/vault-config.yaml, not in the campaign pack. They cannot be changed here right now. This campaign is read-only.',
+  );
+  assert.equal(
+    PK.movedSummary(true, 'vault-config.yaml is a link, so the panel will not change it.').fine,
+    'These are set in _meta/vault-config.yaml, not in the campaign pack. They cannot be changed here right now. vault-config.yaml is a link, so the panel will not change it.',
+  );
+  const wording = PK.movedSummary(true, 'x');
+  for (const line of [wording.rows[0].where, wording.toggleSmall, wording.fine, wording.alsoSmall]) {
+    assert.ok(!line.includes('read-only'), `no line claims the campaign is read-only unless the reason does: ${line}`);
+    assert.ok(!line.includes('Change them on'), line);
+  }
+});
+
+test('the layouts\' summary on the old layout is unchanged', () => {
+  const raw = JSON.stringify({ siteUrl: 'https://example.org/x', host: 'github-pages', folderMap: { Notes: 'notes' }, excludeDirs: ['_meta'], excludeSections: ['GM Notes'], attachmentsDir: '_att' });
+  assert.deepEqual(
+    PK.summaryRows(raw).map((r) => r.where),
+    [
+      'Change it in vault.config.json by hand.',
+      'Set up by gm-scriptorium init. Change it in vault.config.json by hand.',
+      'Change it in vault.config.json by hand. The vault-config.md screen shows the lists that add to it.',
+      'Set up by gm-scriptorium init. Change it in vault.config.json by hand.',
+    ],
+  );
+});
+
+test('the Theme screen\'s palette note names the file the palette is read from', () => {
+  const mismatch = { paletteScheme: 'light', background: '#fbf6ea', theme: 'noir', themeScheme: 'dark' };
+  assert.equal(PK.mismatchText(mismatch, 'legacy'), "Your vault's palette is light (#fbf6ea in vault-config.md) and noir is dark.");
+  assert.equal(PK.mismatchText(mismatch, undefined), "Your vault's palette is light (#fbf6ea in vault-config.md) and noir is dark.");
+  assert.equal(PK.mismatchText(mismatch, 'new'), "Your vault's palette is light (#fbf6ea in _meta/vault-config.yaml) and noir is dark.");
+});

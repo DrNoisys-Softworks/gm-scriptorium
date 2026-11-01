@@ -290,3 +290,198 @@ test('admin.css: a non-bad effect in the review slip gets the faint slip wash, n
   const css = readAsset('admin.css');
   assert.match(css, /\.a1-slip \.vc-eff li:not\(\.bad\) \{[^}]*background: var\(--slip-gap-bg\);/);
 });
+
+// -- A vault whose settings live in _meta/vault-config.yaml ------------------------------------
+
+const vaultsettingsplan = require('../src/admin/vaultsettingsplan');
+const { ST } = require(path.join(__dirname, '..', 'assets', 'admin', 'store.js'));
+const { SL } = require(path.join(__dirname, '..', 'assets', 'admin', 'slip.js'));
+
+const YAML_NAMES = [
+  'player_site.hide.fields',
+  'player_site.hide.sections',
+  'player_site.hide.folders',
+  'player_site.landing.featured_npcs',
+  'player_site.landing.quick_links',
+  'player_site.landing.max_npcs',
+  'player_site.not_found',
+];
+
+test('VC.FIELDS names each field as vault-config.yaml does, pinned to a literal', () => {
+  assert.deepEqual(
+    VC.FIELDS.map((f) => f.yamlPath),
+    YAML_NAMES,
+  );
+});
+
+test('VC.FIELDS yamlPath mirrors the server YAML_FIELD_SCHEMA, in order, and keys back to the same old name', () => {
+  assert.deepEqual(
+    VC.FIELDS.map((f) => f.yamlPath),
+    vaultsettingsplan.YAML_FIELD_SCHEMA.map((f) => f.path),
+  );
+  assert.deepEqual(
+    VC.FIELDS.map((f) => f.path),
+    vaultsettingsplan.YAML_FIELD_SCHEMA.map((f) => f.key),
+  );
+});
+
+function yamlGet() {
+  return {
+    fields: [
+      { path: 'player_site.hide.fields', key: 'publish.exclude_fields', kind: 'list', value: ['secrets'] },
+      { path: 'player_site.hide.sections', key: 'publish.exclude_sections', kind: 'list', value: null },
+      { path: 'player_site.hide.folders', key: 'publish.exclude_dirs', kind: 'list', value: ['_meta', '_Templates'] },
+      { path: 'player_site.landing.featured_npcs', key: 'publish.landing.featured_npcs', kind: 'list', value: null },
+      { path: 'player_site.landing.quick_links', key: 'publish.landing.quick_links', kind: 'list', value: null },
+      { path: 'player_site.landing.max_npcs', key: 'publish.landing.max_npcs', kind: 'int', value: 8 },
+      { path: 'player_site.not_found', key: 'publish.four_oh_four.message', kind: 'string', value: 'Cut' },
+    ],
+    usage: {},
+    missingDefaults: { exclude_fields: [], exclude_sections: [] },
+  };
+}
+
+test('currentValue reads a vault-config.yaml row by its old name (key), the name rows and drafts are keyed by', () => {
+  const get = yamlGet();
+  assert.deepEqual(VC.currentValue(get, {}, 'publish.exclude_dirs'), ['_meta', '_Templates']);
+  assert.equal(VC.currentValue(get, {}, 'publish.landing.max_npcs'), 8);
+  assert.deepEqual(VC.currentValue(get, {}, 'publish.exclude_sections'), []);
+  assert.equal(VC.fieldChangeCount(get, { 'publish.exclude_dirs': ['_meta', '_Templates', 'Secret'] }), 1);
+  assert.equal(VC.fieldChangeCount(get, { 'publish.landing.max_npcs': 8 }), 0);
+});
+
+test('fieldRows names the vault-config.yaml setting when asked for the yaml', () => {
+  const get = yamlGet();
+  const edits = { 'publish.exclude_dirs': ['_meta', '_Templates', 'Secret'], 'publish.landing.max_npcs': 9 };
+  assert.deepEqual(VC.fieldRows(get, edits, true), [
+    { where: 'Hidden folders', key: 'player_site.hide.folders', now: '_meta, _Templates', after: '_meta, _Templates, Secret' },
+    { where: 'How many characters to show', key: 'player_site.landing.max_npcs', now: '8', after: '9' },
+  ]);
+});
+
+test('codeSpans: backtick spans become code pieces, the rest stays text, an unclosed backtick is text', () => {
+  assert.deepEqual(VC.codeSpans('`_meta`, `_Templates`'), [
+    { code: true, s: '_meta' },
+    { code: false, s: ', ' },
+    { code: true, s: '_Templates' },
+  ]);
+  assert.deepEqual(VC.codeSpans('How many; `0` shows none'), [
+    { code: false, s: 'How many; ' },
+    { code: true, s: '0' },
+    { code: false, s: ' shows none' },
+  ]);
+  assert.deepEqual(VC.codeSpans('Vault folders never published'), [{ code: false, s: 'Vault folders never published' }]);
+  assert.deepEqual(VC.codeSpans('a `b'), [{ code: false, s: 'a `b' }]);
+  assert.deepEqual(VC.codeSpans('<b>x</b>'), [{ code: false, s: '<b>x</b>' }]);
+});
+
+test('fileMap on vault-config.yaml: lines count from 1, the player_site groups are named, and there is no Notes entry', () => {
+  const text = [
+    'version: 1',
+    'vault:',
+    '  campaign: X',
+    'player_site:',
+    '  title: T',
+    '  hide:',
+    '    folders: ["_meta"]',
+    '  theme:',
+    '    tagline: "x"',
+    '  landing:',
+    '    max_npcs: 8',
+    '  not_found: "Gone"',
+    '  lists:',
+    '    banners: {}',
+    '  host: github-pages',
+  ].join('\n');
+  assert.deepEqual(VC.fileMap(text, true), [
+    { label: 'Campaign', hint: 'what it is, the system, the year', line: 2 },
+    { label: 'title', hint: 'other player-site settings', line: 5 },
+    { label: 'Publishing and privacy', hint: 'player mode and the hidden lists', line: 6 },
+    { label: 'Look', hint: 'tagline, colours, fonts, cover art', line: 8 },
+    { label: 'Landing page', hint: 'featured characters, quick links, blurbs', line: 10 },
+    { label: 'Not-found page', hint: 'the 404 message', line: 12 },
+    { label: 'Banners', hint: 'the section banners', line: 13 },
+  ]);
+});
+
+test('ST.fileShas carries vault-config.yaml from the settings view on a moved vault, and nothing for it otherwise', () => {
+  const sha = 'd'.repeat(64);
+  const base = { packToml: { exists: true, sha256: 'a'.repeat(64) }, vaultConfigJson: { exists: true, sha256: 'b'.repeat(64) } };
+  assert.equal(ST.fileShas({ ...base, settingsLayout: 'new', vaultSettings: { sha256: sha } })['vault-config.yaml'], sha);
+  assert.equal(ST.fileShas({ ...base, settingsLayout: 'new', vaultSettings: { sha256: null } })['vault-config.yaml'], null);
+  assert.deepEqual(Object.keys(ST.fileShas({ ...base, settingsLayout: 'legacy', vaultSettings: null })), ['pack.toml', 'vault.config.json']);
+});
+
+test('ST.applySaveResult accepts vault-config.yaml by exact equality only', () => {
+  const sha = 'e'.repeat(64);
+  assert.equal(ST.applySaveResult({}, { ok: true, file: 'vault-config.yaml', sha256: sha })['vault-config.yaml'], sha);
+  for (const bad of ['_meta/vault-config.yaml', 'vault-config.yml', 'vault-config.yamlx']) {
+    assert.deepEqual(ST.applySaveResult({}, { ok: true, file: bad, sha256: sha }), {}, bad);
+  }
+});
+
+test('SL.buildSlip for the title and tagline of a moved vault: one file, both rows, the backup line', () => {
+  const slip = SL.buildSlip({
+    kind: 'vault-settings',
+    payload: { title: 'The Short Lease', tagline: 'A new line.' },
+    state: { vaultSettings: { title: 'The Long Lease', tagline: 'Old line.' } },
+    dry: { file: 'vault-config.yaml', before: 'a\n', after: 'b\n', backupDir: '/b/campaign-lease', warnings: [] },
+  });
+  assert.equal(slip.title, 'Save title and tagline');
+  assert.equal(slip.filePath, '_meta/vault-config.yaml');
+  assert.equal(slip.saveLabel, 'Back up and save vault-config.yaml');
+  assert.deepEqual(
+    slip.rows.map((r) => [r.where, r.key, r.now, r.after]),
+    [
+      ['vault-config.yaml', 'player_site.title', 'The Long Lease', 'The Short Lease'],
+      ['vault-config.yaml', 'player_site.theme.tagline', 'Old line.', 'A new line.'],
+    ],
+  );
+  assert.deepEqual(slip.effects.map((e) => e.text), ['vault-config.yaml is backed up first, to /b/campaign-lease.']);
+
+  const titleOnly = SL.buildSlip({
+    kind: 'vault-settings',
+    payload: { title: 'X' },
+    state: { vaultSettings: { title: null, tagline: 'Old line.' } },
+    dry: { file: 'vault-config.yaml', before: 'a\n', after: 'b\n', backupDir: '/b', warnings: [], campaignId: { before: 'the-long-lease', after: 'x' } },
+  });
+  assert.deepEqual(titleOnly.rows.map((r) => [r.key, r.now, r.after]), [['player_site.title', '', 'X']]);
+  assert.deepEqual(titleOnly.effects.map((e) => e.id), ['backup', 'campaign-id']);
+  assert.match(titleOnly.effects[1].text, /_meta\/vault-config\.yaml/);
+});
+
+const { PK } = require(path.join(__dirname, '..', 'assets', 'admin', 'pack.js'));
+
+test('sectionsHint: the old layout keeps its combine line; a moved vault says only its own list is read', () => {
+  assert.equal(VC.sectionsHint(false), "These combine with vault.config.json's list: a heading named in either stays hidden.");
+  assert.equal(VC.sectionsHint(true), "On this vault the site reads only this list. vault.config.json's list is no longer used.");
+});
+
+test('gutterMark: vault-config.yaml numbers its first line 1; vault-config.md numbers its first content line 2; the bad line is marked by that number', () => {
+  assert.deepEqual(VC.gutterMark(0, true, null), { n: 1, bad: false });
+  assert.deepEqual(VC.gutterMark(2, true, 3), { n: 3, bad: true });
+  assert.deepEqual(VC.gutterMark(3, true, 3), { n: 4, bad: false });
+  assert.deepEqual(VC.gutterMark(0, false, null), { n: 2, bad: false });
+  assert.deepEqual(VC.gutterMark(1, false, 3), { n: 3, bad: true });
+  assert.deepEqual(VC.gutterMark(2, false, 3), { n: 4, bad: false });
+});
+
+test('movedTitleHint: the hint keys on the same editability as the inputs', () => {
+  const vs = { editable: true, titleNote: "Saved in the vault's settings file, _meta/vault-config.yaml.", reason: null };
+  assert.deepEqual(PK.movedTitleHint(vs, { writable: true, readOnlyReason: null }), {
+    editable: true,
+    text: "Saved in the vault's settings file, _meta/vault-config.yaml.",
+  });
+  assert.deepEqual(PK.movedTitleHint(vs, { writable: false, readOnlyReason: 'This campaign is read-only.' }), {
+    editable: false,
+    text: 'This campaign is read-only.',
+  });
+  assert.deepEqual(
+    PK.movedTitleHint({ editable: false, titleNote: 'note', reason: 'No machine folder.' }, { writable: true, readOnlyReason: null }),
+    { editable: false, text: 'No machine folder.' },
+  );
+  assert.deepEqual(PK.movedTitleHint({ editable: false, titleNote: 'note', reason: null }, { writable: true, readOnlyReason: null }), {
+    editable: false,
+    text: 'note',
+  });
+});

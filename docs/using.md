@@ -92,7 +92,7 @@ stop it cleanly, but ending the process from Task Manager cannot be caught.
 ```
 gm-scriptorium serve my-campaign --admin
 ```
-Opens the local GM admin panel instead: a small web page, on this computer only unless you turn on remote access (next command), with a live preview of the player site inside it. From it you can change the theme, images, vocabulary, title and tagline, run the checks and edit `_meta/vault-config.md`; see [Change how your site looks and the words it uses](how-to/change-the-look-and-vocabulary.md). *Since 0.5.0.* It can also switch campaigns.
+Opens the local GM admin panel instead: a small web page, on this computer only unless you turn on remote access (next command), with a live preview of the player site inside it. From it you can change the theme, images, vocabulary, title and tagline, run the checks and edit `_meta/vault-config.md`; see [Change how your site looks and the words it uses](how-to/change-the-look-and-vocabulary.md). *Since 0.5.0.* It can also switch campaigns. *Since 0.6.0.* On a vault whose settings gm-apprentice moved to `_meta/vault-config.yaml`, it edits that file instead.
 
 *Since 0.5.0.* If no campaign is registered yet, `gm-scriptorium serve --admin` starts browser setup instead of stopping with an error. It asks the same questions as `init`; the steps are in [Start a new campaign](how-to/start-a-new-campaign.md).
 

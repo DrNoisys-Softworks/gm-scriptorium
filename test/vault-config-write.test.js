@@ -448,6 +448,29 @@ test('EBUSY where the sha changes mid-retry: VaultConfigChangedError, rename nev
   });
 });
 
+test('a vault-config.yaml that appears during the backup stops the md save: VaultConfigChangedError, md unchanged, no temp left', () => {
+  withScratchDir((root) => {
+    const { vaultPath, metaDir, target } = makeVault(root);
+    const before = fs.readFileSync(target);
+    assert.throws(
+      () =>
+        replaceVaultConfigMd(vaultPath, Buffer.from('x'), {
+          expectedSha256: shaOf(target),
+          backup: () => {
+            fs.writeFileSync(path.join(metaDir, 'vault-config.yaml'), 'version: 1\n');
+            return {};
+          },
+        }),
+      (err) =>
+        err instanceof VaultConfigChangedError &&
+        err.message ===
+          "This vault's settings moved to _meta/vault-config.yaml while saving. vault-config.md was left unchanged. Reload to edit them there.",
+    );
+    assert.deepEqual(fs.readFileSync(target), before);
+    assert.deepEqual(listMetaDir(metaDir), ['vault-config.md', 'vault-config.yaml']);
+  });
+});
+
 // --- Structural scan ---------------------------------------------------------
 
 test('structural: one wx openSync, one each of writeSync/fsyncSync/renameSync/unlinkSync, no forbidden tokens', () => {

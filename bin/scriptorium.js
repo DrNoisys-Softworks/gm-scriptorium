@@ -17,6 +17,7 @@ Commands:
   init     [--name <name>] [--vault <path>] [--out <path>] [--title <text>] [--theme <name>] [--yes]
            init --new-vault <path> --system <id|none> [--name <name>] [--title <text>] [--out <path>] [--theme <name>] [--yes]
   check    [campaign] [--graph] [--json] [--no-color]
+  carry    [campaign] [--yes]
   build    [campaign] [--no-check] [--force-check] [--force-out] [--out <path>] [--json]
   serve    [campaign] [--build] [--port N] [--host ADDR] | [campaign] --admin [--port N] [--preview-port N]
   remote   show | set [--mode local|ssh|tailscale|proxy] [--admin-url URL] [--preview-url URL] [--bind ADDR]
@@ -108,6 +109,10 @@ async function main() {
         const result = runCheckCommand(flags, rest[0]);
         console.log(flags.json ? JSON.stringify(result.envelope, null, 2) : result.human);
         return result.exitCode;
+      }
+      case 'carry': {
+        const { runCarryCommand } = require('../src/cli/carry');
+        return (await runCarryCommand(flags, rest)).exitCode;
       }
       case 'build': {
         const { runBuildCommand } = require('../src/cli/build');

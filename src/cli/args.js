@@ -34,6 +34,7 @@ const COMMON_FLAGS = ['help', 'version', 'notices', 'config', 'json', 'quiet', '
 const COMMAND_FLAGS = Object.freeze({
   init: [...COMMON_FLAGS, 'name', 'title', 'theme', 'yes', 'new-vault', 'system'],
   check: [...COMMON_FLAGS, 'graph'],
+  carry: [...COMMON_FLAGS, 'yes'],
   build: [...COMMON_FLAGS, 'force-out', 'force-check', 'no-check'],
   serve: [...COMMON_FLAGS, 'build', 'port', 'host', 'admin', 'preview-port'],
   status: [...COMMON_FLAGS],

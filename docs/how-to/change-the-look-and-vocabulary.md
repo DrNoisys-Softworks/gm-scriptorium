@@ -46,6 +46,14 @@ saved only when you confirm.
    The panel keeps a copy of `_meta/vault-config.md` outside the vault before every save. Where each
    key lives is on [the vault's publish settings](../reference/vault-config.md).
 
+   *Since 0.6.0.* If gm-apprentice has moved your vault's settings to `_meta/vault-config.yaml`, the title and
+   tagline are saved in that file instead, in one save when you change both. The panel keeps a copy
+   of `_meta/vault-config.yaml` outside the vault before every save. If your
+   campaign pack still holds settings the site no longer reads, such as the old title or hide
+   lists, the screen lists them. Press **Carry these settings** to move them into
+   `_meta/vault-config.yaml`. The panel keeps a copy of both files outside the vault first, then
+   shows what moved. The `carry` command does the same from the command line.
+
 ![The Title and tagline screen, with the site title and tagline fields.](../images/how-to/title-and-tagline.png)
 
 ### Vocabulary

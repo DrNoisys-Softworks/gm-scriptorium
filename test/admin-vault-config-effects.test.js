@@ -569,3 +569,94 @@ test('getPath follows own properties only, and returns undefined for an absent o
   assert.equal(vaultconfigfields.getPath({ publish: { mode: 'full' } }, ['publish', 'missing']), undefined);
   assert.equal(vaultconfigfields.getPath({}, ['constructor']), undefined);
 });
+
+// -- the publish-set comparison: pages that would newly publish, and folder-map lines -------------
+
+test('published-more: 12 newly published pages give one bad privacy effect, the first 10 named', () => {
+  const rels = ['A/01.md', 'A/02.md', 'A/03.md', 'A/04.md', 'A/05.md', 'A/06.md', 'A/07.md', 'A/08.md', 'A/09.md', 'A/10.md', 'A/11.md', 'A/12.md'];
+  const publishDiff = { newlyPublished: rels.map((rel) => ({ rel, title: rel })), foldersAdded: [], foldersRemoved: [] };
+  const effects = computeEffects({ cur: {}, cand: {}, curPublish: basePublish(), candPublish: basePublish(), jsonConfig: null, publishSet: null, fixable: NO_FIX, publishDiff });
+  assert.deepEqual(effects, [
+    {
+      id: 'published-more',
+      group: 'privacy',
+      level: 'bad',
+      path: null,
+      title: '12 pages would be published that are not today',
+      detail: 'A/01.md, A/02.md, A/03.md, A/04.md, A/05.md, A/06.md, A/07.md, A/08.md, A/09.md, A/10.md, and 2 more',
+      fix: null,
+    },
+  ]);
+});
+
+test('published-more: one page uses the singular title and has no overflow note', () => {
+  const publishDiff = { newlyPublished: [{ rel: 'Secret/Plot.md', title: 'Plot' }], foldersAdded: [], foldersRemoved: [] };
+  const effects = computeEffects({ cur: {}, cand: {}, curPublish: basePublish(), candPublish: basePublish(), jsonConfig: null, publishSet: null, fixable: NO_FIX, publishDiff });
+  assert.equal(effects.length, 1);
+  assert.equal(effects[0].title, '1 page would be published that is not today');
+  assert.equal(effects[0].detail, 'Secret/Plot.md');
+});
+
+test('folder-map-added and folder-map-removed name the folder, with the path through nameOf', () => {
+  const publishDiff = { newlyPublished: [], foldersAdded: [{ folder: 'Lore', output: 'lore' }], foldersRemoved: [{ folder: 'Old', output: 'old' }] };
+  const cur = { publish: { folder_map: { Old: 'old' } } };
+  const cand = { publish: { folder_map: { Lore: 'lore' } } };
+  const nameOf = (p) => (p === 'publish.folder_map' ? 'player_site.folder_map' : p);
+  const effects = computeEffects({ cur, cand, curPublish: basePublish(), candPublish: basePublish(), jsonConfig: null, publishSet: null, fixable: NO_FIX, publishDiff, nameOf });
+  assert.deepEqual(effects, [
+    { id: 'folder-map-added', group: 'privacy', level: 'info', path: 'player_site.folder_map', title: 'Publishes the folder Lore as /lore/', detail: '', fix: null },
+    { id: 'folder-map-removed', group: 'privacy', level: 'ok', path: 'player_site.folder_map', title: 'Stops publishing the folder Old', detail: '', fix: null },
+  ]);
+});
+
+test('overrides: unchanged raw overrides with changed effective overrides.fields is still bad', () => {
+  const cur = { publish: { overrides: { fields: {} } } };
+  const cand = { publish: { overrides: { fields: {} } } };
+  const curPub = basePublish({ overrides: { fields: {} } });
+  const candPub = basePublish({ overrides: { fields: { secrets: { include: ['People/A.md'] } } } });
+  const effects = computeEffects({ cur, cand, curPublish: curPub, candPublish: candPub, jsonConfig: null, publishSet: null, fixable: NO_FIX });
+  assert.deepEqual(effects, [
+    {
+      id: 'overrides',
+      group: 'privacy',
+      level: 'bad',
+      path: 'publish.overrides',
+      title: 'The per-page field overrides change',
+      detail: 'publish.overrides can show a hidden field on one page. Check the line-by-line change.',
+      fix: null,
+    },
+  ]);
+});
+
+test('nameOf renames every path and the other rule, which also lists extraChanged', () => {
+  const cur = { publish: { mode: 'player' }, system: 'A' };
+  const cand = { publish: { mode: 'full' }, system: 'B' };
+  const nameOf = (p) => ({ 'publish.mode': 'player_site.mode', system: 'game.system' })[p] || p;
+  const effects = computeEffects({
+    cur,
+    cand,
+    curPublish: basePublish({ mode: 'player' }),
+    candPublish: basePublish({ mode: 'full' }),
+    jsonConfig: null,
+    publishSet: null,
+    fixable: NO_FIX,
+    nameOf,
+    extraChanged: ['site.title'],
+  });
+  assert.deepEqual(
+    effects.map((e) => [e.id, e.path]),
+    [
+      ['mode', 'player_site.mode'],
+      ['other', null],
+    ],
+  );
+  assert.equal(effects[1].detail, "game.system, site.title. The panel doesn't read these; the line-by-line change shows them.");
+});
+
+test('a folder_map edit with no publishDiff adds no effect and is not listed as another setting', () => {
+  const cur = { publish: { folder_map: { People: 'people' } } };
+  const cand = { publish: { folder_map: { People: 'people', Secret: 'secret' } } };
+  const effects = computeEffects({ cur, cand, curPublish: basePublish(), candPublish: basePublish(), jsonConfig: null, publishSet: null, fixable: NO_FIX });
+  assert.deepEqual(effects, []);
+  assert.equal(summarizeChange(cur, cand), 'before a change to publishing and privacy');
+});

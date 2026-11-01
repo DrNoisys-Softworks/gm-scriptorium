@@ -1,7 +1,7 @@
 ---
 type: meta
 publish:
-  mode: gm
+  mode: player
 ---
 
 # Vault config

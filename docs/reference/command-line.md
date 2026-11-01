@@ -49,8 +49,9 @@ Versions before 0.5.0 do not open the panel: with no settings file yet, the comm
 <!-- BEGIN GENERATED cli-commands: edit scripts/docs-reference-text.js, then run npm run docs-reference -->
 | Command | What it does | Exit codes |
 |---|---|---|
-| `init` | Registers a vault and sets up its publish settings. *Since 0.5.0.* It can also create a new vault first. It only adds files under `_meta/scriptorium/` and never touches the rest of the vault. | `0`, `1`, `3` |
+| `init` | Registers a vault and sets up its publish settings. *Since 0.5.0.* It can also create a new vault first. It only adds files under `_meta/scriptorium/` and never touches the rest of the vault. *Since 0.6.0.* The one exception is a vault whose settings gm-apprentice has moved to `_meta/vault-config.yaml`: there init also sets the site title, the folder map and the hide lists in that file, asks first, keeps a copy of the file outside the vault, and changes nothing else: hide lists only gain entries, and a title or folder map the file already sets is kept. | `0`, `1`, `3` |
 | `check` | Reads the vault and reports anything that would leak GM-only material or break the site. It changes nothing. | `0`, `1`, `2`, `3` |
+| `carry` | *Since 0.6.0.* For a vault whose settings gm-apprentice has moved to `_meta/vault-config.yaml`: moves the settings your pack still holds into that file. It shows what it will move, asks first, and keeps a copy of both files outside the vault. The hide lists, the site title, the folder map and the site folder's settings (such as `host`) move. A title or folder map the vault already sets is kept as it is, and the output says so. Anything else, such as `footer`, `searchEnabled` or a changed `attachmentsDir`, stays in the pack and is named, for you to set in the vault's settings. `check` tells you when to run it. | `0`, `1`, `3` |
 | `build` | Checks the vault, then writes the player-facing website to the output folder. If the check finds errors it refuses and writes nothing. | `0`, `1`, `2`, `3` |
 | `serve` | Serves the built site on this computer so you can look at it, or with `--admin` opens the admin panel. | `0`, `1`, `3` |
 | `status` | Shows where a campaign stands: whether the vault is reachable, when the site was last built, the last and next session, file counts and the latest check result. It changes nothing. | `0`, `1`, `3` |
@@ -99,10 +100,11 @@ path for good, use `config add` or `config edit`. The settings are on
 | `init --yes` | no | Asks no questions and uses the flags you gave. |
 | `init --new-vault` | yes | *Since 0.5.0.* Creates a new vault in this folder first, which must not exist yet or must be empty. Nothing is overwritten or removed. Use it with `--system`. It cannot be combined with `--vault`. |
 | `init --system` | yes | *Since 0.5.0.* The game system for the new vault, or `none` for no particular system. It is never guessed, and it only works with `--new-vault`. |
+| `carry --yes` | no | *Since 0.6.0.* Asks no question and carries what the plan shows. |
 | `check --graph` | no | Also runs the optional relationship graph checks. |
 | `build --force-out` | no | *Since 0.5.0.* Builds into the site config's own `outputDir`. |
-| `build --force-check` | no | *Since 0.5.0.* Builds even though the check found errors. The output-leak scan still refuses a leak. |
-| `build --no-check` | no | Skips the check step. |
+| `build --force-check` | no | *Since 0.5.0.* Builds even though the check found errors. The output-leak scan still refuses a leak. *Since 0.6.0.* On a vault whose settings moved to `_meta/vault-config.yaml`, it does not build past a hide-list entry or a folder map that only the campaign pack holds: the build exits 3 until they are carried. |
+| `build --no-check` | no | Skips the check step. *Since 0.6.0.* On a vault whose settings moved to `_meta/vault-config.yaml`, the build still refuses, with exit 3, while a hide-list entry or a folder map is only in the campaign pack. |
 | `serve --build` | no | Builds the site first. |
 | `serve --port` | yes | The port to listen on, 1 to 65535. Plain `serve` also accepts 0 for any free port, and uses the campaign's `serve_port` or 8080 when you give none. With `--admin`, leave it out and a free port is chosen for you. |
 | `serve --host` | yes | Listens on another address. This exposes the site beyond this computer. `serve --admin` refuses it. |

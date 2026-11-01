@@ -5,7 +5,7 @@ const respond = require('../respond');
 const body = require('../body');
 const packfiles = require('../packfiles');
 const packedit = require('../packedit');
-const { runExclusive } = require('../context');
+const { runExclusive, refreshSettingsLayout } = require('../context');
 const { replacePackFile, PackChangedError } = require('../../vault/packreplace');
 // Called through the module object (packwrite.createPackEntries), not destructured, so a test
 // can patch it to simulate the FR22 EEXIST race deterministically (the same reason
@@ -22,6 +22,8 @@ const { stripBom } = require('../../util/bom');
 // to.
 const pinned = require('../../generator/pinned');
 const freshness = require('../freshness');
+
+const { MOVED_SINCE_LOADED } = require('../settingsfile');
 
 /*
  * Phase 8 slice S3 (FR15-FR24, SD-5 through SD-10). The panel's only edit path: POST
@@ -267,6 +269,14 @@ async function runSave(req, res, ctx, endpoint) {
     return;
   }
 
+  // 2b. A setting the vault's own settings file now holds (ADR 0071): saving it to the pack would be
+  // ignored by the build, so it is refused as changed, dry run or not, and the pack is left as it is.
+  // The page was built against the pack; the title is saved to the yaml through its own route.
+  if (endpoint.movedRefusal && refreshSettingsLayout(ctx) === 'new') {
+    sendJson(res, 409, { error: 'changed', message: endpoint.movedRefusal });
+    return;
+  }
+
   // 3. Fields.
   let fields;
   try {
@@ -338,7 +348,7 @@ async function saveTheme(req, res, ctx) {
  * `backend.statusBar`/`backend.inbox` (never vault-config.md's `publish.backend`, and never a
  * deployed-backend detection -- a residual, recorded in ADR 0022) gates whether the dry-run body
  * gains a `campaignId` key at all; the id itself is computed only through the pinned facade
- * (`lib/build.js:953,1007`'s own `slugify(config.siteTitle || 'campaign')`), never re-implemented
+ * (`lib/build.js:1215,1007`'s own `slugify(config.siteTitle || 'campaign')`), never re-implemented
  * client-side, so it can never drift from what a real build actually names the campaign.
  * `raw`/`candidate` have already passed `productParse` by the time this runs (buildAndWrite step
  * 9 precedes step 10), so both are valid JSON here.
@@ -359,6 +369,7 @@ async function saveSettings(req, res, ctx) {
     allowedKeys: ['siteTitle', 'baseSha256', 'dryRun'],
     baseShaAllowsNull: false,
     requireAtLeastOneOf: ['siteTitle'],
+    movedRefusal: MOVED_SINCE_LOADED,
     validateFields: (parsed) => {
       const fields = {};
       if (Object.prototype.hasOwnProperty.call(parsed, 'siteTitle')) fields.siteTitle = validateTitle(parsed.siteTitle);

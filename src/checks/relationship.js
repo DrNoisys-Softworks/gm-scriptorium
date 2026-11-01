@@ -198,7 +198,7 @@ function runUnknownPredicate(ctx) {
 //
 // Will catch: every gm_only value that is not true or false on an array-form
 // edge of a typed note. The pinned generator hides an edge only for exactly
-// true or the string "true" (lib/processor.js:1085-1087), so yes, on, "True",
+// true or the string "true" (lib/processor.js:1430-1432), so yes, on, "True",
 // 1 or an empty value all publish it. The severity is decided by the pin
 // itself: pinned.publishedFrontmatter is run on the page with the same
 // exclude_fields and per-file overrides the build uses, and the edge is an

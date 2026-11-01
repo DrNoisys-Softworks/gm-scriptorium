@@ -16,7 +16,7 @@ const pinned = require('../../generator/pinned');
  * built from a frontmatter field (escapeHtml(leadership) inside
  * `<div class="intel-leadership">`, lib/templates/index-page.js:604,609-611),
  * a recency/landing excerpt (escapeHtml(fm.outcome) inside
- * `<div class="card-excerpt">` on an event card, lib/templates/landing.js:206,210),
+ * `<div class="card-excerpt">` on an event card, lib/templates/landing.js:225,210),
  * a copied attachment's own filename, or a lunr stem/possessive term in
  * search-index.json — is structurally invisible to L4 (source-side) and to
  * every other leak check. This module is the whole scanner: two arms
@@ -50,7 +50,7 @@ const BINARY_EXTENSIONS = new Set([
 // regex.replace call means an already-decoded "&amp;lt;" becomes "&lt;" (its
 // entity form left alone), never "<" — a second pass over the same string
 // would double-decode and could fabricate a match that was never really
-// there. escapeHtml only ever escapes `& < > "` (lib/processor.js:30-36), so
+// there. escapeHtml only ever escapes `& < > "` (lib/processor.js:32-38), so
 // `&#39;`/`&#x27;`/`&apos;` are covered defensively for any future escaper,
 // not because the pin's own escapeHtml emits them today.
 const ENTITY_RE = /&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);/g;
@@ -113,7 +113,7 @@ function normaliseEmitted(text) {
  *     with underscores read as spaces (`noPage.name.replace(/_/g, ' ')`,
  *     lib/connections.js:232; the relationship graph's fallback did the same
  *     until publish-v1.17.0), the same transform as humanizeName,
- *     lib/processor.js:36-38. Present only when the name contains `_`.
+ *     lib/processor.js:38-40. Present only when the name contains `_`.
  */
 function needleFormsFor(name) {
   const forms = [{ form: 'literal', needle: name }];

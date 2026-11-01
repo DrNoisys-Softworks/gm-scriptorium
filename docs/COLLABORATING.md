@@ -30,8 +30,8 @@ changed upstream.
 ### The pin and its verification
 
 - `vendor/gm-apprentice-publish/PIN.json` is the integrity anchor: repository, `tools/publish`
-  path, the 40-character commit SHA (`9def97ea6586009019b35d77ba480738a936c457`, tag
-  `publish-v1.21.0`, package version `1.21.0`), the vendored release tarball's filename and
+  path, the 40-character commit SHA (`228fa161932d9119408d28e11628e22dd9b2ed76`, tag
+  `publish-v1.26.0`, package version `1.26.0`), the vendored release tarball's filename and
   sha256, the vendored `SHA256SUMS` filename, a `crossCheck` record (method, npm version,
   `treeSha256` of a reproducible-build cross-check tree), every shipped file's sha256 keyed by
   package-relative POSIX path (584 files, bundled dependencies included), and one `treeSha256` over
@@ -71,10 +71,11 @@ unmodified (the stub-page guard on `keepOnlySections` is retired at publish-v1.1
 `stripCallouts`, `filterSections`, `keepOnlySections`, `publishedFrontmatter`, `publishMode`,
 `findHeadings`, `renderInline`, `resolveWikiLinks` (all from `lib/processor.js`; the last three are
 what `leak/l5-gm-heading-survives` reads headings with, `docs/decisions/0045-leak-checks-read-rendered-headings-and-data-islands.md`), `decidePage`, `publishesPage`, `ALWAYS_EXCLUDE_DIRS` (`lib/publish-decision.js`),
-`parseManifest` (`lib/manifest.js`), `PUBLISH_DEFAULTS`, `vaultRelPath`, `scanConfigFor`
-(`lib/config.js`), `slugify`, `mapFolder`, `dirIsExcluded` (`lib/scanner.js`), `pairHubs`
+`parseManifest` (`lib/manifest.js`), `vaultRelPath`, `scanConfigFor`
+(`lib/config.js`), `normalizeExcludeDir` and `readSwitch` (`lib/settings/`, from publish-v1.26.0),
+`slugify`, `mapFolder`, `dirIsExcluded` (`lib/scanner.js`), `pairHubs`
 (`lib/session-hub.js`), `isWrapUp`, `WRAP_UP_TYPES` (also `lib/session-hub.js`),
-`resolveGenrePreset` (`lib/theme.js`), `labelsForLinks` (`lib/wikilink.js`, from publish-v1.17.0;
+`labelsForLinks` (`lib/wikilink.js`, from publish-v1.17.0;
 `src/vault/publishset.js` prints a wikilink in a title by its label, as the scanner does),
 `linkText`, `wikilinkRe`, `parseWikilink` (also `lib/wikilink.js`) and `buildLinkMap` (`lib/scanner.js`, these four
 from publish-v1.21.0; the Connections lane resolves a relationship's target as the pin does, and `check` finds and
@@ -95,6 +96,76 @@ matching (which folds case, deliberately, the scanned filesystem may or may not 
 case-sensitive), and `src/vault/sessionpairs.js` (`docs/decisions/0036-session-wrap-up-support.md`)
 calls `pairHubs` directly, fed by a faithful port of the generator's own note walk, rather than
 re-implementing the hub/Wrap-Up pairing rule.
+
+From publish-v1.26.0 the pin no longer exports `PUBLISH_DEFAULTS` or `resolveGenrePreset`. The facade
+rebuilds `PUBLISH_DEFAULTS` from the settings registry (`lib/settings/registry.js`) by each key's old
+name, and `resolveGenrePreset` as its one line over the pin's `GENRE_ALIASES` (`lib/theme.js`), and it
+adds `DEFAULT_WITHHELD_WORDS` from the same registry. It also adds `readPublishSettings`, the pin's
+own `loadPublishConfig` with the settings file's text supplied by the caller, which
+`src/vault/publishset.js` now uses instead of its hand-ported config merge (ADR 0005's publish-v1.26.0
+addendum, "How `check` reads the hiding settings now"). The facade seeds the rules-content redactions
+when it loads, before its first pin require, because the pin's settings registry loads every
+character-sheet template.
+
+For a vault whose settings moved to `_meta/vault-config.yaml`
+([ADR 0071](decisions/0071-moved-vault-settings.md)), `readPublishSettings` takes the text of both
+settings files (`{ md, yaml }`), served to the pin for one synchronous call by `withServedSettings`,
+and the facade adds these exports:
+
+- `settingsLayoutOf` (`lib/settings` `layoutOf`): which layout a vault is on, `new`, `legacy` or `none`.
+- `resolveSiteConfig` (`lib/config.js` `resolveConfig`): the pack with each moved key overwritten, or
+  removed, by what the vault's settings resolve. `contextFromSite` in `src/cli/check.js` uses it.
+- `settingFaults` and `readSettingValues` (`lib/settings` `readSettings`): the reader's faults, and its
+  values and their origins by dotted name. `src/checks/carry.js` builds its findings from the
+  `old-name` faults with source `site`.
+- `settingEntry` (`lib/settings` `REGISTRY`): one setting's registry entry, so a rule that depends on
+  `was` or `read: false` reads it from the pin.
+- `stripMovedSettings`: a site config with every key the pin has moved taken out. The pin's own
+  `stripSiteKeys` (`lib/settings/move.js`) is not exported, so this rebuilds it from the registry's
+  `was` entries. Its `leaveFallback` option is the pin's own: it leaves the five site-folder keys
+  (`siteUrl`, `host`, `outputDir`, `cloudflarePagesProject`, `preserveDirs`) in place. The carry uses
+  it without the option, to say what the move takes out of the pack. `stageConfig`
+  (`src/build/stage.js`) uses it with the option on a moved vault, because the pin still reads those
+  keys from the site file while the yaml sets none (a pack `siteUrl` sets the address prefix of every
+  page, the 404 page included). A parity test compares each use with what `planMove` takes out.
+  On that layout `stageConfig` also leaves `outputDir` out of the staged file and hands the output
+  folder to the pin's `build()` as its `outputDirOverride` option instead, so the pin does not warn that
+  the staged file's `outputDir` "moves to `player_site.output`". That option is the pin's own, used by
+  its local preview; it also turns off the vault's build steps, which Scriptorium never runs.
+- `siteFolderKeys` (`lib/settings/registry.js`): the five site-folder keys with each one's built-in
+  value. `stageConfig` leaves out a key whose value is the built-in one, which the resolve fills in
+  when neither file sets it, so the pin does not warn that a key nobody wrote "moves to" the vault.
+- `planSettingsCarry` and `applySettingsCarry` (`lib/settings/move.js` `planMove` with `foldSiteFile`,
+  and `applyMove`): the carry. Every call passes its own `pinCheck`, so the move never starts a program.
+- `stricterCallouts` (`lib/settings/legacy.js`) and `headingKey` (`lib/heading-key.js`): how the carry
+  checks compare callout rules and section names, the same way the build does.
+
+For the panel's edits to a moved vault's `_meta/vault-config.yaml` (ADR 0033, addendum "The panel
+edits vault-config.yaml"), the facade adds these. None of them writes a file.
+
+- `planSettingsText` (`lib/settings/write.js` `planChanges`): the new text of the yaml after a list
+  of the pin's own change objects, planned on the bytes the panel read, which the facade serves to the
+  pin for that one call. It refuses, with a `SettingsPlanError`, bytes that are not valid UTF-8, a
+  change the pin refuses or cannot make, a file the pin cannot read, and a plan that names another
+  file or started from other bytes. `src/admin/vaultsettingsplan.js` calls it for the panel, and
+  `src/vault/settingscarry.js` calls it to set `player_site.title` and `player_site.folder_map`,
+  which the move drops (upstream AntTheLimey/gm-apprentice#539). `src/vault/vaultsettingswrite.js`
+  writes the result in both cases.
+- `parseSettingsText` (`lib/settings/write.js` `settingsText`): the settings a yaml text holds, with no
+  defaults filled in, or the line and message of why the pin cannot read it. A `version` newer than
+  the pin's `LAYOUT_VERSION` counts as unreadable.
+- `settingsNameMap` (`lib/settings` `REGISTRY` with `lib/settings/describe.js` `isLeaf`): every setting
+  a GM can name, and the old `vault-config.md` name of each, so the review says what an edit changes
+  in the same words on both layouts.
+- `settingFieldInfo` (`lib/settings/describe.js` `row` and `leftOutCell`): what a setting does and what
+  happens when it is left out, shown under each field. The text is Markdown with backticks.
+- `commandSettingNames` (`lib/settings` `REGISTRY`, the entries with `stepsFrom` and their `gm_site`
+  twins): the settings that hold commands to run, which the panel never changes.
+- `settingsCommentsInside`: whether a setting's text in the yaml holds a comment, found with the
+  pin's own copy of the `yaml` library (`gm-apprentice-publish/node_modules/yaml`). The panel refuses
+  to reorder or empty a list that has one. Scriptorium has no `yaml` dependency of its own.
+- `SettingsPlanError`: the refusal `planSettingsText` throws, with a `kind` of `not-utf8`,
+  `unreadable`, `refused`, `not-made` or `mismatch`.
 
 Any change to one of these exported functions' name, signature, or return shape is a break. A
 rename or removed export is the single most disruptive kind of upstream change from Scriptorium's
@@ -305,21 +376,32 @@ cleanly (patches nothing) if the anchor it looks for is not found, rather than g
   argument on a facade function is the quiet kind of break: nothing fails, the model just stops
   matching the build.
 - **`src/cli/check.js`'s shape check** (`assertScanKeysPresent`, described above) is the
-  Scriptorium-side gate on this contract.
-- **`src/vault/publishset.js`** is a **hand-ported re-implementation** of the generator's own
-  `lib/config.js` merge logic (`unionExcludeList`, the `PUBLISH_DEFAULTS` precedence chain) and its
-  `lib/scanner.js`/`lib/build.js` verdict loop, not a call into the generator. It exists because the
+  Scriptorium-side gate on this contract. It applies only to a vault on `_meta/vault-config.md`. On a
+  vault whose settings moved to `_meta/vault-config.yaml`, `folderMap` and `excludeDirs` belong in the
+  yaml, and `config/folder-map-not-carried` and `config/folder-map-missing` are the gate instead (ADR 0071,
+  section 3).
+- **`_meta/vault-config.yaml`** (from publish-v1.26.0, written by gm-apprentice's settings move): read
+  only through the pin's own reader, through the facade, with the text served from
+  `src/vault/read.js`. On such a vault the pin no longer reads the moved keys from `vault.config.json`,
+  so `src/checks/carry.js` reports each pack value the yaml lacks, and `gm-scriptorium carry` folds them
+  in with the pin's own move (ADR 0071). Scriptorium never moves a vault itself.
+- **`src/vault/publishset.js`** reads a vault's settings with the generator's own `loadPublishConfig`
+  (from publish-v1.26.0, through the facade's `readPublishSettings`, which hands it the settings file
+  read through `src/vault/read.js`). Up to publish-v1.21.0 it hand-ported that merge
+  (`unionExcludeList`, the `PUBLISH_DEFAULTS` precedence chain). The rest of the file is a
+  **hand-ported re-implementation** of the generator's `lib/scanner.js`/`lib/build.js` verdict loop,
+  not a call into the generator. It exists because the
   generator's own file-reading entry points (`loadPublishConfig`, `loadManifest`, `scanVaultReport`)
   bypass Scriptorium's read-only, abort-on-EIO chokepoint and write straight to stderr, which
   `check` cannot allow. Only the *pure* functions (`decidePage`, `publishesPage`, `slugify`,
   `mapFolder`, `dirIsExcluded`, `vaultRelPath`, `scanConfigFor`, `canonicalNfc`, `parseManifest`,
-  `normalizeExcludeDir`, `stricterCallouts`, `PUBLISH_DEFAULTS`) are required through the facade and
-  called directly. The last two were added after the port missed them: a folder written as
+  `normalizeExcludeDir`, `readSwitch`, `PUBLISH_DEFAULTS`) are required through the facade and
+  called directly. `normalizeExcludeDir` and `PUBLISH_DEFAULTS` were added after the port missed them: a folder written as
   `NPCs/` was left out of the build but still counted by `check`. Everything else in this
   file is logic someone re-typed
-  from `lib/config.js` by hand and has to be re-checked, not re-verified automatically, on every pin
+  from `lib/scanner.js` by hand and has to be re-checked, not re-verified automatically, on every pin
   move. **This is the single largest place a silent, undetected drift could happen**: an upstream
-  change to the merge precedence in `lib/config.js` that isn't one of the exported pure functions
+  change to the scan or the verdict loop that isn't one of the exported pure functions
   will not fail `npm run verify-generator` (the pin's bytes still match); it will only surface if
   someone reads the diff by hand, or if `scripts/equivalence-check.js` (below) is run against a real
   build and catches the mismatch in output.
@@ -528,9 +610,19 @@ easier to catch or avoid:
    (`scripts/vendor/gm-apprentice-publish-LICENSE-CODE.txt`) to produce a compliant notices file at
    all. A `LICENSE` file inside `tools/publish` (even a copy of the root one) would remove that
    separate vendoring step.
-6. **A renamed or removed export** from any of the modules the facade re-exports
+6. **The carry and the build lean on the pin's move internals.** `stripMovedSettings` rebuilds the pin's
+   private `stripSiteKeys` from the registry, a parity test compares it with the keys `planMove` removes
+   (with and without the site-folder keys left in place), and
+   `src/vault/settingscarry.js` rewrites the pin's plan lines so they name the pack instead of the
+   scratch copy. A change to `planMove`'s line wording, its `carried` and `dropped` lists, or which keys
+   it strips can quietly change what the carry says or keeps. The title and folder-map step (upstream
+   #539) must come out when a pin carries that fix, or it will write values the pin already wrote.
+   Exporting `stripSiteKeys` and loading the child-process module lazily (upstream #535) would remove
+   two of these.
+7. **A renamed or removed export** from any of the modules the facade re-exports
    (`lib/processor.js`, `lib/publish-decision.js`, `lib/manifest.js`, `lib/config.js`,
-   `lib/scanner.js`, `lib/theme.js`, `lib/unicode.js`, `lib/templates/base.js`, `lib/banners.js`, `lib/wikilink.js`) is the highest-blast-radius
+   `lib/scanner.js`, `lib/theme.js`, `lib/unicode.js`, `lib/templates/base.js`, `lib/banners.js`, `lib/wikilink.js`, and from
+   ADR 0071 `lib/settings/index.js`, `lib/settings/move.js`, `lib/settings/write.js`, `lib/settings/legacy.js` and `lib/heading-key.js`) is the highest-blast-radius
    single change, because every current and future Scriptorium consumer of that function goes
    through the one facade file.
 

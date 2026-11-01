@@ -66,6 +66,47 @@ function fold(s) {
   return platformFoldsCase() ? s.toLowerCase() : s;
 }
 
+/**
+ * The refusal for a vault whose settings gm-apprentice moved to _meta/vault-config.yaml: where the
+ * setting lives now, and that vault-config.md was left alone.
+ *
+ * @param {'tagline'|'settings'} what
+ */
+function movedRefusal(what) {
+  if (what === 'tagline') {
+    return 'This vault keeps its tagline in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit it there.';
+  }
+  return 'This vault keeps its settings in _meta/vault-config.yaml now, so vault-config.md was left unchanged. Reload to edit them there.';
+}
+
+/** Raised when the yaml appears between the first look and the rename (see replaceVaultConfigMd). */
+const MOVED_DURING_SAVE =
+  "This vault's settings moved to _meta/vault-config.yaml while saving. vault-config.md was left unchanged. Reload to edit them there.";
+
+/**
+ * Whether _meta/vault-config.yaml is there (issue #171). lstat, so a link or folder counts as
+ * present; ENOENT and ENOTDIR mean absent, and any other failure refuses closed.
+ *
+ * @param {string} metaPath the vault's _meta folder
+ * @param {string|null} campaign
+ * @returns {boolean}
+ * @throws {ScriptoriumError} the look failed for a reason other than absence
+ */
+function yamlPresent(metaPath, campaign = null) {
+  const yamlPath = path.join(metaPath, 'vault-config.yaml');
+  try {
+    fs.lstatSync(yamlPath);
+    return true;
+  } catch (err) {
+    if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return false;
+    throw new ScriptoriumError(`could not read ${yamlPath}: ${err.code}. vault-config.md was left unchanged.`, {
+      path: yamlPath,
+      campaign,
+      cause: err,
+    });
+  }
+}
+
 /** The fixed target: no request ever supplies a name (FR-01). */
 function targetPathFor(vaultPath) {
   return path.join(vaultPath, '_meta', 'vault-config.md');
@@ -76,14 +117,15 @@ function targetPathFor(vaultPath) {
  * shape never read through a bad target either.
  *
  * @param {string} vaultPath
- * @param {{ campaign?: string|null }} [opts]
+ * @param {{ campaign?: string|null, what?: 'tagline'|'settings' }} [opts] `what` names, in the refusal
+ *   for a vault whose settings moved, what the caller was going to edit (default: the settings)
  * @returns {{ target: string, realMeta: string }}
  * @throws {VaultConfigChangedError} the file does not exist (it is never created here)
  * @throws {ConfigError} a symlinked/escaped/misplaced target or _meta, or a vault that has
  *   _meta/vault-config.yaml (the plugin reads that instead of vault-config.md)
  * @throws {ScriptoriumError} a path could not be resolved at all
  */
-function checkTarget(vaultPath, { campaign = null } = {}) {
+function checkTarget(vaultPath, { campaign = null, what = 'settings' } = {}) {
   const target = targetPathFor(vaultPath);
 
   // 1. realVault = realpath(vaultPath).
@@ -108,26 +150,8 @@ function checkTarget(vaultPath, { campaign = null } = {}) {
   // backup and any temp file (issue #171). The plugin reads the .yaml instead of vault-config.md, so
   // an edit to the .md would change a file it ignores. lstat, so a link or folder counts as present;
   // ENOENT and ENOTDIR mean absent, and any other failure refuses closed.
-  const yamlPath = path.join(metaPath, 'vault-config.yaml');
-  let yamlPresent = true;
-  try {
-    fs.lstatSync(yamlPath);
-  } catch (err) {
-    if (err.code === 'ENOENT' || err.code === 'ENOTDIR') {
-      yamlPresent = false;
-    } else {
-      throw new ScriptoriumError(`could not read ${yamlPath}: ${err.code}. vault-config.md was left unchanged.`, {
-        path: yamlPath,
-        campaign,
-        cause: err,
-      });
-    }
-  }
-  if (yamlPresent) {
-    throw new ConfigError(
-      "refusing to edit vault-config.md: this vault has _meta/vault-config.yaml, which the gm-apprentice plugin reads instead of vault-config.md, so the panel won't change vault-config.md. Nothing was changed.",
-      { path: yamlPath, campaign },
-    );
+  if (yamlPresent(metaPath, campaign)) {
+    throw new ConfigError(movedRefusal(what), { path: path.join(metaPath, 'vault-config.yaml'), campaign });
   }
 
   // 3. lstat: ENOENT means the file is never created here; not a regular file (including a
@@ -265,6 +289,19 @@ function replaceVaultConfigMd(vaultPath, candidateBytes, { expectedSha256, backu
       });
     }
 
+    // The last look for the yaml: it may have appeared during the backup or the retries.
+    let movedNow;
+    try {
+      movedNow = yamlPresent(path.dirname(target), campaign);
+    } catch (err) {
+      removeTempBestEffort(tmp);
+      throw err;
+    }
+    if (movedNow) {
+      removeTempBestEffort(tmp);
+      throw new VaultConfigChangedError(MOVED_DURING_SAVE, { path: target, campaign });
+    }
+
     try {
       fs.renameSync(tmp, target);
       return { path: target, sha256: sha256Hex(candidateBytes), backup: backupResult };
@@ -280,6 +317,7 @@ function replaceVaultConfigMd(vaultPath, candidateBytes, { expectedSha256, backu
 
   // 7. Exhausted or a non-retryable code: clean up and report.
   removeTempBestEffort(tmp);
+  // The hint is kept for every code by design (here and in the loop); the yaml writer gives it only for the retried codes.
   throw new ScriptoriumError(
     `could not replace ${target}: ${lastErr.code}. Another program may have it open. vault-config.md was left unchanged.`,
     { path: target, campaign, cause: lastErr },

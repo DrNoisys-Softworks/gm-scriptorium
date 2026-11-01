@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const respond = require('../respond');
 const body = require('../body');
-const { runExclusive } = require('../context');
+const { runExclusive, refreshSettingsLayout } = require('../context');
 // Every dependency below is called through its module object (never destructured at require
 // time), so a test can inject a throw or a wrong value deterministically at exactly one call
 // site (the same convention src/admin/handlers/vaultconfig.js already follows).
@@ -22,6 +22,8 @@ const backups = require('../../config/backups');
 const read = require('../../vault/read');
 const freshness = require('../freshness');
 const fence = require('../../vault/fence');
+const settingsfile = require('../settingsfile');
+const vaultsettingseditor = require('./vaultsettingseditor');
 const { ConfigError, ScriptoriumError } = require('../../util/errors');
 
 /*
@@ -29,6 +31,10 @@ const { ConfigError, ScriptoriumError } = require('../../util/errors');
  * side. Every write still goes through src/vault/vaultconfigwrite.js's unchanged chokepoint, with
  * a backup first (src/config/backups.js). This file never imports handlers/vaultconfig.js (the
  * tagline chokepoint stays a separate, narrower writer) and defines its own HandlerRefusal.
+ *
+ * On a vault whose settings live in _meta/vault-config.yaml, each route hands over to its twin in
+ * handlers/vaultsettingseditor.js. Every request names the file it was built against (`file`,
+ * vault-config.md when absent), and one built against the other file is refused as changed.
  */
 
 const BASE_SHA_RE = /^[0-9a-f]{64}$/;
@@ -60,6 +66,7 @@ function loneCrReason(line) {
  * returns the body. Read-only campaigns still get `text` (FR-39's read view).
  */
 function editorView(ctx) {
+  if (refreshSettingsLayout(ctx) === 'new') return vaultsettingseditor.editorViewYaml(ctx);
   const empty = { exists: false, sha256: null, text: null, eol: null, lineCount: null, canEdit: false, reason: null, parse: null, backupDir: null, keep: KEEP };
 
   let target;
@@ -124,6 +131,10 @@ async function readAndValidateBody(req, allowedKeys) {
   const unknown = Object.keys(parsed).filter((k) => !allowedKeys.includes(k));
   if (unknown.length > 0) {
     return { ok: false, status: 400, payload: { error: 'invalid', message: `unknown field${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}` } };
+  }
+  const fileProblem = settingsfile.fileKeyProblem(parsed);
+  if (fileProblem !== null) {
+    return { ok: false, status: 400, payload: { error: 'invalid', message: fileProblem } };
   }
   if (typeof parsed.baseSha256 !== 'string' || !BASE_SHA_RE.test(parsed.baseSha256)) {
     return { ok: false, status: 400, payload: { error: 'invalid', message: 'baseSha256 must be 64 lowercase hex characters' } };
@@ -244,17 +255,6 @@ function computeFixable(candSplit, candData) {
   return fixable;
 }
 
-const REASON_ORDER = ['privacy', 'new-errors', 'check-did-not-run', 'current-unreadable'];
-
-function computeReasons({ effects, check, curData }) {
-  const present = new Set();
-  if (effects.some((e) => e.level === 'bad')) present.add('privacy');
-  if (check.ran && check.newErrorCount > 0) present.add('new-errors');
-  if (!check.ran) present.add('check-did-not-run');
-  if (curData === null) present.add('current-unreadable');
-  return REASON_ORDER.filter((r) => present.has(r));
-}
-
 function buildNotes({ op, split, cand }) {
   const notes = ['Only the frontmatter is saved. Your notes below it stay exactly as they are.'];
   if (split.eol === '\r\n') notes.push("Saved with this file's own Windows (CRLF) line endings.");
@@ -330,17 +330,27 @@ function reviewInner(ctx, { op, reqBody, dryRun, saveAnyway, machineDirResult, b
 
   const candidateSha256 = sha256Hex(cand.bytes);
   const cached = ctx.vaultConfigReview;
-  const cacheMatches = !dryRun && cached && cached.op === op && cached.baseSha256 === curSha && cached.candidateSha256 === candidateSha256;
+  const cacheMatches =
+    !dryRun && cached && cached.file === settingsfile.FILE_MD && cached.op === op && cached.baseSha256 === curSha && cached.candidateSha256 === candidateSha256;
 
   let rv;
   let check;
+  let publishDiff;
+  let publishDiffReason;
   try {
+    // A confirm reusing its dry run's review takes the check and the publish comparison from it
+    // (the cache is keyed to the same bytes), so the vault is not scanned again.
     if (cacheMatches) {
       rv = candidatecheck.runReview(ctx, { candidateBytes: cand.bytes, withCheck: false });
       check = cached.check;
+      publishDiff = cached.publishDiff;
+      // A confirm never shows notes, so the dry run's comparison reason is not carried here.
+      publishDiffReason = null;
     } else {
       rv = candidatecheck.runReview(ctx, { candidateBytes: cand.bytes, withCheck: true });
       check = rv.check;
+      publishDiff = rv.publishDiff;
+      publishDiffReason = rv.publishDiffReason;
     }
   } catch (err) {
     if (err instanceof candidatecheck.CandidateCheckError) {
@@ -358,6 +368,7 @@ function reviewInner(ctx, { op, reqBody, dryRun, saveAnyway, machineDirResult, b
     jsonConfig: rv.jsonConfig,
     publishSet: rv.candPublishSet,
     fixable,
+    publishDiff,
   });
 
   if (check.ran && check.unforceable.length > 0) {
@@ -368,12 +379,14 @@ function reviewInner(ctx, { op, reqBody, dryRun, saveAnyway, machineDirResult, b
     });
   }
 
-  const reasons = computeReasons({ effects, check, curData });
+  const reasons = candidatecheck.computeReasons({ effects, check, curData, publishDiff });
   const needsAck = reasons.length > 0;
   const notes = buildNotes({ op, split, cand });
+  const diffNote = candidatecheck.publishDiffNote(publishDiffReason);
+  if (diffNote) notes.push(diffNote);
 
   if (dryRun) {
-    ctx.vaultConfigReview = { op, baseSha256: curSha, candidateSha256, check, reasons };
+    ctx.vaultConfigReview = { file: settingsfile.FILE_MD, op, baseSha256: curSha, candidateSha256, check, reasons, publishDiff };
     const dryBody = {
       ok: true,
       dryRun: true,
@@ -439,6 +452,7 @@ async function runSave(req, res, ctx, { op, allowedKeys, candidateKey, validate 
     return;
   }
   const reqBody = parsed.body;
+  const file = settingsfile.requestedFile(reqBody);
 
   if (candidateKey && typeof reqBody[candidateKey] !== 'string') {
     sendJson(res, 400, { error: 'invalid', message: `${candidateKey} must be a string` });
@@ -447,7 +461,7 @@ async function runSave(req, res, ctx, { op, allowedKeys, candidateKey, validate 
 
   let validated = null;
   if (validate) {
-    validated = validate(reqBody);
+    validated = validate(reqBody, file);
     if (validated.refusal) {
       sendJson(res, validated.refusal.status, validated.refusal.payload);
       return;
@@ -465,6 +479,12 @@ async function runSave(req, res, ctx, { op, allowedKeys, candidateKey, validate 
     return;
   }
 
+  const mismatch = settingsfile.fileMismatch(ctx, file);
+  if (mismatch) {
+    sendJson(res, mismatch.status, mismatch.payload);
+    return;
+  }
+
   const buildCandidate =
     op === 'text'
       ? (split) => buildTextCandidateFor(ctx, split, reqBody)
@@ -474,11 +494,17 @@ async function runSave(req, res, ctx, { op, allowedKeys, candidateKey, validate 
 
   let outcome;
   try {
-    outcome = await runExclusive(ctx, parsed.dryRun ? 'check' : 'write', () =>
-      reviewInner(ctx, { op, reqBody, dryRun: parsed.dryRun, saveAnyway: parsed.saveAnyway, machineDirResult, buildCandidate }),
-    );
+    outcome = await runExclusive(ctx, parsed.dryRun ? 'check' : 'write', () => {
+      // Again under the lock: the settings may have moved while the request waited for it.
+      const moved = settingsfile.fileMismatch(ctx, file);
+      if (moved) throw new HandlerRefusal(moved.status, moved.payload);
+      if (ctx.settingsLayout === 'new') {
+        return vaultsettingseditor.reviewYamlInner(ctx, { op, reqBody, dryRun: parsed.dryRun, machineDirResult, edits: validated && validated.edits });
+      }
+      return reviewInner(ctx, { op, reqBody, dryRun: parsed.dryRun, saveAnyway: parsed.saveAnyway, machineDirResult, buildCandidate });
+    });
   } catch (err) {
-    if (err instanceof HandlerRefusal) {
+    if (err instanceof HandlerRefusal || err instanceof vaultsettingseditor.VaultSettingsRefusal) {
       sendJson(res, err.status, err.payload);
       return;
     }
@@ -495,22 +521,22 @@ async function runSave(req, res, ctx, { op, allowedKeys, candidateKey, validate 
 
 /** POST /api/vault-config/text (op 'text'). */
 async function saveText(req, res, ctx) {
-  return runSave(req, res, ctx, { op: 'text', allowedKeys: ['frontmatterText', 'baseSha256', 'dryRun', 'saveAnyway', 'reviewedSha256'], candidateKey: 'frontmatterText' });
+  return runSave(req, res, ctx, { op: 'text', allowedKeys: ['frontmatterText', 'baseSha256', 'dryRun', 'saveAnyway', 'reviewedSha256', 'file'], candidateKey: 'frontmatterText' });
 }
 
 /** POST /api/vault-config/fields (op 'fields'): guarded structured edits of the seven FIELD_SCHEMA settings. */
 async function saveFields(req, res, ctx) {
   return runSave(req, res, ctx, {
     op: 'fields',
-    allowedKeys: ['set', 'baseSha256', 'dryRun', 'saveAnyway', 'reviewedSha256'],
+    allowedKeys: ['set', 'baseSha256', 'dryRun', 'saveAnyway', 'reviewedSha256', 'file'],
     candidateKey: null,
-    validate: validateFieldsBody,
+    validate: (reqBody, file) => (file === settingsfile.FILE_YAML ? vaultsettingseditor.validateYamlFieldsBody(reqBody) : validateFieldsBody(reqBody)),
   });
 }
 
 /** POST /api/vault-config/restore (op 'restore'). */
 async function restore(req, res, ctx) {
-  return runSave(req, res, ctx, { op: 'restore', allowedKeys: ['backupId', 'baseSha256', 'dryRun', 'saveAnyway', 'reviewedSha256'], candidateKey: 'backupId' });
+  return runSave(req, res, ctx, { op: 'restore', allowedKeys: ['backupId', 'baseSha256', 'dryRun', 'saveAnyway', 'reviewedSha256', 'file'], candidateKey: 'backupId' });
 }
 
 /** POST /api/vault-config/effects: no lock (synchronous, read-only). */
@@ -531,10 +557,15 @@ async function effects(req, res, ctx) {
     sendJson(res, 400, { error: 'invalid', message: 'the request body must be a JSON object' });
     return;
   }
-  const allowedKeys = ['frontmatterText', 'baseSha256', 'putBack'];
+  const allowedKeys = ['frontmatterText', 'baseSha256', 'putBack', 'file'];
   const unknown = Object.keys(parsed).filter((k) => !allowedKeys.includes(k));
   if (unknown.length > 0) {
     sendJson(res, 400, { error: 'invalid', message: `unknown field${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}` });
+    return;
+  }
+  const fileProblem = settingsfile.fileKeyProblem(parsed);
+  if (fileProblem !== null) {
+    sendJson(res, 400, { error: 'invalid', message: fileProblem });
     return;
   }
   if (typeof parsed.frontmatterText !== 'string') {
@@ -547,6 +578,15 @@ async function effects(req, res, ctx) {
   }
   if (!ctx.writable) {
     sendJson(res, 403, { error: 'read-only', message: ctx.readOnlyReason });
+    return;
+  }
+  const mismatch = settingsfile.fileMismatch(ctx, settingsfile.requestedFile(parsed));
+  if (mismatch) {
+    sendJson(res, mismatch.status, mismatch.payload);
+    return;
+  }
+  if (ctx.settingsLayout === 'new') {
+    vaultsettingseditor.effectsYaml(ctx, parsed, res);
     return;
   }
 
@@ -649,7 +689,7 @@ async function effects(req, res, ctx) {
 
   let rv;
   try {
-    rv = candidatecheck.runReview(ctx, { candidateBytes: candResult.bytes, withCheck: false });
+    rv = candidatecheck.runReview(ctx, { candidateBytes: candResult.bytes, withCheck: false, publishDiffWhenItCanChange: true });
   } catch (err) {
     sendJson(res, 503, { error: 'io', message: err.message });
     return;
@@ -664,6 +704,7 @@ async function effects(req, res, ctx) {
     jsonConfig: rv.jsonConfig,
     publishSet: null,
     fixable,
+    publishDiff: rv.publishDiff,
   });
 
   const responseBody = {
@@ -693,6 +734,11 @@ function listBackups(req, res, ctx) {
   const machineDirResult = machinedir.resolveMachineDir({ configPath: ctx.ctxInfo && ctx.ctxInfo.configPath, vaultPath: ctx.vaultPath });
   if (!machineDirResult.ok) {
     notAvailable(machineDirResult.reason);
+    return;
+  }
+  if (refreshSettingsLayout(ctx) === 'new') {
+    const out = vaultsettingseditor.listBackupsYaml(ctx, machineDirResult);
+    sendJson(res, out.status, out.body);
     return;
   }
   const listing = backups.listBackups({ machineDir: machineDirResult.dir, campaign: ctx.campaign, vaultPath: ctx.vaultPath });
@@ -779,6 +825,11 @@ function containsCI(list, x) {
 function getFields(req, res, ctx) {
   if (!ctx.writable) {
     sendJson(res, 403, { error: 'read-only', message: ctx.readOnlyReason });
+    return;
+  }
+  if (refreshSettingsLayout(ctx) === 'new') {
+    const out = vaultsettingseditor.getFieldsYaml(ctx);
+    sendJson(res, out.status, out.body);
     return;
   }
   let target;

@@ -8,6 +8,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const pinned = require('../src/generator/pinned');
+const { moveVaultCopy, assertMovedLayout } = require('./helpers/moved-vault');
 const { runGmHeadingSurvives } = require('../src/checks/leak/l5');
 const { extractHeadings, readRenderedHeadings, displayTextOf } = require('../src/checks/leak/textmodel');
 
@@ -289,26 +290,35 @@ test('displayTextOf: alias, emphasis, entities, typographer, and no prototype lo
 const BIN = path.join(__dirname, '..', 'bin', 'scriptorium.js');
 const LEASE = path.join(__dirname, '..', 'examples', 'the-long-lease');
 
-test('AC-12 CLI: an NPC "## **GM Notes** (spoilers)" makes check exit 2 and list the L5 finding', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-l5-cli-'));
-  try {
-    const vault = path.join(root, 'v');
-    fs.cpSync(LEASE, vault, { recursive: true });
-    const npc = path.join(vault, 'Characters', 'NPCs', 'Oswy Hebden.md');
-    fs.appendFileSync(npc, `\n## **GM Notes** (spoilers)\n\n${SENTINEL}\n`);
-    const cfg = path.join(root, 'cfg.toml');
-    const env = { ...process.env, XDG_CONFIG_HOME: path.join(root, 'xdg'), APPDATA: path.join(root, 'ad'), SCRIPTORIUM_CONFIG: cfg };
-    delete env.SCRIPTORIUM_PROFILE;
-    const run = (args) => spawnSync(process.execPath, [BIN, ...args, '--config', cfg], { encoding: 'utf8', env });
-    const add = run(['config', 'add', 'v', '--vault', vault, '--out', path.join(root, 'out-v')]);
-    assert.equal(add.status, 0, add.stderr + add.stdout);
-    const r = run(['check', 'v', '--json']);
-    assert.equal(r.status, 2, r.stdout + r.stderr);
-    const env2 = JSON.parse(r.stdout);
-    const hits = JSON.stringify(env2).split('leak/l5-gm-heading-survives').length - 1;
-    assert.ok(hits >= 1, 'the L5 finding must be listed');
-    assert.ok(JSON.stringify(env2).includes('Oswy Hebden.md'));
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
+// The CLI case runs on both settings layouts: the old _meta/vault-config.md and the moved
+// _meta/vault-config.yaml. The assertions are the same on both.
+for (const layout of ['legacy', 'new']) {
+  test(`AC-12 CLI: an NPC "## **GM Notes** (spoilers)" makes check exit 2 and list the L5 finding [${layout}]`, () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scriptorium-l5-cli-'));
+    try {
+      let vault = path.join(root, 'v');
+      if (layout === 'legacy') fs.cpSync(LEASE, vault, { recursive: true });
+      else {
+        // The pin's move on a copy, with the pack in the vault folded into the yaml (and stripped).
+        vault = moveVaultCopy(LEASE, path.join(root, 'moved'), { inVaultPack: true }).vaultPath;
+        assertMovedLayout(vault);
+      }
+      const npc = path.join(vault, 'Characters', 'NPCs', 'Oswy Hebden.md');
+      fs.appendFileSync(npc, `\n## **GM Notes** (spoilers)\n\n${SENTINEL}\n`);
+      const cfg = path.join(root, 'cfg.toml');
+      const env = { ...process.env, XDG_CONFIG_HOME: path.join(root, 'xdg'), APPDATA: path.join(root, 'ad'), SCRIPTORIUM_CONFIG: cfg };
+      delete env.SCRIPTORIUM_PROFILE;
+      const run = (args) => spawnSync(process.execPath, [BIN, ...args, '--config', cfg], { encoding: 'utf8', env });
+      const add = run(['config', 'add', 'v', '--vault', vault, '--out', path.join(root, 'out-v')]);
+      assert.equal(add.status, 0, add.stderr + add.stdout);
+      const r = run(['check', 'v', '--json']);
+      assert.equal(r.status, 2, r.stdout + r.stderr);
+      const env2 = JSON.parse(r.stdout);
+      const hits = JSON.stringify(env2).split('leak/l5-gm-heading-survives').length - 1;
+      assert.ok(hits >= 1, 'the L5 finding must be listed');
+      assert.ok(JSON.stringify(env2).includes('Oswy Hebden.md'));
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+}

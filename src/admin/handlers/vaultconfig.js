@@ -5,6 +5,7 @@ const respond = require('../respond');
 const body = require('../body');
 const { runExclusive } = require('../context');
 const { validateTagline } = require('../../setup/validate');
+const settingsfile = require('../settingsfile');
 // Every step below is called through its module object (never destructured at require time), so
 // an injection test can patch exactly one of them deterministically (SD-6).
 const vaultconfigwrite = require('../../vault/vaultconfigwrite');
@@ -25,7 +26,7 @@ const freshness = require('../freshness');
  */
 
 const BASE_SHA_RE = /^[0-9a-f]{64}$/;
-const ALLOWED_KEYS = ['tagline', 'baseSha256', 'dryRun'];
+const ALLOWED_KEYS = ['file', 'tagline', 'baseSha256', 'dryRun'];
 
 function sha256Hex(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex');
@@ -73,7 +74,7 @@ function readView(ctx) {
 
   let target;
   try {
-    ({ target } = vaultconfigwrite.checkTarget(ctx.vaultPath, { campaign: ctx.campaign }));
+    ({ target } = vaultconfigwrite.checkTarget(ctx.vaultPath, { campaign: ctx.campaign, what: 'tagline' }));
   } catch (err) {
     return { ...empty, backupDir, reason: err.message };
   }
@@ -105,10 +106,14 @@ function readView(ctx) {
 }
 
 /** Steps 5 onward, run inside runExclusive: covers both dryRun and confirm. */
-function readEditWrite(ctx, { tagline, baseSha256, dryRun, machineDirResult, backupDir }) {
+function readEditWrite(ctx, { tagline, baseSha256, dryRun, machineDirResult, backupDir, file }) {
+  // Again under the lock: the settings may have moved while the request waited for it.
+  const moved = settingsfile.fileMismatch(ctx, file);
+  if (moved) throw new HandlerRefusal(moved.status, moved.payload);
+
   let target;
   try {
-    ({ target } = vaultconfigwrite.checkTarget(ctx.vaultPath, { campaign: ctx.campaign }));
+    ({ target } = vaultconfigwrite.checkTarget(ctx.vaultPath, { campaign: ctx.campaign, what: 'tagline' }));
   } catch (err) {
     if (err instanceof vaultconfigwrite.VaultConfigChangedError) {
       throw new HandlerRefusal(409, { error: 'changed', message: err.message });
@@ -231,6 +236,13 @@ async function saveTagline(req, res, ctx) {
     return;
   }
 
+  // This route edits vault-config.md only; the yaml's tagline goes through /api/vault-config/title.
+  const file = settingsfile.requestedFile(parsed);
+  if (file !== settingsfile.FILE_MD) {
+    sendJson(res, 400, { error: 'invalid', message: `file must be "${settingsfile.FILE_MD}"` });
+    return;
+  }
+
   if (typeof parsed.tagline !== 'string') {
     sendJson(res, 400, { error: 'invalid', message: 'tagline must be a string' });
     return;
@@ -260,6 +272,12 @@ async function saveTagline(req, res, ctx) {
     return;
   }
 
+  const mismatch = settingsfile.fileMismatch(ctx, file);
+  if (mismatch) {
+    sendJson(res, mismatch.status, mismatch.payload);
+    return;
+  }
+
   const machineDirResult = machinedir.resolveMachineDir({
     configPath: ctx.ctxInfo && ctx.ctxInfo.configPath,
     vaultPath: ctx.vaultPath,
@@ -272,7 +290,7 @@ async function saveTagline(req, res, ctx) {
 
   let outcome;
   try {
-    outcome = await runExclusive(ctx, 'write', () => readEditWrite(ctx, { tagline, baseSha256, dryRun, machineDirResult, backupDir }));
+    outcome = await runExclusive(ctx, 'write', () => readEditWrite(ctx, { tagline, baseSha256, dryRun, machineDirResult, backupDir, file }));
   } catch (err) {
     if (err instanceof HandlerRefusal) {
       sendJson(res, err.status, err.payload);

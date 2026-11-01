@@ -35,12 +35,13 @@ const CLI_BLOCKS = ['cli-commands', 'cli-global-flags', 'cli-flags', 'cli-subcom
 
 // ---- literal code facts ----
 
-test('cli-commands: the nine commands in order, with the exit codes their help lists', () => {
+test('cli-commands: the ten commands in order, with the exit codes their help lists', () => {
   const rows = gen.codeFacts()['cli-commands'];
-  assert.deepEqual(rows.map((r) => r.key), ['init', 'check', 'build', 'serve', 'status', 'config', 'update', 'remote', 'desktop']);
+  assert.deepEqual(rows.map((r) => r.key), ['init', 'check', 'carry', 'build', 'serve', 'status', 'config', 'update', 'remote', 'desktop']);
   assert.deepEqual(Object.fromEntries(rows.map((r) => [r.key, r.exits])), {
     init: '0, 1, 3',
     check: '0, 1, 2, 3',
+    carry: '0, 1, 3',
     build: '0, 1, 2, 3',
     serve: '0, 1, 3',
     status: '0, 1, 3',
@@ -62,18 +63,19 @@ test('cli-global-flags: the eleven flags, and which take a value', () => {
   );
 });
 
-test('cli-flags: the 31 own flags in order, update --version being the one override', () => {
+test('cli-flags: the 32 own flags in order, update --version being the one override', () => {
   const rows = gen.codeFacts()['cli-flags'];
   assert.deepEqual(rows.map((r) => r.key), [
     'init --name', 'init --title', 'init --theme', 'init --yes', 'init --new-vault', 'init --system',
     'check --graph',
+    'carry --yes',
     'build --force-out', 'build --force-check', 'build --no-check',
     'serve --build', 'serve --port', 'serve --host', 'serve --admin', 'serve --preview-port',
     'update --check', 'update --pre', 'update --version',
     'remote --mode', 'remote --admin-url', 'remote --preview-url', 'remote --bind', 'remote --trusted-proxy', 'remote --port', 'remote --preview-port', 'remote --account',
     'desktop --port', 'desktop --preview-port', 'desktop --background', 'desktop --remote-at-signin', 'desktop --yes',
   ]);
-  const no = ['init --yes', 'check --graph', 'build --force-out', 'build --force-check', 'build --no-check', 'serve --build', 'serve --admin', 'update --check', 'update --pre', 'desktop --background', 'desktop --yes'];
+  const no = ['init --yes', 'check --graph', 'carry --yes', 'build --force-out', 'build --force-check', 'build --no-check', 'serve --build', 'serve --admin', 'update --check', 'update --pre', 'desktop --background', 'desktop --yes'];
   for (const r of rows) assert.equal(r.takesValue, no.includes(r.key) ? 'no' : 'yes', r.key);
   assert.equal(rows.find((r) => r.key === 'update --version').takesValue, 'yes');
 });
@@ -254,7 +256,7 @@ test('source-shape test: the case labels in bin/scriptorium.js are the commands 
   const src = read('bin/scriptorium.js');
   const labels = [...src.matchAll(/case '([a-z-]+)': \{/g)].map((m) => m[1]);
   assert.deepEqual([...labels].sort(), Object.keys(COMMAND_FLAGS).sort());
-  assert.equal(labels.length, 9);
+  assert.equal(labels.length, 10);
 });
 
 test('source-shape test: the case labels in src/cli/config.js are the config SUBCOMMANDS, and the literal list', () => {

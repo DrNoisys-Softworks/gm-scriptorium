@@ -328,6 +328,8 @@ const API_ROUTE_PATHS = [
   '/api/vault-config/restore',
   // V1e-10 (ADR 0033 second addendum, SD-110): GET and POST share this one path.
   '/api/vault-config/fields',
+  // A moved vault's title and tagline, saved together in _meta/vault-config.yaml.
+  '/api/vault-config/title',
   // V1e-7 (ADR 0039, SD-62): builds a private preview copy in a registry theme.
   '/api/variants/theme',
   // V1e-8 (ADR 0039 addendum, SD-70): builds a private preview copy from the saved pack.toml
@@ -361,19 +363,21 @@ const API_ROUTE_PATHS = [
   // The desktop ports card (ADR 0057 section 8).
   '/api/desktop',
   '/api/desktop/ports',
+  // The settings carry on a moved vault.
+  '/api/settings/carry',
 ];
 
 function findApiLiterals(src) {
   return [...src.matchAll(/\/api\/[a-zA-Z0-9/_-]*/g)].map((m) => m[0]);
 }
 
-test('every /api/... string literal in the admin JS assets is one of the 45 route paths', () => {
+test('every /api/... string literal in the admin JS assets is one of the 47 route paths', () => {
   const found = new Set();
   for (const name of jsAssetNames()) {
     const src = fs.readFileSync(path.join(ADMIN_ASSETS_DIR, name), 'utf8');
     for (const literal of findApiLiterals(src)) {
       found.add(literal);
-      assert.ok(API_ROUTE_PATHS.includes(literal), `${name}: "${literal}" is not one of the 45 route paths`);
+      assert.ok(API_ROUTE_PATHS.includes(literal), `${name}: "${literal}" is not one of the 47 route paths`);
     }
   }
   // Positive control: the scan actually finds something (not vacuously true).

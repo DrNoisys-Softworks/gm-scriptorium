@@ -16,6 +16,24 @@ const { BACKUPS_DIRNAME, campaignSegment } = require('./machinedir');
 
 const BACKUP_KEEP = 20;
 const BACKUP_NAME_RE = /^vault-config-\d{8}T\d{9}Z-[0-9a-f]{6}\.md\.bak$/;
+const YAML_BACKUP_NAME_RE = /^vault-config-\d{8}T\d{9}Z-[0-9a-f]{6}\.yaml\.bak$/;
+
+/** The name pattern of each kind of copy. Labelled copies and .json.bak copies match neither. */
+const KIND_RES = Object.freeze({ md: BACKUP_NAME_RE, yaml: YAML_BACKUP_NAME_RE });
+
+/** 'md' or 'yaml' for a name of that kind of copy, else null. */
+function backupKindOf(id) {
+  if (typeof id !== 'string') return null;
+  if (BACKUP_NAME_RE.test(id)) return 'md';
+  if (YAML_BACKUP_NAME_RE.test(id)) return 'yaml';
+  return null;
+}
+
+function kindRe(kind) {
+  const re = KIND_RES[kind];
+  if (!re) throw new BackupError(`unknown backup kind "${kind}"`);
+  return re;
+}
 
 /** V1e-9 (SD-93): readBackup's own size cap, independent of JSON_BODY_CAP (the whole file, not JSON). */
 const BACKUP_MAX_BYTES = 4194304;
@@ -60,11 +78,29 @@ function stampFor(now) {
 }
 
 /**
- * @param {{ machineDir: string, campaign: string|null, vaultPath: string, bytes: Buffer, now?: () => number }} opts
- * @returns {{ path: string, dir: string }}
- * @throws {BackupError} vault-config.md is left unchanged
+ * The files writeBackup will keep a copy of. The restore list and the prune keep copies of
+ * vault-config.md and of vault-config.yaml apart (kind); the pack's vault.config.json copies are
+ * kept but neither listed nor pruned.
+ * The carry's copy of a leftover vault-config.md it removes carries the label "leftover", so it is
+ * neither listed nor pruned with the panel's own saves.
  */
-function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now }) {
+const BACKUP_FILES = Object.freeze(['vault-config.md', 'vault-config.yaml', 'vault.config.json']);
+
+/**
+ * @param {{ machineDir: string, campaign: string|null, vaultPath: string, bytes: Buffer, now?: () => number, file?: string, label?: string }} opts
+ *   `file` is the name of the file being backed up; the backup is named `<stem>-<stamp>-<hex6>.<ext>.bak`,
+ *   or `<stem>-<label>-<stamp>-<hex6>.<ext>.bak` with a `label` (lower-case letters only)
+ * @returns {{ path: string, dir: string }}
+ * @throws {BackupError} the file is left unchanged
+ */
+function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now, file = 'vault-config.md', label = null }) {
+  if (!BACKUP_FILES.includes(file)) {
+    throw new BackupError(`cannot back up "${file}": only ${BACKUP_FILES.join(', ')} are kept`, { campaign });
+  }
+  if (label !== null && !/^[a-z]+$/.test(label)) {
+    throw new BackupError(`cannot back up "${file}" with the label "${label}": a label is lower-case letters only`, { campaign });
+  }
+  const { name: stem, ext } = path.parse(file);
   const backupsDir = path.join(machineDir, BACKUPS_DIRNAME);
   const segment = campaignSegment(campaign);
   const segmentDir = path.join(backupsDir, segment);
@@ -73,7 +109,7 @@ function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now })
     mkdirTolerant(backupsDir);
     mkdirTolerant(segmentDir);
   } catch (err) {
-    throw new BackupError(`could not back up vault-config.md to ${segmentDir}: ${err.code || err.message}. vault-config.md was left unchanged.`, {
+    throw new BackupError(`could not back up ${file} to ${segmentDir}: ${err.code || err.message}. ${file} was left unchanged.`, {
       path: segmentDir,
       campaign,
       cause: err,
@@ -83,7 +119,7 @@ function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now })
   const realBackupsDir = fs.realpathSync(backupsDir);
   const realSegmentDir = fs.realpathSync(segmentDir);
   if (fold(realSegmentDir) !== fold(path.join(realBackupsDir, segment))) {
-    throw new BackupError(`could not back up vault-config.md to ${segmentDir}: it resolves outside the backups folder. vault-config.md was left unchanged.`, {
+    throw new BackupError(`could not back up ${file} to ${segmentDir}: it resolves outside the backups folder. ${file} was left unchanged.`, {
       path: segmentDir,
       campaign,
     });
@@ -91,7 +127,7 @@ function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now })
 
   const realVault = fs.realpathSync(vaultPath);
   if (packwrite.isInsideOrEqual(realVault, realSegmentDir)) {
-    throw new BackupError(`could not back up vault-config.md to ${segmentDir}: it is inside the vault. vault-config.md was left unchanged.`, {
+    throw new BackupError(`could not back up ${file} to ${segmentDir}: it is inside the vault. ${file} was left unchanged.`, {
       path: segmentDir,
       campaign,
     });
@@ -99,7 +135,7 @@ function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now })
 
   const stamp = stampFor(now);
   const hex6 = crypto.randomBytes(3).toString('hex');
-  const name = `vault-config-${stamp}-${hex6}.md.bak`;
+  const name = `${stem}-${label === null ? '' : `${label}-`}${stamp}-${hex6}${ext}.bak`;
   const finalPath = path.join(segmentDir, name);
   const tmp = path.join(segmentDir, `.${name}.scriptorium-tmp`);
 
@@ -120,7 +156,7 @@ function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now })
       }
     }
     removeTempBestEffort(tmp);
-    throw new BackupError(`could not back up vault-config.md to ${segmentDir}: ${err.code || err.message}. vault-config.md was left unchanged.`, {
+    throw new BackupError(`could not back up ${file} to ${segmentDir}: ${err.code || err.message}. ${file} was left unchanged.`, {
       path: segmentDir,
       campaign,
       cause: err,
@@ -131,14 +167,19 @@ function writeBackup({ machineDir, campaign, vaultPath, bytes, now = Date.now })
 }
 
 /**
- * Never throws. Lists the segment directory's direct children only; keeps names matching
- * BACKUP_NAME_RE whose lstat is a regular file (a foreign file or a symlink is left alone and
- * never counted), sorted by name descending (the stamp sorts lexically = chronologically), and
- * unlinks anything beyond `keep`, each removal in its own try/catch.
+ * Lists the segment directory's direct children only; keeps the names of `kind`'s pattern
+ * (BACKUP_NAME_RE for 'md', YAML_BACKUP_NAME_RE for 'yaml') whose lstat is a regular file (a
+ * foreign file, a labelled copy or a symlink is left alone and never counted), sorted by name
+ * descending (the stamp sorts lexically = chronologically), and unlinks anything beyond `keep`,
+ * each removal in its own try/catch. A missing or unreadable folder, or a failed removal, is
+ * swallowed.
  *
- * @param {{ machineDir: string, campaign: string|null, keep?: number }} opts
+ * @param {{ machineDir: string, campaign: string|null, keep?: number, kind?: 'md'|'yaml' }} opts
+ *   only copies of `kind` (default 'md') are counted and removed
+ * @throws {BackupError} only for a `kind` other than 'md' or 'yaml', before anything is read
  */
-function pruneBackups({ machineDir, campaign, keep = BACKUP_KEEP }) {
+function pruneBackups({ machineDir, campaign, keep = BACKUP_KEEP, kind = 'md' }) {
+  const re = kindRe(kind);
   const dir = backupDirFor(machineDir, campaign);
   let entries;
   try {
@@ -149,7 +190,7 @@ function pruneBackups({ machineDir, campaign, keep = BACKUP_KEEP }) {
 
   const backups = [];
   for (const name of entries) {
-    if (!BACKUP_NAME_RE.test(name)) continue;
+    if (!re.test(name)) continue;
     let st;
     try {
       st = fs.lstatSync(path.join(dir, name));
@@ -178,9 +219,10 @@ function pruneBackups({ machineDir, campaign, keep = BACKUP_KEEP }) {
 function backupThenPrune(opts) {
   const result = writeBackup(opts);
   try {
-    pruneBackups({ machineDir: opts.machineDir, campaign: opts.campaign });
+    pruneBackups({ machineDir: opts.machineDir, campaign: opts.campaign, kind: opts.file === 'vault-config.yaml' ? 'yaml' : 'md' });
   } catch {
-    // swallowed: pruneBackups itself never throws, but this stays defensive (same pattern).
+    // swallowed: pruneBackups throws only for an unknown kind, and this kind is always known; it
+    // stays defensive (same pattern).
   }
   return result;
 }
@@ -191,7 +233,8 @@ function ioReason(err) {
   return `GM-Scriptorium could not read the backups folder: ${err.code}.`;
 }
 
-/** The ISO-8601 moment a backup's own stamp encodes, or null if `name` doesn't match BACKUP_NAME_RE. */
+/** The ISO-8601 moment a backup's own stamp encodes (a .md.bak or a .yaml.bak copy alike), or null
+ * if `name` doesn't start with a `vault-config-<stamp>-` stamp. */
 function takenAtFor(name) {
   const m = /^vault-config-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(\d{3})Z-/.exec(name);
   if (!m) return null;
@@ -200,15 +243,19 @@ function takenAtFor(name) {
 }
 
 /**
- * V1e-9 (SD-93): never throws. Lists exactly the segment directory's own regular-file entries
- * matching BACKUP_NAME_RE (a foreign name, or a symlink whether or not its name matches, is
- * excluded), newest first by name (the stamp sorts lexically = chronologically).
+ * V1e-9 (SD-93): lists exactly the segment directory's own regular-file entries matching `kind`'s
+ * pattern (BACKUP_NAME_RE for 'md', YAML_BACKUP_NAME_RE for 'yaml'; a foreign name, a labelled
+ * copy, or a symlink whether or not its name matches, is excluded), newest first by name (the
+ * stamp sorts lexically = chronologically). A folder problem is an `ok: false` answer, not a throw.
  *
- * @param {{ machineDir: string, campaign: string|null, vaultPath: string }} opts
+ * @param {{ machineDir: string, campaign: string|null, vaultPath: string, kind?: 'md'|'yaml' }} opts
+ *   `kind` (default 'md') picks which copies are listed
+ * @throws {BackupError} only for a `kind` other than 'md' or 'yaml', before anything is read
  * @returns {{ ok: true, dir: string, items: { id: string, takenAt: string, size: number }[] } |
  *   { ok: false, reason: string }}
  */
-function listBackups({ machineDir, campaign, vaultPath }) {
+function listBackups({ machineDir, campaign, vaultPath, kind = 'md' }) {
+  const re = kindRe(kind);
   const backupsDir = path.join(machineDir, BACKUPS_DIRNAME);
   const segmentDir = backupDirFor(machineDir, campaign);
   const segment = campaignSegment(campaign);
@@ -269,7 +316,7 @@ function listBackups({ machineDir, campaign, vaultPath }) {
 
   const items = [];
   for (const name of entries) {
-    if (!BACKUP_NAME_RE.test(name)) continue;
+    if (!re.test(name)) continue;
     let st;
     try {
       st = fs.lstatSync(path.join(segmentDir, name));
@@ -294,15 +341,15 @@ function listBackups({ machineDir, campaign, vaultPath }) {
  * @throws {BackupTooLargeError} the file is over BACKUP_MAX_BYTES
  * @throws {BackupError} any other read failure
  */
-function readBackup({ machineDir, campaign, vaultPath, id }) {
-  if (typeof id !== 'string' || !BACKUP_NAME_RE.test(id)) {
+function readBackup({ machineDir, campaign, vaultPath, id, kind = 'md' }) {
+  if (typeof id !== 'string' || !kindRe(kind).test(id)) {
     throw new BackupNotListedError('That backup is not in the list. Reload the backups.');
   }
   // Through module.exports (self-reference), not the bare local function: a test can inject a
   // stale listing here deterministically, to simulate a backup swapped to a symlink in the
   // narrow window between this very re-check and the fs.openSync below (the TOCTOU O_NOFOLLOW
   // exists for).
-  const list = module.exports.listBackups({ machineDir, campaign, vaultPath });
+  const list = module.exports.listBackups({ machineDir, campaign, vaultPath, kind });
   if (!list.ok || !list.items.some((i) => i.id === id)) {
     throw new BackupNotListedError('That backup is not in the list. Reload the backups.');
   }
@@ -343,9 +390,12 @@ function readBackup({ machineDir, campaign, vaultPath, id }) {
 }
 
 module.exports = {
+  BACKUP_FILES,
   BACKUP_KEEP,
   BACKUP_MAX_BYTES,
   BACKUP_NAME_RE,
+  YAML_BACKUP_NAME_RE,
+  backupKindOf,
   BackupError,
   BackupNotListedError,
   BackupTooLargeError,
@@ -355,4 +405,5 @@ module.exports = {
   backupThenPrune,
   listBackups,
   readBackup,
+  takenAtFor,
 };

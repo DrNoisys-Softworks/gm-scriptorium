@@ -32,6 +32,7 @@ Steps for a job you already have in mind.
 - [Troubleshooting](how-to/troubleshooting.md): what the common messages mean and what to do, and the problems that come with no message.
 - [Keep GM-only notes off the player site](how-to/hide-gm-content.md): hiding a page, part of a page, a field, a relationship or a name, and checking the result.
 - [Add a Game master link to the player site](how-to/add-a-game-master-link.md): a link in the site footer back to your own admin panel, and why its address is public.
+- [Keep building after gm-apprentice moves your vault's settings](how-to/vault-settings-moved.md): what `check` says once the settings live in `_meta/vault-config.yaml`, and how to carry the pack's leftover settings into that file.
 
 ## Reference
 
@@ -131,6 +132,7 @@ the way.
 - [0061. Banners and the cover picture are judged by the file they were copied from](decisions/0061-banner-and-cover-sources.md): The hidden-folder leak check no longer mistakes the cover picture and section banners for attachments; one you named from a hidden folder is a warning, and a `_banner` picture found in a hidden folder still refuses the build.
 - [0069. The real-browser tests run on every pull request, and the check must pass](decisions/0069-browser-tests-in-ci.md): A browser check now runs the real-browser test files in Chromium and Firefox on every pull request, a runner fails on any skip, the check becomes required, and one known flake may be re-run once.
 - [0070. Keyboard focus is not left under the narrow window's bars](decisions/0070-focus-not-hidden-by-bars.md): In a window narrower than 700 px the page keeps scroll room equal to the top bar, the bottom bar and the unsaved-changes strip, so a focused control is scrolled out from under them, and the Updates card still lands 16 px below the top bar.
+- [0071. Reading a vault whose settings moved to vault-config.yaml, and carrying the pack's leftover settings](decisions/0071-moved-vault-settings.md): `check`, `build`, `init` and the panel read a moved vault through the generator's own reader, a hide entry or folder map left only in the pack fails `check`, and the GM moves them with `carry` or the panel's button, through the generator's own merge, with both files backed up outside the vault first.
 
 ## Licensing
 
