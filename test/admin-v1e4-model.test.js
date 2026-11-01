@@ -313,6 +313,24 @@ test('SL.buildSlip: a settings save with dry.campaignId gets the campaign-id war
   );
 });
 
+test('SL.buildSlip: a vault-settings save with dry.campaignId names _meta/vault-config.yaml in the same warning', () => {
+  const dry = {
+    file: 'vault-config.yaml',
+    before: 'a: 1\n',
+    after: 'a: 2\n',
+    warnings: [],
+    campaignId: { before: 'old-campaign', after: 'new-campaign' },
+  };
+  const slip = SL.buildSlip({ kind: 'vault-settings', payload: {}, state: {}, dry });
+  const effects = slip.effects.filter((e) => e.id === 'campaign-id');
+  assert.equal(effects.length, 1);
+  assert.equal(effects[0].level, 'warn');
+  assert.equal(
+    effects[0].text,
+    "Your site's backend features are switched on in _meta/vault-config.yaml, and the generator builds a campaign id from the site title. Saving this title changes that id from old-campaign to new-campaign. Anything those features stored under the old id is not moved.",
+  );
+});
+
 test('SL.buildSlip: a settings save with no dry.campaignId has no campaign-id effect', () => {
   const dry = { file: 'vault.config.json', before: '{\n  "siteTitle": "Old"\n}\n', after: '{\n  "siteTitle": "New"\n}\n', warnings: [] };
   const slip = SL.buildSlip({ kind: 'settings', payload: { siteTitle: 'New' }, state: {}, dry });
