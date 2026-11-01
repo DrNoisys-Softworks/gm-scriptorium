@@ -137,8 +137,6 @@ and the facade adds these exports:
   when neither file sets it, so the pin does not warn that a key nobody wrote "moves to" the vault.
 - `planSettingsCarry` and `applySettingsCarry` (`lib/settings/move.js` `planMove` with `foldSiteFile`,
   and `applyMove`): the carry. Every call passes its own `pinCheck`, so the move never starts a program.
-- `applySettingsChanges` (`lib/settings/write.js` `applyChanges`): sets `player_site.title` and
-  `player_site.folder_map`, which the move drops (upstream AntTheLimey/gm-apprentice#539).
 - `stricterCallouts` (`lib/settings/legacy.js`) and `headingKey` (`lib/heading-key.js`): how the carry
   checks compare callout rules and section names, the same way the build does.
 
@@ -149,8 +147,10 @@ edits vault-config.yaml"), the facade adds these. None of them writes a file.
   of the pin's own change objects, planned on the bytes the panel read, which the facade serves to the
   pin for that one call. It refuses, with a `SettingsPlanError`, bytes that are not valid UTF-8, a
   change the pin refuses or cannot make, a file the pin cannot read, and a plan that names another
-  file or started from other bytes. Only `src/admin/vaultsettingsplan.js` calls it, and
-  `src/vault/vaultsettingswrite.js` writes the result.
+  file or started from other bytes. `src/admin/vaultsettingsplan.js` calls it for the panel, and
+  `src/vault/settingscarry.js` calls it to set `player_site.title` and `player_site.folder_map`,
+  which the move drops (upstream AntTheLimey/gm-apprentice#539). `src/vault/vaultsettingswrite.js`
+  writes the result in both cases.
 - `parseSettingsText` (`lib/settings/write.js` `settingsText`): the settings a yaml text holds, with no
   defaults filled in, or the line and message of why the pin cannot read it. A `version` newer than
   the pin's `LAYOUT_VERSION` counts as unreadable.
