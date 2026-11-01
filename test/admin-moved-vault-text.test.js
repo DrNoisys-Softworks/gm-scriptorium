@@ -86,6 +86,27 @@ test('the layouts\' summary on a moved vault points at the vault-config.yaml scr
   });
 });
 
+test('on a read-only campaign the moved summary does not tell the GM to change the settings', () => {
+  assert.deepEqual(PK.movedSummary(true), {
+    rows: [
+      {
+        id: 'moved',
+        icon: 'file',
+        name: 'Site settings',
+        text: "The site's address, the folders that become sections, what's kept off the site and the art folder.",
+        where: 'Set in _meta/vault-config.yaml. This campaign is read-only, so they cannot be changed here.',
+      },
+    ],
+    toggle: 'Other site settings',
+    toggleSmall: 'Set in _meta/vault-config.yaml, read-only here',
+    fine: 'These are set in _meta/vault-config.yaml, not in the campaign pack. This campaign is read-only, so they cannot be changed here.',
+    also: 'Also set for your site',
+    alsoSmall: 'read-only here',
+    pill: 'read-only',
+  });
+  assert.equal(PK.movedSummary(false), PK.MOVED_SUMMARY);
+});
+
 test('the layouts\' summary on the old layout is unchanged', () => {
   const raw = JSON.stringify({ siteUrl: 'https://example.org/x', host: 'github-pages', folderMap: { Notes: 'notes' }, excludeDirs: ['_meta'], excludeSections: ['GM Notes'], attachmentsDir: '_att' });
   assert.deepEqual(

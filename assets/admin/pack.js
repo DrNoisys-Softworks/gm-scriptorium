@@ -251,7 +251,32 @@
     pill: 'read-only',
   };
 
-  /** The Theme screen's palette note. On a moved vault the palette is read from
+  /** The same summary for a moved vault whose settings the panel cannot save: the vault-config.yaml
+   * screen is read-only there too, so no line tells the GM to change them. */
+  var MOVED_SUMMARY_READ_ONLY = {
+    rows: [
+      {
+        id: 'moved',
+        icon: 'file',
+        name: 'Site settings',
+        text: MOVED_SUMMARY.rows[0].text,
+        where: 'Set in _meta/vault-config.yaml. This campaign is read-only, so they cannot be changed here.',
+      },
+    ],
+    toggle: MOVED_SUMMARY.toggle,
+    toggleSmall: 'Set in _meta/vault-config.yaml, read-only here',
+    fine: 'These are set in _meta/vault-config.yaml, not in the campaign pack. This campaign is read-only, so they cannot be changed here.',
+    also: MOVED_SUMMARY.also,
+    alsoSmall: 'read-only here',
+    pill: MOVED_SUMMARY.pill,
+  };
+
+  /** @param {boolean} locked true when the panel cannot save this vault's settings */
+  function movedSummary(locked) {
+    return locked ? MOVED_SUMMARY_READ_ONLY : MOVED_SUMMARY;
+  }
+
+  /** The Theme screen's palette note. On a moved vault (rung 3b) the palette is read from
    * _meta/vault-config.yaml, so the note names that file. */
   function mismatchText(mismatch, settingsLayout) {
     var file = settingsLayout === 'new' ? '_meta/vault-config.yaml' : 'vault-config.md';
@@ -308,6 +333,8 @@
     summaryRows: summaryRows,
     cardModel: cardModel,
     MOVED_SUMMARY: MOVED_SUMMARY,
+    MOVED_SUMMARY_READ_ONLY: MOVED_SUMMARY_READ_ONLY,
+    movedSummary: movedSummary,
     mismatchText: mismatchText,
     countState: countState,
     heroArt: heroArt,
@@ -699,7 +726,7 @@
    * PK.summaryRows as a dl, then a second, nested "Show the file" toggle over the raw JSON --
    * marked [data-part="raw-file"] (FR-24: this is the one place tt1 may show a raw key name, and
    * the DOM scan excludes it by design). */
-  function buildTt1More(vcj, summaryRowsList, moved) {
+  function buildTt1More(vcj, summaryRowsList, moved, summary) {
     var section = el('section');
     section.className = 'tt1-more';
 
@@ -711,10 +738,10 @@
     toggle.appendChild(toggleIcon);
     var toggleText = el('span');
     var toggleB = el('b');
-    setText(toggleB, moved ? MOVED_SUMMARY.toggle : 'Other settings in this file');
+    setText(toggleB, moved ? summary.toggle : 'Other settings in this file');
     toggleText.appendChild(toggleB);
     var toggleSmall = el('small');
-    setText(toggleSmall, moved ? MOVED_SUMMARY.toggleSmall : "Read-only here: address, sections, what's kept private");
+    setText(toggleSmall, moved ? summary.toggleSmall : "Read-only here: address, sections, what's kept private");
     toggleText.appendChild(toggleSmall);
     toggle.appendChild(toggleText);
     section.appendChild(toggle);
@@ -742,7 +769,7 @@
     section.appendChild(sumWrap);
     if (moved) {
       // The pack's file is not where these live any more, so it is not offered as "the file".
-      setText(fine, MOVED_SUMMARY.fine);
+      setText(fine, summary.fine);
       toggle.addEventListener('click', function () {
         var expanded = toggle.getAttribute('aria-expanded') === 'true';
         toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
@@ -786,7 +813,7 @@
   /** tt1: a live hero, the persistent fields beside it (a1800px 2-column grid; admin.css collapses
    * it to one column below that, the NV.viewportClass wide breakpoint), then the "Other settings"
    * disclosure. */
-  function buildTt1(vcj, summaryRowsList, heroRel, moved) {
+  function buildTt1(vcj, summaryRowsList, heroRel, moved, summary) {
     var section = el('section');
     section.setAttribute('data-tt', 'tt1');
 
@@ -808,7 +835,7 @@
     var fieldsSlot = el('div');
     fieldsSlot.setAttribute('data-part', 'fields-slot');
     side.appendChild(fieldsSlot);
-    side.appendChild(buildTt1More(vcj, summaryRowsList, moved));
+    side.appendChild(buildTt1More(vcj, summaryRowsList, moved, summary));
     wide.appendChild(side);
 
     section.appendChild(wide);
@@ -826,7 +853,7 @@
    * the landing hero, the not-found tab), with the changed word marked, then "Also in this file"
    * -- the same PK.summaryRows data as tt1's disclosure, always visible rather than collapsed
    * (D-13: pointers, never a promise). */
-  function buildTt2(summaryRowsList, heroRel, moved) {
+  function buildTt2(summaryRowsList, heroRel, moved, summary) {
     var section = el('section');
     section.setAttribute('data-tt', 'tt2');
 
@@ -921,9 +948,9 @@
     also.className = 'tt2-also';
     var alsoH2 = el('h2');
     alsoH2.className = 'a1-rule';
-    setText(alsoH2, moved ? MOVED_SUMMARY.also : 'Also in this file');
+    setText(alsoH2, moved ? summary.also : 'Also in this file');
     var alsoH2Small = el('small');
-    setText(alsoH2Small, moved ? MOVED_SUMMARY.alsoSmall : 'read-only, and changed elsewhere');
+    setText(alsoH2Small, moved ? summary.alsoSmall : 'read-only, and changed elsewhere');
     alsoH2.appendChild(alsoH2Small);
     also.appendChild(alsoH2);
     var ul = el('ul');
@@ -1689,12 +1716,13 @@
     // ---------------------------------------------------------------------------------------
     // The three surrounds (SD-29).
     // ---------------------------------------------------------------------------------------
-    var summaryRowsList = moved ? MOVED_SUMMARY.rows : PK.summaryRows(vcj.raw === undefined || vcj.raw === null ? '' : vcj.raw);
+    var summary = PK.movedSummary(!movedEditable);
+    var summaryRowsList = moved ? summary.rows : PK.summaryRows(vcj.raw === undefined || vcj.raw === null ? '' : vcj.raw);
     var cardModelList = moved ? [] : PK.cardModel(vcj.raw === undefined || vcj.raw === null ? '' : vcj.raw);
     var heroRel = PK.heroArt((state.packToml && state.packToml.images) || {}, state.images || [], ScriptoriumAdmin.IM.slotImageRel);
 
-    var tt1 = buildTt1(vcj, summaryRowsList, heroRel, moved);
-    var tt2 = buildTt2(summaryRowsList, heroRel, moved);
+    var tt1 = buildTt1(vcj, summaryRowsList, heroRel, moved, summary);
+    var tt2 = buildTt2(summaryRowsList, heroRel, moved, summary);
     var tt3 = buildTt3(vcj, cardModelList, heroRel, moved, moved && !movedEditable);
 
     if (moved) mount.appendChild(buildCarrySection(state));

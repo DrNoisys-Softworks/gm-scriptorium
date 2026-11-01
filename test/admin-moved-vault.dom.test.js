@@ -95,8 +95,9 @@ for (const browserName of ['chromium', 'firefox']) {
       browser = await pw[browserName].launch();
       const pack = path.join(vault, '_meta', 'scriptorium', 'vault.config.json');
 
-      const openPage = async () => {
+      const openPage = async (setup) => {
         const ctx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
+        if (setup) await setup(ctx);
         const page = await ctx.newPage();
         const dryRuns = [];
         page.on('request', (req) => {
@@ -216,6 +217,33 @@ for (const browserName of ['chromium', 'firefox']) {
         assert.equal((await texts(page, `${screen} .a1-lede`))[0], MOVED_VC_LEDE);
         assert.equal(await page.title(), 'vault-config.yaml · Scriptorium admin panel');
         if (!SKIP_AXE) assert.deepEqual(await axeViolations(page), [], 'axe, the moved editor');
+        await page.context().close();
+      });
+
+      await t.test('Title & tagline when the settings cannot be saved: no summary line sends the GM to a screen that cannot change the settings', async () => {
+        // The panel cannot save this vault's settings: the settings view says it is not editable.
+        const { page } = await openPage((ctx) =>
+          ctx.route('**/api/state**', async (route) => {
+            const res = await route.fetch();
+            const body = await res.json();
+            if (body.vaultSettings) {
+              body.vaultSettings.editable = false;
+              body.vaultSettings.reason = 'The panel cannot save these settings.';
+            }
+            await route.fulfill({ response: res, json: body });
+          }),
+        );
+        await gotoScreen(page, 'title');
+        const screen = '[data-screen="title"]';
+        await page.waitForSelector(`${screen} .tt1-toggle`);
+        assert.equal((await texts(page, `${screen} .tt1-toggle small`))[0], 'Set in _meta/vault-config.yaml, read-only here');
+        assert.equal(
+          (await texts(page, `${screen} .tt1-more .a1-fine`))[0],
+          'These are set in _meta/vault-config.yaml, not in the campaign pack. This campaign is read-only, so they cannot be changed here.',
+        );
+        assert.equal((await texts(page, `${screen} [data-tt="tt2"] h2.a1-rule small`))[0], 'read-only here');
+        assert.equal((await texts(page, `${screen} [data-tt="tt3"] .tt3-card.main .a1-pill`))[0], 'read-only');
+        assert.ok(!(await page.textContent(screen)).includes('Change them on the vault-config.yaml screen'));
         await page.context().close();
       });
 
