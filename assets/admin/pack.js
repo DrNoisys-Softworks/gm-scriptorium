@@ -230,7 +230,7 @@
     return cards;
   }
 
-  /** Rung 3b: what the three layouts say about the other settings on a vault whose settings moved to
+  /** What the three layouts say about the other settings on a vault whose settings moved to
    * _meta/vault-config.yaml. The pack's own copies of them are no longer read, so they are not summarised. */
   var MOVED_SUMMARY = {
     rows: [
@@ -250,7 +250,7 @@
     pill: 'read-only',
   };
 
-  /** The Theme screen's palette note. On a moved vault (rung 3b) the palette is read from
+  /** The Theme screen's palette note. On a moved vault the palette is read from
    * _meta/vault-config.yaml, so the note names that file. */
   function mismatchText(mismatch, settingsLayout) {
     var file = settingsLayout === 'new' ? '_meta/vault-config.yaml' : 'vault-config.md';
@@ -1194,7 +1194,7 @@
     };
   }
 
-  // -- The carry on a moved vault (rung 3b) ---------------------------------------------------------
+  // -- The carry on a moved vault ---------------------------------------------------------
   //
   // A vault whose settings gm-apprentice moved to _meta/vault-config.yaml no longer reads the pack's
   // title, folder map or hide lists. When the GM opens Title & tagline the screen asks the server once
@@ -1350,7 +1350,7 @@
       mount.appendChild(err);
     }
 
-    // Rung 3b: on a vault whose settings moved to _meta/vault-config.yaml, the title and tagline are the
+    // On a vault whose settings moved to _meta/vault-config.yaml, the title and tagline are the
     // yaml's, shown read-only. A title the yaml does not set shows empty with a note, never the pack's.
     var moved = state.settingsLayout === 'new';
     var vs = state.vaultSettings || {};
@@ -1713,7 +1713,7 @@
       if (next.prefs !== prev.prefs || next.viewport !== prev.viewport) applyTitleView();
     });
 
-    // Rung 3b: the carry's plan is asked for once per visit to Title & tagline (see buildCarrySection).
+    // The carry's plan is asked for once per visit to Title & tagline (see buildCarrySection).
     store.subscribe(function (next, prev) {
       if (next.route === prev.route) return;
       var was = Boolean(prev.route && prev.route.screen === 'title');

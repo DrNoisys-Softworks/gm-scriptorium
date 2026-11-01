@@ -588,7 +588,7 @@
     }
   }
 
-  // Rung 3b: which settings layout the nav text was last drawn for (NV.itemFor). null until the state loads.
+  // Which settings layout the nav text was last drawn for (NV.itemFor). null until the state loads.
   var navLayout = null;
 
   /** Redraws the nav labels and screen headers of the screens whose text depends on the layout. */

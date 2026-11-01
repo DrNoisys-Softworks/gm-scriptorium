@@ -68,7 +68,7 @@ function fold(s) {
 
 /**
  * The refusal for a vault whose settings gm-apprentice moved to _meta/vault-config.yaml: where the
- * setting lives now, and that editing it in the panel comes later (rung 3c).
+ * setting lives now, and that editing it in the panel comes later.
  *
  * @param {'tagline'|'settings'} what
  */

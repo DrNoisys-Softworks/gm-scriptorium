@@ -361,7 +361,7 @@ const API_ROUTE_PATHS = [
   // The desktop ports card (ADR 0057 section 8).
   '/api/desktop',
   '/api/desktop/ports',
-  // Rung 3b: the settings carry on a moved vault.
+  // The settings carry on a moved vault.
   '/api/settings/carry',
 ];
 

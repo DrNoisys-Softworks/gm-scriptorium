@@ -172,7 +172,7 @@ function state(req, res, ctx, { query } = {}) {
   if (include.has('variants')) {
     payload.variants = variants.variantsInfo(ctx);
   }
-  // Rung 3b: appended last, after variants, so every pre-existing include response stays
+  // Appended last, after variants, so every pre-existing include response stays
   // byte-identical. Which file the vault keeps its settings in is read from the disk again here,
   // because gm-apprentice can move a vault's settings while the panel runs.
   if (include.has('settings')) {

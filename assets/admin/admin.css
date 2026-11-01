@@ -2790,7 +2790,7 @@ dialog.a1-slip::backdrop {
   gap: 18px;
 }
 
-/* Rung 3b: the carry on a vault whose settings moved to _meta/vault-config.yaml. */
+/* The carry on a vault whose settings moved to _meta/vault-config.yaml. */
 .tt-carry {
   margin: 0 0 18px;
   padding: 14px 16px;

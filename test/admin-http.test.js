@@ -506,7 +506,7 @@ test('route sweep: the table equals a literal list of 53 METHOD path entries plu
     // ADR 0057 section 8: the desktop app's ports card.
     'GET /api/desktop',
     'POST /api/desktop/ports',
-    // Rung 3b: the settings carry on a moved vault.
+    // The settings carry on a moved vault.
     'POST /api/settings/carry',
   ]);
   const assetRoutes = ADMIN_ROUTES.filter((r) => r.prefix !== undefined);

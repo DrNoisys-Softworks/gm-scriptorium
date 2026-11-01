@@ -18,7 +18,7 @@ const { ScriptoriumError, VaultUnreachableError } = require('../../util/errors')
  * The panel on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml (ADR 0071).
  *
  * settingsView: the `?include=settings` part of GET /api/state. The title and tagline as the vault's
- * settings file sets them, shown read-only until editing them there arrives (rung 3c). A title the yaml
+ * settings file sets them, shown read-only until editing them there arrives. A title the yaml
  * does not set is null, never the pack's: on a moved vault the build no longer reads the pack's title
  * (the carry's lines say when it would move).
  *

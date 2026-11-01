@@ -2813,7 +2813,7 @@
 
 
   /**
-   * Rung 3b: a vault whose settings gm-apprentice moved to _meta/vault-config.yaml. The server refuses
+   * A vault whose settings gm-apprentice moved to _meta/vault-config.yaml. The server refuses
    * every write to vault-config.md there (src/vault/vaultconfigwrite.js checkTarget), so the screen
    * shows that refusal and nothing else: no edit switch, no file view, no backups to restore.
    */

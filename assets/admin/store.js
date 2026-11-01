@@ -208,7 +208,7 @@
   window.ScriptoriumAdmin.store.load = function () {
     // V1e-1 (SD-7): vaultconfig appended alongside vocab and palette. V1e-3 (SD-19): previewinfo
     // appended last, after vaultconfig. V1e-9 (SD-99): vaultconfigeditor appended last, after
-    // previewinfo. V1e-7 (SD-64): variants appended last, after vaultconfigeditor. Rung 3b: settings
+    // previewinfo. V1e-7 (SD-64): variants appended last, after vaultconfigeditor. Then settings
     // (which file the vault keeps its settings in, and the yaml's title and tagline) appended last.
     return window.ScriptoriumAdmin.api('/api/state?include=vocab,palette,vaultconfig,previewinfo,vaultconfigeditor,variants,settings').then(function (result) {
       if (!result.ok || !result.body) {

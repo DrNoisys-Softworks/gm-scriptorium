@@ -459,7 +459,7 @@
   }
 
   /**
-   * Rung 3b: on a vault whose settings gm-apprentice moved to _meta/vault-config.yaml, the two screens
+   * On a vault whose settings gm-apprentice moved to _meta/vault-config.yaml, the two screens
    * that edit the old files say where those settings live now. Only these fields change; the id, icon,
    * group and everything else stay the item's own.
    */
@@ -509,7 +509,7 @@
     SOON_STATUS: SOON_STATUS,
     ids: ids,
     item: item,
-    // Rung 3b: the moved-vault text of the two settings screens.
+    // The moved-vault text of the two settings screens.
     itemFor: itemFor,
     parseFragment: parseFragment,
     hrefFor: hrefFor,
